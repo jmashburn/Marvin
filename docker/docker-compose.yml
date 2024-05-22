@@ -1,0 +1,12 @@
+version: "3.4"
+services:
+    marvin:
+        container_name: marvin
+        image: marvin:dev
+        build:
+            context: ../
+            target: production
+            dockerfile: ./docker/Dockerfile
+        restart: always
+        ports:
+            - 9091:9000

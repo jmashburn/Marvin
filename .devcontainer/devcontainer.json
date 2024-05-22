@@ -1,0 +1,46 @@
+{
+    "name": "Python 3",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "..",
+        "args": {
+            "VARIANT": "3.11-bookworm",
+            "NODE_VERSION": "16",
+            "APT_PROXY": "none"
+        }
+    },
+    "mounts":[
+        "source=marvin-bashhistory,target=/home/vscode/commandhistory,type=volume",
+        "source=${localEnv:HOME}/.password-store,target=/home/vscode/.password-store,type=bind,consistency=cached"
+    ],
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
+                "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
+                "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
+            },
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-python.pylint",
+                "matangover.mypy",
+                "ms-python.black-formatter"
+            ]
+        }
+    },
+    "forwardPorts": [
+        3000,
+        9000,
+        9091,
+        25678
+    ],
+    "remoteUser": "vscode",
+    "onCreateCommand": "task setup",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+          "dockerDashComposeVersion": "v2"
+        }
+    }
+}

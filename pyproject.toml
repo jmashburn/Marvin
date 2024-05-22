@@ -1,0 +1,92 @@
+[tool.poetry]
+name = "marvin"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+Jinja2 = "^3.1.2"
+PyYAML = "^6.0.1"
+Pillow = "^10.0.1"
+bcrypt = "^4.0.01"
+fastapi = "^0.111.0"
+python = "^3.10"
+python-dotenv = "^1.0.0"
+python-slugify = "^8.0.0"
+requests = "^2.31.0"
+mangum = "^0.17.0"
+uvicorn = { extras = ["stnadard"], version = "^0.29.0" }
+pydantic = "^2.6.1"
+pydantic-settings = "^2.1.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.postgres.dependencies]
+psycopg2-binary = { version = "^2.9.1" }
+
+[tool.poetry.group.dev.dependencies]
+coverage = "^7.0"
+coveragepy-lcov = "^0.1.1"
+mkdocs-material = "^9.0.0"
+mypy = "^1.5.1"
+pre-commit = "^3.3.3"
+pydantic-to-typescript = "^1.0.7"
+pylint = "^3.0.0"
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+rich = "^13.5.2"
+ruff = "^0.4.0"
+types-PyYAML = "^6.0.4"
+types-python-dateutil = "^2.8.18"
+types-python-slugify = "^6.0.0"
+types-requests = "^2.27.12"
+types-urllib3 = "^1.26.11"
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+minversion = "6.0"
+python_classes = '*Tests'
+python_files = 'test_*'
+python_functions = 'test_*'
+testpaths = ["tests"]
+
+[tool.coverage.report]
+skip_empty = true
+
+[tool.mypy]
+follow_imports = "skip"
+ignore_missing_imports = true
+plugins = "pydantic.mypy"
+python_version = "3.10"
+strict_optional = true
+
+[tool.ruff]
+line-length = 120
+output-format = "concise"
+
+[tool.ruff.lint]
+# Enable Pyflakes `E` and `F` codes by default.
+ignore = ["F403", "TID252", "B008"]
+select = [
+  "E",  # pycodestyles
+  "F",  # pyflakes
+  "I",  # isort
+  "T",  # flake8-print
+  "UP", # pyupgrade
+  "B",  # flake8-bugbear
+  # "ANN", # flake8-annotations
+  # "C", # McCabe complexity
+  # "RUF", # Ruff specific
+  # "BLE", # blind-except
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "E501"]
+"ldap_provider.py" = ["UP032"]
+
+[tool.ruff.lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10

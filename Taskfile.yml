@@ -1,0 +1,76 @@
+version: "3"
+env:
+  DEFAULT_GROUP: Home
+  PRODUCTION: false
+  API_PORT: 9000
+  API_DOCS: True
+  BASE_URL: http://localhost:3000
+dotenv:
+  - .env
+  - .dev.env
+tasks:
+  setup:py:
+    desc: Stup python dependencies
+    cmds:
+      - poetry install --with main,dev,postgres
+      - poetry run pre-commit install
+
+  setup:
+    desc: Setup all dependencies
+    deps:
+      - setup:py
+
+  py:mypy:
+    desc: Runs python type checking
+    cmds:
+      - poetry run mypy marvin
+
+  py:test:
+    desc: runs python tests (support args after '--')
+    cmds:
+      - poetry run pytest {{ .CLI_ARGS }}
+
+  py:format:
+    desc: runs python code formater
+    cmds:
+      - poetry run ruff format .
+
+  py:lint:
+    desc: runs python linter
+    cmds:
+      - poetry run ruff check marvin
+
+  py:check:
+    desc: runs all linters, type checkers and formaters
+    deps:
+      - py:format
+      - py:lint
+      - py:mypy
+      - py:test
+
+  py:coverage:
+    desc: runs python coverage and generates report
+    cmds:
+      - poetry run pytest
+      - poetry run coverage report -m
+      - poetry run coveragepy-lcov
+      - poetry run coverate html
+      - open htmlcov/index.html
+
+  py:
+    desc: runs the backend server
+    cmds:
+      - poetry run python marvin/app.py
+
+
+  docker:prod:
+    desc: Builds and runs the production docker image locally
+    dir: docker
+    cmds:
+      - docker compose -f docker-compose.yml -p marvin up -d --build
+
+
+  docker:lambda:
+    desc: builds and docker image for lambda
+    cmds:
+      - docker build -f docker/Dockerfile --target lambda .
