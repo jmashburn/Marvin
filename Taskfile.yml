@@ -73,4 +73,4 @@ tasks:
   docker:lambda:
     desc: builds and docker image for lambda
     cmds:
-      - docker build -f docker/Dockerfile --target lambda .
+      - docker build -f docker/Dockerfile --target lambda --build-arg="IMAGE=public.ecr.aws/lambda/python" --tag=marvin:lastest

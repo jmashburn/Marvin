@@ -1,4 +1,6 @@
 import secrets
+from typing import OrderedDict
+from dotenv import dotenv_values
 from pathlib import Path
 
 from pydantic import field_validator
@@ -30,6 +32,8 @@ class AppSettings(BaseSettings):
     API_DOCS: bool = True
 
     SECRET: str
+
+    ENV_SECRETS: OrderedDict | None = None
 
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 9000
@@ -64,7 +68,9 @@ class AppSettings(BaseSettings):
         return "/redoc" if self.API_DOCS else None
 
 
-def app_settings_constructor(data_dir: Path, production: bool, env_file: Path, env_encoding="utf-8") -> AppSettings:
+def app_settings_constructor(
+    data_dir: Path, production: bool, env_file: Path, env_secrets: Path, env_encoding="utf-8"
+) -> AppSettings:
     """
     app_settings_constructor is a factor function that returns an AppSettings object.  Its is ued to inject the dependencies
     into the AppSettings objects and nested child objects. AppSettings should not be substantianed directory, but rather
@@ -75,6 +81,7 @@ def app_settings_constructor(data_dir: Path, production: bool, env_file: Path, e
         _env_file=env_file,  # type: ignore
         _env_file_encoding=env_encoding,  # type: ignore
         **{"SECRET": determine_secrets(data_dir, production)},
+        **{"ENV_SECRETS": dotenv_values(env_secrets)},
     )
 
     return app_settings

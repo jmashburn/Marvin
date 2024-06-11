@@ -11,6 +11,7 @@ from .settings import AppDirectories, AppSettings
 CWD = Path(__file__).parent
 BASE_DIR = CWD.parent.parent
 ENV = BASE_DIR.joinpath(".env")
+ENV_SECRETS = BASE_DIR.joinpath(".env.secrets")
 
 dotenv.load_dotenv(ENV)
 PRODUCTION = os.getenv("PRODUCTION", "True").lower() in ["true", "1"]
@@ -37,4 +38,6 @@ def get_app_dirs() -> AppDirectories:
 
 @lru_cache
 def get_app_settings() -> AppSettings:
-    return app_settings_constructor(env_file=ENV, production=PRODUCTION, data_dir=determine_data_dir())
+    return app_settings_constructor(
+        env_file=ENV, env_secrets=ENV_SECRETS, production=PRODUCTION, data_dir=determine_data_dir()
+    )

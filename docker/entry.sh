@@ -2,7 +2,6 @@
 # Start Backend API
 
 init() {
-    # $MEALIE_HOME directory
     cd /app
 
     # Activate our virtual environment here

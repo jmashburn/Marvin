@@ -26,7 +26,8 @@
                 "ms-python.vscode-pylance",
                 "ms-python.pylint",
                 "matangover.mypy",
-                "ms-python.black-formatter"
+                "ms-python.black-formatter",
+                "ms-azuretools.vscode-docker"
             ]
         }
     },
@@ -39,8 +40,13 @@
     "remoteUser": "vscode",
     "onCreateCommand": "task setup",
     "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {
-          "dockerDashComposeVersion": "v2"
-        }
+        // "ghcr.io/devcontainers/features/docker-in-docker:2": {
+        //     "moby": true,
+        //     "azureDnsAutoDetection": true,
+        //     "installDockerBuildx": true,
+        //     "installDockerComposeSwitch": true,
+        //     "version": "lastest",
+        //     "dockerDashComposeVersion": "v2"
+        // }
     }
 }

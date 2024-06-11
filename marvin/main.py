@@ -1,10 +1,11 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from mangum import Mangum
+
 
 from marvin.core.config import get_app_settings
 from marvin.core.root_logger import get_logger
@@ -18,7 +19,7 @@ settings = get_app_settings()
 logger = get_logger()
 
 description = f"""
-    **{APP_VERSION}**
+    <b>{APP_VERSION}</b>
 """
 
 
@@ -77,22 +78,5 @@ def api_routers():
 
 api_routers()
 
-
-def main():
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=settings.API_PORT,
-        reload=True,
-        reload_dirs=["marvin"],
-        reload_delay=2,
-        log_level="info",
-        use_colors=True,
-        log_config=None,
-        workers=1,
-        forwarded_allow_ips="*",
-    )
-
-
-if __name__ == "__main__":
-    main()
+# Handler for AWS Lambda
+handler = Mangum(app)

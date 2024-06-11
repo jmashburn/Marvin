@@ -9,7 +9,7 @@ ARG NODE_VERSION="none"
 RUN if [ "${NODE_VERSION}" != "none" ]; then su vscode -c "umask 0002 && . /usr/local/share/nvm/nvm.sh && nvm install ${NODE_VERSION} 2>&1"; fi
 
 ARG APT_PROXY="none"
-RUN if [ "${APT_PROXY}" != "none" ]; then echo "'Acquire::http::Proxy \"${APT_PROXY}\";' | tee /etc/apt/apt.conf.d/01proxy"; fi
+RUN if [ "${APT_PROXY}" != "none" ]; then echo "Acquire::http::Proxy \"${APT_PROXY}\";" | tee /etc/apt/apt.conf.d/01proxy; fi
 
 RUN echo "export PROMPT_COMMAND='history -a'" >> /home/vscode/.bashrc \
     && echo "export HISTFILE=~/commandhistory/.bash_history" \

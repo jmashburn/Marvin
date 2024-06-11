@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
-from . import app
+from . import marvin
 
 router = APIRouter(prefix="/api")
+router.include_router(marvin.router)
 
-router.include_router(app.router)
+# Addons
