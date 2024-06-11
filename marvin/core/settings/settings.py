@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def determine_secrets(data_dir: Path, production: bool) -> str:
     if not production:
-        return "ssh-secret-test-kkey"
+        return "ssh-secret-test-key"
 
     secrets_file = data_dir.joinpath(".secret")
     if secrets_file.is_file():

@@ -36,7 +36,7 @@ async def lifespan_fn(_: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("------APP SETTINGS------")
     logger.info(
         settings.model_dump_json(
-            indent=4,
+            indent=2,
             exclude={"SECRET", "ENV_SECRETS"},
         )
     )
