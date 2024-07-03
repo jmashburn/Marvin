@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, status
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import ResponseValidationError
 from fastapi.responses import JSONResponse
 
 from marvin.core.config import get_app_settings
@@ -21,8 +21,8 @@ def register_debug_handler(app: FastAPI):
     if settings.PRODUCTION and not settings.TESTING:
         return
 
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    @app.exception_handler(ResponseValidationError)
+    async def validation_exception_handler(request: Request, exc: ResponseValidationError):
         exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
         log_wrapper(request, exc)
         content = {"status _code": status.HTTP_422_UNPROCESSABLE_ENTITY, "message": exc_str, "data": None}

@@ -72,7 +72,7 @@ def app_settings_constructor(
     data_dir: Path, production: bool, env_file: Path, env_secrets: Path, env_encoding="utf-8"
 ) -> AppSettings:
     """
-    app_settings_constructor is a factor function that returns an AppSettings object.  Its is ued to inject the dependencies
+    app_settings_constructor is a factor function that returns an AppSettings object. Its is used to inject the dependencies
     into the AppSettings objects and nested child objects. AppSettings should not be substantianed directory, but rather
     through this factory function
     """

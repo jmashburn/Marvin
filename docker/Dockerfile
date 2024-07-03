@@ -3,7 +3,7 @@
 ##################################
 ARG IMAGE="python"
 ARG VARIENT="3.11"
-FROM ${IMAGE}:${VARIENT} as python-base
+FROM ${IMAGE}:${VARIENT} AS python-base
 
 
 ENV MARVIN_HOME="/app"
@@ -20,18 +20,19 @@ ENV PYTHONUNBUFFERED=1 \
 
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
-RUN mkdir $MARVIN_HOME
+RUN mkdir "$MARVIN_HOME"
 
 ##################################
 # Builder Image - Python
 ##################################
-FROM python-base as builder-base
+FROM python-base AS builder-base
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     curl \
     build-essential \
     libsasl2-dev libldap2-dev libssl-dev \
     gnupg gnupg2 gnupg1 \
+    && apt-get clean \
     && pip install -U --no-cache-dir pip
 
 
@@ -48,7 +49,7 @@ RUN poetry install --only main
 # ##################################
 # Production Base Image
 # ##################################
-FROM python-base as production-base
+FROM python-base AS production-base
 ENV PRODUCTION=true
 ENV TESTING=false
 
@@ -68,7 +69,7 @@ WORKDIR /
 # ##################################
 # Production Image
 # ##################################
-FROM pre-prod as production
+FROM pre-prod AS production
 COPY ./docker/entry.sh $MARVIN_HOME/run.sh
 
 RUN chmod +x $MARVIN_HOME/run.sh
@@ -78,7 +79,7 @@ ENTRYPOINT ["/app/run.sh"]
 # ##################################
 # Lambda Image
 # ##################################
-FROM production-base as lambda
+FROM production-base AS lambda
 
 ARG FUNCTION_DIR="/function"
 

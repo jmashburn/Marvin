@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter
 
 from marvin.core.config import get_app_settings
 from marvin.core.settings.static import APP_VERSION
