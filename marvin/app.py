@@ -29,10 +29,15 @@ async def lifespan_fn(_: FastAPI) -> AsyncGenerator[None, None]:
     This function is called when the FastAPI application starts and stops
 
     """
-    logger.info("start: ")
-    logger.info("end: ")
-
     logger.info("------SYSTEM STARTUP------")
+
+    logger.info("start: database initialization")
+
+    import marvin.db.init_db as init_db
+
+    init_db.main()
+    logger.info("end: database initialization")
+
     logger.info("------APP SETTINGS------")
     logger.info(
         settings.model_dump_json(

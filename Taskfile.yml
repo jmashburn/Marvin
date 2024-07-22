@@ -62,6 +62,11 @@ tasks:
     cmds:
       - poetry run python marvin/app.py
 
+  py:migrate:
+    desc: generates a new database migration file e.g. task py:migrate "add new column"
+    cmds:
+      - poetry run alembic revision --autogenerate -m "{{ .CLI_ARGS }}"
+      - task: py:format
 
   docker:prod:
     desc: Builds and runs the production docker image locally

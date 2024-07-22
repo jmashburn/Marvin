@@ -1,3 +1,4 @@
+import logging
 import secrets
 from typing import OrderedDict
 from dotenv import dotenv_values
@@ -5,6 +6,8 @@ from pathlib import Path
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .db_providers import AbstractDBProvider, db_provider_factory
 
 
 def determine_secrets(data_dir: Path, production: bool) -> str:
@@ -24,7 +27,7 @@ def determine_secrets(data_dir: Path, production: bool) -> str:
 
 
 class AppSettings(BaseSettings):
-    PRODUCTION: bool
+    PRODUCTION: bool = False
 
     BASE_URL: str = "http://localhost:8080"
     """trailing slashes are trimmed (ex. `http://localhost:8080/` becomes ``http://localhost:8080`)"""
@@ -35,6 +38,9 @@ class AppSettings(BaseSettings):
 
     ENV_SECRETS: OrderedDict | None = None
 
+    PLUGIN_PREFIX: str = "marvin_"
+    PLUGINS: bool = True
+
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 9000
 
@@ -43,6 +49,15 @@ class AppSettings(BaseSettings):
 
     LOG_LEVEL: str = "info"
     """ corresponds to standard Python Log levels """
+
+    @property
+    def logger(self) -> logging.Logger:
+        if self._logger is None:
+            from marvin.core.root_logger import get_logger
+
+            self._logger = get_logger()
+
+        return self._logger
 
     # ===============================================
     # Testing Config
@@ -67,6 +82,20 @@ class AppSettings(BaseSettings):
     def REDOC_URL(self) -> str | None:
         return "/redoc" if self.API_DOCS else None
 
+    # ===============================================
+    # Database Config
+
+    DB_ENGINE: str = "sqlite"
+    DB_PROVIDER: AbstractDBProvider | None = None
+
+    @property
+    def DB_URL(self) -> str | None:
+        return self.DB_PROVIDER.db_url if self.DB_PROVIDER else None
+
+    @property
+    def DB_URL_PUBLIC(self) -> str | None:
+        return self.DB_PROVIDER.db_url_public if self.DB_PROVIDER else None
+
 
 def app_settings_constructor(
     data_dir: Path, production: bool, env_file: Path, env_secrets: Path, env_encoding="utf-8"
@@ -82,6 +111,13 @@ def app_settings_constructor(
         _env_file_encoding=env_encoding,  # type: ignore
         **{"SECRET": determine_secrets(data_dir, production)},
         **{"ENV_SECRETS": dotenv_values(env_secrets)},
+    )
+
+    app_settings.DB_PROVIDER = db_provider_factory(
+        app_settings.DB_ENGINE or "sqlite",
+        data_dir,
+        env_file=env_file,
+        env_encoding=env_encoding,
     )
 
     return app_settings

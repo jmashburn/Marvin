@@ -1,4 +1,3 @@
-from abc import ABC
 from logging import Logger
 
 from pydantic import ConfigDict
@@ -9,7 +8,7 @@ from marvin.core.settings import AppSettings
 from marvin.core.settings.directories import AppDirectories
 
 
-class _MarvinService(ABC):
+class _MarvinService:
     _logger: Logger | None = None
     _settings: AppSettings | None = None
     _directories: AppDirectories | None = None
