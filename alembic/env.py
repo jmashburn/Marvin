@@ -1,11 +1,12 @@
 # from logging.config import fileConfig
+from typing import Any
 
-from sqlalchemy import engine_from_config
+import sqlalchemy as sa
 from sqlalchemy import pool
 
 from alembic import context
 from marvin.core.config import get_app_settings
-from marvin.db.models._model_base import SqlAlchemyBase
+from marvin.db.models import SqlAlchemyBase
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -34,6 +35,24 @@ if not settings.DB_URL:
 
 
 config.set_main_option("sqlalchemy.url", settings.DB_URL.replace("%", "%%"))
+
+PLUGIN_PREFIX = "alembic_"
+
+
+def include_object(object: Any, name: str, type_: str, reflected: bool, compare_to: Any) -> bool:
+    """Return True if the object should be included in the migration."""
+    # Don't include objects that are not in the model
+    # or that are not in the plugin prefix
+    if type_ == "table":
+        # Don't drop tables that are unknown in the model... unless these are really tables dropped from the plugin.
+        return name in target_metadata.tables or name.startswith(PLUGIN_PREFIX)
+    elif type_ == "column":
+        # Don't include columns that are not in the model
+        return name in target_metadata.tables[object.table.name].c
+    elif type_ == "index":
+        # Don't include indexes that are not in the model
+        return name in target_metadata.tables[object.table.name].indexes
+    return True
 
 
 def run_migrations_offline() -> None:
@@ -67,14 +86,20 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
+    connectable = sa.engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            user_module_prefix="marvin.db.migration_types.",
+            render_as_batch=True,
+            include_object=include_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()
