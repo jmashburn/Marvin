@@ -1,9 +1,4 @@
-from collections.abc import Sequence
-from functools import cached_property
-
-from sqlalchemy import select
 from sqlalchemy.orm import Session
-
 
 # class RepositoryCategories(RepositoryGeneric[CategoryOut, Category]):
 #     def get_empty(self) -> Sequence[Category]:
