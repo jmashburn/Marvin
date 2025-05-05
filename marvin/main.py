@@ -6,13 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from mangum import Mangum
 
-
 from marvin.core.config import get_app_settings
 from marvin.core.root_logger import get_logger
 from marvin.core.settings.static import APP_VERSION
 from marvin.routes import router
 from marvin.routes.handlers import register_debug_handler
-
 
 settings = get_app_settings()
 

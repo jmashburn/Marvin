@@ -12,7 +12,6 @@ from marvin.core.settings.static import APP_VERSION
 from marvin.routes import router
 from marvin.routes.handlers import register_debug_handler
 
-
 settings = get_app_settings()
 
 logger = get_logger()
