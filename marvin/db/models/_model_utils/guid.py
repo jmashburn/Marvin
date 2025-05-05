@@ -27,8 +27,9 @@ class GUID(TypeDecorator):
             return str(value)
         else:
             if not isinstance(value, uuid.UUID):
-                return f"{uuid,UUID(value).int:032x}"
+                return f"{uuid.UUID(value).int:032x}"
             else:
+                # hexstring
                 return f"{value.int:032x}"
 
     def load_dialect_impl(self, dialect):
@@ -37,7 +38,7 @@ class GUID(TypeDecorator):
         else:
             return dialect.type_descriptor(CHAR(32))
 
-    def process_bind_params(self, value, dialect):
+    def process_bind_param(self, value, dialect):
         return self.convert_value_to_guid(value, dialect)
 
     def _uuid_value(self, value):
