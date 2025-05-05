@@ -12,8 +12,8 @@ tasks:
   setup:py:
     desc: Stup python dependencies
     cmds:
-      - poetry install --with main,dev,postgres
-      - poetry run pre-commit install
+      - uv install --with main,dev,postgres
+      - uv run pre-commit install
 
   setup:
     desc: Setup all dependencies
@@ -23,22 +23,22 @@ tasks:
   py:mypy:
     desc: Runs python type checking
     cmds:
-      - poetry run mypy marvin
+      - uv run mypy marvin
 
   py:test:
     desc: runs python tests (support args after '--')
     cmds:
-      - poetry run pytest {{ .CLI_ARGS }}
+      - uv run pytest {{ .CLI_ARGS }}
 
   py:format:
     desc: runs python code formater
     cmds:
-      - poetry run ruff format .
+      - uv run ruff format .
 
   py:lint:
     desc: runs python linter
     cmds:
-      - poetry run ruff check marvin
+      - uv run ruff check marvin
 
   py:check:
     desc: runs all linters, type checkers and formaters
@@ -51,21 +51,21 @@ tasks:
   py:coverage:
     desc: runs python coverage and generates report
     cmds:
-      - poetry run pytest
-      - poetry run coverage report -m
-      - poetry run coveragepy-lcov
-      - poetry run coverate html
+      - uv run pytest
+      - uv run coverage report -m
+      - uv run coveragepy-lcov
+      - uv run coverate html
       - open htmlcov/index.html
 
   py:
     desc: runs the backend server
     cmds:
-      - poetry run python marvin/app.py
+      - uv run python marvin/app.py
 
   py:migrate:
     desc: generates a new database migration file e.g. task py:migrate "add new column"
     cmds:
-      - poetry run alembic revision --autogenerate -m "{{ .CLI_ARGS }}"
+      - uv run alembic revision --autogenerate -m "{{ .CLI_ARGS }}"
       - task: py:format
 
   docker:prod:

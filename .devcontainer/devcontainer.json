@@ -38,15 +38,15 @@
         25678
     ],
     "remoteUser": "vscode",
-    "onCreateCommand": "task setup",
-    "features": {
-        // "ghcr.io/devcontainers/features/docker-in-docker:2": {
-        //     "moby": true,
-        //     "azureDnsAutoDetection": true,
-        //     "installDockerBuildx": true,
-        //     "installDockerComposeSwitch": true,
-        //     "version": "lastest",
-        //     "dockerDashComposeVersion": "v2"
-        // }
-    }
+    "onCreateCommand": "task setup"
+    // "features": {
+    //     // "ghcr.io/devcontainers/features/docker-in-docker:2": {
+    //     //     "moby": true,
+    //     //     "azureDnsAutoDetection": true,
+    //     //     "installDockerBuildx": true,
+    //     //     "installDockerComposeSwitch": true,
+    //     //     "version": "lastest",
+    //     //     "dockerDashComposeVersion": "v2"
+    //     // }
+    // }
 }
