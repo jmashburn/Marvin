@@ -1,9 +1,9 @@
 import logging
 import secrets
-from typing import OrderedDict
-from dotenv import dotenv_values
+from collections import OrderedDict
 from pathlib import Path
 
+from dotenv import dotenv_values
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -49,6 +49,8 @@ class AppSettings(BaseSettings):
 
     LOG_LEVEL: str = "info"
     """ corresponds to standard Python Log levels """
+
+    _logger: logging.Logger | None = None
 
     @property
     def logger(self) -> logging.Logger:
@@ -97,18 +99,47 @@ class AppSettings(BaseSettings):
         return self.DB_PROVIDER.db_url_public if self.DB_PROVIDER else None
 
 
+class PluginSettings(BaseSettings):
+    """Plugin Settings"""
+
+    # Plugin Name
+    PLUGIN_NAME: str
+
+    # Plugin Version
+    PLUGIN_VERSION: str
+
+    # Plugin Description
+    PLUGIN_DESCRIPTION: str | None = None
+
+    # Plugin Author
+    PLUGIN_AUTHOR: str | None = None
+
+    # Plugin Author Email
+    PLUGIN_AUTHOR_EMAIL: str | None = None
+
+    model_config = SettingsConfigDict(arbitrary_types_allowed=True, extra="allow")
+
+
 def app_settings_constructor(
-    data_dir: Path, production: bool, env_file: Path, env_secrets: Path, env_encoding="utf-8"
+    data_dir: Path,
+    production: bool,
+    env_file: Path,
+    env_secrets: Path,
+    secrets_dir: Path,
+    env_encoding="utf-8",
 ) -> AppSettings:
     """
-    app_settings_constructor is a factor function that returns an AppSettings object. Its is used to inject the dependencies
-    into the AppSettings objects and nested child objects. AppSettings should not be substantianed directory, but rather
+    app_settings_constructor is a factor function that returns an AppSettings object.
+    Its is used to inject the dependencies
+    into the AppSettings objects and nested child objects.
+    AppSettings should not be substantianed directory, but rather
     through this factory function
     """
 
     app_settings = AppSettings(
         _env_file=env_file,  # type: ignore
         _env_file_encoding=env_encoding,  # type: ignore
+        _secrets_dir=secrets_dir,  # type: ignore
         **{"SECRET": determine_secrets(data_dir, production)},
         **{"ENV_SECRETS": dotenv_values(env_secrets)},
     )
@@ -118,6 +149,38 @@ def app_settings_constructor(
         data_dir,
         env_file=env_file,
         env_encoding=env_encoding,
+    )
+    return app_settings
+
+
+def app_plugin_settings_constructor(
+    name: str,
+    version: str,
+    env_file: Path,
+    data_dir: Path,
+    production: bool,
+    env_secrets: Path,
+    secrets_dir: Path,
+    env_encoding="utf-8",
+    description: str | None = None,
+    author: str | None = None,
+    author_email: str | None = None,
+    env_nested_delimiter: str = "__",
+    PluginSettings: type[PluginSettings] = PluginSettings,
+) -> PluginSettings:
+    app_settings = PluginSettings(
+        PLUGIN_NAME=name,
+        PLUGIN_VERSION=version,
+        PLUGIN_DESCRIPTION=description,
+        PLUGIN_AUTHOR=author,
+        PLUGIN_AUTHOR_EMAIL=author_email,
+        _env_prefix=name.upper() + "_",
+        _env_file=env_file,  # type: ignore
+        _env_file_encoding=env_encoding,  # type: ignore
+        _secrets_dir=secrets_dir,  # type: ignore
+        _env_nested_delimiter=env_nested_delimiter,
+        **{"SECRET": determine_secrets(data_dir, production)},
+        **{"ENV_SECRETS": dotenv_values(env_secrets)},
     )
 
     return app_settings

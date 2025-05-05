@@ -32,10 +32,10 @@ class AppPlugins:
 
     def load_plugins(self) -> list:
         """Import Plugins from plugins folder"""
-        loaded_apps = []
-        for _, application, _ in pkgutil.iter_modules():
-            if application.startswith(self.PLUGIN_PREFIX):
-                module = self.import_module(application)
+        loaded_apps = {}
+        for _, module_name, _ in pkgutil.iter_modules():
+            if module_name.startswith(self.PLUGIN_PREFIX):
+                module = self.import_module(module_name)
                 if hasattr(module, "__meta__") and "name" in module.__meta__ and "version" in module.__meta__:
-                    loaded_apps.append(module)
+                    loaded_apps.update({module_name: module})
         return loaded_apps

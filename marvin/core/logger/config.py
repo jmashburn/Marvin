@@ -4,7 +4,6 @@ import pathlib
 import typing
 from logging import config as logging_config
 
-
 __dir = pathlib.Path(__file__).parent
 __conf: dict[str, str] | None = None
 
