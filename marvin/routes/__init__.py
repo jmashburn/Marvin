@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from collections.abc import Callable
 
+from fastapi import APIRouter
 
 from marvin.core.config import get_app_plugins, get_app_settings
 from marvin.core.root_logger import get_logger
@@ -17,10 +18,12 @@ router.include_router(app.router)
 # Load Plugins. Plugins dir takes precendent the lib plugins
 def load_routes():
     """Load Plugins from plugins"""
-    for plugin in plugins.LOADED_PLUGINS:
+    for plugin_name, plugin in plugins.LOADED_PLUGINS.items():
         if "routers" in plugin.__dir__():
-            logger.info(f"Loaded Routers - name: {plugin.__meta__['name']} -- version: {plugin.__meta__['version']}")
-            router.include_router(plugin.routers)
+            if isinstance(plugin.routers, Callable):
+                logger.info(f"Loaded Routers - name: {plugin_name} -- version: {plugin.__meta__['version']}")
+                routers = plugin.routers()
+                router.include_router(routers)
 
 
 if settings.PLUGINS:
