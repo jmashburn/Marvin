@@ -2,8 +2,9 @@ from pathlib import Path
 
 
 class AppDirectories:
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, plugin_dir: Path) -> None:
         self.DATA_DIR = data_dir
+        self.PLUGIN_DIR = plugin_dir
         self.BACKUP_DIR = data_dir.joinpath("backups")
 
         self._TEMP_DIR = data_dir.joinpath(".temp")
@@ -14,8 +15,6 @@ class AppDirectories:
         return self._TEMP_DIR
 
     def ensure_directories(self):
-        required_dirs = [
-            self.BACKUP_DIR,
-        ]
+        required_dirs = [self.BACKUP_DIR, self.PLUGIN_DIR]
         for dir in required_dirs:
             dir.mkdir(parents=True, exist_ok=True)

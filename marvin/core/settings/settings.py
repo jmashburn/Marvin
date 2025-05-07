@@ -3,11 +3,20 @@ import secrets
 from collections import OrderedDict
 from pathlib import Path
 
+
+from datetime import datetime, timezone
+from typing import NamedTuple
 from dotenv import dotenv_values
+from dateutil.tz import tzlocal
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .db_providers import AbstractDBProvider, db_provider_factory
+
+
+class ScheduleTime(NamedTuple):
+    hour: int
+    minute: int
 
 
 def determine_secrets(data_dir: Path, production: bool) -> str:
@@ -52,6 +61,9 @@ class AppSettings(BaseSettings):
 
     _logger: logging.Logger | None = None
 
+    DAILY_SCHEDULE_TIME: str = "23:45"
+    """Local server time, in HH:MM format. See `DAILY_SCHEDULE_TIME_UTC` for the parsed UTC equivalent"""
+
     @property
     def logger(self) -> logging.Logger:
         if self._logger is None:
@@ -60,6 +72,32 @@ class AppSettings(BaseSettings):
             self._logger = get_logger()
 
         return self._logger
+
+    @property
+    def DAILY_SCHEDULE_TIME_UTC(self) -> ScheduleTime:
+        """The DAILY_SCHEDULE_TIME in UTC, parsed into hours and minutes"""
+
+        # parse DAILY_SCHEDULE_TIME into hours and minutes
+        try:
+            hour_str, minute_str = self.DAILY_SCHEDULE_TIME.split(":")
+            local_hour = int(hour_str)
+            local_minute = int(minute_str)
+        except ValueError:
+            local_hour = 23
+            local_minute = 45
+            self.logger.exception(
+                f"Unable to parse {self.DAILY_SCHEDULE_TIME=} as HH:MM; defaulting to {local_hour}:{local_minute}"
+            )
+
+        # DAILY_SCHEDULE_TIME is in local time, so we convert it to UTC
+        local_tz = tzlocal()
+
+        now = datetime.now(local_tz)
+        local_time = now.replace(hour=local_hour, minute=local_minute)
+        utc_time = local_time.astimezone(timezone.utc)
+
+        self.logger.debug(f"Local time: {local_hour}:{local_minute} | UTC time: {utc_time.hour}:{utc_time.minute}")
+        return ScheduleTime(utc_time.hour, utc_time.minute)
 
     # ===============================================
     # Testing Config

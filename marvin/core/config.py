@@ -14,8 +14,8 @@ ENV = BASE_DIR.joinpath(".env")
 ENV_SECRETS = BASE_DIR.joinpath(".env.secrets")
 
 dotenv.load_dotenv(ENV)
-PRODUCTION = os.getenv("PRODUCTION")
-TESTING = os.getenv("TESTING")
+PRODUCTION = os.getenv("PRODUCTION", "False") == "True"
+TESTING = os.getenv("TESTING", "False") == "True"
 DATA_DIR = os.getenv("DATA_DIR")
 PLUGIN_DIR = os.getenv("PLUGIN_DIR")
 SECRECTS_DIR = os.getenv("SECRETS_DIR")
@@ -35,13 +35,19 @@ def determine_data_dir() -> Path:
 
 
 def determin_plugin_dir() -> Path:
-    global PLUGIN_DIR, BASE_DIR
-    return BASE_DIR.joinpath(PLUGIN_DIR if PLUGIN_DIR else "plugins")
+    global PRODUCTION, TESTING, BASE_DIR, DATA_DIR
+
+    if TESTING:
+        return BASE_DIR.joinpath(DATA_DIR if DATA_DIR else "tests", ".temp")
+    if PRODUCTION:
+        return Path(DATA_DIR if DATA_DIR else BASE_DIR.joinpath("app", "plugins"))
+
+    return BASE_DIR.joinpath("dev", "plugins")
 
 
 @lru_cache
 def get_app_dirs() -> AppDirectories:
-    return AppDirectories(determine_data_dir())
+    return AppDirectories(determine_data_dir(), determin_plugin_dir())
 
 
 @lru_cache

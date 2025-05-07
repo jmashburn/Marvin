@@ -11,6 +11,7 @@ from marvin.core.root_logger import get_logger
 from marvin.core.settings.static import APP_VERSION
 from marvin.routes import router
 from marvin.routes.handlers import register_debug_handler
+from marvin.services.scheduler import SchedulerRegistry, SchedulerService, tasks
 
 settings = get_app_settings()
 
@@ -36,6 +37,8 @@ async def lifespan_fn(_: FastAPI) -> AsyncGenerator[None, None]:
 
     init_db.main()
     logger.info("end: database initialization")
+
+    await start_scheduler()
 
     logger.info("------APP SETTINGS------")
     logger.info(
@@ -71,6 +74,30 @@ if not settings.PRODUCTION:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+
+async def start_scheduler():
+    SchedulerRegistry.register_daily(
+        # tasks.purge_expired_tokens,
+        # tasks.purge_group_registration,
+        # tasks.purge_password_reset_tokens,
+        # tasks.purge_group_data_exports,
+        # tasks.create_mealplan_timeline_events,
+        # tasks.delete_old_checked_list_items,
+    )
+
+    SchedulerRegistry.register_minutely(
+        tasks.ping,
+    )
+
+    SchedulerRegistry.register_hourly(
+        # tasks.locked_user_reset,
+    )
+
+    SchedulerRegistry.print_jobs()
+
+    await SchedulerService.start()
+
 
 register_debug_handler(app)
 
