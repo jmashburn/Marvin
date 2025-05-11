@@ -8,7 +8,7 @@ from sqlalchemy.orm.mapper import Mapper
 from sqlalchemy.orm.relationships import RelationshipProperty
 from sqlalchemy.sql.base import ColumnCollection
 
-from .._model_base import SqlAlchemyBase
+from .. import SqlAlchemyBase
 from .helpers import safe_call
 
 

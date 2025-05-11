@@ -14,7 +14,7 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.sql import sqltypes
 
 from marvin.core.root_logger import get_logger
-from marvin.db.models._model_base import SqlAlchemyBase
+from marvin.db.models import SqlAlchemyBase
 from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas.response.pagination import (
     OrderByNullPosition,
@@ -465,40 +465,3 @@ class RepositoryGeneric(Generic[Schema, Model]):
     def add_search_to_query(self, query: Select, schema: type[Schema], search: str) -> Select:
         search_filter = SearchFilter(self.session, search, schema._normalize_search)
         return search_filter.filter_query_by_search(query, schema, self.model)
-
-
-class GroupRepositoryGeneric(RepositoryGeneric[Schema, Model]):
-    def __init__(
-        self,
-        session: Session,
-        primary_key: str,
-        sql_model: type[Model],
-        schema: type[Schema],
-        *,
-        group_id: UUID4 | None | NotSet,
-    ) -> None:
-        super().__init__(session, primary_key, sql_model, schema)
-        if group_id is NOT_SET:
-            raise ValueError("group_id must be set")
-        self._group_id = group_id if group_id else None
-
-
-class HouseholdRepositoryGeneric(RepositoryGeneric[Schema, Model]):
-    def __init__(
-        self,
-        session: Session,
-        primary_key: str,
-        sql_model: type[Model],
-        schema: type[Schema],
-        *,
-        group_id: UUID4 | None | NotSet,
-        household_id: UUID4 | None | NotSet,
-    ) -> None:
-        super().__init__(session, primary_key, sql_model, schema)
-        if group_id is NOT_SET:
-            raise ValueError("group_id must be set")
-        self._group_id = group_id if group_id else None
-
-        if household_id is NOT_SET:
-            raise ValueError("household_id must be set")
-        self._household_id = household_id if household_id else None

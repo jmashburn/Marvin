@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response
 
 from marvin.core.config import get_app_settings
 from marvin.core.settings.static import APP_VERSION
-from marvin.routes._marvin import MarvinApiRouter
+from marvin.routes._base import MarvinApiRouter
 from marvin.schemas.app import AppInfo, AppStartupInfo, AppTheme
 
 router = MarvinApiRouter(prefix="/about")

@@ -51,7 +51,7 @@ class AppSettings(BaseSettings):
     PLUGINS: bool = True
 
     API_HOST: str = "0.0.0.0"
-    API_PORT: int = 9000
+    API_PORT: int = 8080
 
     LOG_CONFIG_OVERRIDE: Path | None = None
     """ path to custom logging configuration file"""
