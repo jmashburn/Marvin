@@ -8,7 +8,7 @@ Create Date: ${create_date}
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as s
+import sqlalchemy as sa
 import marvin.db.migration_types
 % if imports:
 ${imports}

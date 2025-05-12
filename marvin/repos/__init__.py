@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from math import ceil
 from typing import Any, Generic, TypeVar
 
@@ -78,7 +78,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
         return {}
 
     def _random_seed(self) -> str:
-        return str(datetime.now(tz=UTC))
+        return str(datetime.now(tz=timezone.utc))
 
     def _log_exception(self, e: Exception) -> None:
         self.logger.error(f"Error processing query for Repo model={self.model.__name__} schema={self.schema.__name__}")
