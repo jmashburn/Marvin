@@ -1,11 +1,11 @@
 import uuid
-from datetime import UTC, date, datetime
+from datetime import timezone, date, datetime
 from enum import Enum, auto
 from typing import Any
 
 from pydantic import UUID4, SerializeAsAny, field_validator
 
-from marvin.schemas._marvin.marvin_model import MarvinModel
+from marvin.schemas._marvin import _MarvinModel
 
 INTERNAL_INTEGRATION_ID = "marvin_generic_user"
 
@@ -78,7 +78,7 @@ class EventOperation(Enum):
     delete = "delete"
 
 
-class EventDocumentDataBase(MarvinModel):
+class EventDocumentDataBase(_MarvinModel):
     document_type: EventDocumentType
     operation: EventOperation
     ...
@@ -97,7 +97,7 @@ class EventWebhookData(EventDocumentDataBase):
     webhook_body: Any = None
 
 
-class EventBusMessage(MarvinModel):
+class EventBusMessage(_MarvinModel):
     title: str
     body: str = ""
 
@@ -112,7 +112,7 @@ class EventBusMessage(MarvinModel):
         return v or "generic"
 
 
-class Event(MarvinModel):
+class Event(_MarvinModel):
     message: EventBusMessage
     event_type: EventTypes
     integration_id: str
@@ -125,4 +125,4 @@ class Event(MarvinModel):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.event_id = uuid.uuid4()
-        self.timestamp = datetime.now(UTC)
+        self.timestamp = datetime.now(timezone.utc)

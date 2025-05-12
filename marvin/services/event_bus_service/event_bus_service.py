@@ -6,7 +6,7 @@ from marvin.core.config import get_app_settings
 from marvin.db.db_setup import generate_session
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.response.pagination import PaginationQuery
-from marvin.services.event_bus_service.event_bus_listeners import (
+from marvin.services.event_bus_service.event_bus_listener import (
     AppriseEventListener,
     EventListenerBase,
     WebhookEventListener,
@@ -51,15 +51,15 @@ class EventBusService:
         self.bg = bg
         self.session = session
 
-    def _get_listeners(self, group_id: UUID4, household_id: UUID4) -> list[EventListenerBase]:
+    def _get_listeners(self, group_id: UUID4) -> list[EventListenerBase]:
         return [
-            AppriseEventListener(group_id, household_id),
-            WebhookEventListener(group_id, household_id),
+            AppriseEventListener(group_id),
+            WebhookEventListener(group_id),
         ]
 
-    def _publish_event(self, event: Event, group_id: UUID4, household_id: UUID4) -> None:
+    def _publish_event(self, event: Event, group_id: UUID4) -> None:
         """Publishes the event to all listeners"""
-        for listener in self._get_listeners(group_id, household_id):
+        for listener in self._get_listeners(group_id):
             if subscribers := listener.get_subscribers(event):
                 listener.publish_to_subscribers(event, subscribers)
 
@@ -67,7 +67,6 @@ class EventBusService:
         self,
         integration_id: str,
         group_id: UUID4,
-        household_id: UUID4 | None,
         event_type: EventTypes,
         document_data: EventDocumentDataBase | None,
         message: str = "",
@@ -79,21 +78,11 @@ class EventBusService:
             document_data=document_data,
         )
 
-        if not household_id:
-            if not self.session:
-                raise ValueError("Session is required if household_id is not provided")
-
-            repos = get_repositories(self.session, group_id=group_id)
-            households = repos.households.page_all(PaginationQuery(page=1, per_page=-1)).items
-            household_ids = [household.id for household in households]
+        repos = get_repositories(self.session, group_id=group_id)
+        if self.bg:
+            self.bg.add_task(self._publish_event, event=event, group_id=group_id)
         else:
-            household_ids = [household_id]
-
-        for household_id in household_ids:
-            if self.bg:
-                self.bg.add_task(self._publish_event, event=event, group_id=group_id, household_id=household_id)
-            else:
-                self._publish_event(event, group_id, household_id)
+            self._publish_event(event, group_id)
 
     @classmethod
     def as_dependency(

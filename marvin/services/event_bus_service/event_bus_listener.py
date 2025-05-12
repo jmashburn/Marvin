@@ -2,7 +2,7 @@ import contextlib
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Generator
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from typing import cast
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
@@ -15,8 +15,8 @@ from marvin.db.db_setup import session_context
 
 # from marvin.db.models.household.webhooks import GroupWebhooksModel
 from marvin.repos.repository_factory import AllRepositories
-# from marvin.schema.household.group_events import GroupEventNotifierPrivate
-# from marvin.schema.household.webhook import ReadWebhook
+from marvin.schemas.group.event import GroupEventNotifierPrivate
+from marvin.schemas.group.webhook import WebhookRead
 
 from .event_types import Event, EventDocumentType, EventTypes, EventWebhookData
 from .publisher import ApprisePublisher, PublisherLike, WebhookPublisher
@@ -26,9 +26,8 @@ class EventListenerBase(ABC):
     _session: Session | None = None
     _repos: AllRepositories | None = None
 
-    def __init__(self, group_id: UUID4, household_id: UUID4, publisher: PublisherLike) -> None:
+    def __init__(self, group_id: UUID4, publisher: PublisherLike) -> None:
         self.group_id = group_id
-        self.household_id = household_id
         self.publisher = publisher
         self._session = None
         self._repos = None
@@ -62,21 +61,24 @@ class EventListenerBase(ABC):
             yield self._session
 
     @contextlib.contextmanager
-    def ensure_repos(self, group_id: UUID4, household_id: UUID4) -> Generator[AllRepositories, None, None]:
+    def ensure_repos(self, group_id: UUID4) -> Generator[AllRepositories, None, None]:
         if self._repos is None:
             with self.ensure_session() as session:
-                self._repos = AllRepositories(session, group_id=group_id, household_id=household_id)
+                self._repos = AllRepositories(session, group_id=group_id)
                 yield self._repos
         else:
             yield self._repos
 
 
 class AppriseEventListener(EventListenerBase):
-    def __init__(self, group_id: UUID4, household_id: UUID4) -> None:
-        super().__init__(group_id, household_id, ApprisePublisher())
+    def __init__(
+        self,
+        group_id: UUID4,
+    ) -> None:
+        super().__init__(group_id, ApprisePublisher())
 
     def get_subscribers(self, event: Event) -> list[str]:
-        with self.ensure_repos(self.group_id, self.household_id) as repos:
+        with self.ensure_repos(self.group_id) as repos:
             notifiers: list[GroupEventNotifierPrivate] = repos.group_event_notifier.multi_query(
                 {"enabled": True}, override_schema=GroupEventNotifierPrivate
             )
@@ -134,10 +136,13 @@ class AppriseEventListener(EventListenerBase):
 
 
 class WebhookEventListener(EventListenerBase):
-    def __init__(self, group_id: UUID4, household_id: UUID4) -> None:
-        super().__init__(group_id, household_id, WebhookPublisher())
+    def __init__(
+        self,
+        group_id: UUID4,
+    ) -> None:
+        super().__init__(group_id, WebhookPublisher())
 
-    def get_subscribers(self, event: Event) -> list[ReadWebhook]:
+    def get_subscribers(self, event: Event) -> list[WebhookRead]:
         # we only care about events that contain webhook information
         if not (event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData)):
             return []
@@ -147,8 +152,8 @@ class WebhookEventListener(EventListenerBase):
         )
         return scheduled_webhooks
 
-    def publish_to_subscribers(self, event: Event, subscribers: list[ReadWebhook]) -> None:
-        with self.ensure_repos(self.group_id, self.household_id) as repos:
+    def publish_to_subscribers(self, event: Event, subscribers: list[WebhookRead]) -> None:
+        with self.ensure_repos(self.group_id) as repos:
             if event.document_data.document_type == EventDocumentType.mealplan:
                 webhook_data = cast(EventWebhookData, event.document_data)
                 meal_repo = repos.meals
@@ -159,14 +164,13 @@ class WebhookEventListener(EventListenerBase):
                     webhook_data.webhook_body = meal_data
                     self.publisher.publish(event, [webhook.url for webhook in subscribers])
 
-    def get_scheduled_webhooks(self, start_dt: datetime, end_dt: datetime) -> list[ReadWebhook]:
+    def get_scheduled_webhooks(self, start_dt: datetime, end_dt: datetime) -> list[WebhookRead]:
         """Fetches all scheduled webhooks from the database"""
         with self.ensure_session() as session:
             stmt = select(GroupWebhooksModel).where(
                 GroupWebhooksModel.enabled == True,  # noqa: E712 - required for SQLAlchemy comparison
-                GroupWebhooksModel.scheduled_time > start_dt.astimezone(UTC).time(),
-                GroupWebhooksModel.scheduled_time <= end_dt.astimezone(UTC).time(),
+                GroupWebhooksModel.scheduled_time > start_dt.astimezone(timezone.utc).time(),
+                GroupWebhooksModel.scheduled_time <= end_dt.astimezone(timezone.utc).time(),
                 GroupWebhooksModel.group_id == self.group_id,
-                GroupWebhooksModel.household_id == self.household_id,
             )
             return session.execute(stmt).scalars().all()
