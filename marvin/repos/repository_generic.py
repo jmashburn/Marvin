@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from math import ceil
 from typing import Any, Generic, TypeVar
 
@@ -26,7 +26,7 @@ from marvin.schemas.response.pagination import (
 from marvin.schemas.response.query_filter import QueryFilterBuilder
 from marvin.schemas.response.query_search import SearchFilter
 
-from ._ import NOT_SET, NotSet
+from . import NOT_SET, NotSet
 
 Schema = TypeVar("Schema", bound=_MarvinModel)
 Model = TypeVar("Model", bound=SqlAlchemyBase)
@@ -45,7 +45,6 @@ class RepositoryGeneric(Generic[Schema, Model]):
     session: Session
 
     _group_id: UUID4 | None = None
-    _household_id: UUID4 | None = None
 
     def __init__(
         self,
@@ -66,15 +65,11 @@ class RepositoryGeneric(Generic[Schema, Model]):
         return self._group_id
 
     @property
-    def household_id(self) -> UUID4 | None:
-        return self._household_id
-
-    @property
     def column_aliases(self) -> dict[str, ColumnElement]:
         return {}
 
     def _random_seed(self) -> str:
-        return str(datetime.now(tz=UTC))
+        return str(datetime.now(tz=timezone.utc))
 
     def _log_exception(self, e: Exception) -> None:
         self.logger.error(f"Error processing query for Repo model={self.model.__name__} schema={self.schema.__name__}")
@@ -93,8 +88,6 @@ class RepositoryGeneric(Generic[Schema, Model]):
 
         if self.group_id:
             dct["group_id"] = self.group_id
-        if self.household_id:
-            dct["household_id"] = self.household_id
 
         return {**dct, **kwargs}
 
@@ -465,3 +458,19 @@ class RepositoryGeneric(Generic[Schema, Model]):
     def add_search_to_query(self, query: Select, schema: type[Schema], search: str) -> Select:
         search_filter = SearchFilter(self.session, search, schema._normalize_search)
         return search_filter.filter_query_by_search(query, schema, self.model)
+
+
+class GroupRepositoryGeneric(RepositoryGeneric[Schema, Model]):
+    def __init__(
+        self,
+        session: Session,
+        primary_key: str,
+        sql_model: type[Model],
+        schema: type[Schema],
+        *,
+        group_id: UUID4 | None | NotSet,
+    ) -> None:
+        super().__init__(session, primary_key, sql_model, schema)
+        if group_id is NOT_SET:
+            raise ValueError("group_id must be set")
+        self._group_id = group_id if group_id else None

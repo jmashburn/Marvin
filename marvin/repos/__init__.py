@@ -49,7 +49,6 @@ class RepositoryGeneric(Generic[Schema, Model]):
     session: Session
 
     _group_id: UUID4 | None = None
-    _household_id: UUID4 | None = None
 
     def __init__(
         self,
@@ -68,10 +67,6 @@ class RepositoryGeneric(Generic[Schema, Model]):
     @property
     def group_id(self) -> UUID4 | None:
         return self._group_id
-
-    @property
-    def household_id(self) -> UUID4 | None:
-        return self._household_id
 
     @property
     def column_aliases(self) -> dict[str, ColumnElement]:
@@ -97,8 +92,6 @@ class RepositoryGeneric(Generic[Schema, Model]):
 
         if self.group_id:
             dct["group_id"] = self.group_id
-        if self.household_id:
-            dct["household_id"] = self.household_id
 
         return {**dct, **kwargs}
 
