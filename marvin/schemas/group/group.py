@@ -1,16 +1,15 @@
-from pydantic import UUID4
-from typing import Annotated, Any, Generic, TypeVar, TYPE_CHECKING
+from typing import Annotated
 
-from pydantic import UUID4, BaseModel, ConfigDict, Field, StringConstraints, field_validator
-from marvin.db.models.users import Users
-from marvin.db.models.groups import Groups
+from pydantic import UUID4, ConfigDict, StringConstraints
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
-from ..user import UserSummary
 
+from marvin.db.models.groups import Groups
+from marvin.db.models.users import Users
 from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas.response.pagination import PaginationBase
 
+from ..user import UserSummary
 from .preferences import GroupPreferencesRead, GroupPreferencesUpdate
 from .webhook import WebhookCreate, WebhookRead
 

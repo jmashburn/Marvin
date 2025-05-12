@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Optional
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase

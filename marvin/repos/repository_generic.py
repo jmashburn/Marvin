@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Iterable
-from datetime import timezone, datetime
+from datetime import datetime, timezone
 from math import ceil
 from typing import Any, Generic, TypeVar
 

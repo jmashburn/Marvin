@@ -9,20 +9,38 @@ from alembic import command, config, script
 from alembic.config import Config
 from alembic.runtime import migration
 from marvin.core import root_logger
-from marvin.core.config import get_app_plugins, get_app_settings
+from marvin.core.config import AppPlugins, get_app_plugins, get_app_settings
 from marvin.db.db_setup import session_context
-from marvin.repos.seed.init_users import default_user_init
-
 from marvin.db.fixes.fix_migration_data import fix_migration_data
 from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
-
+from marvin.repos.seed.init_users import default_user_init
 from marvin.schemas.group.group import GroupCreate, GroupRead
 from marvin.services.group.group_service import GroupService
 
 PROJECT_DIR = Path(__file__).parent.parent.parent
 
 logger = root_logger.get_logger()
+
+
+def init_plugin_db(session: orm.Session, plugins: AppPlugins) -> None:
+    """
+    Initialize the database for plugins.
+    This function is called after the main database has been initialized.
+    """
+    settings = get_app_settings()
+    if settings.PLUGINS:
+        logger.info("-------Plugins: Init DB-------")
+        for plugin_name, plugin in plugins.LOADED_PLUGINS.items():
+            logger.debug(f"-------Initializing Plugin DB: {plugin_name}-------")
+            plugin_dir = Path(os.path.dirname(plugin.__file__))
+            plugin_db_path = str(plugin_dir / "db" / "init_db.py")
+
+            if os.path.isfile(plugin_db_path):
+                logger.debug(f"-------Loading Plugin DB: {plugin_name}-------")
+                plugin.init_db(session)
+            else:
+                logger.debug(f"-------Plugin: Init_db not found: {plugin_name}-------")
 
 
 def init_db(session: orm.Session) -> None:
@@ -144,3 +162,4 @@ def main():
         else:
             logger.info("Database contains no users initializing...")
             init_db(session)
+        init_plugin_db(session, plugins)

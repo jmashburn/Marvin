@@ -16,8 +16,8 @@ from marvin.core import root_logger
 from marvin.core.config import get_app_dirs, get_app_settings
 from marvin.db.db_setup import generate_session
 from marvin.repos.all_repositories import get_repositories
-from marvin.schemas.user import PrivateUser, TokenData
 from marvin.schemas.group import GroupRead
+from marvin.schemas.user import PrivateUser, TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 oauth2_scheme_soft_fail = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)

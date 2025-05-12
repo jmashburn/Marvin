@@ -1,4 +1,4 @@
-from datetime import timezone, datetime, time
+from datetime import datetime, time, timezone
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Boolean, ForeignKey, String, Time, orm

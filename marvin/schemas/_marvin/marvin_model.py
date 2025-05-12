@@ -4,11 +4,10 @@ import re
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from enum import Enum
+from typing import ClassVar, Protocol
 
-from pydantic import BaseModel
 from humps import camelize
-from typing import ClassVar, Protocol, TypeVar
-from pydantic import UUID4, AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import UUID4, BaseModel, ConfigDict, model_validator
 
 
 class SearchType(Enum):

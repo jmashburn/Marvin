@@ -1,19 +1,16 @@
-from datetime import timezone, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Annotated, Any, Generic, TypeVar
-from uuid import UUID
+from typing import Annotated, TypeVar
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field, StringConstraints, field_validator
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.interfaces import LoaderOption
 
-from marvin.core.config import get_app_dirs, get_app_settings
+from marvin.core.config import get_app_settings
 from marvin.db.models.users import Users
 from marvin.db.models.users.users import AuthMethod, LongLiveToken
 from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas.response.pagination import PaginationBase
-
-from ...db.models.groups import Groups
 
 DataT = TypeVar("DataT", bound=BaseModel)
 DEFAULT_INTEGRATION_ID = "generic"

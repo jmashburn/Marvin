@@ -1,4 +1,3 @@
-import random
 import shutil
 
 from pydantic import UUID4
@@ -6,6 +5,7 @@ from sqlalchemy import select
 
 from marvin.core.config import get_app_settings
 from marvin.schemas.user.user import PrivateUser
+
 from ..db.models.users import Users
 from .repository_generic import GroupRepositoryGeneric
 

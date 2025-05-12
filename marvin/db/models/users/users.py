@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Optional
 
 from pydantic import ConfigDict
 from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, orm, select
-from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, Session, mapped_column
 

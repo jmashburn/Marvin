@@ -12,11 +12,11 @@ from ..server.task import ServerTaskModel
 from .preferences import GroupPreferencesModel
 
 if TYPE_CHECKING:
-    from .events import GroupEventNotifierModel
-    from .webhooks import GroupWebhooksModel
     from ..users import Users
-    from .reports import ReportModel
+    from .events import GroupEventNotifierModel
     from .invite_tokens import GroupInviteToken
+    from .reports import ReportModel
+    from .webhooks import GroupWebhooksModel
 
 
 class Groups(SqlAlchemyBase, BaseMixins):

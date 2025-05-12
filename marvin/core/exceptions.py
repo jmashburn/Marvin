@@ -1,6 +1,3 @@
-from sqlite3 import IntegrityError
-
-
 class UnexpectedNone(Exception):
     """Exception raised when a value is None when it should not be."""
 

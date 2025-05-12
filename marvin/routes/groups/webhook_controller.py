@@ -1,4 +1,4 @@
-from datetime import timezone, datetime
+from datetime import datetime, timezone
 from functools import cached_property
 
 from fastapi import APIRouter, BackgroundTasks, Depends
@@ -8,7 +8,7 @@ from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
 from marvin.routes._base.mixins import HttpRepo
 from marvin.schemas import mapper
-from marvin.schemas.group.webhook import WebhookCreate, WebhookRead, WebhookUpdate, WebhookPagination
+from marvin.schemas.group.webhook import WebhookCreate, WebhookPagination, WebhookRead, WebhookUpdate
 from marvin.schemas.response.pagination import PaginationQuery
 from marvin.services.scheduler.tasks.post_webhooks import post_group_webhooks, post_single_webhook
 

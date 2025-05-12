@@ -5,9 +5,9 @@ from fastapi import APIRouter, Header, HTTPException, status
 from marvin.core.security import url_safe_token
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.group.invite_token import (
-    InviteTokenCreate,
     EmailInitationResponse,
     EmailInvitation,
+    InviteTokenCreate,
     InviteTokenRead,
     InviteTokenUpdate,
 )

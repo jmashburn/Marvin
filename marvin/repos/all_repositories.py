@@ -1,9 +1,8 @@
 from pydantic import UUID4
-
 from sqlalchemy.orm import Session
 
+from ._utils import NOT_SET, NotSet
 from .repository_factory import AllRepositories
-from ._utils import NotSet, NOT_SET
 
 
 def get_repositories(session: Session, *, group_id: UUID4 | None | NotSet = NOT_SET):

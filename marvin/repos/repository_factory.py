@@ -1,31 +1,27 @@
-from collections.abc import Sequence
 from functools import cached_property
 
 from pydantic import UUID4
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from marvin.db.models.groups import Groups, ReportEntryModel, ReportModel
-from marvin.db.models.groups.preferences import GroupPreferencesModel
 from marvin.db.models.groups.events import GroupEventNotifierModel
-from marvin.db.models.groups.webhooks import GroupWebhooksModel
 from marvin.db.models.groups.invite_tokens import GroupInviteToken
+from marvin.db.models.groups.preferences import GroupPreferencesModel
+from marvin.db.models.groups.webhooks import GroupWebhooksModel
 from marvin.db.models.users import LongLiveToken, Users
 from marvin.db.models.users.password_reset import PasswordResetModel
-
-from marvin.schemas.group.preferences import GroupPreferencesRead
+from marvin.schemas.group import GroupRead
 from marvin.schemas.group.event import GroupEventNotifierRead
 from marvin.schemas.group.invite_token import InviteTokenRead
+from marvin.schemas.group.preferences import GroupPreferencesRead
+from marvin.schemas.group.report import ReportEntryRead, ReportRead
 from marvin.schemas.group.webhook import WebhookRead
-from marvin.schemas.group.report import ReportRead, ReportEntryRead
-from marvin.schemas.user import PrivateUser, LongLiveTokenRead
-from marvin.schemas.group import GroupRead
-
+from marvin.schemas.user import LongLiveTokenRead, PrivateUser
 from marvin.schemas.user.password import PrivatePasswordResetToken
 
 from ._utils import NOT_SET, NotSet
-from .repository_generic import GroupRepositoryGeneric
 from .groups import RepositoryGroup
+from .repository_generic import GroupRepositoryGeneric
 from .users import RepositoryUsers
 
 PK_ID = "id"

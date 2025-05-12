@@ -2,7 +2,7 @@ import contextlib
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Generator
-from datetime import timezone, datetime
+from datetime import datetime, timezone
 from typing import cast
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 

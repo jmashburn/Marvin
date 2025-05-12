@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from marvin.db.models.groups import Groups
-from marvin.schemas.group import GroupRead
 from marvin.schemas.group import GroupCreate, GroupRead, GroupUpdate
+
 from .repository_generic import RepositoryGeneric
 
 

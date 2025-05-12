@@ -3,8 +3,8 @@ from pydantic import UUID4
 from marvin.core.config import get_app_settings
 from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
-from marvin.schemas.group.preferences import GroupPreferencesCreate
 from marvin.schemas.group import GroupCreate
+from marvin.schemas.group.preferences import GroupPreferencesCreate
 from marvin.services import BaseService
 
 

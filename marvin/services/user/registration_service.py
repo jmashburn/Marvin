@@ -2,16 +2,13 @@ from logging import Logger
 from uuid import uuid4
 
 from fastapi import HTTPException, status
-from pydantic import UUID4
 
-from marvin.core.config import get_app_settings
 from marvin.core.security import hash_password
-from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
-from marvin.schemas.group.preferences import GroupPreferencesCreate
-from marvin.schemas.user.registration import UserRegistrationCreate
-from marvin.schemas.user import PrivateUser, UserCreate
 from marvin.schemas.group import GroupCreate, GroupRead
+from marvin.schemas.group.preferences import GroupPreferencesCreate
+from marvin.schemas.user import PrivateUser, UserCreate
+from marvin.schemas.user.registration import UserRegistrationCreate
 from marvin.services.group.group_service import GroupService
 from marvin.services.seeders.seeder_service import SeederService
 

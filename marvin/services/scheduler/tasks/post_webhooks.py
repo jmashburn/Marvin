@@ -1,4 +1,4 @@
-from datetime import timezone, datetime
+from datetime import datetime, timezone
 
 from pydantic import UUID4
 
@@ -7,7 +7,6 @@ from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group.webhook import WebhookRead
 from marvin.schemas.response.pagination import PaginationQuery
 from marvin.services.event_bus_service.event_bus_listener import WebhookEventListener
-from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import (
     INTERNAL_INTEGRATION_ID,
     Event,

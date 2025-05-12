@@ -4,8 +4,8 @@ from sqlalchemy import Select
 from sqlalchemy.orm import Session
 from text_unidecode import unidecode
 
-from marvin.schemas._marvin import SearchType, _MarvinModel
 from marvin.db.models import SqlAlchemyBase
+from marvin.schemas._marvin import SearchType, _MarvinModel
 
 
 class SearchFilter:

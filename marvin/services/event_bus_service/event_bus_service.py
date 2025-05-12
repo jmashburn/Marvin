@@ -5,7 +5,6 @@ from sqlalchemy.orm.session import Session
 from marvin.core.config import get_app_settings
 from marvin.db.db_setup import generate_session
 from marvin.repos.all_repositories import get_repositories
-from marvin.schemas.response.pagination import PaginationQuery
 from marvin.services.event_bus_service.event_bus_listener import (
     AppriseEventListener,
     EventListenerBase,

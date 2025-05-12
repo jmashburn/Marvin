@@ -2,8 +2,8 @@ from pydantic import UUID4, ConfigDict
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.interfaces import LoaderOption
 
-from marvin.db.models.groups.preferences import GroupPreferencesModel
 from marvin.db.models.groups import Groups
+from marvin.db.models.groups.preferences import GroupPreferencesModel
 from marvin.schemas._marvin import _MarvinModel
 
 

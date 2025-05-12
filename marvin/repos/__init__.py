@@ -27,7 +27,6 @@ from marvin.schemas.response.query_filter import QueryFilterBuilder
 from marvin.schemas.response.query_search import SearchFilter
 
 from ._utils import NOT_SET, NotSet
-
 from .repository_factory import AllRepositories
 
 __all__ = ["AllRepositories"]

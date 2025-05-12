@@ -1,22 +1,21 @@
 from abc import ABC
-
-from sqlalchemy.orm import Session
-from pydantic import UUID4, ConfigDict
-from fastapi import Depends, HTTPException
 from logging import Logger
 
+from fastapi import Depends, HTTPException
+from pydantic import UUID4, ConfigDict
+from sqlalchemy.orm import Session
 
 from marvin.core.config import get_app_dirs, get_app_settings
-from marvin.db.db_setup import generate_session
+from marvin.core.dependencies import get_admin_user, get_current_user
+from marvin.core.root_logger import get_logger
 from marvin.core.settings import AppSettings
 from marvin.core.settings.directories import AppDirectories
-from marvin.core.root_logger import get_logger
+from marvin.db.db_setup import generate_session
 from marvin.repos.all_repositories import AllRepositories
-from marvin.core.dependencies import get_current_user, get_admin_user
-from marvin.schemas.user import PrivateUser
 from marvin.routes._base.checks import OperationChecks
+from marvin.schemas.user import PrivateUser
 from marvin.services.event_bus_service.event_bus_service import EventBusService
-from marvin.services.event_bus_service.event_types import EventTypes, EventDocumentDataBase
+from marvin.services.event_bus_service.event_types import EventDocumentDataBase, EventTypes
 
 
 class _BaseController(ABC):

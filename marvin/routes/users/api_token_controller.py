@@ -6,10 +6,10 @@ from marvin.core.security import create_access_token
 from marvin.routes._base import BaseUserController, controller
 from marvin.routes._base.routers import UserAPIRouter
 from marvin.schemas.user import (
-    TokenCreate,
-    TokenResponseDelete,
     LongLiveTokenCreateResponse,
     LongLiveTokenRead,
+    TokenCreate,
+    TokenResponseDelete,
 )
 
 router = UserAPIRouter(prefix="/users", tags=["Users: Tokens"])
