@@ -1,3 +1,6 @@
+from sqlite3 import IntegrityError
+
+
 class UnexpectedNone(Exception):
     """Exception raised when a value is None when it should not be."""
 
@@ -11,7 +14,7 @@ class UnexpectedNone(Exception):
 
 class PermissionDenied(Exception):
     """
-    This exception is raised when a user tries to access a resource that they do not have permissions to access.
+    This exception is raised when a user tries to access a resource that they do not have permission to access.
     """
 
     pass
@@ -23,3 +26,9 @@ class NoEntryFound(Exception):
     """
 
     pass
+
+
+class UserLockedOut(Exception): ...
+
+
+class MissingClaimException(Exception): ...

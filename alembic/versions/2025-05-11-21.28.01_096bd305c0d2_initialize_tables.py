@@ -26,9 +26,11 @@ def upgrade() -> None:
         sa.Column("update_at", sa.DateTime(), nullable=True),
         sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
+        sa.Column("slug", sa.String(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_groups_name"), "groups", ["name"], unique=True)
+    op.create_index(op.f("ix_groups_slug"), "groups", ["slug"], unique=True)
     op.create_table(
         "group_preferences",
         sa.Column("created_at", sa.DateTime(), nullable=True),
@@ -85,7 +87,8 @@ def upgrade() -> None:
         sa.Column("enabled", sa.Boolean(), nullable=True),
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("url", sa.String(), nullable=True),
-        sa.Column("time", sa.String(), nullable=True),
+        sa.Column("webhook_type", sa.String(), nullable=False),
+        sa.Column("scheduled_time", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(
             ["group_id"],
             ["groups.id"],
@@ -116,6 +119,9 @@ def upgrade() -> None:
         sa.Column("password", sa.String(), nullable=True),
         sa.Column("admin", sa.Boolean(), nullable=True),
         sa.Column("advanced", sa.Boolean(), nullable=True),
+        sa.Column("auth_method", sa.Enum("MARVIN", "LDAP", "OIDC"), nullable=False, server_default="MARVIN"),
+        sa.Column("login_attemps", sa.Integer(), nullable=True),
+        sa.Column("locked_at", sa.DateTime(), nullable=True),
         sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=False),
         sa.Column("cache_key", sa.String(), nullable=True),
         sa.Column("can_manage", sa.Boolean(), nullable=True),

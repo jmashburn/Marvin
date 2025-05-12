@@ -38,6 +38,8 @@ def determine_secrets(data_dir: Path, production: bool) -> str:
 class AppSettings(BaseSettings):
     PRODUCTION: bool = False
 
+    IS_DEMO: bool = False
+
     BASE_URL: str = "http://localhost:8080"
     """trailing slashes are trimmed (ex. `http://localhost:8080/` becomes ``http://localhost:8080`)"""
 
@@ -52,6 +54,7 @@ class AppSettings(BaseSettings):
 
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8080
+    TOKEN_TIME: int = 48
 
     LOG_CONFIG_OVERRIDE: Path | None = None
     """ path to custom logging configuration file"""
@@ -98,6 +101,13 @@ class AppSettings(BaseSettings):
 
         self.logger.debug(f"Local time: {local_hour}:{local_minute} | UTC time: {utc_time.hour}:{utc_time.minute}")
         return ScheduleTime(utc_time.hour, utc_time.minute)
+        # ===============================================
+
+    # Security Configuration
+
+    SECURITY_MAX_LOGIN_ATTEMPTS: int = 5
+    SECURITY_USER_LOCKOUT_TIME: int = 24
+    "time in hours"
 
     # ===============================================
     # Testing Config
@@ -135,6 +145,15 @@ class AppSettings(BaseSettings):
     @property
     def DB_URL_PUBLIC(self) -> str | None:
         return self.DB_PROVIDER.db_url_public if self.DB_PROVIDER else None
+
+    DEFAULT_GROUP: str = "Default"
+
+    OIDC_READY: bool = False
+
+    LDAP_ENABLED: bool = False
+
+    _DEFAULT_EMAIL: str = "changeme@example.com"
+    _DEFAULT_PASSWORD: str = "MyPassword"
 
 
 class PluginSettings(BaseSettings):

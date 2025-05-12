@@ -11,23 +11,33 @@ from alembic.runtime import migration
 from marvin.core import root_logger
 from marvin.core.config import get_app_plugins, get_app_settings
 from marvin.db.db_setup import session_context
+from marvin.repos.seed.init_users import default_user_init
+
 from marvin.db.fixes.fix_migration_data import fix_migration_data
 from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
+
+from marvin.schemas.group.group import GroupCreate, GroupRead
+from marvin.services.group.group_service import GroupService
 
 PROJECT_DIR = Path(__file__).parent.parent.parent
 
 logger = root_logger.get_logger()
 
 
-def init_db(db: AllRepositories) -> None:
-    pass
-    # settings = get_app_settings()
-    # instance_repos = get_repositories(session)
+def init_db(session: orm.Session) -> None:
+    settings = get_app_settings()
+
+    instance_repos = get_repositories(session)
+
+    default_group = default_group_init(instance_repos, settings.DEFAULT_GROUP)
+    group_repos = get_repositories(session, group_id=default_group.id)
+    default_user_init(group_repos)
 
 
-def default_group_init(db: AllRepositories):
-    pass
+def default_group_init(repos: AllRepositories, name: str) -> GroupRead:
+    logger.info("Generating Default Group")
+    return GroupService.create_group(repos, GroupCreate(name=name))
 
 
 def safe_try(func: Callable):
@@ -126,11 +136,11 @@ def main():
             if session.get_bind().name == "postgresql":
                 session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
 
-        db = get_repositories(session)
+        db = get_repositories(session, group_id=None)
+
         safe_try(lambda: fix_migration_data(session))
-        init_db(db)
-        # if db.users.get_all():
-        #     logger.debug("Databse exists")
-        # else:
-        #     logger.info("Database contains no users initializing...")
-        #     init_db(db)
+        if db.users.get_all():
+            logger.debug("Databse exists")
+        else:
+            logger.info("Database contains no users initializing...")
+            init_db(session)
