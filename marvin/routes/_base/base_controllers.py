@@ -5,6 +5,7 @@ from fastapi import Depends, HTTPException
 from pydantic import UUID4, ConfigDict
 from sqlalchemy.orm import Session
 
+
 from marvin.core.config import get_app_dirs, get_app_settings
 from marvin.core.dependencies import get_admin_user, get_current_user
 from marvin.core.root_logger import get_logger
@@ -14,8 +15,10 @@ from marvin.db.db_setup import generate_session
 from marvin.repos.all_repositories import AllRepositories
 from marvin.routes._base.checks import OperationChecks
 from marvin.schemas.user import PrivateUser
+from marvin.schemas.group import GroupRead
 from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import EventDocumentDataBase, EventTypes
+from marvin.repos._utils import NotSet, NOT_SET
 
 
 class _BaseController(ABC):
@@ -29,7 +32,7 @@ class _BaseController(ABC):
     @property
     def repos(self) -> AllRepositories:
         if not self._repos:
-            self._repos = AllRepositories(self.session)
+            self._repos = AllRepositories(self.session, group_id=self.group_id)
         return self._repos
 
     @property
@@ -50,6 +53,10 @@ class _BaseController(ABC):
             self._logger = get_logger()
         return self._logger
 
+    @property
+    def group_id(self) -> UUID4 | None | NotSet:
+        return NOT_SET
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -62,15 +69,19 @@ class BaseUserController(_BaseController):
 
     _checks: OperationChecks
 
-    def __init__(self, user_id: UUID4, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.user_id = user_id
+    @property
+    def group_id(self) -> UUID4:
+        return self.user.group_id
 
-    def get_user(self):
-        user = self.repos.user.get_by_id(self.user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        return user
+    @property
+    def group(self) -> GroupRead:
+        return self.repos.groups.get_one(self.group_id)
+
+    @property
+    def checks(self) -> OperationChecks:
+        if not self._checks:
+            self._checks = OperationChecks(self.user)
+        return self._checks
 
 
 class BaseAdminController(BaseUserController):
@@ -79,7 +90,7 @@ class BaseAdminController(BaseUserController):
     @property
     def repos(self) -> AllRepositories:
         if not self._repos:
-            self._repos = AllRepositories(self.session)
+            self._repos = AllRepositories(self.session, group_id=None)
         return self._repos
 
 

@@ -30,7 +30,6 @@ class RegistrationController(BasePublicController):
         registration_service = RegistrationService(
             self.logger,
             get_repositories(self.session, group_id=None),
-            self.translator,
         )
 
         result = registration_service.register_user(data)

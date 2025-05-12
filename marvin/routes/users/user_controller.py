@@ -29,7 +29,7 @@ class AdminUserController(BaseAdminController):
 
         response = self.repos.users.page_all(
             pagination=q,
-            override=UserOut,
+            override=UserRead,
         )
 
         response.set_pagination_guides(admin_router.url_path_for("get_all"), q.model_dump())
