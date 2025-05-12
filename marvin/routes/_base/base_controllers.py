@@ -12,6 +12,11 @@ from marvin.core.settings import AppSettings
 from marvin.core.settings.directories import AppDirectories
 from marvin.core.root_logger import get_logger
 from marvin.repos.all_repositories import AllRepositories
+from marvin.core.dependencies import get_current_user, get_admin_user
+from marvin.schemas.user import PrivateUser
+from marvin.routes._base.checks import OperationChecks
+from marvin.services.event_bus_service.event_bus_service import EventBusService
+from marvin.services.event_bus_service.event_types import EventTypes, EventDocumentDataBase
 
 
 class _BaseController(ABC):
@@ -57,8 +62,6 @@ class BaseUserController(_BaseController):
     user: PrivateUser = Depends(get_current_user)
 
     _checks: OperationChecks
-
-    user_id: UUID4
 
     def __init__(self, user_id: UUID4, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -6,6 +6,9 @@ from marvin.core.config import get_app_plugins, get_app_settings
 from marvin.core.root_logger import get_logger
 
 from . import app
+from . import auth
+from . import groups
+from . import users
 
 settings = get_app_settings()
 logger = get_logger()
@@ -13,6 +16,9 @@ logger = get_logger()
 # load Core api Routes
 router = APIRouter(prefix="/api")
 router.include_router(app.router)
+router.include_router(auth.router)
+router.include_router(groups.router)
+router.include_router(users.router)
 
 
 # Load Plugins. Plugins dir takes precendent the lib plugins
