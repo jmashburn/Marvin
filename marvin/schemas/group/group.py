@@ -1,0 +1,71 @@
+from pydantic import UUID4
+from typing import Annotated, Any, Generic, TypeVar, TYPE_CHECKING
+
+from pydantic import UUID4, BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from marvin.db.models.users import Users
+from marvin.db.models.groups import Groups
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm.interfaces import LoaderOption
+from ..user import UserSummary
+
+from marvin.schemas._marvin import _MarvinModel
+from marvin.schemas.response.pagination import PaginationBase
+
+from .preferences import GroupPreferencesRead, GroupPreferencesUpdate
+from .webhook import WebhookCreate, WebhookRead
+
+
+class GroupModel(_MarvinModel): ...
+
+
+class GroupCreate(GroupModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GroupAdminUpdate(GroupModel):
+    id: UUID4
+    name: str
+    preferences: GroupPreferencesUpdate | None = None
+
+
+class GroupUpdate(GroupCreate):
+    id: UUID4
+    name: str
+    slug: str
+
+    webhooks: list[WebhookCreate] = []
+
+
+class GroupRead(GroupUpdate):
+    users: list[UserSummary] | None = None
+    preferences: GroupPreferencesRead | None = None
+    webhooks: list[WebhookRead] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        return [
+            joinedload(Groups.webhooks),
+            joinedload(Groups.preferences),
+            selectinload(Groups.users).joinedload(Users.group),
+            selectinload(Groups.users).joinedload(Users.tokens),
+        ]
+
+
+class GroupSummary(GroupCreate):
+    id: UUID4
+    name: str
+    slug: str
+    preferences: GroupPreferencesRead | None = None
+
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        return [
+            joinedload(Groups.preferences),
+        ]
+
+
+class GroupPagination(PaginationBase):
+    items: list[GroupRead]
