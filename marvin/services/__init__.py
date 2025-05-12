@@ -4,7 +4,7 @@ from marvin.core.root_logger import get_logger
 
 class BaseService:
     def __init__(self) -> None:
-        self._logger = get_logger()
-        self._settings = get_app_settings()
-        self._directories = get_app_dirs()
-        self._plugins = get_app_plugins()
+        self.logger = get_logger()
+        self.settings = get_app_settings()
+        self.directories = get_app_dirs()
+        self.plugins = get_app_plugins()

@@ -63,7 +63,7 @@ class UserCreate(_MarvinModel):
     admin: bool = False
     group: str | None = None
     advanced: bool = False
-
+    password: str
     can_invite: bool = False
     can_manage: bool = False
     can_organize: bool = False
