@@ -12,7 +12,7 @@ tasks:
   setup:py:
     desc: Stup python dependencies
     cmds:
-      - uv install --with main,dev,postgres
+      - uv sync --group dev --group postgres
       - uv run pre-commit install
 
   setup:
