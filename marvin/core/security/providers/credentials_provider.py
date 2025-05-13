@@ -34,7 +34,7 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
         if user.auth_method != AuthMethod.MARVIN:
             self.verify_fake_password()
             self._logger.warning(
-                "Found user but their auth method is not 'Mealie'. Unable to continue with credentials login"
+                "Found user but their auth method is not 'MARVIN'. Unable to continue with credentials login"
             )
             return None
 
