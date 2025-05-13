@@ -10,7 +10,7 @@ from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.user.user import PrivateUser
 
 ALGORITHM = "HS256"
-ISS = "mealie"
+ISS = "marvin"
 remember_me_duration = timedelta(days=14)
 
 T = TypeVar("T")
