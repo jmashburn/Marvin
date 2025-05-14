@@ -7,4 +7,3 @@ class BaseService:
         self.logger = get_logger()
         self.settings = get_app_settings()
         self.directories = get_app_dirs()
-        self.plugins = get_app_plugins()
