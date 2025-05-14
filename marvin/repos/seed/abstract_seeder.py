@@ -13,7 +13,7 @@ class AbstractSeeder(ABC):
     """
 
     def __init__(self, db: AllRepositories, logger: Logger | None = None):
-        self.db = db
+        self.repos = db
         self.logger = logger or get_logger("Data Seeder")
         self.resources = Path(__file__).parent / "resources"
         self.settings = get_app_settings()
