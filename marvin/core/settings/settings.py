@@ -222,9 +222,9 @@ def app_plugin_settings_constructor(
     author: str | None = None,
     author_email: str | None = None,
     env_nested_delimiter: str = "__",
-    PluginSettings: type[PluginSettings] = PluginSettings,
+    settings_class: type[PluginSettings] | None = PluginSettings,
 ) -> PluginSettings:
-    app_settings = PluginSettings(
+    app_settings = settings_class(
         PLUGIN_NAME=name,
         PLUGIN_VERSION=version,
         PLUGIN_DESCRIPTION=description,

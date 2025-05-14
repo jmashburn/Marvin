@@ -158,8 +158,9 @@ def main():
 
         safe_try(lambda: fix_migration_data(session))
         if db.users.get_all():
-            logger.debug("Databse exists")
+            logger.debug("Main Databse exists")
         else:
-            logger.info("Database contains no users initializing...")
+            logger.info("Main Database contains no users initializing...")
             init_db(session)
+
         init_plugin_db(session, plugins)

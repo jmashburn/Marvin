@@ -71,7 +71,7 @@ def get_app_plugin_settings(
     env_file: Path | None = ENV,
     env_secrets: str | None = ENV_SECRETS,
     secrets_dir: str | None = SECRECTS_DIR,
-    PluginSettings: type[PluginSettings] = PluginSettings,
+    settings_class: type[PluginSettings] | None = PluginSettings,
 ) -> PluginSettings:
     return app_plugin_settings_constructor(
         name=name,
@@ -84,7 +84,7 @@ def get_app_plugin_settings(
         secrets_dir=secrets_dir,
         production=PRODUCTION,
         data_dir=determine_data_dir(),
-        PluginSettings=PluginSettings,
+        settings_class=settings_class,
     )
 
 
