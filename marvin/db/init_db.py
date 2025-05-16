@@ -48,7 +48,7 @@ def init_db(session: orm.Session) -> None:
 
     instance_repos = get_repositories(session)
 
-    default_group = default_group_init(instance_repos, settings.DEFAULT_GROUP)
+    default_group = default_group_init(instance_repos, settings._DEFAULT_GROUP)
     group_repos = get_repositories(session, group_id=default_group.id)
     default_user_init(group_repos)
 

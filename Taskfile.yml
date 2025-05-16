@@ -1,6 +1,6 @@
 version: "3"
 env:
-  DEFAULT_GROUP: Home
+  _DEFAULT_GROUP: Home
   PRODUCTION: false
   API_PORT: 9000
   API_DOCS: True
