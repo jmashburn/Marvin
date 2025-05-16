@@ -1,3 +1,7 @@
+#Ignore local logger config file changes
+marvin/core/logger/logconf.*.json
+
+
 # Byte-compiled / optimized / DLL files
 .env
 .env.secrets
