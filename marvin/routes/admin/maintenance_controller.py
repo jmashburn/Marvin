@@ -40,6 +40,8 @@ class AdminMaintenanceController(BaseAdminController):
         return MaintenanceStorageDetails(
             temp_dir_size=fs_stats.pretty_size(fs_stats.get_dir_size(self.directories.TEMP_DIR)),
             backups_dir_size=fs_stats.pretty_size(fs_stats.get_dir_size(self.directories.BACKUP_DIR)),
+            seeds_dir_size=fs_stats.pretty_size(fs_stats.get_dir_size(self.directories.SEED_DIR)),
+            plugin_dir_size=fs_stats.pretty_size(fs_stats.get_dir_size(self.directories.PLUGIN_DIR)),
         )
 
     @router.post("/clean/temp", response_model=SuccessResponse)

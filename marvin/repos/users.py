@@ -1,5 +1,3 @@
-import shutil
-
 from pydantic import UUID4
 from sqlalchemy import select
 
@@ -48,8 +46,6 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, Users]):
                 return user_to_delete
 
         entry = super().delete(value, match_key)
-        # Delete the user's directory
-        shutil.rmtree(PrivateUser.get_directory(value))
         return entry
 
     def get_by_username(self, username: str) -> PrivateUser | None:
