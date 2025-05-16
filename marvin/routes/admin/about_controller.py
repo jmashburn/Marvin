@@ -19,14 +19,13 @@ class AdminAboutController(BaseAdminController):
         return AdminAboutInfo(
             production=settings.PRODUCTION,
             version=APP_VERSION,
-            versionLatest=get_latest_version(),
+            versionLatest=get_latest_version(settings.GITHUB_VERSION_URL),
             demo_status=settings.IS_DEMO,
             api_port=settings.API_PORT,
             api_docs=settings.API_DOCS,
             db_type=settings.DB_ENGINE,
             db_url=settings.DB_URL_PUBLIC,
-            default_group=settings.DEFAULT_GROUP,
-            default_household=settings.DEFAULT_HOUSEHOLD,
+            default_group=settings._DEFAULT_GROUP,
             allow_signup=settings.ALLOW_SIGNUP,
             build_id=settings.GIT_COMMIT_HASH,
             enable_oidc=settings.OIDC_AUTH_ENABLED,
@@ -48,7 +47,7 @@ class AdminAboutController(BaseAdminController):
         settings = self.settings
 
         return CheckAppConfig(
-            email_ready=settings.SMTP_ENABLE,
+            email_ready=settings.SMTP_ENABLED,
             ldap_ready=settings.LDAP_ENABLED,
             base_url_set=settings.BASE_URL != "http://localhost:8080",
             is_up_to_date=APP_VERSION == "develop" or APP_VERSION == "nightly" or get_latest_version() == APP_VERSION,

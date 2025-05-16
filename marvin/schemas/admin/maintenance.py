@@ -2,11 +2,12 @@ from marvin.schemas._marvin import _MarvinModel
 
 
 class MaintenanceSummary(_MarvinModel):
-    pass
+    data_dir_size: str
 
 
 class MaintenanceStorageDetails(_MarvinModel):
-    pass
+    temp_dir_size: str
+    backups_dir_size: str
 
 
 class MaintenanceLogs(_MarvinModel):

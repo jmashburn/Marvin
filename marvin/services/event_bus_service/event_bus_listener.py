@@ -8,17 +8,18 @@ from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import UUID4
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm.session import Session
 
 from marvin.db.db_setup import session_context
 
-# from marvin.db.models.household.webhooks import GroupWebhooksModel
+from marvin.db.models.groups.webhooks import GroupWebhooksModel, Method
 from marvin.repos.repository_factory import AllRepositories
 from marvin.schemas.group.event import GroupEventNotifierPrivate
 from marvin.schemas.group.webhook import WebhookRead
+from marvin.services.webhooks.all_webhooks import get_webhooks, AllWebhooks
 
-from .event_types import Event, EventDocumentType, EventTypes, EventWebhookData
+from .event_types import Event, EventDocumentType, EventTypes, EventWebhookData, EventOperation
 from .publisher import ApprisePublisher, PublisherLike, WebhookPublisher
 
 
@@ -31,6 +32,7 @@ class EventListenerBase(ABC):
         self.publisher = publisher
         self._session = None
         self._repos = None
+        self._webhooks = None
 
     @abstractmethod
     def get_subscribers(self, event: Event) -> list:
@@ -69,12 +71,18 @@ class EventListenerBase(ABC):
         else:
             yield self._repos
 
+    @contextlib.contextmanager
+    def ensure_webhooks(self, group_id: UUID4) -> Generator[AllWebhooks, None, None]:
+        if self._webhooks is None:
+            with self.ensure_session() as session:
+                self._webhooks = get_webhooks(session, group_id=group_id)
+                yield self._webhooks
+        else:
+            yield self._webhooks
+
 
 class AppriseEventListener(EventListenerBase):
-    def __init__(
-        self,
-        group_id: UUID4,
-    ) -> None:
+    def __init__(self, group_id: UUID4) -> None:
         super().__init__(group_id, ApprisePublisher())
 
     def get_subscribers(self, event: Event) -> list[str]:
@@ -82,7 +90,6 @@ class AppriseEventListener(EventListenerBase):
             notifiers: list[GroupEventNotifierPrivate] = repos.group_event_notifier.multi_query(
                 {"enabled": True}, override_schema=GroupEventNotifierPrivate
             )
-
             urls = [notifier.apprise_url for notifier in notifiers if getattr(notifier.options, event.event_type.name)]
             urls = AppriseEventListener.update_urls_with_event_data(urls, event)
 
@@ -125,6 +132,7 @@ class AppriseEventListener(EventListenerBase):
 
     @staticmethod
     def is_custom_url(url: str):
+        url = str(url)
         return url.split(":", 1)[0].lower() in [
             "form",
             "forms",
@@ -143,7 +151,6 @@ class WebhookEventListener(EventListenerBase):
         super().__init__(group_id, WebhookPublisher())
 
     def get_subscribers(self, event: Event) -> list[WebhookRead]:
-        # we only care about events that contain webhook information
         if not (event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData)):
             return []
 
@@ -152,20 +159,38 @@ class WebhookEventListener(EventListenerBase):
         )
         return scheduled_webhooks
 
+    # def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
     def publish_to_subscribers(self, event: Event, subscribers: list[WebhookRead]) -> None:
         with self.ensure_repos(self.group_id) as repos:
-            if event.document_data.document_type == EventDocumentType.mealplan:
-                webhook_data = cast(EventWebhookData, event.document_data)
-                meal_repo = repos.meals
-                meal_data = meal_repo.get_meals_by_date_range(
-                    webhook_data.webhook_start_dt, webhook_data.webhook_end_dt
-                )
-                if meal_data:
-                    webhook_data.webhook_body = meal_data
-                    self.publisher.publish(event, [webhook.url for webhook in subscribers])
+            # We want to check a registry of registered webhooks to see if any of them are
+            # are with the name event.document_data.webhook_type.  If a type is registered, we
+            # can use that pull the registered funmction and call it with the event data
+            # return the result of that function to the webhook url
+
+            data = {}
+            webhook_data = cast(EventWebhookData, event.document_data)
+            for webhook in subscribers:
+                # Here we get webhook_type and choose from reg of webhooks to run command output
+                with self.ensure_webhooks(self.group_id) as webhooks:
+                    if hasattr(webhooks, webhook.webhook_type.name):
+                        webhook_type = getattr(webhooks, webhook.webhook_type.name)
+                        if webhook_type:
+                            # If the webhook type is registered, we can call it with the event data
+                            # and return the result to the webhook url
+                            if event.document_data.operation == EventOperation.info:
+                                data = webhook_type.info()
+
+                event.document_data.document_type = webhook.webhook_type
+
+                if data:
+                    webhook_data.webhook_body = data
+                    self.publisher.publish(event, [webhook.url], method=webhook.method.name)
+
+        return True
 
     def get_scheduled_webhooks(self, start_dt: datetime, end_dt: datetime) -> list[WebhookRead]:
         """Fetches all scheduled webhooks from the database"""
+
         with self.ensure_session() as session:
             stmt = select(GroupWebhooksModel).where(
                 GroupWebhooksModel.enabled == True,  # noqa: E712 - required for SQLAlchemy comparison

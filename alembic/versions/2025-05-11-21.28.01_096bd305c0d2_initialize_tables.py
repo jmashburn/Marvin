@@ -88,6 +88,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("url", sa.String(), nullable=True),
         sa.Column("webhook_type", sa.String(), nullable=False),
+        sa.Column("method", sa.Enum("GET", "POST", "PUT", "DELETE"), nullable=False, server_default="POST"),
         sa.Column("scheduled_time", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(
             ["group_id"],
@@ -97,11 +98,27 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_webhook_urls_group_id"), "webhook_urls", ["group_id"], unique=False)
     op.create_table(
+        "invite_tokens",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=True),
+        sa.Column("update_at", sa.DateTime(), nullable=True),
+        sa.Column("token", sa.String(), nullable=False),
+        sa.Column("uses_left", sa.Integer(), nullable=False),
+        sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["group_id"],
+            ["groups.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_invite_tokens_token"), "invite_tokens", ["token"], unique=True)
+    op.create_table(
         "group_events_notifier_options",
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("update_at", sa.DateTime(), nullable=True),
         sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
         sa.Column("event_notifier_id", marvin.db.migration_types.GUID(), nullable=False),
+        sa.Column("user_signup", sa.Boolean(), nullable=False),
         sa.ForeignKeyConstraint(
             ["event_notifier_id"],
             ["group_events_notifiers.id"],

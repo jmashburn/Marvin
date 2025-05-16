@@ -7,6 +7,7 @@ from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group.webhook import WebhookRead
 from marvin.schemas.response.pagination import PaginationQuery
 from marvin.services.event_bus_service.event_bus_listener import WebhookEventListener
+from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import (
     INTERNAL_INTEGRATION_ID,
     Event,
@@ -33,44 +34,30 @@ def post_group_webhooks(start_dt: datetime | None = None, group_id: UUID4 | None
 
     if group_id is None:
         # publish the webhook event to each group's event bus
-
         with session_context() as session:
             repos = get_repositories(session)
             groups_data = repos.groups.page_all(PaginationQuery(page=1, per_page=-1))
             group_ids = [group.id for group in groups_data.items]
-
     else:
         group_ids = [group_id]
 
-    """
-    At this time only mealplan webhooks are supported. To add support for more types,
-    add a dispatch event for that type here (e.g. EventDocumentType.recipe_bulk_report) and
-    handle the webhook data in the webhook event bus listener
-    """
+    for group_id in group_ids:
+        event_type = EventTypes.webhook_task
+        event_document_data = EventWebhookData(
+            # document_type=webhook.webhook_type,
+            operation=EventOperation.info,
+            webhook_start_dt=start_dt,
+            webhook_end_dt=end_dt,
+        )
 
-    event_type = EventTypes.webhook_task
-    event_document_data = EventWebhookData(
-        document_type=EventDocumentType.mealplan,
-        operation=EventOperation.info,
-        webhook_start_dt=start_dt,
-        webhook_end_dt=end_dt,
-    )
-
-    # for group_id in group_ids:
-    #     with session_context() as session:
-    #         repos = get_repositories(session, group_id=group_id)
-    #         households_data = repos.households.page_all(PaginationQuery(page=1, per_page=-1))
-    #         household_ids = [household.id for household in households_data.items]
-
-    #     for household_id in household_ids:
-    #         event_bus = EventBusService()
-    #         event_bus.dispatch(
-    #             integration_id=INTERNAL_INTEGRATION_ID,
-    #             group_id=group_id,
-    #             household_id=household_id,
-    #             event_type=event_type,
-    #             document_data=event_document_data,
-    #         )
+        event_bus = EventBusService()
+        event_bus.dispatch(
+            integration_id=INTERNAL_INTEGRATION_ID,
+            group_id=group_id,
+            event_type=event_type,
+            document_data=event_document_data,
+            message="Webhook event",
+        )
 
 
 def post_single_webhook(webhook: WebhookRead, message: str = "") -> None:
@@ -78,7 +65,7 @@ def post_single_webhook(webhook: WebhookRead, message: str = "") -> None:
     event_type = EventTypes.webhook_task
 
     event_document_data = EventWebhookData(
-        document_type=EventDocumentType.mealplan,
+        # document_type=webhook.webhook_type,
         operation=EventOperation.info,
         webhook_start_dt=dt,
         webhook_end_dt=dt,

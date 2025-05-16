@@ -37,7 +37,7 @@ class EmailService(BaseService):
         super().__init__()
 
     def send_email(self, email_to: str, data: EmailTemplate) -> bool:
-        if not self.settings.SMTP_ENABLE:
+        if not self.settings.SMTP_ENABLED:
             return False
 
         return self.sender.send(email_to, data.subject, data.render_html(self.default_template))

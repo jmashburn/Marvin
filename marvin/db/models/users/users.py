@@ -88,7 +88,7 @@ class Users(SqlAlchemyBase, BaseMixins):
     def __init__(self, session: Session, full_name, password, group: str | None = None, **kwargs) -> None:
         if group is None:
             settings = get_app_settings()
-            group = group or settings.DEFAULT_GROUP
+            group = group or settings._DEFAULT_GROUP
 
         from marvin.db.models.groups import Groups
 

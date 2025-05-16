@@ -8,8 +8,9 @@ from marvin.routes._base.routers import UserAPIRouter
 from marvin.schemas.user import (
     LongLiveTokenCreateResponse,
     LongLiveTokenRead,
-    TokenCreate,
+    LongLiveTokenCreate,
     TokenResponseDelete,
+    TokenCreate,
 )
 
 router = UserAPIRouter(prefix="/users", tags=["Users: Tokens"])
@@ -20,7 +21,7 @@ class UserApiTokensController(BaseUserController):
     @router.post("/api-tokens", status_code=status.HTTP_201_CREATED, response_model=LongLiveTokenCreateResponse)
     def create_api_token(
         self,
-        token_params: LongLiveTokenRead,
+        token_params: LongLiveTokenCreate,
     ):
         """Create api_token in the Database"""
 
@@ -38,6 +39,7 @@ class UserApiTokensController(BaseUserController):
             name=token_params.name,
             token=token,
             user_id=self.user.id,
+            integration_id=token_params.integration_id,
         )
 
         new_token_in_db = self.repos.api_tokens.create(token_model)

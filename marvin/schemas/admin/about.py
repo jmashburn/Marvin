@@ -56,7 +56,6 @@ class AdminAboutInfo(AppInfo):
     db_type: str
     db_url: str | None = None
     default_group: str
-    default_household: str
     build_id: str
 
 

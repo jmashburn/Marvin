@@ -12,7 +12,7 @@ class ForgotPassword(_MarvinModel):
     email: str
 
 
-class PasswordResetToken(_MarvinModel):
+class PasswordResetToken(ForgotPassword):
     token: str
 
 

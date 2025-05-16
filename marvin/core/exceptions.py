@@ -1,3 +1,6 @@
+from sqlite3 import IntegrityError
+
+
 class UnexpectedNone(Exception):
     """Exception raised when a value is None when it should not be."""
 
@@ -29,3 +32,11 @@ class UserLockedOut(Exception): ...
 
 
 class MissingClaimException(Exception): ...
+
+
+def registered_exceptions() -> dict:
+    return {
+        PermissionDenied: "exceptions.permission-denied",
+        NoEntryFound: "exceptions.no-entry-found",
+        IntegrityError: "exceptions.integrity-error",
+    }

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
+from .._model_utils.httpurl import HttpUrlType
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
@@ -16,7 +17,6 @@ class GroupEventNotifierOptionsModel(SqlAlchemyBase, BaseMixins):
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
     event_notifier_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("group_events_notifiers.id"), nullable=False)
-
     user_signup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     @auto_init()

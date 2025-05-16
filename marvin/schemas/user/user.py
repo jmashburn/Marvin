@@ -19,6 +19,7 @@ settings = get_app_settings()
 
 class LongLiveTokenCreate(_MarvinModel):
     name: str
+    integration_id: str = DEFAULT_INTEGRATION_ID
 
 
 class LongLiveTokenRead(_MarvinModel):
@@ -74,7 +75,7 @@ class UserCreate(_MarvinModel):
                 "username": "ChangeMe",
                 "fullName": "Change Me",
                 "email": "changeme@example.com",
-                "group": settings.DEFAULT_GROUP,
+                "group": settings._DEFAULT_GROUP,
                 "admin": "false",
             }
         },

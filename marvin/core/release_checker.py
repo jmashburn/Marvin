@@ -21,7 +21,7 @@ def get_latest_github_release(url: str) -> str:
     return response.json()["tag_name"]
 
 
-def get_latest_version() -> str:
+def get_latest_version(url: str) -> str:
     """
     Gets the latest release version.
 
@@ -32,14 +32,14 @@ def get_latest_version() -> str:
 
     global _LAST_RESET
 
-    now = datetime.datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
 
     if not _LAST_RESET or now - _LAST_RESET > datetime.timedelta(days=MAX_DAYS_OLD):
         _LAST_RESET = now
         get_latest_github_release.cache_clear()
 
     try:
-        return get_latest_github_release()
+        return get_latest_github_release(url)
     except requests.RequestException:
         return "error fetching version"
     except KeyError:

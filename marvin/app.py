@@ -86,9 +86,7 @@ async def start_scheduler():
         # tasks.delete_old_checked_list_items,
     )
 
-    SchedulerRegistry.register_minutely(
-        tasks.ping,
-    )
+    SchedulerRegistry.register_minutely(tasks.ping, tasks.post_group_webhooks)
 
     SchedulerRegistry.register_hourly(
         # tasks.locked_user_reset,

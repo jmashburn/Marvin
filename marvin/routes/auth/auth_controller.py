@@ -19,6 +19,10 @@ from marvin.routes._base.routers import UserAPIRouter
 from marvin.schemas.user import PrivateUser
 from marvin.schemas.user.auth import CredentialsRequestForm
 
+
+from marvin.services.event_bus_service.event_types import EventTypes, EventTokenRefreshData
+from marvin.services.event_bus_service.event_bus_service import EventBusService
+
 public_router = APIRouter(tags=["Users: Authentication"])
 user_router = UserAPIRouter(tags=["Users: Authentication"])
 logger = root_logger.get_logger("auth")
@@ -162,6 +166,16 @@ async def oauth_callback(request: Request, response: Response, session: Session 
 async def refresh_token(current_user: PrivateUser = Depends(get_current_user)):
     """Use a valid token to get another token"""
     access_token = security.create_access_token(data={"sub": str(current_user.id)})
+
+    event_bus = EventBusService()
+    event_bus.dispatch(
+        integration_id="token_refresh",
+        event_type=EventTypes.data_export,
+        group_id=current_user.group_id,
+        document_data=EventTokenRefreshData(username=current_user.username, token=access_token),
+        message="App Info",
+    )
+
     return MarvinAuthToken.respond(access_token)
 
 

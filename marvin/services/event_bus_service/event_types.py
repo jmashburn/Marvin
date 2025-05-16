@@ -56,32 +56,27 @@ class EventTypes(Enum):
 
 class EventDocumentType(Enum):
     generic = "generic"
-
     user = "user"
-
-    category = "category"
-    cookbook = "cookbook"
-    mealplan = "mealplan"
-    shopping_list = "shopping_list"
-    shopping_list_item = "shopping_list_item"
-    recipe = "recipe"
-    recipe_bulk_report = "recipe_bulk_report"
-    recipe_timeline_event = "recipe_timeline_event"
-    tag = "tag"
 
 
 class EventOperation(Enum):
     info = "info"
-
     create = "create"
     update = "update"
     delete = "delete"
 
 
 class EventDocumentDataBase(_MarvinModel):
-    document_type: EventDocumentType
+    document_type: EventDocumentType | None = None
     operation: EventOperation
     ...
+
+
+class EventTokenRefreshData(EventDocumentDataBase):
+    document_type: EventDocumentType = EventDocumentType.generic
+    operation: EventOperation = EventOperation.info
+    username: str
+    token: str
 
 
 class EventUserSignupData(EventDocumentDataBase):

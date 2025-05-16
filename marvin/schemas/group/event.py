@@ -1,4 +1,4 @@
-from pydantic import UUID4, ConfigDict
+from pydantic import UUID4, HttpUrl, ConfigDict
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm.interfaces import LoaderOption
 
@@ -10,10 +10,7 @@ from marvin.schemas.response.pagination import PaginationBase
 # Group Events Notifier Options
 
 
-class GroupEventNotifierOptionsModel(_MarvinModel): ...
-
-
-class GroupEventNotifierOptionsCreate(GroupEventNotifierOptionsModel):
+class GroupEventNotifierOptions(_MarvinModel):
     """
     These events are in-sync with the EventTypes found in the EventBusService.
     If you modify this, make sure to update the EventBusService as well.
@@ -21,13 +18,15 @@ class GroupEventNotifierOptionsCreate(GroupEventNotifierOptionsModel):
 
     test_message: bool = False
     webhook_task: bool = False
+    user_signup: bool = False
+    data_export: bool = True
 
 
-class GroupEventNotifierOptionsUpdate(GroupEventNotifierOptionsModel):
+class GroupEventNotifierOptionsUpdate(GroupEventNotifierOptions):
     notifier_id: UUID4
 
 
-class GroupEventNotifierOptionsRead(GroupEventNotifierOptionsModel):
+class GroupEventNotifierOptionsRead(GroupEventNotifierOptions):
     id: UUID4
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,19 +35,20 @@ class GroupEventNotifierOptionsRead(GroupEventNotifierOptionsModel):
 # Notifiers
 
 
-class GroupEventNotifierModel(_MarvinModel): ...
-
-
-class GroupEventNotifierCreate(GroupEventNotifierModel):
+class GroupEventNotifierCreate(_MarvinModel):
     name: str
     apprise_url: str | None = None
 
 
-class GroupEventNotifierUpdate(GroupEventNotifierCreate):
+class GroupEventNotifierSave(GroupEventNotifierCreate):
     enabled: bool = True
     group_id: UUID4
-    apprise_url: str | None = None
-    options: GroupEventNotifierOptionsCreate = GroupEventNotifierOptionsCreate()
+    options: GroupEventNotifierOptions = GroupEventNotifierOptions()
+
+
+class GroupEventNotifierUpdate(GroupEventNotifierSave):
+    id: UUID4
+    apprise_url: HttpUrl | None = None
 
 
 class GroupEventNotifierRead(_MarvinModel):
@@ -61,7 +61,7 @@ class GroupEventNotifierRead(_MarvinModel):
 
     @classmethod
     def loader_options(cls) -> list[LoaderOption]:
-        return [joinedload(GroupEventNotifierUpdate.options)]
+        return [joinedload(GroupEventNotifierModel.options)]
 
 
 class GroupEventNotifierPagination(PaginationBase):

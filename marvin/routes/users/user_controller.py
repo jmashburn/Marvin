@@ -16,6 +16,10 @@ from marvin.schemas.user.user import UserPagination
 user_router = UserAPIRouter(prefix="/users", tags=["Users: CRUD"])
 admin_router = AdminAPIRouter(prefix="/users", tags=["Users: Admin CRUD"])
 
+from marvin.services.event_bus_service.event_bus_service import EventBusService
+from marvin.services.event_bus_service.event_types import EventTypes, EventUserSignupData
+from marvin.services.user.registration_service import RegistrationService
+
 
 @controller(admin_router)
 class AdminUserController(BaseAdminController):

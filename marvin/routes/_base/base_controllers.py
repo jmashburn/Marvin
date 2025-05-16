@@ -5,6 +5,7 @@ from fastapi import Depends, HTTPException
 from pydantic import UUID4, ConfigDict
 from sqlalchemy.orm import Session
 
+from marvin.core.exceptions import registered_exceptions
 
 from marvin.core.config import get_app_dirs, get_app_settings
 from marvin.core.dependencies import get_admin_user, get_current_user
@@ -68,6 +69,12 @@ class BaseUserController(_BaseController):
     user: PrivateUser = Depends(get_current_user)
 
     _checks: OperationChecks
+
+    def registered_exceptions(self, ex: type[Exception]) -> str:
+        registered = {
+            **registered_exceptions(),
+        }
+        return registered.get(ex, "generic.server-error")
 
     @property
     def group_id(self) -> UUID4:

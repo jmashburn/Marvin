@@ -1,5 +1,4 @@
 from fastapi import HTTPException, status
-
 from marvin.schemas.user import PrivateUser
 
 

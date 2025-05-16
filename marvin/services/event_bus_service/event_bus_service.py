@@ -51,13 +51,21 @@ class EventBusService:
         self.session = session
 
     def _get_listeners(self, group_id: UUID4) -> list[EventListenerBase]:
+        # Why would I send it to the Apprise listener frst?  Chhanging the order
         return [
-            AppriseEventListener(group_id),
             WebhookEventListener(group_id),
+            AppriseEventListener(group_id),
         ]
 
     def _publish_event(self, event: Event, group_id: UUID4) -> None:
         """Publishes the event to all listeners"""
+
+        # my event tipe is webhook_task > Should I use the webhook listener
+        # or the apprise listener or just webhook_task
+
+        # ny this point, the event
+
+        # are we sure we want to use the webhook listener first?
         for listener in self._get_listeners(group_id):
             if subscribers := listener.get_subscribers(event):
                 listener.publish_to_subscribers(event, subscribers)
@@ -77,11 +85,10 @@ class EventBusService:
             document_data=document_data,
         )
 
-        repos = get_repositories(self.session, group_id=group_id)
         if self.bg:
             self.bg.add_task(self._publish_event, event=event, group_id=group_id)
         else:
-            self._publish_event(event, group_id)
+            self._publish_event(event=event, group_id=group_id)
 
     @classmethod
     def as_dependency(

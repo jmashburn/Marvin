@@ -26,9 +26,6 @@ class Groups(SqlAlchemyBase, BaseMixins):
     slug: Mapped[str | None] = mapped_column(sa.String, index=True, unique=True)
     users: Mapped[list["Users"]] = orm.relationship("Users", back_populates="group")
 
-    invite_tokens: Mapped[list["GroupInviteToken"]] = orm.relationship(
-        "GroupInviteToken", back_populates="group", cascade="all, delete-orphan"
-    )
     preferences: Mapped[GroupPreferencesModel] = orm.relationship(
         GroupPreferencesModel,
         back_populates="group",
@@ -44,6 +41,7 @@ class Groups(SqlAlchemyBase, BaseMixins):
         "single_parent": True,
     }
 
+    invite_tokens: Mapped[list["GroupInviteToken"]] = orm.relationship("GroupInviteToken", **common_args)
     webhooks: Mapped[list["GroupWebhooksModel"]] = orm.relationship("GroupWebhooksModel", **common_args)
     server_tasks: Mapped[list["ServerTaskModel"]] = orm.relationship("ServerTaskModel", **common_args)
     group_reports: Mapped[list["ReportModel"]] = orm.relationship("ReportModel", **common_args)

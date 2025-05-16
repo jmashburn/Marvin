@@ -11,6 +11,7 @@ from marvin.schemas import mapper
 from marvin.schemas.group.webhook import WebhookCreate, WebhookPagination, WebhookRead, WebhookUpdate
 from marvin.schemas.response.pagination import PaginationQuery
 from marvin.services.scheduler.tasks.post_webhooks import post_group_webhooks, post_single_webhook
+from marvin.services.event_bus_service.event_types import EventDocumentType
 
 router = APIRouter(prefix="/groups/webhooks", tags=["Groups: Webhooks"])
 
@@ -40,10 +41,9 @@ class WebhookReadController(BaseUserController):
         save = mapper.cast(data, WebhookUpdate, group_id=self.group_id)
         return self.mixins.create_one(save)
 
-    @router.post("/rerun")
+    @router.get("/rerun")
     def rerun_webhooks(self):
         """Manually re-fires all previously scheduled webhooks for today"""
-
         start_time = datetime.min.time()
         start_dt = datetime.combine(datetime.now(timezone.utc).date(), start_time)
         post_group_webhooks(start_dt=start_dt, group_id=self.group.id)
@@ -52,7 +52,7 @@ class WebhookReadController(BaseUserController):
     def get_one(self, item_id: UUID4):
         return self.mixins.get_one(item_id)
 
-    @router.post("/{item_id}/test")
+    @router.get("/{item_id}/test")
     def test_one(self, item_id: UUID4, bg_tasks: BackgroundTasks):
         webhook = self.mixins.get_one(item_id)
         bg_tasks.add_task(post_single_webhook, webhook, "Test Webhook")

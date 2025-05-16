@@ -2,23 +2,27 @@ import datetime
 import enum
 
 from isodate import parse_time
-from pydantic import UUID4, ConfigDict, field_validator
+from pydantic import UUID4, HttpUrl, ConfigDict, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas._marvin.datetime_parser import parse_datetime
 from marvin.schemas.response.pagination import PaginationBase
+from marvin.services.event_bus_service.event_types import EventDocumentType
 
 
-class WebhookType(str, enum.Enum):
-    generic = "generic"
+class WebhookMethod(str, enum.Enum):
+    GET = "GET"
+    POST = "POST"
+    # PUT = "PUT"
+    # DELETE = "DELETE"
 
 
 class WebhookCreate(_MarvinModel):
     enabled: bool = True
-    name: str = ""
-    url: str = ""
-
-    webhook_type: WebhookType = WebhookType.generic
+    name: str
+    url: HttpUrl
+    method: WebhookMethod = WebhookMethod.POST
+    webhook_type: EventDocumentType = EventDocumentType.generic
     scheduled_time: datetime.time
 
     @field_validator("scheduled_time", mode="before")

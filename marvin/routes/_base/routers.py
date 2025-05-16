@@ -10,14 +10,21 @@ from fastapi.routing import APIRoute
 from marvin.core.dependencies import get_admin_user, get_current_user
 
 
-class AdminAPIRouter(APIRouter):
+class BaseAPIRouter(APIRouter):
+    """Base router class for all routers in the application"""
+
+    def __init__(self, tags: list[str | Enum] | None = None, prefix: str = "", **kwargs):
+        super().__init__(tags=tags, prefix=prefix, **kwargs)
+
+
+class AdminAPIRouter(BaseAPIRouter):
     """Router for functions to be protected behind admin authentication"""
 
     def __init__(self, tags: list[str | Enum] | None = None, prefix: str = "", **kwargs):
         super().__init__(tags=tags, prefix=prefix, dependencies=[Depends(get_admin_user)], **kwargs)
 
 
-class UserAPIRouter(APIRouter):
+class UserAPIRouter(BaseAPIRouter):
     """Router for functions to be protected behind user authentication"""
 
     def __init__(self, tags: list[str | Enum] | None = None, prefix: str = "", **kwargs):

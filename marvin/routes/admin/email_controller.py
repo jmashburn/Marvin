@@ -14,7 +14,7 @@ class AdminEmailController(BaseAdminController):
     @router.get("", response_model=EmailReady)
     async def check_email_config(self):
         """Get general application information"""
-        return EmailReady(ready=self.settings.SMTP_ENABLE)
+        return EmailReady(ready=self.settings.SMTP_ENABLED)
 
     @router.post("", response_model=EmailSuccess)
     async def send_test_email(

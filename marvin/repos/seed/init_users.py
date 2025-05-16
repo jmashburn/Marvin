@@ -14,7 +14,7 @@ def dev_users() -> list[dict]:
             "username": "jason",
             "email": "jason@example.com",
             "password": hash_password(settings._DEFAULT_PASSWORD),
-            "group": settings.DEFAULT_GROUP,
+            "group": settings._DEFAULT_GROUP,
             "admin": False,
         },
         {
@@ -22,7 +22,7 @@ def dev_users() -> list[dict]:
             "username": "bob",
             "email": "bob@example.com",
             "password": hash_password(settings._DEFAULT_PASSWORD),
-            "group": settings.DEFAULT_GROUP,
+            "group": settings._DEFAULT_GROUP,
             "admin": False,
         },
         {
@@ -30,7 +30,7 @@ def dev_users() -> list[dict]:
             "username": "sarah",
             "email": "sarah@example.com",
             "password": hash_password(settings._DEFAULT_PASSWORD),
-            "group": settings.DEFAULT_GROUP,
+            "group": settings._DEFAULT_GROUP,
             "admin": False,
         },
         {
@@ -38,7 +38,7 @@ def dev_users() -> list[dict]:
             "username": "sammy",
             "email": "sammy@example.com",
             "password": hash_password(settings._DEFAULT_PASSWORD),
-            "group": settings.DEFAULT_GROUP,
+            "group": settings._DEFAULT_GROUP,
             "admin": False,
         },
     ]
@@ -50,7 +50,7 @@ def default_user_init(db: AllRepositories):
         "username": "admin",
         "email": settings._DEFAULT_EMAIL,
         "password": hash_password(settings._DEFAULT_PASSWORD),
-        "group": settings.DEFAULT_GROUP,
+        "group": settings._DEFAULT_GROUP,
         "admin": True,
     }
 

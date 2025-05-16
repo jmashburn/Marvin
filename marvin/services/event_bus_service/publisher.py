@@ -5,6 +5,7 @@ import requests
 from fastapi.encoders import jsonable_encoder
 
 from marvin.services.event_bus_service.event_types import Event
+from marvin.db.models.groups import Method
 
 
 class PublisherLike(Protocol):
@@ -15,7 +16,7 @@ class ApprisePublisher:
     def __init__(self, hard_fail=False) -> None:
         asset = apprise.AppriseAsset(
             async_mode=True,
-            image_url_mask="https://raw.githubusercontent.com/mealie-recipes/mealie/9571816ac4eed5beacfc0abf6c03eff1427fd0eb/frontend/static/icons/android-chrome-maskable-512x512.png",
+            image_url_mask="",
         )
         self.apprise = apprise.Apprise(asset=asset)
         self.hard_fail = hard_fail
@@ -41,9 +42,20 @@ class WebhookPublisher:
     def __init__(self, hard_fail=False) -> None:
         self.hard_fail = hard_fail
 
-    def publish(self, event: Event, notification_urls: list[str]):
+    def publish(self, event: Event, notification_urls: list[str], method: str = "POST"):
+        """Publish a list of notification URLs using the specified HTTP method."""
         event_payload = jsonable_encoder(event)
         for url in notification_urls:
-            r = requests.post(url, json=event_payload, timeout=15)
+            if method == "GET":
+                r = requests.get(url, timeout=15)
+            elif method == "POST":
+                r = requests.post(url, json=event_payload, timeout=15)
+            elif method == "PUT":
+                r = requests.put(url, json=event_payload, timeout=15)
+            elif method == "DELETE":
+                r = requests.delete(url, timeout=15)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+
             if self.hard_fail:
                 r.raise_for_status()
