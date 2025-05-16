@@ -1,5 +1,5 @@
 #Ignore local logger config file changes
-marvin/core/logger/logconf.*.json
+logconf.*.json
 
 
 # Byte-compiled / optimized / DLL files
