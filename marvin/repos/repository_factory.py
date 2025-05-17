@@ -64,8 +64,8 @@ class AllRepositories:
         return GroupRepositoryGeneric(
             self.session, PK_TOKEN, PasswordResetModel, PrivatePasswordResetToken, group_id=self.group_id
         )
-    #
-========================================================
+    
+    # =======================================================
     # Group
 
     @cached_property
