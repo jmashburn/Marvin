@@ -68,6 +68,11 @@ tasks:
       - uv run alembic revision --autogenerate -m "{{ .CLI_ARGS }}"
       - task: py:format
 
+  py:server:
+    desc: Generate a Running Server for webhook tests
+    cmds:
+      - uv run scripts/server.py 8000 &
+
   docker:prod:
     desc: Builds and runs the production docker image locally
     dir: docker
