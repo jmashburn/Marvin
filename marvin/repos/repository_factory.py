@@ -46,7 +46,8 @@ class AllRepositories:
     ) -> None:
         self.session = session
         self.group_id = group_id
- ================================================================
+ #
+================================================================
     # User
 
     @cached_property
@@ -62,7 +63,8 @@ class AllRepositories:
         return GroupRepositoryGeneric(
             self.session, PK_TOKEN, PasswordResetModel, PrivatePasswordResetToken, group_id=self.group_id
         )
- ================================================================
+ #
+================================================================
     # Group
 
     @cached_property
@@ -92,7 +94,8 @@ class AllRepositories:
             InviteTokenRead,
             group_id=self.group_id,
         )
- ================================================================
+ #
+================================================================
     # Events
 
     @cached_property
