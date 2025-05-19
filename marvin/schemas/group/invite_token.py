@@ -5,10 +5,8 @@ from pydantic import ConfigDict
 from marvin.schemas._marvin import _MarvinModel
 
 
-class InviteTokenModel(_MarvinModel): ...
-
-
-class InviteTokenCreate(InviteTokenModel):
+class InviteTokenCreate(_MarvinModel):
+    id: UUID | None = None
     uses: int
     group_id: UUID | None = None
 
@@ -20,6 +18,7 @@ class InviteTokenUpdate(_MarvinModel):
 
 
 class InviteTokenRead(_MarvinModel):
+    id: UUID
     token: str
     uses_left: int
     group_id: UUID

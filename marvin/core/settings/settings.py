@@ -12,6 +12,7 @@ from pydantic import PlainSerializer, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .db_providers import AbstractDBProvider, db_provider_factory
+from .theme import Theme
 
 
 class ScheduleTime(NamedTuple):
@@ -55,6 +56,8 @@ def determine_secrets(data_dir: Path, production: bool) -> str:
 
 
 class AppSettings(BaseSettings):
+    theme: Theme = Theme()
+
     PRODUCTION: bool = False
 
     IS_DEMO: bool = False

@@ -41,14 +41,14 @@ class GroupEventNotifierCreate(_MarvinModel):
 
 
 class GroupEventNotifierSave(GroupEventNotifierCreate):
-    enabled: bool = True
     group_id: UUID4
     options: GroupEventNotifierOptions = GroupEventNotifierOptions()
 
 
 class GroupEventNotifierUpdate(GroupEventNotifierSave):
-    id: UUID4
-    apprise_url: HttpUrl | None = None
+    group_id: UUID4
+    enabled: bool = True
+    options: GroupEventNotifierOptions = GroupEventNotifierOptions()
 
 
 class GroupEventNotifierRead(_MarvinModel):

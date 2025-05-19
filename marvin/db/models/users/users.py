@@ -19,11 +19,17 @@ if TYPE_CHECKING:
     from .password_reset import PasswordResetModel
 
 
+class AuthMethod(enum.Enum):
+    MARVIN = "MARVIN"
+    LDAP = "LDAP"
+    OIDC = "OIDC"
+
+
 class LongLiveToken(SqlAlchemyBase, BaseMixins):
     __tablename__ = "long_live_tokens"
+    id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
     name: Mapped[str] = mapped_column(String, nullable=False)
     token: Mapped[str] = mapped_column(String, nullable=False, index=True)
-
     user_id: Mapped[GUID | None] = mapped_column(GUID, ForeignKey("users.id"), index=True)
     user: Mapped[Optional["Users"]] = orm.relationship("Users")
 
@@ -31,12 +37,6 @@ class LongLiveToken(SqlAlchemyBase, BaseMixins):
         self.name = name
         self.token = token
         self.user_id = user_id
-
-
-class AuthMethod(enum.Enum):
-    MARVIN = "MARVIN"
-    LDAP = "LDAP"
-    OIDC = "OIDC"
 
 
 class Users(SqlAlchemyBase, BaseMixins):
@@ -136,6 +136,8 @@ class Users(SqlAlchemyBase, BaseMixins):
             self.can_manage = True
             self.can_invite = True
             self.advanced = True
+            self.can_organize = True
         else:
             self.can_manage = can_manage
             self.can_invite = can_invite
+            self.can_organize = can_organize

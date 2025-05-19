@@ -14,15 +14,12 @@ from .preferences import GroupPreferencesRead, GroupPreferencesUpdate
 from .webhook import WebhookCreate, WebhookRead
 
 
-class GroupModel(_MarvinModel): ...
-
-
-class GroupCreate(GroupModel):
+class GroupCreate(_MarvinModel):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     model_config = ConfigDict(from_attributes=True)
 
 
-class GroupAdminUpdate(GroupModel):
+class GroupAdminUpdate(GroupCreate):
     id: UUID4
     name: str
     preferences: GroupPreferencesUpdate | None = None
@@ -31,12 +28,11 @@ class GroupAdminUpdate(GroupModel):
 class GroupUpdate(GroupCreate):
     id: UUID4
     name: str
-    slug: str
-
     webhooks: list[WebhookCreate] = []
 
 
 class GroupRead(GroupUpdate):
+    id: UUID4
     users: list[UserSummary] | None = None
     preferences: GroupPreferencesRead | None = None
     webhooks: list[WebhookRead] = []

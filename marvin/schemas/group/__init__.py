@@ -10,23 +10,15 @@ from .event import (
     GroupEventNotifierSave,
     GroupEventNotifierUpdate,
 )
-from .group import GroupAdminUpdate, GroupCreate, GroupModel, GroupPagination, GroupRead, GroupSummary, GroupUpdate
-from .invite_token import (
-    EmailInitationResponse,
-    EmailInvitation,
-    InviteTokenCreate,
-    InviteTokenModel,
-    InviteTokenRead,
-    InviteTokenUpdate,
-)
+from .group import GroupAdminUpdate, GroupCreate, GroupPagination, GroupRead, GroupSummary, GroupUpdate
+from .invite_token import EmailInitationResponse, EmailInvitation, InviteTokenCreate, InviteTokenRead, InviteTokenUpdate
 from .permissions import SetPermissions
-from .preferences import GroupPreferencesCreate, GroupPreferencesModel, GroupPreferencesRead, GroupPreferencesUpdate
+from .preferences import GroupPreferencesCreate, GroupPreferencesRead, GroupPreferencesUpdate
 from .report import (
     ReportCategory,
     ReportCreate,
     ReportCreateModel,
     ReportEntryCreate,
-    ReportEntryModel,
     ReportEntryRead,
     ReportRead,
     ReportSummary,
@@ -40,11 +32,9 @@ __all__ = [
     "WebhookMethod",
     "WebhookPagination",
     "WebhookRead",
-    "WebhookType",
     "WebhookUpdate",
     "GroupAdminUpdate",
     "GroupCreate",
-    "GroupModel",
     "GroupPagination",
     "GroupRead",
     "GroupSummary",
@@ -53,19 +43,16 @@ __all__ = [
     "ReportCreate",
     "ReportCreateModel",
     "ReportEntryCreate",
-    "ReportEntryModel",
     "ReportEntryRead",
     "ReportRead",
     "ReportSummary",
     "ReportSummaryStatus",
     "GroupPreferencesCreate",
-    "GroupPreferencesModel",
     "GroupPreferencesRead",
     "GroupPreferencesUpdate",
     "EmailInitationResponse",
     "EmailInvitation",
     "InviteTokenCreate",
-    "InviteTokenModel",
     "InviteTokenRead",
     "InviteTokenUpdate",
     "GroupEventNotifierCreate",

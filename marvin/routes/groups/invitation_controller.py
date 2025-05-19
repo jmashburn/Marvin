@@ -24,22 +24,22 @@ class GroupInvitationsController(BaseUserController):
         return self.repos.group_invite_tokens.page_all(PaginationQuery(page=1, per_page=-1)).items
 
     @router.post("", response_model=InviteTokenRead, status_code=status.HTTP_201_CREATED)
-    def create_invite_token(self, body: InviteTokenCreate):
+    def create_invite_token(self, token: InviteTokenCreate):
         if not self.user.can_invite:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 detail="User is not allowed to create invite tokens",
             )
 
-        body.group_id = body.group_id or self.group_id
+        token.group_id = token.group_id or self.group_id
 
-        if not self.user.admin and (body.group_id != self.group_id):
+        if not self.user.admin and (token.group_id != self.group_id):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 detail="Only admins can create invite tokens for other groups",
             )
 
-        token = InviteTokenUpdate(uses_left=body.uses, group_id=body.group_id, token=url_safe_token())
+        token = InviteTokenUpdate(uses_left=token.uses, group_id=token.group_id, token=url_safe_token())
         return self.repos.group_invite_tokens.create(token)
 
     @router.post("/email", response_model=EmailInitationResponse)

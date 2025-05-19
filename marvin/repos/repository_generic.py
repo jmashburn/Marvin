@@ -161,7 +161,6 @@ class RepositoryGeneric(Generic[Schema, Model]):
 
         if not result:
             return None
-
         return eff_schema.model_validate(result)
 
     def create(self, data: Schema | BaseModel | dict) -> Schema:

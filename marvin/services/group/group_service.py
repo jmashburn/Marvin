@@ -27,8 +27,6 @@ class GroupService(BaseService):
         else:
             prefs.group_id = new_group.id
 
-        print(prefs)
-
         group_repos = get_repositories(repos.session, group_id=new_group.id)
         group_preferences = group_repos.group_preferences.create(prefs)
 

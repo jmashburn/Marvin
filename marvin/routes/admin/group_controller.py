@@ -7,7 +7,7 @@ from marvin.schemas.group.group import GroupAdminUpdate
 from marvin.schemas.mapper import mapper
 from marvin.schemas.response.pagination import PaginationQuery
 from marvin.schemas.response.responses import ErrorResponse
-from marvin.schemas.group import GroupModel, GroupRead, GroupPagination
+from marvin.schemas.group import GroupCreate, GroupRead, GroupPagination
 from marvin.services.group.group_service import GroupService
 
 from .._base import BaseAdminController, controller
@@ -30,7 +30,7 @@ class AdminGroupManagementRoutes(BaseAdminController):
 
     @property
     def mixins(self):
-        return HttpRepo[GroupModel, GroupRead, GroupAdminUpdate](
+        return HttpRepo[GroupCreate, GroupRead, GroupAdminUpdate](
             self.repo,
             self.logger,
             self.registered_exceptions,
@@ -47,7 +47,7 @@ class AdminGroupManagementRoutes(BaseAdminController):
         return response
 
     @router.post("", response_model=GroupRead, status_code=status.HTTP_201_CREATED)
-    def create_one(self, data: GroupModel):
+    def create_one(self, data: GroupCreate):
         return GroupService.create_group(self.repos, data)
 
     @router.get("/{item_id}", response_model=GroupRead)
@@ -70,7 +70,7 @@ class AdminGroupManagementRoutes(BaseAdminController):
 
         return group
 
-    @router.delete("/{item_id}", response_model=GroupRead)
+    @router.delete("/{item_id}", status_code=204)
     def delete_one(self, item_id: UUID4):
         item = self.repo.get_one(item_id)
 

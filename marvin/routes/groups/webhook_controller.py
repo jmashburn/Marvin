@@ -61,6 +61,6 @@ class WebhookReadController(BaseUserController):
     def update_one(self, item_id: UUID4, data: WebhookCreate):
         return self.mixins.update_one(data, item_id)
 
-    @router.delete("/{item_id}", response_model=WebhookRead)
+    @router.delete("/{item_id}", status_code=204)
     def delete_one(self, item_id: UUID4):
         return self.mixins.delete_one(item_id)  # type: ignore

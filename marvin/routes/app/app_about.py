@@ -29,5 +29,5 @@ def get_startup_info():
 def get_app_theme(resp: Response):
     settings = get_app_settings()
 
-    resp.header["Cache-Control"] = "public, max-age=604600"
+    resp.headers["Cache-Control"] = "public, max-age=604600"
     return AppTheme(**settings.theme.model_dump())

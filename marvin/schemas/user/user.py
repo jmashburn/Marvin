@@ -18,13 +18,14 @@ settings = get_app_settings()
 
 
 class LongLiveTokenCreate(_MarvinModel):
+    id: UUID4 | None = None
     name: str
     integration_id: str = DEFAULT_INTEGRATION_ID
 
 
 class LongLiveTokenRead(_MarvinModel):
+    id: UUID4
     name: str
-    id: int
     created_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -33,7 +34,7 @@ class LongLiveTokenRead(_MarvinModel):
         return [joinedload(LongLiveToken.user)]
 
 
-class LongLiveTokenCreateResponse(LongLiveTokenRead):
+class LongLiveTokenCreateResponse(_MarvinModel):
     """Should ONLY be used when creating a new token, as the token field is sensitive"""
 
     token: str
@@ -103,7 +104,7 @@ class UserRead(UserCreate):
     group: str
     group_id: UUID4
     group_slug: str
-    tokens: list[LongLiveTokenRead] | None = None
+    # tokens: list[LongLiveTokenRead] | None = None
     cache_key: str
     model_config = ConfigDict(from_attributes=True)
 
@@ -160,6 +161,6 @@ class PrivateUser(UserRead):
 
 
 class LongLiveTokenRead_(TokenCreate):
-    id: int
+    id: UUID4
     user: PrivateUser
     model_config = ConfigDict(from_attributes=True)

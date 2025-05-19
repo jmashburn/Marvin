@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 class GroupInviteToken(SqlAlchemyBase, BaseMixins):
     __tablename__ = "invite_tokens"
+    id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
     token: Mapped[str] = mapped_column(String, index=True, nullable=False, unique=True)
     uses_left: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 

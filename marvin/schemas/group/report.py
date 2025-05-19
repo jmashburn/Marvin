@@ -25,10 +25,7 @@ class ReportSummaryStatus(str, enum.Enum):
     partial = "partial"
 
 
-class ReportEntryModel(_MarvinModel): ...
-
-
-class ReportEntryCreate(ReportEntryModel):
+class ReportEntryCreate(_MarvinModel):
     report_id: UUID4
     timestamp: datetime.datetime = Field(default_factory=get_utc_now)
     success: bool = True

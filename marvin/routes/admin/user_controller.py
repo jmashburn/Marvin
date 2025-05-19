@@ -64,7 +64,7 @@ class AdminUserManagementRoutes(BaseAdminController):
 
         return self.mixins.update_one(data, item_id)
 
-    @router.delete("/{item_id}", response_model=UserRead)
+    @router.delete("/{item_id}", status_code=204)
     def delete_one(self, item_id: UUID4):
         return self.mixins.delete_one(item_id)
 

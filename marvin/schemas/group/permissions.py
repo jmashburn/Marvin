@@ -1,5 +1,4 @@
 from pydantic import UUID4
-
 from marvin.schemas._marvin import _MarvinModel
 
 

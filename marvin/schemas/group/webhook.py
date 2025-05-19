@@ -13,8 +13,6 @@ from marvin.services.event_bus_service.event_types import EventDocumentType
 class WebhookMethod(str, enum.Enum):
     GET = "GET"
     POST = "POST"
-    # PUT = "PUT"
-    # DELETE = "DELETE"
 
 
 class WebhookCreate(_MarvinModel):

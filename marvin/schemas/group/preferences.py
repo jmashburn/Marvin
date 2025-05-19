@@ -7,19 +7,12 @@ from marvin.db.models.groups.preferences import GroupPreferencesModel
 from marvin.schemas._marvin import _MarvinModel
 
 
-class GroupPreferencesModel(_MarvinModel): ...
-
-
-class GroupPreferencesUpdate(GroupPreferencesModel):
+class GroupPreferencesCreate(_MarvinModel):
     group_id: UUID4
-    private_group: bool = True
-    first_day_of_week: int = 0
+    model_config = ConfigDict(from_attributes=True)
 
 
-class GroupPreferencesCreate(GroupPreferencesUpdate): ...
-
-
-class GroupPreferencesRead(GroupPreferencesUpdate):
+class GroupPreferencesRead(GroupPreferencesCreate):
     id: UUID4
     model_config = ConfigDict(from_attributes=True)
 
@@ -28,3 +21,9 @@ class GroupPreferencesRead(GroupPreferencesUpdate):
         return [
             joinedload(GroupPreferencesModel).load_only(Groups.group_id),
         ]
+
+
+class GroupPreferencesUpdate(GroupPreferencesRead):
+    private_group: bool = True
+    first_day_of_week: int = 0
+    model_config = ConfigDict(from_attributes=True)
