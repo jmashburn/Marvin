@@ -6,15 +6,13 @@ from marvin.schemas._marvin import _MarvinModel
 
 
 class InviteTokenCreate(_MarvinModel):
-    id: UUID | None = None
     uses: int
-    group_id: UUID | None = None
-
-
-class InviteTokenUpdate(_MarvinModel):
-    uses_left: int
     group_id: UUID
-    token: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InviteTokenUpdate(InviteTokenCreate):
+    uses_left: int
 
 
 class InviteTokenRead(_MarvinModel):

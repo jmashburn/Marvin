@@ -162,7 +162,7 @@ async def oauth_callback(request: Request, response: Response, session: Session 
     return MarvinAuthToken.respond(access_token)
 
 
-@user_router.get("/refresh")
+@user_router.get("/refresh", response_model=MarvinAuthToken)
 async def refresh_token(current_user: PrivateUser = Depends(get_current_user)):
     """Use a valid token to get another token"""
     access_token = security.create_access_token(data={"sub": str(current_user.id)})

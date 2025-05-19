@@ -21,7 +21,10 @@ router = APIRouter(prefix="/groups/invitations", tags=["Groups: Invitations"])
 class GroupInvitationsController(BaseUserController):
     @router.get("", response_model=list[InviteTokenRead])
     def get_invite_tokens(self):
-        return self.repos.group_invite_tokens.page_all(PaginationQuery(page=1, per_page=-1)).items
+        values = self.repos.group_invite_tokens.page_all(PaginationQuery(page=1, per_page=-1)).items
+
+        print(values)
+        return values
 
     @router.post("", response_model=InviteTokenRead, status_code=status.HTTP_201_CREATED)
     def create_invite_token(self, token: InviteTokenCreate):
@@ -39,7 +42,7 @@ class GroupInvitationsController(BaseUserController):
                 detail="Only admins can create invite tokens for other groups",
             )
 
-        token = InviteTokenUpdate(uses_left=token.uses, group_id=token.group_id, token=url_safe_token())
+        token = InviteTokenCreate(uses_left=token.uses, group_id=token.group_id, token=url_safe_token())
         return self.repos.group_invite_tokens.create(token)
 
     @router.post("/email", response_model=EmailInitationResponse)
