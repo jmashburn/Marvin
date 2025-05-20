@@ -2,8 +2,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress
 
-def get_display:
+
+def get_display():
     return MarvinDisplay()
+
 
 class MarvinDisplay:
     def __init__(self):

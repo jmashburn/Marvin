@@ -32,5 +32,4 @@ def validate_group(name: str, session: Session = Depends(generate_session)):
     """Checks if a group with the given name exists"""
     db = get_repositories(session, group_id=None)
     existing_element = db.groups.get_by_name(name)
-    return ValidationResponse(valid=existing_element is 
-None)
+    return ValidationResponse(valid=existing_element is None)
