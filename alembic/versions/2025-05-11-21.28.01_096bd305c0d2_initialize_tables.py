@@ -145,7 +145,6 @@ def upgrade() -> None:
         sa.Column("can_manage", sa.Boolean(), nullable=True),
         sa.Column("can_invite", sa.Boolean(), nullable=True),
         sa.Column("can_organize", sa.Boolean(), nullable=True),
-        sa.Column("owned_recipes_id", marvin.db.migration_types.GUID(), nullable=True),
         sa.ForeignKeyConstraint(
             ["group_id"],
             ["groups.id"],
