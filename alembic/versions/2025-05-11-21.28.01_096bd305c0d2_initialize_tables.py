@@ -80,23 +80,6 @@ def upgrade() -> None:
     op.create_index(op.f("ix_group_reports_category"), "group_reports", ["category"], unique=False)
     op.create_index(op.f("ix_group_reports_group_id"), "group_reports", ["group_id"], unique=False)
     op.create_table(
-        "server_tasks",
-        sa.Column("created_at", sa.DateTime(), nullable=True),
-        sa.Column("update_at", sa.DateTime(), nullable=True),
-        sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
-        sa.Column("name", sa.String(), nullable=False),
-        sa.Column("completed_date", sa.DateTime(), nullable=True),
-        sa.Column("status", sa.String(), nullable=False),
-        sa.Column("log", sa.String(), nullable=True),
-        sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["group_id"],
-            ["groups.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_server_tasks_group_id"), "server_tasks", ["group_id"], unique=False)
-    op.create_table(
         "webhook_urls",
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("update_at", sa.DateTime(), nullable=True),
