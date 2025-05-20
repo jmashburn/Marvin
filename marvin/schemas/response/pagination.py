@@ -21,16 +21,6 @@ class OrderByNullPosition(str, enum.Enum):
     last = "last"
 
 
-class RecipeSearchQuery(_MarvinModel):
-    cookbook: UUID4 | str | None = None
-    require_all_categories: bool = False
-    require_all_tags: bool = False
-    require_all_tools: bool = False
-    require_all_foods: bool = False
-    search: str | None = None
-    _search_seed: str | None = None
-
-
 class RequestQuery(_MarvinModel):
     order_by: str | None = None
     order_by_null_position: OrderByNullPosition | None = None
