@@ -20,10 +20,6 @@ class Method(enum.Enum):
     POST = "POST"
 
 
-# PUT = "PUT"
-# DELETE = "DELETE"
-
-
 class GroupWebhooksModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "webhook_urls"
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
