@@ -1,8 +1,8 @@
 from pydantic import UUID4, HttpUrl, ConfigDict
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
 
-from marvin.db.models.groups import GroupEventNotifierModel
+from marvin.db.models.groups import GroupEventNotifierModel, GroupEventNotifierOptionsModel
 from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas.response.pagination import PaginationBase
 
@@ -16,19 +16,29 @@ class GroupEventNotifierOptions(_MarvinModel):
     If you modify this, make sure to update the EventBusService as well.
     """
 
-    test_message: bool = False
-    webhook_task: bool = False
-    user_signup: bool = False
-    data_export: bool = True
+    test: bool = True
 
 
-class GroupEventNotifierOptionsUpdate(GroupEventNotifierOptions):
-    notifier_id: UUID4
+class GroupEventNotifierOptionsCreate(_MarvinModel):
+    namespace: str
+    slug: str
 
 
-class GroupEventNotifierOptionsRead(GroupEventNotifierOptions):
+class GroupEventNotifierOptionsUpdate(GroupEventNotifierOptionsCreate):
     id: UUID4
+
+
+class GroupEventNotifierOptionsRead(GroupEventNotifierOptionsCreate):
     model_config = ConfigDict(from_attributes=True)
+
+
+class GroupEventNotifierOptionsSummary(_MarvinModel):
+    option: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GroupEventNotifierOptionsPagination(PaginationBase):
+    items: list[GroupEventNotifierOptionsSummary]
 
 
 # =======================================================================
@@ -38,17 +48,28 @@ class GroupEventNotifierOptionsRead(GroupEventNotifierOptions):
 class GroupEventNotifierCreate(_MarvinModel):
     name: str
     apprise_url: str | None = None
+    options: list = []
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "name": "Event Notifier",
+                "apprise_url": "json://127.0.0.1:8000",
+                "options": ["core.test-message", "core.webhook-task"],
+            }
+        },
+    )
 
 
 class GroupEventNotifierSave(GroupEventNotifierCreate):
     group_id: UUID4
-    options: GroupEventNotifierOptions = GroupEventNotifierOptions()
+    options: list = []
 
 
 class GroupEventNotifierUpdate(GroupEventNotifierSave):
     group_id: UUID4
     enabled: bool = True
-    options: GroupEventNotifierOptions = GroupEventNotifierOptions()
+    options: list = []
 
 
 class GroupEventNotifierRead(_MarvinModel):
@@ -56,7 +77,7 @@ class GroupEventNotifierRead(_MarvinModel):
     name: str
     enabled: bool
     group_id: UUID4
-    options: GroupEventNotifierOptionsRead
+    options: list[GroupEventNotifierOptionsSummary] = []
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod

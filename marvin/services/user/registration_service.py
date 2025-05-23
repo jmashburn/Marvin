@@ -51,9 +51,9 @@ class RegistrationService:
         self.registration = registration
 
         if self.repos.users.get_by_username(registration.username):
-            raise HTTPException(status.HTTP_409_CONFLICT, {"message": self.t("exceptions.username-conflict-error")})
+            raise HTTPException(status.HTTP_409_CONFLICT, {"message": "User Name already exists"})
         elif self.repos.users.get_one(registration.email, "email"):
-            raise HTTPException(status.HTTP_409_CONFLICT, {"message": self.t("exceptions.email-conflict-error")})
+            raise HTTPException(status.HTTP_409_CONFLICT, {"message": "Email already exists"})
 
         token_entry = None
         new_group = False

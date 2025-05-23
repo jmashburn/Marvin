@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
-from ..server.task import ServerTaskModel
 from .preferences import GroupPreferencesModel
 
 if TYPE_CHECKING:
@@ -43,7 +42,6 @@ class Groups(SqlAlchemyBase, BaseMixins):
 
     invite_tokens: Mapped[list["GroupInviteToken"]] = orm.relationship("GroupInviteToken", **common_args)
     webhooks: Mapped[list["GroupWebhooksModel"]] = orm.relationship("GroupWebhooksModel", **common_args)
-    server_tasks: Mapped[list["ServerTaskModel"]] = orm.relationship("ServerTaskModel", **common_args)
     group_reports: Mapped[list["ReportModel"]] = orm.relationship("ReportModel", **common_args)
     group_event_notifiers: Mapped[list["GroupEventNotifierModel"]] = orm.relationship(
         "GroupEventNotifierModel", **common_args

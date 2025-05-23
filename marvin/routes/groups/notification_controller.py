@@ -14,6 +14,9 @@ from marvin.schemas.group.event import (
     GroupEventNotifierUpdate,
     GroupEventNotifierPagination,
     GroupEventNotifierOptionsUpdate,
+    GroupEventNotifierOptionsPagination,
+    GroupEventNotifierOptionsRead,
+    GroupEventNotifierOptionsSummary,
     GroupEventNotifierSave,
 )
 from marvin.schemas.mapper import cast
@@ -48,7 +51,7 @@ class GroupEventsNotifierController(BaseUserController):
 
     @property
     def mixins(self) -> HttpRepo:
-        return HttpRepo(self.repo, self.logger, self.registered_exceptions, "generic.server-error")
+        return HttpRepo(self.repo, self.logger, self.registered_exceptions, "An unexpected error occurreduser")
 
     @router.get("", response_model=GroupEventNotifierPagination)
     def get_all(self, q: PaginationQuery = Depends(PaginationQuery)):

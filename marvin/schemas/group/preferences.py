@@ -12,7 +12,7 @@ class GroupPreferencesCreate(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GroupPreferencesRead(GroupPreferencesCreate):
+class GroupPreferencesUpdate(GroupPreferencesCreate):
     id: UUID4
     model_config = ConfigDict(from_attributes=True)
 
@@ -23,7 +23,7 @@ class GroupPreferencesRead(GroupPreferencesCreate):
         ]
 
 
-class GroupPreferencesUpdate(GroupPreferencesRead):
+class GroupPreferencesRead(GroupPreferencesCreate):
     private_group: bool = True
     first_day_of_week: int = 0
     model_config = ConfigDict(from_attributes=True)

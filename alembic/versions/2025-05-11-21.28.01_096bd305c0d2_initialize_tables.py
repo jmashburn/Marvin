@@ -50,10 +50,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("update_at", sa.DateTime(), nullable=True),
         sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
+        sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=True),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column("apprise_url", sa.String(), nullable=False),
-        sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=True),
         sa.ForeignKeyConstraint(
             ["group_id"],
             ["groups.id"],
@@ -61,6 +61,33 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_group_events_notifiers_group_id"), "group_events_notifiers", ["group_id"], unique=False)
+    op.create_table(
+        "group_events_notifier_options",
+        sa.Column("created_at", sa.DateTime(), nullable=True),
+        sa.Column("update_at", sa.DateTime(), nullable=True),
+        sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
+        sa.Column("group_event_notifiers_id", marvin.db.migration_types.GUID(), nullable=False),
+        sa.Column("namespace", sa.String(), nullable=False),
+        sa.Column("slug", sa.String(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("group_event_notifiers_id", "namespace", "slug"),
+        sa.ForeignKeyConstraint(
+            ["group_event_notifiers_id"],
+            ["group_events_notifiers.id"],
+        ),
+    )
+    op.create_table(
+        "events_notifier_options",
+        sa.Column("created_at", sa.DateTime(), nullable=True),
+        sa.Column("update_at", sa.DateTime(), nullable=True),
+        sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
+        sa.Column("namespace", sa.String(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("slug", sa.String(), nullable=False),
+        sa.Column("description", sa.String(), nullable=True),
+        sa.Column("enabled", sa.Boolean(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
     op.create_table(
         "group_reports",
         sa.Column("created_at", sa.DateTime(), nullable=True),
@@ -113,19 +140,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_invite_tokens_token"), "invite_tokens", ["token"], unique=True)
-    op.create_table(
-        "group_events_notifier_options",
-        sa.Column("created_at", sa.DateTime(), nullable=True),
-        sa.Column("update_at", sa.DateTime(), nullable=True),
-        sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
-        sa.Column("event_notifier_id", marvin.db.migration_types.GUID(), nullable=False),
-        sa.Column("user_signup", sa.Boolean(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["event_notifier_id"],
-            ["group_events_notifiers.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
     op.create_table(
         "users",
         sa.Column("created_at", sa.DateTime(), nullable=True),

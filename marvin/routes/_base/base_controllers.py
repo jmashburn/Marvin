@@ -74,7 +74,7 @@ class BaseUserController(_BaseController):
         registered = {
             **registered_exceptions(),
         }
-        return registered.get(ex, "generic.server-error")
+        return registered.get(ex, "An unexpected error occurred")
 
     @property
     def group_id(self) -> UUID4:

@@ -10,7 +10,17 @@ from marvin.schemas._marvin import _MarvinModel
 INTERNAL_INTEGRATION_ID = "marvin_generic_user"
 
 
-class EventTypes(Enum):
+class EventNameSpaceBase(Enum): ...
+
+
+class EventNameSpace(EventNameSpaceBase):
+    namespace = "core"
+
+
+class EventTypeBase(Enum): ...
+
+
+class EventTypes(EventTypeBase):
     """
     The event type defines whether or not a subscriber should receive an event.
 
@@ -24,42 +34,21 @@ class EventTypes(Enum):
     # used internally and cannot be subscribed to
     test_message = auto()
     webhook_task = auto()
-
-    recipe_created = auto()
-    recipe_updated = auto()
-    recipe_deleted = auto()
-
     user_signup = auto()
 
-    data_migrations = auto()
-    data_export = auto()
-    data_import = auto()
 
-    mealplan_entry_created = auto()
-
-    shopping_list_created = auto()
-    shopping_list_updated = auto()
-    shopping_list_deleted = auto()
-
-    cookbook_created = auto()
-    cookbook_updated = auto()
-    cookbook_deleted = auto()
-
-    tag_created = auto()
-    tag_updated = auto()
-    tag_deleted = auto()
-
-    category_created = auto()
-    category_updated = auto()
-    category_deleted = auto()
+class EventDocumentTypeBase(Enum): ...
 
 
-class EventDocumentType(Enum):
+class EventDocumentType(EventDocumentTypeBase):
     generic = "generic"
     user = "user"
 
 
-class EventOperation(Enum):
+class EventOperationBase(Enum): ...
+
+
+class EventOperation(EventOperationBase):
     info = "info"
     create = "create"
     update = "update"
@@ -67,21 +56,21 @@ class EventOperation(Enum):
 
 
 class EventDocumentDataBase(_MarvinModel):
-    document_type: EventDocumentType | None = None
-    operation: EventOperation
+    document_type: EventDocumentTypeBase | None = None
+    operation: EventOperationBase
     ...
 
 
 class EventTokenRefreshData(EventDocumentDataBase):
-    document_type: EventDocumentType = EventDocumentType.generic
-    operation: EventOperation = EventOperation.info
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
+    operation: EventOperationBase = EventOperation.info
     username: str
     token: str
 
 
 class EventUserSignupData(EventDocumentDataBase):
-    document_type: EventDocumentType = EventDocumentType.user
-    operation: EventOperation = EventOperation.create
+    document_type: EventDocumentTypeBase = EventDocumentType.user
+    operation: EventOperationBase = EventOperation.create
     username: str
     email: str
 
@@ -98,6 +87,7 @@ class EventBusMessage(_MarvinModel):
 
     @classmethod
     def from_type(cls, event_type: EventTypes, body: str = "") -> "EventBusMessage":
+        # title = event_type.name.replace("_", " ").title()
         title = event_type.name.replace("_", " ").title()
         return cls(title=title, body=body)
 
@@ -109,7 +99,7 @@ class EventBusMessage(_MarvinModel):
 
 class Event(_MarvinModel):
     message: EventBusMessage
-    event_type: EventTypes
+    event_type: EventTypeBase
     integration_id: str
     document_data: SerializeAsAny[EventDocumentDataBase]
 

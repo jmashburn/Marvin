@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from marvin.core.config import get_app_plugins, get_app_settings
 from marvin.core.root_logger import get_logger
 
-from . import app, auth, groups, users, admin
+from . import app, auth, groups, users, admin, events
 
 settings = get_app_settings()
 logger = get_logger()
@@ -16,6 +16,7 @@ router.include_router(app.router)
 router.include_router(auth.router)
 router.include_router(groups.router)
 router.include_router(users.router)
+router.include_router(events.router)
 router.include_router(admin.router)
 
 

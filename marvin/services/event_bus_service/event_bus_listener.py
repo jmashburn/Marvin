@@ -11,6 +11,8 @@ from pydantic import UUID4
 from sqlalchemy import select, func
 from sqlalchemy.orm.session import Session
 
+import numpy as np
+
 from marvin.db.db_setup import session_context
 
 from marvin.db.models.groups.webhooks import GroupWebhooksModel, Method
@@ -19,7 +21,7 @@ from marvin.schemas.group.event import GroupEventNotifierPrivate
 from marvin.schemas.group.webhook import WebhookRead
 from marvin.services.webhooks.all_webhooks import get_webhooks, AllWebhooks
 
-from .event_types import Event, EventDocumentType, EventTypes, EventWebhookData, EventOperation
+from .event_types import Event, EventDocumentType, EventTypes, EventWebhookData, EventOperation, EventNameSpace
 from .publisher import ApprisePublisher, PublisherLike, WebhookPublisher
 
 
@@ -82,6 +84,8 @@ class EventListenerBase(ABC):
 
 
 class AppriseEventListener(EventListenerBase):
+    _option_value = "option"
+
     def __init__(self, group_id: UUID4) -> None:
         super().__init__(group_id, ApprisePublisher())
 
@@ -90,7 +94,13 @@ class AppriseEventListener(EventListenerBase):
             notifiers: list[GroupEventNotifierPrivate] = repos.group_event_notifier.multi_query(
                 {"enabled": True}, override_schema=GroupEventNotifierPrivate
             )
-            urls = [notifier.apprise_url for notifier in notifiers if getattr(notifier.options, event.event_type.name)]
+            urls = [
+                notifier.apprise_url
+                for notifier in notifiers
+                for option in notifier.options
+                if getattr(option, self._option_value)
+                == EventNameSpace.namespace.value + "." + event.event_type.name.replace("_", "-")
+            ]
             urls = AppriseEventListener.update_urls_with_event_data(urls, event)
 
         return urls

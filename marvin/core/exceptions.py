@@ -36,7 +36,7 @@ class MissingClaimException(Exception): ...
 
 def registered_exceptions() -> dict:
     return {
-        PermissionDenied: "exceptions.permission-denied",
-        NoEntryFound: "exceptions.no-entry-found",
-        IntegrityError: "exceptions.integrity-error",
+        PermissionDenied: "You do not have permission to perform this action",
+        NoEntryFound: "The requested resource was not found",
+        IntegrityError: "Database integrity error",
     }

@@ -4,14 +4,16 @@ from pydantic import UUID4
 from sqlalchemy.orm import Session
 
 from marvin.db.models.groups import Groups, ReportEntryModel, ReportModel
-from marvin.db.models.groups.events import GroupEventNotifierModel
+from marvin.db.models.groups.events import GroupEventNotifierModel, GroupEventNotifierOptionsModel
+from marvin.db.models.events import EventNotifierOptionsModel
 from marvin.db.models.groups.invite_tokens import GroupInviteToken
 from marvin.db.models.groups.preferences import GroupPreferencesModel
 from marvin.db.models.groups.webhooks import GroupWebhooksModel
 from marvin.db.models.users import LongLiveToken, Users
 from marvin.db.models.users.password_reset import PasswordResetModel
 from marvin.schemas.group import GroupRead
-from marvin.schemas.group.event import GroupEventNotifierRead
+from marvin.schemas.group.event import GroupEventNotifierRead, GroupEventNotifierOptionsRead
+from marvin.schemas.event.event import EventNotifierOptionsRead
 from marvin.schemas.group.invite_token import InviteTokenRead
 from marvin.schemas.group.preferences import GroupPreferencesRead
 from marvin.schemas.group.report import ReportEntryRead, ReportRead
@@ -21,7 +23,7 @@ from marvin.schemas.user.password import PrivatePasswordResetToken
 
 from ._utils import NOT_SET, NotSet
 from .groups import RepositoryGroup
-from .repository_generic import GroupRepositoryGeneric
+from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric
 from .users import RepositoryUsers
 
 PK_ID = "id"
@@ -106,6 +108,15 @@ class AllRepositories:
             GroupEventNotifierModel,
             GroupEventNotifierRead,
             group_id=self.group_id,
+        )
+
+    @cached_property
+    def event_notifier_options(self) -> RepositoryGeneric[EventNotifierOptionsRead, EventNotifierOptionsModel]:
+        return RepositoryGeneric(
+            self.session,
+            PK_ID,
+            EventNotifierOptionsModel,
+            EventNotifierOptionsRead,
         )
 
     @cached_property

@@ -11,7 +11,7 @@ from marvin.services.event_bus_service.event_bus_listener import (
     WebhookEventListener,
 )
 
-from .event_types import Event, EventBusMessage, EventDocumentDataBase, EventTypes
+from .event_types import Event, EventBusMessage, EventDocumentDataBase, EventTypeBase
 
 settings = get_app_settings()
 ALGORITHM = "HS256"
@@ -74,7 +74,7 @@ class EventBusService:
         self,
         integration_id: str,
         group_id: UUID4,
-        event_type: EventTypes,
+        event_type: EventTypeBase,
         document_data: EventDocumentDataBase | None,
         message: str = "",
     ) -> None:

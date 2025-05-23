@@ -15,6 +15,7 @@ from marvin.db.fixes.fix_migration_data import fix_migration_data
 from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
 from marvin.repos.seed.init_users import default_user_init
+from marvin.services.seeders.seeder_service import SeederService
 from marvin.schemas.group.group import GroupCreate, GroupRead
 from marvin.services.group.group_service import GroupService
 
@@ -51,6 +52,9 @@ def init_db(session: orm.Session) -> None:
     default_group = default_group_init(instance_repos, settings._DEFAULT_GROUP)
     group_repos = get_repositories(session, group_id=default_group.id)
     default_user_init(group_repos)
+
+    seeder_service = SeederService(group_repos)
+    seeder_service.seed_notifier_options("notification_options")
 
 
 def default_group_init(repos: AllRepositories, name: str) -> GroupRead:
