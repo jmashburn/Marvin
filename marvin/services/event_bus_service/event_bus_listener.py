@@ -11,8 +11,6 @@ from pydantic import UUID4
 from sqlalchemy import select, func
 from sqlalchemy.orm.session import Session
 
-import numpy as np
-
 from marvin.db.db_setup import session_context
 
 from marvin.db.models.groups.webhooks import GroupWebhooksModel, Method
