@@ -1,3 +1,10 @@
+"""
+This module provides functionality to check for the latest release of a GitHub repository.
+
+It uses the GitHub API to fetch release information and caches the result to avoid
+excessive API calls. The cache is reset periodically to ensure the information
+stays up-to-date.
+"""
 from datetime import datetime, timezone
 from functools import lru_cache
 

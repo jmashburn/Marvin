@@ -1,3 +1,13 @@
+"""
+This module provides custom datetime utilities for SQLAlchemy models in Marvin.
+
+It includes:
+- Functions to get the current UTC time (`get_utc_now`) and date (`get_utc_today`).
+- A SQLAlchemy `TypeDecorator` called `NaiveDateTime` to ensure that all datetimes
+  are stored in the database as naive (timezone-unaware) UTC and are converted
+  back to timezone-aware UTC when retrieved. This standardizes datetime handling
+  across different database backends.
+"""
 from datetime import datetime, timezone
 
 from sqlalchemy.types import DateTime, TypeDecorator

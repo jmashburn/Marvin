@@ -1,3 +1,11 @@
+"""
+This module provides an LDAP authentication provider for Marvin.
+
+It extends the `CredentialsProvider` to allow users to authenticate against an
+LDAP server. If a user is found in LDAP but not in the Marvin database, a new
+Marvin user account can be created. It also supports syncing admin status based
+on LDAP group membership.
+"""
 from datetime import timedelta
 
 import ldap
@@ -19,11 +27,36 @@ class LDAPProvider(CredentialsProvider):
     _logger = root_logger.get_logger("ldap_provider")
 
     def __init__(self, session: Session, data: CredentialsRequest) -> None:
+        """
+        Initializes the LDAPProvider.
+
+        Args:
+            session (Session): SQLAlchemy session.
+            data (CredentialsRequest): The credentials request data containing
+                                       username and password.
+        """
         super().__init__(session, data)
         self.conn = None
 
     def authenticate(self) -> tuple[str, timedelta] | None:
-        """Attempt to authenticate a user given a username and password against an LDAP provider"""
+        """
+        Attempts to authenticate a user against an LDAP provider or falls back to
+        local database authentication.
+
+        The authentication flow is as follows:
+        1. Try to find the user in the local Marvin database.
+        2. If the user is not found OR their authentication method is LDAP:
+           - Attempt to authenticate against the LDAP server using `get_user()`.
+           - If successful, generate an access token.
+        3. If the user is found and their authentication method is NOT LDAP,
+           or if LDAP authentication fails:
+           - Fall back to the standard `CredentialsProvider.authenticate()` method.
+
+        Returns:
+            tuple[str, timedelta] | None: A tuple containing the access token and
+                                         its expiration delta if authentication is
+                                         successful, otherwise None.
+        """
         # When LDAP is enabled, we need to still also support authentication with Mealie backend
         # First we look to see if we have a user. If we don't we'll attempt to create one with LDAP
         # If we do find a user, we will check if their auth method is LDAP and attempt to authenticate

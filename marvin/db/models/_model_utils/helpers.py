@@ -1,3 +1,14 @@
+"""
+This module provides helper functions for safely calling functions with dynamic arguments.
+
+It includes utilities to:
+- Determine valid arguments for a given function.
+- Check if a function accepts arbitrary keyword arguments (`**kwargs`).
+- Safely call a function by providing only its valid arguments from a larger
+  dictionary of potential arguments. This is particularly useful when initializing
+  objects or calling functions where the input data might contain extra keys
+  that are not part of the function's signature.
+"""
 import inspect
 from collections.abc import Callable
 from typing import Any

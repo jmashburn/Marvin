@@ -1,3 +1,10 @@
+"""
+This module provides a centralized logging setup for the Marvin application.
+
+It initializes and configures a root logger based on the application settings
+and environment (development, testing, or production). Modules can then obtain
+logger instances from this root logger.
+"""
 import logging
 
 from .config import get_app_dirs, get_app_settings

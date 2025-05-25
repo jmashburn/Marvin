@@ -22,6 +22,7 @@ SECRECTS_DIR = os.getenv("SECRETS_DIR")
 
 
 def determine_data_dir() -> Path:
+    """Determine the data directory based on the environment."""
     global PRODUCTION, TESTING, BASE_DIR, DATA_DIR
 
     if TESTING:
@@ -35,6 +36,7 @@ def determine_data_dir() -> Path:
 
 
 def determin_plugin_dir() -> Path:
+    """Determine the plugin directory based on the environment."""
     global PRODUCTION, TESTING, BASE_DIR, DATA_DIR
 
     if TESTING:
@@ -47,11 +49,13 @@ def determin_plugin_dir() -> Path:
 
 @lru_cache
 def get_app_dirs() -> AppDirectories:
+    """Get the application directories."""
     return AppDirectories(determine_data_dir(), determin_plugin_dir())
 
 
 @lru_cache
 def get_app_settings(name: str | None = None) -> AppSettings:
+    """Get the application settings."""
     return app_settings_constructor(
         env_file=ENV,
         env_secrets=ENV_SECRETS,
@@ -73,6 +77,7 @@ def get_app_plugin_settings(
     secrets_dir: str | None = SECRECTS_DIR,
     settings_class: type[PluginSettings] | None = PluginSettings,
 ) -> PluginSettings:
+    """Get the application plugin settings."""
     return app_plugin_settings_constructor(
         name=name,
         version=version,
@@ -90,4 +95,5 @@ def get_app_plugin_settings(
 
 @lru_cache
 def get_app_plugins(plugin_prefix: str) -> AppPlugins:
+    """Get the application plugins."""
     return AppPlugins(determin_plugin_dir(), plugin_prefix)

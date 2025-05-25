@@ -1,3 +1,10 @@
+"""
+This module provides a display class for console output.
+
+NOTE: This module appears to be a duplicate or older version of
+`marvin.core.display`. It is recommended to use `marvin.core.display.MarvinDisplay`
+for console output functionalities.
+"""
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress

@@ -1,3 +1,15 @@
+"""
+This module provides an `auto_init` decorator for SQLAlchemy models.
+
+The decorator automates the initialization of model attributes from keyword
+arguments passed to the `__init__` method. It intelligently handles simple
+attributes (mapped columns) and relationships (one-to-many, many-to-one,
+many-to-many), allowing for nested data initialization.
+
+Configuration for the behavior of `auto_init` can be provided via a
+`model_config` attribute on the SQLAlchemy model class, using fields
+defined in `AutoInitConfig`.
+"""
 from functools import wraps
 from uuid import UUID
 
@@ -13,115 +25,229 @@ from .helpers import safe_call
 
 
 def _default_exclusion() -> set[str]:
+    """
+    Returns the default set of attributes to exclude from auto-initialization.
+    By default, excludes the 'id' attribute.
+    """
     return {"id"}
 
 
 class AutoInitConfig(BaseModel):
     """
-    Config class for `auto_init` decorator.
+    Configuration class for the `auto_init` decorator.
+
+    This Pydantic model defines settings that can be specified in a SQLAlchemy
+    model's `model_config` to customize the behavior of `auto_init`.
+
+    Attributes:
+        get_attr (str | None): The attribute name to use for looking up existing
+            related instances. If None, the primary key of the related class is used.
+            Defaults to None.
+        exclude (set): A set of attribute names to exclude from automatic
+            initialization. Defaults to `{"id"}`.
     """
 
     get_attr: str | None = None
     exclude: set = Field(default_factory=_default_exclusion)
-    # auto_create: bool = False
+    # auto_create: bool = False # Potential future feature
 
 
-def _get_config(relation_cls: type[SqlAlchemyBase]) -> AutoInitConfig:
+def _get_config(model_cls: type[SqlAlchemyBase]) -> AutoInitConfig:
     """
-    Returns the config for the given class.
+    Retrieves the `AutoInitConfig` for a given SQLAlchemy model class.
+
+    It looks for a `model_config` attribute (expected to be a Pydantic ConfigDict)
+    on the model class and merges its values with the default `AutoInitConfig`.
+
+    Args:
+        model_cls (type[SqlAlchemyBase]): The SQLAlchemy model class.
+
+    Returns:
+        AutoInitConfig: The resolved configuration for auto-initialization.
     """
     cfg = AutoInitConfig()
-    cfgKeys = cfg.model_dump().keys()
-    # Get the config for the class
+    cfg_keys = cfg.model_fields.keys() # Use model_fields for Pydantic v2
+
+    # Get the config from the class's model_config attribute
     try:
-        class_config: ConfigDict = relation_cls.model_config
+        # In Pydantic v2, model_config is a dict, not an attribute of the class itself.
+        # Accessing it directly might be tricky if it's not a standard Pydantic model.
+        # Assuming model_cls might have a Pydantic-style ConfigDict.
+        class_model_config: ConfigDict | None = getattr(model_cls, "model_config", None)
+        if class_model_config:
+            for attr_name, value in class_model_config.items():
+                if attr_name in cfg_keys:
+                    setattr(cfg, attr_name, value)
     except AttributeError:
-        return cfg
-    # Map all matching attributes in Config to all AutoInitConfig attributes
-    for attr in class_config:
-        if attr in cfgKeys:
-            setattr(cfg, attr, class_config[attr])
+        # No model_config found on the class, use default AutoInitConfig
+        pass
 
     return cfg
 
 
 def get_lookup_attr(relation_cls: type[SqlAlchemyBase]) -> str:
-    """Returns the primary key attribute of the related class as a string.
+    """
+    Determines the attribute name to use for looking up instances of a related class.
+
+    It first checks the `AutoInitConfig` for `get_attr`. If not specified,
+    it defaults to the name of the first primary key column of the related class.
+    If that also fails, it defaults to "id".
 
     Args:
-        relation_cls (DeclarativeMeta): The SQLAlchemy class to get the primary_key from
+        relation_cls (type[SqlAlchemyBase]): The SQLAlchemy model class of the related objects.
 
     Returns:
-        Any: [description]
+        str: The attribute name to use for lookups.
     """
-
     cfg = _get_config(relation_cls)
 
     try:
-        get_attr = cfg.get_attr
-        if get_attr is None:
-            get_attr = relation_cls.__table__.primary_key.columns.keys()[0]
+        lookup_attribute = cfg.get_attr
+        if lookup_attribute is None:
+            # Get the name of the first primary key column
+            pk_columns = relation_cls.__table__.primary_key.columns
+            lookup_attribute = pk_columns.keys()[0] if pk_columns else "id"
     except Exception:
-        get_attr = "id"
-    return get_attr
+        lookup_attribute = "id"  # Fallback
+    return lookup_attribute
 
 
-def handle_many_to_many(session, get_attr, relation_cls, all_elements: list[dict]):
+def handle_many_to_many(
+    session: Session, get_attr: str, relation_cls: type[SqlAlchemyBase], all_elements: list[dict]
+) -> list[SqlAlchemyBase]:
     """
-    Proxy call to `handle_one_to_many_list` for many-to-many relationships. Because functionally, they do the same
+    Handles the initialization or update of objects in a many-to-many relationship.
+
+    This function is essentially a proxy to `handle_one_to_many_list` as the logic
+    for finding existing elements or preparing new ones is similar for list-based
+    relationships.
+
+    Args:
+        session (Session): The active SQLAlchemy session.
+        get_attr (str): The attribute name used to look up existing related instances.
+        relation_cls (type[SqlAlchemyBase]): The class of the related objects.
+        all_elements (list[dict]): A list of dictionaries, where each dictionary
+            contains data for a related object.
+
+    Returns:
+        list[SqlAlchemyBase]: A list of initialized or updated SQLAlchemy model instances.
     """
     return handle_one_to_many_list(session, get_attr, relation_cls, all_elements)
 
 
 def handle_one_to_many_list(
-    session: Session, get_attr, relation_cls: type[SqlAlchemyBase], all_elements: list[dict] | list[str]
-):
-    elems_to_create: list[dict] = []
-    updated_elems: list[dict] = []
+    session: Session,
+    get_attr: str,
+    relation_cls: type[SqlAlchemyBase],
+    all_elements: list[dict] | list[str] | list[UUID], # Added list[UUID]
+) -> list[SqlAlchemyBase]:
+    """
+    Handles initialization or update of a list of related objects (one-to-many or many-to-many).
 
+    For each element in `all_elements`:
+    - If the element is a dictionary and an existing related object is found using `get_attr`,
+      the existing object is updated with the dictionary's values (excluding configured exclusions).
+    - If the element is a dictionary and no existing object is found, it's prepared for creation.
+    - If the element is a string or UUID (assumed to be an ID), it attempts to fetch the existing object.
+
+    Args:
+        session (Session): The active SQLAlchemy session.
+        get_attr (str): The attribute name used to look up existing related instances.
+        relation_cls (type[SqlAlchemyBase]): The class of the related objects.
+        all_elements (list[dict] | list[str] | list[UUID]): A list of dictionaries (data for new/updated objects)
+            or strings/UUIDs (IDs of existing objects).
+
+    Returns:
+        list[SqlAlchemyBase]: A list of new or updated SQLAlchemy model instances.
+    """
+    elems_to_create_data: list[dict] = []
+    final_elements_list: list[SqlAlchemyBase] = []
     cfg = _get_config(relation_cls)
 
-    for elem in all_elements:
-        elem_id = elem.get(get_attr, None) if isinstance(elem, dict) else elem
-        stmt = select(relation_cls).filter_by(**{get_attr: elem_id})
-        existing_elem = session.execute(stmt).scalars().one_or_none()
+    for elem_data in all_elements:
+        existing_elem: SqlAlchemyBase | None = None
+        elem_id = None
 
-        if existing_elem is None and isinstance(elem, dict):
-            elems_to_create.append(elem)
-            continue
+        if isinstance(elem_data, dict):
+            elem_id = elem_data.get(get_attr)
+        elif isinstance(elem_data, (str, UUID)): # Handle direct IDs
+            elem_id = elem_data
+        
+        if elem_id is not None:
+            stmt = select(relation_cls).filter_by(**{get_attr: elem_id})
+            existing_elem = session.execute(stmt).scalars().one_or_none()
 
-        elif isinstance(elem, dict):
-            for key, value in elem.items():
-                if key not in cfg.exclude:
-                    setattr(existing_elem, key, value)
+        if existing_elem:
+            if isinstance(elem_data, dict): # Update if full data provided
+                for key, value in elem_data.items():
+                    if key not in cfg.exclude: # Respect exclusions
+                        setattr(existing_elem, key, value)
+            final_elements_list.append(existing_elem)
+        elif isinstance(elem_data, dict): # Prepare for creation if not found and data is dict
+            elems_to_create_data.append(elem_data)
+        # If elem_data is just an ID and not found, it's skipped (could add logging or error)
 
-        updated_elems.append(existing_elem)
+    # Create new elements if any data was provided for them
+    newly_created_elems = [safe_call(relation_cls, data.copy(), session=session) for data in elems_to_create_data]
+    final_elements_list.extend(filter(None, newly_created_elems)) # Add successfully created items
 
-    new_elems = [safe_call(relation_cls, elem.copy(), session=session) for elem in elems_to_create]
-    return new_elems + updated_elems
+    return final_elements_list
 
 
 def auto_init():  # sourcery no-metrics
-    """Wraps the `__init__` method of a class to automatically set the common
-    attributes.
+    """
+    A decorator that wraps the `__init__` method of a SQLAlchemy model class
+    to automatically set attributes from keyword arguments.
 
-    Args:
-        exclude (Union[set, list], optional): [description]. Defaults to None.
+    It handles simple column attributes and relationships (one-to-many,
+    many-to-one, many-to-many), allowing for nested initialization of related
+    objects.
+
+    The behavior can be customized via `AutoInitConfig` settings in the model's
+    `model_config`. A `session` keyword argument is required during model
+    instantiation when using this decorator.
+
+    Example:
+        ```python
+        from sqlalchemy.orm import Session
+        from .base import SqlAlchemyBase # Assuming your Base is here
+        from .auto_init import auto_init
+
+        class User(SqlAlchemyBase):
+            __tablename__ = "users"
+            id = Column(Integer, primary_key=True)
+            name = Column(String)
+            # ... other columns and relationships
+
+            @auto_init()
+            def __init__(self, *, session: Session, **kwargs):
+                # The 'session' kwarg is captured by auto_init
+                # Original __init__ can be empty or have pre/post logic
+                pass
+        ```
     """
 
-    def decorator(init):
-        @wraps(init)
-        def wrapper(self: SqlAlchemyBase, *args, **kwargs):  # sourcery no-metrics
+    def decorator(init_method: callable):
+        @wraps(init_method)
+        def wrapper(self: SqlAlchemyBase, *args, **kwargs):
             """
-            Custom initializer that allows nested children initialization.
-            Only keys that are present as instance's class attributes are allowed.
-            These could be, for example, any mapped columns or relationships.
+            Custom initializer that processes keyword arguments to set model attributes.
 
-            Code inspired from GitHub.
+            It iterates through `kwargs`:
+            - If a key matches a model column, the attribute is set.
+            - If a key matches a mapped relationship, it processes the related data:
+                - For one-to-many list relationships, it calls `handle_one_to_many_list`.
+                - For simple one-to-many (non-list), it initializes the related object.
+                - For many-to-one, it fetches or initializes the related object based on provided ID or data.
+                - For many-to-many, it calls `handle_many_to_many`.
+            - Requires a `session` keyword argument for database operations.
+            - Attributes listed in `exclude` (from `AutoInitConfig`) are skipped.
+
+            Inspired by a solution for nested Pydantic models in FastAPI:
             Ref: https://github.com/tiangolo/fastapi/issues/2194
             """
             cls = self.__class__
-            config = _get_config(cls)
+            current_config = _get_config(cls)
             exclude = config.exclude
 
             alchemy_mapper: Mapper = self.__mapper__

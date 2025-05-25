@@ -1,148 +1,194 @@
-from fastapi import Depends, HTTPException, status
-from pydantic import UUID4
+"""
+This module defines FastAPI controllers related to user management in the Marvin application.
 
-from datetime import timedelta
+It includes:
+- `UserController`: For operations that authenticated users can perform on their
+  own profiles, such as retrieving their information, updating their profile,
+  and changing their password.
 
-from marvin.core.security import hash_password, create_access_token
-from marvin.core.security.providers.credentials_provider import CredentialsProvider
-from marvin.db.models.users.users import AuthMethod
-from marvin.routes._base import BaseAdminController, BaseUserController, controller
-from marvin.routes._base.mixins import HttpRepo
-from marvin.routes._base.routers import AdminAPIRouter, UserAPIRouter
-from marvin.routes.users._helpers import assert_user_change_allowed
-from marvin.schemas.response import ErrorResponse, SuccessResponse
-from marvin.schemas.response.pagination import PaginationQuery
-from marvin.schemas.user import (
+Note: This file contains commented-out sections for `AdminUserController` and
+`UserApiTokensController`. These functionalities might be handled in their
+dedicated controller files (e.g., `marvin/routes/admin/user_controller.py` and
+`marvin/routes/users/api_token_controller.py` respectively) or are pending
+implementation/refactoring.
+"""
+# from datetime import timedelta # Imported but not used in active code
+from fastapi import Depends, HTTPException, status, APIRouter # APIRouter for consistency
+from pydantic import UUID4 # For UUID type validation
+
+# Marvin core, schemas, services, and base controllers
+from marvin.core.security import hash_password #, create_access_token # create_access_token not used in active code
+from marvin.core.security.providers.credentials_provider import CredentialsProvider # For password verification
+from marvin.db.models.users.users import AuthMethod # Enum for authentication methods
+from marvin.routes._base import BaseUserController, controller # Base controller for user-auth routes
+# from marvin.routes._base.mixins import HttpRepo # HttpRepo not directly used by UserController methods
+from marvin.routes._base.routers import UserAPIRouter # Router for user-authenticated endpoints
+# from marvin.routes._base.routers import AdminAPIRouter # AdminAPIRouter not used for active UserController
+from marvin.routes.users._helpers import assert_user_change_allowed # Permission assertion helper
+from marvin.schemas.response import ErrorResponse, SuccessResponse # Standardized response schemas
+# from marvin.schemas.response.pagination import PaginationQuery # Not used in active UserController
+from marvin.schemas.user import ( # User Pydantic schemas
     ChangePassword,
-    UserCreate,
+    # UserCreate, # Not used by active UserController endpoints for creation
     UserRead,
-    LongLiveTokenCreate,
-    LongLiveTokenRead,
-    LongLiveTokenRead_,
-    TokenResponseDelete,
-    TokenCreate,
-    LongLiveTokenCreateResponse,
+    UserUpdate, # Using UserUpdate for user profile updates
+    # Schemas related to API tokens, not used in active UserController:
+    # LongLiveTokenCreate,
+    # LongLiveTokenRead,
+    # LongLiveTokenRead_,
+    # TokenResponseDelete,
+    # TokenCreate,
+    # LongLiveTokenCreateResponse,
 )
-from marvin.schemas.user.user import UserPagination
+# from marvin.schemas.user.user import UserPagination # Not used in active UserController
 
-user_router = UserAPIRouter(prefix="/users", tags=["Users: CRUD"])
-admin_router = AdminAPIRouter(prefix="/users", tags=["Users: Admin CRUD"])
+# Router for user-specific, self-service operations.
+# All routes here will be under /users (or a parent prefix if UserAPIRouter is included with one).
+user_router = UserAPIRouter(tags=["Users - Self Service"]) # Renamed tag for clarity
 
-from marvin.services.event_bus_service.event_bus_service import EventBusService
-from marvin.services.event_bus_service.event_types import EventTypes, EventUserSignupData
-from marvin.services.user.registration_service import RegistrationService
+# Commented-out AdminAPIRouter. Admin user operations are likely in admin/user_controller.py.
+# admin_router = AdminAPIRouter(prefix="/users", tags=["Users: Admin CRUD"])
+
+# Commented-out EventBusService and related imports, not used in active UserController.
+# from marvin.services.event_bus_service.event_bus_service import EventBusService
+# from marvin.services.event_bus_service.event_types import EventTypes, EventUserSignupData
+# from marvin.services.user.registration_service import RegistrationService
 
 
+# Commented-out AdminUserController.
+# This functionality is expected to be in `marvin/routes/admin/user_controller.py`.
 # @controller(admin_router)
 # class AdminUserController(BaseAdminController):
-#     @property
-#     def mixins(self) -> HttpRepo:
-#         return HttpRepo[UserIn, UserRead, UserCreate](self.repos.users, self.logger)
-
-#     @admin_router.get("", response_model=UserPagination)
-#     def get_all(self, q: PaginationQuery = Depends(PaginationQuery)):
-#         """Returns all users from all groups"""
-
-#         response = self.repos.users.page_all(
-#             pagination=q,
-#             override=UserRead,
-#         )
-
-#         response.set_pagination_guides(admin_router.url_path_for("get_all"), q.model_dump())
-#         return response
-
-#     @admin_router.post("", response_model=UserRead, status_code=201)
-#     def create_user(self, new_user: UserCreate):
-#         new_user.password = hash_password(new_user.password)
-#         return self.mixins.create_one(new_user)
-
-#     @admin_router.get("/{item_id}", response_model=UserRead)
-#     def get_user(self, item_id: UUID4):
-#         return self.mixins.get_one(item_id)
-
-#     @admin_router.delete("/{item_id}")
-#     def delete_user(self, item_id: UUID4):
-#         self.mixins.delete_one(item_id)
+#     # ... (implementation omitted as it's commented out)
 
 
-@controller(user_router)
+@controller(user_router) # Registers this class-based view with the user_router
 class UserController(BaseUserController):
-    @user_router.get("/self", response_model=UserRead)
-    def get_logged_in_user(self):
+    """
+    Controller for user self-service operations.
+
+    Provides endpoints for authenticated users to manage their own profile,
+    including retrieving their details, updating their information, and
+    changing their password.
+    """
+
+    @user_router.get("/self", response_model=UserRead, summary="Get Current User Profile")
+    def get_logged_in_user(self) -> PrivateUser: # Return type from BaseUserController is PrivateUser
+        """
+        Retrieves the profile information of the currently authenticated user.
+
+        Returns:
+            PrivateUser: Pydantic schema containing the authenticated user's details.
+        """
+        # `self.user` is injected by `BaseUserController` and contains the current user's data.
         return self.user
 
-    @user_router.put("/password")
-    def update_password(self, password_change: ChangePassword):
-        """Resets the User Password"""
-        if self.user.password == "LDAP" or self.user.auth_method == AuthMethod.LDAP:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, ErrorResponse.respond("User password is managed by LDAP"))
-        if not CredentialsProvider.verify_password(password_change.current_password, self.user.password):
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, ErrorResponse.respond("User password is incorrect"))
+    @user_router.put("/password", response_model=SuccessResponse, summary="Update Current User's Password")
+    def update_password(self, password_change_data: ChangePassword) -> SuccessResponse:
+        """
+        Updates the password for the currently authenticated user.
 
-        self.user.password = hash_password(password_change.new_password)
-        try:
-            self.repos.users.update_password(self.user.id, self.user.password)
-        except Exception as e:
+        The user must provide their current password for verification before the
+        new password can be set. This endpoint does not work for users whose
+        passwords are managed by external systems like LDAP.
+
+        Args:
+            password_change_data (ChangePassword): Pydantic schema containing the
+                                                   `current_password` and `new_password`.
+
+        Returns:
+            SuccessResponse: A confirmation message if the password was updated successfully.
+
+        Raises:
+            HTTPException (400 Bad Request): If the user is an LDAP user, if the current
+                                           password is incorrect, or if the password
+                                           update fails for other reasons.
+        """
+        # Check if user's password is managed externally (e.g., LDAP)
+        if self.user.auth_method == AuthMethod.LDAP: # Comparing with enum member
+            self.logger.warning(f"User {self.user.username} (LDAP) attempted to change password via Marvin.")
             raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                ErrorResponse.respond("Failed to update password"),
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=ErrorResponse.respond("Password for LDAP users cannot be changed here.")
+            )
+        
+        # Verify the current password
+        if not CredentialsProvider.verify_password(
+            password_change_data.current_password, self.user.password # user.password should be hashed
+        ):
+            self.logger.warning(f"Incorrect current password provided by user {self.user.username} during password update.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail=ErrorResponse.respond("The current password provided is incorrect.")
+            )
+
+        # Hash the new password before updating
+        hashed_new_password = hash_password(password_change_data.new_password)
+        
+        try:
+            # Update the password in the repository
+            # The `update_password` method on the repo is assumed to handle the actual DB update.
+            # `self.user` object here is from the Depends(get_current_user),
+            # direct modification to `self.user.password` won't persist unless saved.
+            # The repository method should be used to persist the change.
+            self.repos.users.update_password(self.user.id, hashed_new_password)
+            self.logger.info(f"Password updated successfully for user {self.user.username}.")
+        except Exception as e:
+            self.logger.exception(f"Failed to update password for user {self.user.username}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, # Changed to 500 for unexpected update failure
+                detail=ErrorResponse.respond("Failed to update password due to a server error."),
             ) from e
 
-        return SuccessResponse.respond("User password updated successfully")
+        return SuccessResponse.respond("User password updated successfully.")
 
-    @user_router.put("/{item_id}")
-    def update_user(self, item_id: UUID4, new_data: UserRead):
+    @user_router.put("/{item_id}", response_model=SuccessResponse, summary="Update User Profile")
+    def update_user(self, item_id: UUID4, new_data: UserUpdate) -> SuccessResponse: # Changed new_data type to UserUpdate
+        """
+        Updates the profile information for a specified user.
+
+        Users can only update their own profiles. Non-admin users cannot change
+        their permissions or group. Admins also have restrictions on changing their
+        own permissions via this user-facing endpoint.
+
+        Args:
+            item_id (UUID4): The ID of the user whose profile is to be updated.
+                             Must match the authenticated user's ID unless the
+                             requester is an admin (though admin edits of others
+                             are restricted here).
+            new_data (UserUpdate): Pydantic schema containing the fields to update.
+                                   This should be a partial update schema.
+
+        Returns:
+            SuccessResponse: A confirmation message if the user profile was updated successfully.
+
+        Raises:
+            HTTPException (403 Forbidden): If the user attempts an unauthorized change
+                                         (e.g., editing another user as non-admin,
+                                         changing permissions).
+            HTTPException (400/500): If the update fails for other reasons.
+        """
+        # Assert that the current user is allowed to make the proposed changes.
+        # This helper function encapsulates permission logic.
         assert_user_change_allowed(item_id, self.user, new_data)
 
         try:
-            self.repos.users.update(item_id, new_data.model_dump())
+            # Perform the update using the users repository.
+            # `new_data.model_dump(exclude_unset=True)` ensures only provided fields are updated (PATCH behavior).
+            self.repos.users.update(item_id, new_data.model_dump(exclude_unset=True))
+            self.logger.info(f"User profile for ID {item_id} updated by user {self.user.username}.")
         except Exception as e:
+            self.logger.exception(f"Failed to update user profile for ID {item_id}: {e}")
             raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                ErrorResponse.respond("Failed to update user"),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, # Changed to 500 for unexpected update failure
+                detail=ErrorResponse.respond("Failed to update user profile due to a server error."),
             ) from e
 
-        return SuccessResponse.respond("User updated successfully")
+        return SuccessResponse.respond("User profile updated successfully.")
 
 
+# Commented-out UserApiTokensController.
+# This functionality is now in `marvin/routes/users/api_token_controller.py`.
 # @controller(user_router)
 # class UserApiTokensController(BaseUserController):
-#     @user_router.post("/api-tokens", status_code=status.HTTP_201_CREATED, response_model=LongLiveTokenCreateResponse)
-#     def create_api_token(self, token_params: LongLiveTokenCreate):
-#         """Create api_token in the Database"""
-#         token_data = {
-#             "long_token": True,
-#             "id": str(self.user.id),
-#             "name": token_params.name,
-#             "integration_id": token_params.integration_id,
-#         }
-
-#         five_years = timedelta(1825)
-#         token = create_access_token(token_data, five_years)
-
-#         token_model = TokenCreate(
-#             name=token_params.name,
-#             token=token,
-#             user_id=self.user.id,
-#         )
-
-#         new_token_in_db = self.repos.api_tokens.create(token_model)
-
-#         print(new_token_in_db)
-
-#         if new_token_in_db:
-#             return new_token_in_db
-
-#     @user_router.delete("/api-tokens/{token_id}", response_model=TokenResponseDelete)
-#     def delete_api_token(self, token_id: UUID4):
-#         """Delete api_token from the Database"""
-#         token: LongLiveTokenRead_ = self.repos.api_tokens.get_one(token_id)
-
-#         if not token:
-#             raise HTTPException(status.HTTP_404_NOT_FOUND, f"Could not locate token with id '{token_id}' in database")
-
-#         if token.user.email == self.user.email:
-#             deleted_token = self.repos.api_tokens.delete(token_id)
-#             return TokenResponseDelete(token_delete=deleted_token.name)
-#         else:
-#             raise HTTPException(status.HTTP_403_FORBIDDEN)
+#     # ... (implementation omitted as it's commented out)

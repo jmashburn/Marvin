@@ -1,3 +1,10 @@
+"""
+This module provides a credentials-based authentication provider for Marvin.
+
+It allows users to authenticate using their username and password stored in the
+application's database. It also handles login attempt tracking and user locking
+to prevent brute-force attacks.
+"""
 from datetime import timedelta
 
 from sqlalchemy.orm.session import Session
@@ -19,10 +26,32 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
     _logger = root_logger.get_logger("credentials_provider")
 
     def __init__(self, session: Session, data: CredentialsRequest) -> None:
+        """
+        Initializes the CredentialsProvider.
+
+        Args:
+            session (Session): SQLAlchemy session.
+            data (CredentialsRequest): The credentials request data containing
+                                       username and password.
+        """
         super().__init__(session, data)
 
     def authenticate(self) -> tuple[str, timedelta] | None:
-        """Attempt to authenticate a user given a username and password"""
+        """
+        Attempts to authenticate a user using the provided username and password.
+
+        It performs the following checks:
+        - Retrieves the user by username or email.
+        - Verifies that the user's authentication method is 'MARVIN'.
+        - Checks if the user is locked out due to excessive login attempts.
+        - Verifies the provided password against the stored hashed password.
+        - Updates login attempt counts and locks the user if necessary.
+
+        Returns:
+            tuple[str, timedelta] | None: A tuple containing the access token and
+                                         its expiration delta if authentication is
+                                         successful, otherwise None.
+        """
         settings = get_app_settings()
         db = get_repositories(self.session, group_id=None)
         user = self.try_get_user(self.data.username)
@@ -56,14 +85,32 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
         return self.get_access_token(user, self.data.remember_me)  # type: ignore
 
     def verify_fake_password(self):
+        """
+        Performs a fake password verification to mitigate timing attacks.
+
+        This method is called when a user is not found or has an invalid
+        authentication method. It computes a password hash to ensure that
+        the response time is relatively constant, making it harder for
+        attackers to enumerate users or determine authentication methods
+        based on timing differences.
+        """
         # To prevent user enumeration we perform the verify_password computation to ensure
         # server side time is relatively constant and not vulnerable to timing attacks.
         CredentialsProvider.verify_password(
-            "abc123cba321",
-            "$2b$12$JdHtJOlkPFwyxdjdygEzPOtYmdQF5/R5tHxw5Tq8pxjubyLqdIX5i",
+            "abc123cba321",  # A dummy password
+            "$2b$12$JdHtJOlkPFwyxdjdygEzPOtYmdQF5/R5tHxw5Tq8pxjubyLqdIX5i",  # A dummy hash
         )
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Compares a plain string to a hashed password"""
+        """
+        Compares a plain string password with a hashed password.
+
+        Args:
+            plain_password (str): The plain text password.
+            hashed_password (str): The hashed password.
+
+        Returns:
+            bool: True if the passwords match, False otherwise.
+        """
         return get_hasher().verify(plain_password, hashed_password)

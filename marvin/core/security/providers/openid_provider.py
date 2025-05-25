@@ -1,3 +1,10 @@
+"""
+This module provides an OpenID Connect (OIDC) authentication provider for Marvin.
+
+It allows users to authenticate using an OIDC Identity Provider (IdP).
+It handles claim validation, user creation (if enabled), and synchronization
+of admin status based on group claims.
+"""
 from datetime import timedelta
 
 from authlib.oidc.core import UserInfo
@@ -17,10 +24,36 @@ class OpenIDProvider(AuthProvider[UserInfo]):
     _logger = root_logger.get_logger("openid_provider")
 
     def __init__(self, session: Session, data: UserInfo) -> None:
+        """
+        Initializes the OpenIDProvider.
+
+        Args:
+            session (Session): SQLAlchemy session.
+            data (UserInfo): The OIDC UserInfo object containing claims from the ID token.
+        """
         super().__init__(session, data)
 
     def authenticate(self) -> tuple[str, timedelta] | None:
-        """Attempt to authenticate a user given a username and password"""
+        """
+        Attempts to authenticate a user using OIDC claims.
+
+        It performs the following steps:
+        1. Validates that all required claims are present and not empty.
+        2. If group claim validation is enabled, checks if the user belongs to
+           the required groups.
+        3. Tries to find an existing user based on the OIDC user claim.
+        4. If the user doesn't exist and OIDC signup is enabled, creates a new user.
+        5. If the user exists, optionally updates their admin status based on group claims.
+        6. Generates an access token if authentication is successful.
+
+        Raises:
+            MissingClaimException: If required OIDC claims are missing or empty.
+
+        Returns:
+            tuple[str, timedelta] | None: A tuple containing the access token and
+                                         its expiration delta if authentication is
+                                         successful, otherwise None.
+        """
 
         settings = get_app_settings()
         claims = self.data
@@ -108,6 +141,15 @@ class OpenIDProvider(AuthProvider[UserInfo]):
 
     @property
     def required_claims(self):
+        """
+        Returns a set of required OIDC claims based on application settings.
+
+        The base required claims are the OIDC name claim, email claim, and user claim.
+        If OIDC group claim requirement is enabled, the OIDC groups claim is also added.
+
+        Returns:
+            set: A set of required OIDC claim names.
+        """
         settings = get_app_settings()
 
         claims = {settings.OIDC_NAME_CLAIM, "email", settings.OIDC_USER_CLAIM}

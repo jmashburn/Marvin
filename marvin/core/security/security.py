@@ -1,3 +1,13 @@
+"""
+This module provides core security functionalities for the Marvin application.
+
+It includes functions for:
+- Authentication provider selection (LDAP or credentials-based).
+- Access token creation (JWT).
+- File-specific token creation.
+- Password hashing.
+- Generation of URL-safe tokens.
+"""
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,6 +30,19 @@ logger = root_logger.get_logger("security")
 
 
 def get_auth_provider(session: Session, data: CredentialsRequestForm) -> AuthProvider:
+    """
+    Returns the appropriate authentication provider based on application settings.
+
+    If LDAP is enabled in settings, it returns an LDAPProvider.
+    Otherwise, it returns a CredentialsProvider.
+
+    Args:
+        session (Session): SQLAlchemy session.
+        data (CredentialsRequestForm): The credentials request form data.
+
+    Returns:
+        AuthProvider: The selected authentication provider.
+    """
     settings = get_app_settings()
 
     credentials_request = CredentialsRequest(**data.__dict__)
@@ -30,6 +53,17 @@ def get_auth_provider(session: Session, data: CredentialsRequestForm) -> AuthPro
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    """
+    Creates a JWT access token.
+
+    Args:
+        data (dict): The data to include in the token payload.
+        expires_delta (timedelta | None, optional): The token expiration time.
+            Defaults to the value specified in application settings.
+
+    Returns:
+        str: The encoded JWT access token.
+    """
     settings = get_app_settings()
 
     to_encode = data.copy()
@@ -42,6 +76,15 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 
 
 def create_file_token(file_path: Path) -> str:
+    """
+    Creates a short-lived JWT access token specifically for accessing a file.
+
+    Args:
+        file_path (Path): The path to the file.
+
+    Returns:
+        str: The encoded JWT file access token.
+    """
     token_data = {"file": str(file_path)}
     return create_access_token(token_data, expires_delta=timedelta(minutes=30))
 
