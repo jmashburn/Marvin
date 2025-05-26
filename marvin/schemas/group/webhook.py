@@ -112,6 +112,18 @@ class WebhookCreate(_MarvinModel):
         raise ValueError(f"Invalid format for scheduled_time: '{v}'. Expected HH:MM:SS, ISO datetime, or existing time object.")
 
 
+class WebhookSave(WebhookCreate):
+    """
+    Schema for saving a webhook configuration to the database.
+    Extends `WebhookCreate` and is used for creating or updating webhook records.
+    It does not include `group_id` as it is typically handled by the URL path in the API.
+    """
+
+    group_id: UUID4  # This field might be redundant if group_id is part of the URL path for update.
+    """The unique identifier of the group this webhook belongs to."""
+    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+
+
 class WebhookUpdate(WebhookCreate):
     """
     Schema for updating an existing webhook configuration.

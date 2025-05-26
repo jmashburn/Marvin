@@ -8,7 +8,7 @@ and for sending email invitations containing these tokens.
 
 from typing import Annotated  # For type hinting with FastAPI Header
 
-from fastapi import APIRouter, Header, Depends, HTTPException, status  # Core FastAPI components
+from fastapi import APIRouter, Header, HTTPException, status  # Core FastAPI components
 
 # Marvin core, schemas, services, and base controller
 from marvin.core.security import url_safe_token  # For generating secure tokens
@@ -18,12 +18,8 @@ from marvin.schemas.group.invite_token import (  # Pydantic schemas for invite t
     EmailInvitation,
     InviteTokenCreate,
     InviteTokenRead,
-    InviteTokenSave,
-    InviteTokenPagination,  # For paginated responses
-    InviteTokenSummary,
     # InviteTokenUpdate, # InviteTokenUpdate was imported but not used
 )
-from marvin.schemas.mapper import cast  # Utility for casting between schema types
 from marvin.schemas.response.pagination import PaginationQuery  # For pagination parameters
 from marvin.services.email.email_service import EmailService  # Service for sending emails
 
@@ -42,8 +38,8 @@ class GroupInvitationsController(BaseUserController):
     based on user permissions (e.g., `can_invite`).
     """
 
-    @router.get("", response_model=InviteTokenPagination, summary="List Group Invite Tokens")
-    def get_all(self, q: PaginationQuery = Depends(PaginationQuery)) -> InviteTokenPagination:
+    @router.get("", response_model=list[InviteTokenRead], summary="List All Invite Tokens for User's Group")
+    def get_invite_tokens(self) -> list[InviteTokenRead]:
         """
         Retrieves all active invitation tokens for the current user's group.
 
@@ -52,28 +48,32 @@ class GroupInvitationsController(BaseUserController):
         which is already group-scoped by `BaseUserController`.
 
         Returns:
-            InviteTokenPagination: Paginated list of invite token summeries.
+            list[InviteTokenRead]: A list of Pydantic schemas representing the invite tokens.
         """
         # `self.repos.group_invite_tokens` is automatically scoped to the user's group
         # by `BaseUserController`'s `repos` property.
         # Fetch all items by setting per_page to -1 (or a very large number if -1 isn't supported by pagination).
-        # `self.repo` is already group-scoped.
-        paginated_response = self.repos.group_invite_tokens.page_all(
-            pagination=q,
-            override_schema=InviteTokenRead,  # Serialize items using InviteTokenPagination
+        all_tokens_page = self.repos.group_invite_tokens.page_all(
+            PaginationQuery(page=1, per_page=-1)  # Fetches all tokens for the group
         )
-        # Set HATEOAS pagination guide URLs
-        paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
-        return paginated_response
+        # The print statement is for debugging and should ideally be removed in production.
+        # print(all_tokens_page.items) # Original print statement
+        self.logger.debug(f"Retrieved {len(all_tokens_page.items)} invite tokens for group ID {self.group_id}")
+        return all_tokens_page.items
 
-    @router.post("", response_model=InviteTokenSummary, status_code=status.HTTP_201_CREATED, summary="Create an Invite Token")
-    def create_invite_token(self, token_data: InviteTokenCreate) -> InviteTokenSummary:  # Renamed `token` to `token_data`
+    @router.post("", response_model=InviteTokenRead, status_code=status.HTTP_201_CREATED, summary="Create an Invite Token")
+    def create_invite_token(self, token_data: InviteTokenCreate) -> InviteTokenRead:  # Renamed `token` to `token_data`
         """
         Creates a new invitation token for a group.
 
+        The user must have `can_invite` permission. If the user is not an admin,
+        they can only create tokens for their own group. Admins can specify a
+        `group_id` to create a token for any group. If `group_id` is not provided
+        in the request, it defaults to the current user's group.
+
         Args:
             token_data (InviteTokenCreate): Pydantic schema containing the data for the new token,
-                                         such as `uses_left`.
+                                         such as `uses_left` and optionally `group_id`.
 
         Returns:
             InviteTokenRead: The Pydantic schema of the newly created invitation token.
@@ -83,19 +83,34 @@ class GroupInvitationsController(BaseUserController):
                                          or to create tokens for the specified group.
         """
         # Check if the user has permission to invite
-        self.checks.can_invite()
+        if not self.user.can_invite:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User does not have permission to create invite tokens.",
+            )
+
+        # Determine the target group_id: use provided or default to user's current group
+        target_group_id = token_data.group_id or self.group_id
+
+        # Non-admins can only create tokens for their own group
+        if not self.user.admin and (target_group_id != self.group_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators can create invite tokens for groups other than their own.",
+            )
 
         # Prepare the final token data for creation, generating a secure token string
         # Note: The input `token_data` (InviteTokenCreate) has `uses`, but the model uses `uses_left`.
         # Assuming `token_data.uses` is meant for `uses_left`.
         final_token_payload = InviteTokenCreate(
             uses_left=token_data.uses_left,  # uses_left from input schema
+            group_id=target_group_id,
+            token=url_safe_token(),  # Generate a new secure token string
         )
 
-        save_data = cast(final_token_payload, InviteTokenSave, token=url_safe_token(), group_id=self.group_id)
         # Create the token using the group_invite_tokens repository
-        created_token = self.repos.group_invite_tokens.create(save_data)
-        self.logger.info(f"Invite token created by user {self.user.username} for group {self.group_id}")
+        created_token = self.repos.group_invite_tokens.create(final_token_payload)
+        self.logger.info(f"Invite token created by user {self.user.username} for group {target_group_id}")
         return created_token
 
     @router.post("/email", response_model=EmailInitationResponse, summary="Send Email Invitation")
@@ -121,22 +136,6 @@ class GroupInvitationsController(BaseUserController):
             EmailInitationResponse: A Pydantic model indicating whether the email was
                                     sent successfully and any error message if it failed.
         """
-        self.checks.can_invite()  # Ensure user has permission to invite
-
-        if not self.settings.SMTP_ENABLED:
-            # If SMTP is not enabled, raise an error
-            self.logger.error("SMTP service is not enabled, cannot send email invitations.")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Email service is currently unavailable. Please try again later."
-            )
-
-        token = self.repos.group_invite_tokens.get_one(invite_data.token, "token")  # Fetch the token by its string value
-
-        if not token or token.uses_left <= 0:
-            # If the token does not exist or has no uses left, raise an error
-            self.logger.error(f"Invalid or expired token: {invite_data.token}")
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The provided invitation token is invalid or has expired.")
-
         email_service = EmailService(locale=accept_language)  # Initialize email service with locale
 
         # Construct the full registration URL including the token
@@ -147,7 +146,7 @@ class GroupInvitationsController(BaseUserController):
 
         try:
             # Attempt to send the invitation email
-            email_sent_successfully = email_service.send_invitation(recipient_address=invite_data.email, invitation_url=registration_url)
+            email_sent_successfully = email_service.send_invitation(address=invite_data.email, invitation_url=registration_url)
             if email_sent_successfully:
                 self.logger.info(f"Invitation email sent to {invite_data.email} with token {invite_data.token}")
             else:

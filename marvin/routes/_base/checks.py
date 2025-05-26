@@ -75,7 +75,7 @@ class OperationChecks:
         Checks if the user has 'invite' permissions.
 
         Raises:
-            HTTPException (403 Forbidden): If `user.can_invite` is False.
+            HTTPException (403 Forbidden): If `user.admin` or `user.can_invite` is False.
 
         Returns:
             bool: True if the user has 'invite' permissions.

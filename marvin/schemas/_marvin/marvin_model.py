@@ -19,7 +19,7 @@ from __future__ import annotations  # Enables using Self for return type hints
 
 import re  # For regular expression operations in datetime parsing
 from collections.abc import Sequence  # For typing sequences
-from datetime import datetime  # Standard datetime objects
+from datetime import datetime, UTC  # Standard datetime objects
 from enum import Enum  # For creating enumerations like SearchType
 from typing import Any, ClassVar, Protocol, TypeVar  # Typing utilities
 
@@ -152,7 +152,7 @@ class _MarvinModel(BaseModel):
             if isinstance(field_value, datetime):
                 if field_value.tzinfo is None:  # Check if the datetime is naive
                     # If naive, assume it's UTC and make it timezone-aware
-                    setattr(self, field_name, field_value.replace(tzinfo=datetime.UTC))
+                    setattr(self, field_name, field_value.replace(tzinfo=UTC))
         return self
 
     def cast(self, target_cls: type[T], **kwargs: Any) -> T:

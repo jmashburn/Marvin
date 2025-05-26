@@ -318,11 +318,11 @@ class Users(SqlAlchemyBase, BaseMixins):
             self.can_manage = True
             self.can_invite = True
             self.advanced = True
-            # self.can_organize = True # Not a DB field, so assignment has no direct DB effect.
+            self.can_organize = True  # Not a DB field, so assignment has no direct DB effect.
         else:  # If not admin, set permissions as provided (or their defaults)
             self.can_manage = can_manage
             self.can_invite = can_invite
-            # self.can_organize = can_organize # No DB field
+            self.can_organize = can_organize  # No DB field
             # `advanced` status for non-admins might be set explicitly or based on other criteria.
             # If `admin` was just set to False, ensure `advanced` is also False unless specified.
             if admin is False:  # Explicitly making non-admin

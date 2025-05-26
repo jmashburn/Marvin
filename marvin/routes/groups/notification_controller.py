@@ -23,11 +23,6 @@ from marvin.schemas.group.event import (  # Pydantic schemas for group event not
     GroupEventNotifierRead,
     GroupEventNotifierSave,  # Intermediate schema for creation logic
     GroupEventNotifierUpdate,
-    # Unused imports:
-    # GroupEventNotifierOptionsUpdate,
-    # GroupEventNotifierOptionsPagination,
-    # GroupEventNotifierOptionsRead,
-    # GroupEventNotifierOptionsSummary,
 )
 from marvin.schemas.mapper import cast  # Utility for casting between schema types
 from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters

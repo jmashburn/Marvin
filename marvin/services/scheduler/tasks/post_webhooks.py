@@ -39,7 +39,7 @@ from marvin.services.event_bus_service.event_types import (  # Core event system
 last_ran: datetime = datetime.now(UTC)
 
 
-def post_group_webhooks(start_dt: datetime | None = None, group_id_filter: UUID4 | None = None) -> None:  # Renamed group_id to group_id_filter
+def post_group_webhooks(start_dt: datetime | None = None, group_id: UUID4 | None = None) -> None:  # Renamed group_id to group_id_filter
     """
     Posts webhook_task events to the event bus for a specific group or all groups.
 
@@ -68,7 +68,7 @@ def post_group_webhooks(start_dt: datetime | None = None, group_id_filter: UUID4
     current_run_time = last_ran = datetime.now(UTC)
 
     target_group_ids: list[UUID4]
-    if group_id_filter is None:
+    if group_id is None:
         # If no specific group_id is provided, fetch all group IDs to process.
         with session_context() as session:  # Create a new DB session context
             repos = get_repositories(session, group_id=None)  # Use non-scoped repos to get all groups
@@ -76,7 +76,7 @@ def post_group_webhooks(start_dt: datetime | None = None, group_id_filter: UUID4
             target_group_ids = [group.id for group in all_groups_page.items]
     else:
         # If a specific group_id is provided, process only that group.
-        target_group_ids = [group_id_filter]
+        target_group_ids = [group_id]
 
     # Dispatch a webhook_task event for each target group.
     for current_group_id in target_group_ids:

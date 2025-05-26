@@ -20,7 +20,9 @@ from marvin.schemas.group.webhook import (  # Pydantic schemas for webhooks
     WebhookCreate,
     WebhookPagination,
     WebhookRead,  # WebhookUpdate is available but HttpRepo mixin is typed with WebhookCreate for updates
+    WebhookSave,
 )
+from marvin.schemas.mapper import cast  # Utility for casting between schema types
 from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters
 
 # Services for webhook execution logic
@@ -124,7 +126,8 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         # The mixin is HttpRepo[WebhookCreate, WebhookRead, WebhookCreate], so C is WebhookCreate.
         # The repo's create method will expect a WebhookCreate compatible dict or object.
         create_payload = WebhookCreate(**save_data_dict)
-        return self.mixins.create_one(create_payload)
+        save_data = cast(create_payload, WebhookSave, group_id=self.group_id)
+        return self.mixins.create_one(save_data)
 
     @router.get("/rerun", summary="Re-run All Scheduled Webhooks for Today", status_code=status.HTTP_202_ACCEPTED)
     def rerun_webhooks(self) -> dict[str, str]:
