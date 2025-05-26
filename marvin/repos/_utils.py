@@ -4,6 +4,7 @@ where `None` might be a valid value, and a different sentinel is needed to
 indicate that a parameter was not set at all.
 """
 
+
 class NotSet:
     """
     A sentinel class used to represent a value that has not been set.
@@ -14,6 +15,7 @@ class NotSet:
 
     Instances of `NotSet` evaluate to `False` in a boolean context.
     """
+
     def __bool__(self) -> bool:
         """
         Makes instances of NotSet evaluate to False in boolean contexts.

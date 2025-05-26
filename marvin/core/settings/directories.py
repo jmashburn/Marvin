@@ -4,6 +4,7 @@ This module defines the directory structure used by the Marvin application.
 It includes the `AppDirectories` class, which centralizes the paths for
 various application directories like data, plugins, backups, etc.
 """
+
 from pathlib import Path
 
 

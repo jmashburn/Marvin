@@ -5,14 +5,17 @@ within the Marvin application.
 Currently, it includes:
 - `NotifierOptionSeeder`: For seeding default event notifier options from a JSON file.
 """
+
 import json
 import pathlib
 from collections.abc import Generator
-# from functools import cached_property # This import was not used
 
+# from functools import cached_property # This import was not used
 from marvin.schemas.event.event import EventNotifierOptionsCreate
-from marvin.services.event_bus_service.event_types import EventNameSpace # Default namespace
-from .abstract_seeder import AbstractSeeder # Base seeder class
+from marvin.services.event_bus_service.event_types import EventNameSpace  # Default namespace
+
+from .abstract_seeder import AbstractSeeder  # Base seeder class
+
 # Assuming notifier_options is a module or object that has a `notifier_options` attribute
 # which is a Path object pointing to the default JSON file.
 from .resources import notifier_options as default_notifier_options_resource
@@ -26,7 +29,8 @@ class NotifierOptionSeeder(AbstractSeeder):
     load from a locale-specific file within the SEED_DIR or fall back to a
     default set of notifier options packaged with the application.
     """
-    _namespace: str = EventNameSpace.namespace # Default namespace if not specified in JSON
+
+    _namespace: str = EventNameSpace.namespace.name  # Default namespace if not specified in JSON
 
     def get_file(self, name: str) -> pathlib.Path:
         """
@@ -47,7 +51,7 @@ class NotifierOptionSeeder(AbstractSeeder):
         """
         # Construct path for user-overrideable, locale-specific seed data
         locale_specific_path = self.directories.SEED_DIR / "notifier_options" / f"{name}.json"
-        
+
         if locale_specific_path.exists():
             self.logger.info(f"Using locale-specific notifier options file: {locale_specific_path}")
             return locale_specific_path
@@ -79,7 +83,7 @@ class NotifierOptionSeeder(AbstractSeeder):
         file_content = json_file_path.read_text(encoding="utf-8")
         options_data = json.loads(file_content)
 
-        seen_notifier_option_names = set() # To track names and avoid duplicates
+        seen_notifier_option_names = set()  # To track names and avoid duplicates
         for option_dict in options_data:
             option_name = option_dict.get("name")
             if not option_name:
@@ -93,15 +97,14 @@ class NotifierOptionSeeder(AbstractSeeder):
             # Assign default namespace if not present in the data
             if "namespace" not in option_dict:
                 option_dict["namespace"] = self._namespace
-            
+
             seen_notifier_option_names.add(option_name)
             try:
                 yield EventNotifierOptionsCreate(**option_dict)
-            except Exception as e: # Catch Pydantic validation errors or other issues
+            except Exception as e:  # Catch Pydantic validation errors or other issues
                 self.logger.error(f"Error validating notifier option data '{option_name}': {e}. Data: {option_dict}")
 
-
-    def seed(self, name: str) -> None:
+    def seed(self, name: str | None = None) -> None:
         """
         Seeds the database with notifier options.
 
@@ -119,9 +122,11 @@ class NotifierOptionSeeder(AbstractSeeder):
         for notifier_option_schema in self.load_data(name):
             try:
                 self.repos.event_notifier_options.create(notifier_option_schema)
-                self.logger.debug(f"Successfully seeded notifier option: {notifier_option_schema.namespace}.{notifier_option_schema.slug or notifier_option_schema.name}")
-                count_seeded +=1
-            except Exception as e: # Catch database errors or other issues
+                self.logger.debug(
+                    f"Successfully seeded notifier option: {notifier_option_schema.namespace}.{notifier_option_schema.slug or notifier_option_schema.name}"
+                )
+                count_seeded += 1
+            except Exception as e:  # Catch database errors or other issues
                 self.logger.error(f"Failed to seed notifier option '{notifier_option_schema.name}': {e}")
-                count_errors +=1
+                count_errors += 1
         self.logger.info(f"Notifier options seeding complete. Seeded: {count_seeded}, Errors: {count_errors}")

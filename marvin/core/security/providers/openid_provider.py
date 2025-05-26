@@ -5,6 +5,7 @@ It allows users to authenticate using an OIDC Identity Provider (IdP).
 It handles claim validation, user creation (if enabled), and synchronization
 of admin status based on group claims.
 """
+
 from datetime import timedelta
 
 from authlib.oidc.core import UserInfo
@@ -108,9 +109,7 @@ class OpenIDProvider(AuthProvider[UserInfo]):
             try:
                 # some IdPs don't provide a username (looking at you Google), so if we don't have the claim,
                 # we'll create the user with whatever the USER_CLAIM is (default email)
-                username = claims.get(
-                    "preferred_username", claims.get("username", claims.get(settings.OIDC_USER_CLAIM))
-                )
+                username = claims.get("preferred_username", claims.get("username", claims.get(settings.OIDC_USER_CLAIM)))
                 user = repos.users.create(
                     {
                         "username": username,

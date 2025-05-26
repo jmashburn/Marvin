@@ -7,17 +7,18 @@ used for client-side validation before form submissions.
 """
 # UUID was imported but not used. slugify was imported but not used.
 # from uuid import UUID
-# from slugify import slugify 
+# from slugify import slugify
 
-from fastapi import APIRouter, Depends # Core FastAPI components
-from sqlalchemy.orm.session import Session # SQLAlchemy session type
+from fastapi import APIRouter, Depends  # Core FastAPI components
+from sqlalchemy.orm.session import Session  # SQLAlchemy session type
 
 # Marvin specific imports
-from marvin.db.db_setup import generate_session # Database session generator
-from marvin.repos.all_repositories import get_repositories # Central repository access
+from marvin.db.db_setup import generate_session  # Database session generator
+from marvin.repos.all_repositories import get_repositories  # Central repository access
+
 # Renamed to avoid conflict with Pydantic's ValidationResponse if it existed.
 # Assuming this is a custom schema for validation responses.
-from marvin.schemas.response import ValidationResponse as MarvinValidationResponse 
+from marvin.schemas.response import ValidationResponse as MarvinValidationResponse
 
 # Public router for validation endpoints.
 # No prefix is added here; it's expected to be included by a parent router (e.g., /validate).
@@ -41,7 +42,7 @@ def validate_username_uniqueness(name: str, session: Session = Depends(generate_
                                   (i.e., does not exist and is therefore available).
     """
     # Access repositories without group scoping for system-wide username check
-    db = get_repositories(session, group_id=None) 
+    db = get_repositories(session, group_id=None)
     # Attempt to find an existing user with the given username (case-insensitive)
     existing_user = db.users.get_one(name, key="username", any_case=True)
     # If no user exists with that name, the name is valid (available)
@@ -71,7 +72,7 @@ def validate_user_email_uniqueness(email: str, session: Session = Depends(genera
     return MarvinValidationResponse(valid=existing_user is None)
 
 
-@router.get("/group/name", response_model=MarvinValidationResponse, summary="Validate Group Name Uniqueness") # Changed path for clarity
+@router.get("/group/name", response_model=MarvinValidationResponse, summary="Validate Group Name Uniqueness")  # Changed path for clarity
 def validate_group_name_uniqueness(name: str, session: Session = Depends(generate_session)) -> MarvinValidationResponse:
     """
     Checks if a group name already exists in the system.

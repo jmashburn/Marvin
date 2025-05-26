@@ -8,6 +8,7 @@ It includes:
   permissions, and relationships to other parts of the application like groups
   and tokens.
 """
+
 import enum
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
@@ -16,12 +17,13 @@ from pydantic import ConfigDict
 from sqlalchemy import Boolean, ForeignKey, Integer, String, orm, select
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, Session, mapped_column
-from sqlalchemy.types import Enum as SqlAlchemyEnum # Explicit import for sqlalchemy Enum type
+from sqlalchemy.types import Enum as SqlAlchemyEnum  # Explicit import for sqlalchemy Enum type
 
 from marvin.core.config import get_app_settings
 from marvin.db.models._model_utils.auto_init import auto_init
 from marvin.db.models._model_utils.datetime import NaiveDateTime
 from marvin.db.models._model_utils.guid import GUID
+
 from .. import BaseMixins, SqlAlchemyBase
 
 if TYPE_CHECKING:
@@ -33,9 +35,10 @@ class AuthMethod(enum.Enum):
     """
     Enumeration for the authentication methods a user can be associated with.
     """
+
     MARVIN = "MARVIN"  # Standard username/password authentication managed by Marvin.
-    LDAP = "LDAP"      # Authentication via an LDAP server.
-    OIDC = "OIDC"      # Authentication via an OpenID Connect provider.
+    LDAP = "LDAP"  # Authentication via an LDAP server.
+    OIDC = "OIDC"  # Authentication via an OpenID Connect provider.
 
 
 class LongLiveToken(SqlAlchemyBase, BaseMixins):
@@ -45,16 +48,23 @@ class LongLiveToken(SqlAlchemyBase, BaseMixins):
     These tokens allow users to authenticate with the API programmatically.
     The `id` (PK), `created_at`, `updated_at` are inherited from `BaseMixins`.
     """
+
     __tablename__ = "long_live_tokens"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the token.")
     name: Mapped[str] = mapped_column(String, nullable=False, doc="User-defined name for the token (e.g., 'My Script Token').")
-    token: Mapped[str] = mapped_column(String, nullable=False, index=True, unique=True, doc="The actual token string (should be stored hashed if sensitive, though current schema implies plaintext).") # Added unique=True
+    token: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        index=True,
+        unique=True,
+        doc="The actual token string (should be stored hashed if sensitive, though current schema implies plaintext).",
+    )  # Added unique=True
 
     # Foreign key to the Users model
     user_id: Mapped[GUID | None] = mapped_column(GUID, ForeignKey("users.id"), index=True, doc="ID of the user this token belongs to.")
     # Relationship to the User who owns this token
-    user: Mapped[Optional["Users"]] = orm.relationship("Users", back_populates="tokens") # Added back_populates
+    user: Mapped[Optional["Users"]] = orm.relationship("Users", back_populates="tokens")  # Added back_populates
 
     def __init__(self, name: str, token: str, user_id: GUID, **kwargs) -> None:
         """
@@ -66,7 +76,7 @@ class LongLiveToken(SqlAlchemyBase, BaseMixins):
             user_id (GUID): The ID of the user this token belongs to.
             **kwargs: Additional keyword arguments for `BaseMixins`.
         """
-        super().__init__(**kwargs) # Call super to handle BaseMixins initialization
+        super().__init__(**kwargs)  # Call super to handle BaseMixins initialization
         self.name = name
         self.token = token
         self.user_id = user_id
@@ -80,6 +90,7 @@ class Users(SqlAlchemyBase, BaseMixins):
     credentials, authentication method, permissions, and associations with groups
     and tokens.
     """
+
     __tablename__ = "users"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the user.")
@@ -87,9 +98,17 @@ class Users(SqlAlchemyBase, BaseMixins):
     username: Mapped[str | None] = mapped_column(String, index=True, unique=True, doc="Unique username for login.")
     email: Mapped[str | None] = mapped_column(String, unique=True, index=True, doc="Unique email address for the user.")
     password: Mapped[str | None] = mapped_column(String, doc="Hashed password for users with 'MARVIN' auth method.")
-    auth_method: Mapped[AuthMethod] = mapped_column(SqlAlchemyEnum(AuthMethod), default=AuthMethod.MARVIN, doc="Authentication method used by this user.") # Used SqlAlchemyEnum
-    admin: Mapped[bool | None] = mapped_column(Boolean, default=False, doc="Indicates if the user has administrative privileges system-wide. Defaults to False.")
-    advanced: Mapped[bool | None] = mapped_column(Boolean, default=False, doc="Indicates if the user has access to advanced features. Defaults to False.")
+    auth_method: Mapped[AuthMethod] = mapped_column(
+        SqlAlchemyEnum(AuthMethod), default=AuthMethod.MARVIN, doc="Authentication method used by this user."
+    )  # Used SqlAlchemyEnum
+    admin: Mapped[bool | None] = mapped_column(
+        Boolean,
+        default=False,
+        doc="Indicates if the user has administrative privileges system-wide. Defaults to False.",
+    )
+    advanced: Mapped[bool | None] = mapped_column(
+        Boolean, default=False, doc="Indicates if the user has access to advanced features. Defaults to False."
+    )
 
     # Foreign key to the Groups model
     group_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("groups.id"), nullable=False, index=True, doc="ID of the group this user belongs to.")
@@ -97,20 +116,35 @@ class Users(SqlAlchemyBase, BaseMixins):
     group: Mapped["Groups"] = orm.relationship("Groups", back_populates="users")
 
     # Security and state fields
-    cache_key: Mapped[str | None] = mapped_column(String, default="1234", doc="A cache key that can be used for invalidating user-specific caches. Defaults to '1234'.") # Consider making this dynamic
-    login_attemps: Mapped[int | None] = mapped_column(Integer, default=0, doc="Number of failed login attempts. Resets on successful login. Defaults to 0.")
-    locked_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, default=None, nullable=True, doc="Timestamp (UTC) when the user account was locked due to excessive failed logins. Null if not locked.") # Added nullable=True
+    cache_key: Mapped[str | None] = mapped_column(
+        String,
+        default="1234",
+        doc="A cache key that can be used for invalidating user-specific caches. Defaults to '1234'.",
+    )  # Consider making this dynamic
+    login_attemps: Mapped[int | None] = mapped_column(
+        Integer, default=0, doc="Number of failed login attempts. Resets on successful login. Defaults to 0."
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(
+        NaiveDateTime,
+        default=None,
+        nullable=True,
+        doc="Timestamp (UTC) when the user account was locked due to excessive failed logins. Null if not locked.",
+    )  # Added nullable=True
 
     # Group-level Permissions (could be refactored into a separate roles/permissions system for more granularity)
-    can_manage: Mapped[bool | None] = mapped_column(Boolean, default=False, doc="Indicates if the user can manage their current group. Defaults to False.")
-    can_invite: Mapped[bool | None] = mapped_column(Boolean, default=False, doc="Indicates if the user can invite others to their current group. Defaults to False.")
+    can_manage: Mapped[bool | None] = mapped_column(
+        Boolean, default=False, doc="Indicates if the user can manage their current group. Defaults to False."
+    )
+    can_invite: Mapped[bool | None] = mapped_column(
+        Boolean, default=False, doc="Indicates if the user can invite others to their current group. Defaults to False."
+    )
     # `can_organize` is used in `_set_permissions` but not a mapped column. This implies it might be a transient or calculated permission.
 
     # Common arguments for one-to-many relationships from User to token-like models
     _token_relationship_args = {
-        "back_populates": "user", # Assumes 'user' field on LongLiveToken and PasswordResetToken
-        "cascade": "all, delete, delete-orphan", # Operations on User cascade to these tokens
-        "single_parent": True, # User is the single parent
+        "back_populates": "user",  # Assumes 'user' field on LongLiveToken and PasswordResetToken
+        "cascade": "all, delete, delete-orphan",  # Operations on User cascade to these tokens
+        "single_parent": True,  # User is the single parent
     }
 
     # Relationship to LongLiveToken (one-to-many: one user can have many API tokens)
@@ -122,17 +156,17 @@ class Users(SqlAlchemyBase, BaseMixins):
         arbitrary_types_allowed=True,
         # Fields to exclude from Pydantic model serialization by default for security or verbosity.
         exclude={
-            "password",       # Never serialize password hashes.
-            "admin",          # Admin status might be exposed via other means if needed.
-            "can_manage",     # Permissions might be part of a dedicated permissions endpoint.
+            "password",  # Never serialize password hashes.
+            "admin",  # Admin status might be exposed via other means if needed.
+            "can_manage",  # Permissions might be part of a dedicated permissions endpoint.
             "can_invite",
-            "group",          # Group details might be fetched separately or via a nested schema.
-            "tokens",         # Tokens should generally not be listed directly with user details.
-            "password_reset_tokens", # These are internal and should not be serialized.
-            "locked_at",      # Internal security detail.
+            "group",  # Group details might be fetched separately or via a nested schema.
+            "tokens",  # Tokens should generally not be listed directly with user details.
+            "password_reset_tokens",  # These are internal and should not be serialized.
+            "locked_at",  # Internal security detail.
             "login_attemps",  # Internal security detail.
-            "cache_key",      # Internal detail.
-        }
+            "cache_key",  # Internal detail.
+        },
     )
 
     @hybrid_property
@@ -159,7 +193,7 @@ class Users(SqlAlchemyBase, BaseMixins):
                                          Defaults to the system's default group name.
             **kwargs: Additional attributes for the user, processed by `auto_init`
                       (e.g., `username`, `email`, `admin`).
-        
+
         Raises:
             ValueError: If the specified group does not exist.
         """
@@ -168,11 +202,11 @@ class Users(SqlAlchemyBase, BaseMixins):
 
         if group is None:
             settings = get_app_settings()
-            group_name = settings._DEFAULT_GROUP # Use a different variable name
+            group_name = settings._DEFAULT_GROUP  # Use a different variable name
         else:
             group_name = group
 
-        from marvin.db.models.groups import Groups # Local import to avoid circularity
+        from marvin.db.models.groups import Groups  # Local import to avoid circularity
 
         # Query for the group. auto_init does not handle this specific lookup logic.
         self.group = session.execute(select(Groups).filter(Groups.name == group_name)).scalars().one_or_none()
@@ -183,18 +217,26 @@ class Users(SqlAlchemyBase, BaseMixins):
         # Password should be set after auto_init if it's also in kwargs,
         # or ensure it's not processed by auto_init if handled exclusively here.
         # Assuming password hashing happens at a higher service layer.
-        self.password = password # Store as provided; hashing should occur before DB commit.
+        self.password = password  # Store as provided; hashing should occur before DB commit.
 
         # Set username from full_name if username is not provided in kwargs
         # This relies on `auto_init` having already processed `username` from `kwargs` if present.
-        if self.username is None and full_name: # Check full_name as it's a required arg
+        if self.username is None and full_name:  # Check full_name as it's a required arg
             self.username = full_name
 
         # Set permissions based on kwargs (e.g., admin status)
         self._set_permissions(**kwargs)
 
-    @auto_init() # auto_init might re-apply some fields from kwargs if not careful.
-    def update(self, session: Session, full_name: str | None = None, email: str | None = None, group: str | None = None, username: str | None = None, **kwargs) -> None:
+    @auto_init()  # auto_init might re-apply some fields from kwargs if not careful.
+    def update(
+        self,
+        session: Session,
+        full_name: str | None = None,
+        email: str | None = None,
+        group: str | None = None,
+        username: str | None = None,
+        **kwargs,
+    ) -> None:
         """
         Updates attributes of an existing User instance.
 
@@ -222,7 +264,8 @@ class Users(SqlAlchemyBase, BaseMixins):
             self.email = email
 
         if group:
-            from marvin.db.models.groups import Groups # Local import
+            from marvin.db.models.groups import Groups  # Local import
+
             queried_group = session.execute(select(Groups).filter(Groups.name == group)).scalars().one_or_none()
             if queried_group is None:
                 raise ValueError(f"Group '{group}' does not exist; cannot update user's group.")
@@ -244,7 +287,14 @@ class Users(SqlAlchemyBase, BaseMixins):
         """
         self.password = password
 
-    def _set_permissions(self, admin: bool | None = None, can_manage: bool = False, can_invite: bool = False, can_organize: bool = False, **_) -> None:
+    def _set_permissions(
+        self,
+        admin: bool | None = None,
+        can_manage: bool = False,
+        can_invite: bool = False,
+        can_organize: bool = False,
+        **kwargs,
+    ) -> None:
         """
         Sets user permissions based on the admin flag and other permission flags.
 
@@ -264,20 +314,20 @@ class Users(SqlAlchemyBase, BaseMixins):
         if admin is not None:
             self.admin = admin
 
-        if self.admin: # If user is admin, grant all other managed permissions
+        if self.admin:  # If user is admin, grant all other managed permissions
             self.can_manage = True
             self.can_invite = True
             self.advanced = True
             # self.can_organize = True # Not a DB field, so assignment has no direct DB effect.
-        else: # If not admin, set permissions as provided (or their defaults)
+        else:  # If not admin, set permissions as provided (or their defaults)
             self.can_manage = can_manage
             self.can_invite = can_invite
             # self.can_organize = can_organize # No DB field
             # `advanced` status for non-admins might be set explicitly or based on other criteria.
             # If `admin` was just set to False, ensure `advanced` is also False unless specified.
-            if admin is False: # Explicitly making non-admin
-                 self.advanced = kwargs.get('advanced', False) # Check kwargs if advanced is passed
-        
+            if admin is False:  # Explicitly making non-admin
+                self.advanced = kwargs.get("advanced", False)  # Check kwargs if advanced is passed
+
         # Ensure can_organize doesn't cause issues if it was intended for a DB field.
         # For now, it's just a local variable in its effect if not a class attribute.
         # If it _was_ meant to be a class attribute not mapped, it would be `self.can_organize = True/can_organize`

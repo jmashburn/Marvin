@@ -6,18 +6,21 @@ It includes utilities for logging validation errors in a structured format
 and for registering these handlers with the FastAPI application, typically
 during development or testing phases for enhanced debugging.
 """
-from fastapi import FastAPI, Request, status # Core FastAPI components
-from fastapi.exceptions import ResponseValidationError # Specific exception to handle
-from fastapi.responses import JSONResponse # For crafting custom JSON error responses
 
-from marvin.core.config import get_app_settings # Access application settings
-from marvin.core.root_logger import get_logger # Application logger
+from collections.abc import Callable  # For type hinting the handler function signature
+
+from fastapi import FastAPI, Request, status  # Core FastAPI components
+from fastapi.exceptions import ResponseValidationError  # Specific exception to handle
+from fastapi.responses import JSONResponse  # For crafting custom JSON error responses
+
+from marvin.core.config import get_app_settings  # Access application settings
+from marvin.core.root_logger import get_logger  # Application logger
 
 # Initialize logger for this module
 logger = get_logger()
 
 
-def log_wrapper(request: Request, exc: Exception) -> None: # Changed `e` to `exc` for clarity
+def log_wrapper(request: Request, exc: Exception) -> None:  # Changed `e` to `exc` for clarity
     """
     Logs details of an exception in a structured format.
 
@@ -29,13 +32,13 @@ def log_wrapper(request: Request, exc: Exception) -> None: # Changed `e` to `exc
         request (Request): The FastAPI Request object associated with the error.
         exc (Exception): The exception that was raised.
     """
-    logger.error(" Start 422 Unprocessable Entity Error ".center(80, "-")) # Standardized separator
+    logger.error(" Start 422 Unprocessable Entity Error ".center(80, "-"))  # Standardized separator
     logger.error(f"Request: {request.method} {request.url}")
     logger.error(f"Error Details: {exc}")
     # If `exc.errors()` is available (as in RequestValidationError), it could be logged too for more detail.
     # For ResponseValidationError, `exc.body` might contain the problematic response data.
-    if isinstance(exc, ResponseValidationError) and hasattr(exc, 'body'):
-        logger.error(f"Problematic Response Body: {exc.body}") # Log the body causing response validation error
+    if isinstance(exc, ResponseValidationError) and hasattr(exc, "body"):
+        logger.error(f"Problematic Response Body: {exc.body}")  # Log the body causing response validation error
     logger.error(" End 422 Unprocessable Entity Error ".center(80, "-"))
 
 
@@ -82,11 +85,11 @@ def register_debug_handler(app: FastAPI) -> Callable | None:
         """
         # Log the detailed error using the wrapper
         log_wrapper(request, exc)
-        
+
         # Format a user-friendly message from the exception
         # `exc.errors()` provides detailed error information for Pydantic models
-        error_details = exc.errors() if hasattr(exc, 'errors') else str(exc)
-        
+        error_details = exc.errors() if hasattr(exc, "errors") else str(exc)
+
         content = {
             "detail": {
                 "message": "Response validation failed. There was an issue with the data sent from the server.",
@@ -94,10 +97,7 @@ def register_debug_handler(app: FastAPI) -> Callable | None:
             }
         }
         # Return a JSON response with status code 422
-        return JSONResponse(
-            content=content, 
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
-        )
+        return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
     logger.info("Registered custom ResponseValidationError debug handler.")
     return validation_exception_handler

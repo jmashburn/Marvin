@@ -9,16 +9,18 @@ It provides:
 - A generic base model for paginated API responses (`PaginationBase`), which includes
   methods for generating 'next' and 'previous' page links.
 """
-import enum # For creating enumerations
-from typing import Annotated, Any, Generic, TypeVar # Standard typing utilities
-from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit # For URL manipulation
 
-from humps import camelize # For converting snake_case to camelCase (used in set_pagination_guides)
-from pydantic import BaseModel, Field, field_validator # Core Pydantic components
+import enum  # For creating enumerations
+from typing import Annotated, Any, Generic, TypeVar  # Standard typing utilities
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit  # For URL manipulation
+
+from humps import camelize  # For converting snake_case to camelCase (used in set_pagination_guides)
+from pydantic import BaseModel, Field, field_validator  # Core Pydantic components
+
 # from pydantic import UUID4 # UUID4 was imported but not used
-from pydantic_core.core_schema import ValidationInfo # For accessing validation context
+from pydantic_core.core_schema import ValidationInfo  # For accessing validation context
 
-from marvin.schemas._marvin import _MarvinModel # Base Pydantic model for Marvin schemas
+from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvin schemas
 
 # Generic TypeVar for the data items in a paginated response.
 # Ensures that `items` will be a list of Pydantic models.
@@ -29,22 +31,25 @@ class OrderDirection(str, enum.Enum):
     """
     Enumeration for specifying the direction of ordering in queries.
     """
-    asc = "asc"   # Ascending order.
-    desc = "desc" # Descending order.
+
+    asc = "asc"  # Ascending order.
+    desc = "desc"  # Descending order.
 
 
 class OrderByNullPosition(str, enum.Enum):
     """
     Enumeration for specifying how NULL values should be positioned in ordered results.
     """
-    first = "first" # Position NULL values at the beginning.
-    last = "last"   # Position NULL values at the end.
+
+    first = "first"  # Position NULL values at the beginning.
+    last = "last"  # Position NULL values at the end.
 
 
 class RequestQuery(_MarvinModel):
     """
     Base schema for common request query parameters related to ordering and filtering.
     """
+
     order_by: str | None = None
     """Field name to order results by. Can be comma-separated for multiple fields."""
     order_by_null_position: OrderByNullPosition | None = None
@@ -62,7 +67,9 @@ class RequestQuery(_MarvinModel):
 
     @field_validator("pagination_seed", mode="before")
     @classmethod
-    def validate_pagination_seed_if_random_order(cls, pagination_seed_value: str | None, info: ValidationInfo) -> str | None: # Renamed v to pagination_seed_value
+    def validate_pagination_seed_if_random_order(
+        cls, pagination_seed_value: str | None, info: ValidationInfo
+    ) -> str | None:  # Renamed v to pagination_seed_value
         """
         Validates that `pagination_seed` is provided if `order_by` is "random".
 
@@ -87,9 +94,10 @@ class PaginationQuery(RequestQuery):
     Schema for pagination-specific query parameters, extending `RequestQuery`.
     Includes parameters for page number and items per page.
     """
+
     page: int = Field(default=1, ge=1)
     """The page number to retrieve (1-indexed). Defaults to 1. Must be >= 1."""
-    per_page: int = Field(default=50, ge=-1) # Allow -1 for "all items"
+    per_page: int = Field(default=50, ge=-1)  # Allow -1 for "all items"
     """
     Number of items to retrieve per page. Defaults to 50.
     A value of -1 typically means "all items" (no pagination limit). Must be >= -1.
@@ -107,6 +115,7 @@ class PaginationBase(BaseModel, Generic[DataT]):
     Type Parameters:
         DataT: The Pydantic model type for the items in the `items` list.
     """
+
     page: int = 1
     """Current page number (1-indexed)."""
     per_page: int = 10
@@ -134,7 +143,7 @@ class PaginationBase(BaseModel, Generic[DataT]):
             current_query_params (dict[str, Any]): A dictionary of the current request's query parameters.
                                                 This dictionary will be modified.
         """
-        if self.page >= self.total_pages: # No next page if current is last or beyond
+        if self.page >= self.total_pages:  # No next page if current is last or beyond
             self.next = None
             return
 
@@ -155,7 +164,7 @@ class PaginationBase(BaseModel, Generic[DataT]):
             current_query_params (dict[str, Any]): A dictionary of the current request's query parameters.
                                                 This dictionary will be modified.
         """
-        if self.page <= 1: # No previous page if current is first or less
+        if self.page <= 1:  # No previous page if current is first or less
             self.previous = None
             return
 
@@ -185,13 +194,12 @@ class PaginationBase(BaseModel, Generic[DataT]):
 
         # Sanitize current page number (ensure it's at least 1)
         self.page = max(self.page, 1)
-        
+
         # Set next and previous page URLs
         # Pass a copy of processed_query_params to _set_next and _set_prev to avoid unintended shared modifications
         # if they modify the dict directly for different link generations.
         self._set_next(base_route_path, processed_query_params.copy())
         self._set_prev(base_route_path, processed_query_params.copy())
-
 
     @staticmethod
     def merge_query_parameters(url_path: str, params_to_merge: dict[str, Any]) -> str:
@@ -215,15 +223,7 @@ class PaginationBase(BaseModel, Generic[DataT]):
 
         # Parse existing query parameters from the URL
         existing_query_params = parse_qs(query_string)
-        
-        # Merge new/updated parameters. `params_to_merge` takes precedence.
-        # Ensure values in params_to_merge are suitable for urlencode (e.g., strings, numbers, or lists of them)
-        # parse_qs returns lists for all values, so adapt params_to_merge if they are single values.
-        for key, value in params_to_merge.items():
-            if not isinstance(value, list): # urlencode with doseq=True expects list values for multi-value params
-                existing_query_params[key] = [str(value)] # Convert to string and wrap in list
-            else:
-                existing_query_params[key] = [str(v) for v in value] # Convert all items in list to string
+        existing_query_params.update(params_to_merge)
 
         # Rebuild the query string
         new_query_string = urlencode(existing_query_params, doseq=True)

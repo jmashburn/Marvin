@@ -6,6 +6,7 @@ It defines the `GUID` class, a `TypeDecorator` that uses PostgreSQL's native
 UUID type when available, and falls back to a CHAR(32) representation for other
 database backends, storing the UUID as a hex string.
 """
+
 import uuid
 from typing import Any
 
@@ -95,7 +96,7 @@ class GUID(TypeDecorator):
         Returns:
             str | None: The processed value for the database.
         """
-        return self.convert_value_to_guid(value, dialect) # type: ignore
+        return self.convert_value_to_guid(value, dialect)  # type: ignore
 
     def _uuid_value(self, value: Any) -> uuid.UUID | None:
         """

@@ -14,22 +14,17 @@ It includes:
 The datetime parsing logic within `_MarvinModel` specifically addresses issues
 with timezone formats from databases like PostgreSQL.
 """
-from __future__ import annotations # Enables using Self for return type hints
 
-import re # For regular expression operations in datetime parsing
-from collections.abc import Sequence # For typing sequences
-from datetime import datetime, timezone # Standard datetime objects
-from enum import Enum # For creating enumerations like SearchType
-from typing import ClassVar, Protocol, TypeVar, Any # Typing utilities
-# Self type for Python <3.11, for Pydantic v2, from typing_extensions if needed, else from typing
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
+from __future__ import annotations  # Enables using Self for return type hints
 
+import re  # For regular expression operations in datetime parsing
+from collections.abc import Sequence  # For typing sequences
+from datetime import datetime  # Standard datetime objects
+from enum import Enum  # For creating enumerations like SearchType
+from typing import Any, ClassVar, Protocol, TypeVar  # Typing utilities
 
-from humps import camelize # For converting snake_case to camelCase for API responses
-from pydantic import UUID4, BaseModel, ConfigDict, model_validator # Core Pydantic components
+from humps import camelize  # For converting snake_case to camelCase for API responses
+from pydantic import UUID4, BaseModel, ConfigDict, model_validator  # Core Pydantic components
 
 # Placeholder for SQLAlchemy specific types, assuming they would be imported if used directly
 # For example, if filter_search_query was fully implemented here:
@@ -49,8 +44,9 @@ class SearchType(Enum):
     """
     Enumeration defining different types of search strategies that can be applied.
     """
-    fuzzy = "fuzzy"      # Fuzzy search, typically using trigram similarity (e.g., pg_trgm).
-    tokenized = "tokenized" # Token-based search, often using LIKE or full-text search capabilities.
+
+    fuzzy = "fuzzy"  # Fuzzy search, typically using trigram similarity (e.g., pg_trgm).
+    tokenized = "tokenized"  # Token-based search, often using LIKE or full-text search capabilities.
 
 
 class _MarvinModel(BaseModel):
@@ -71,6 +67,7 @@ class _MarvinModel(BaseModel):
       integration with data loading (e.g., SQLAlchemy eager loading) and search
       query construction, to be implemented or overridden by subclasses.
     """
+
     # --- Search Configuration Class Variables ---
     _fuzzy_similarity_threshold: ClassVar[float] = 0.5
     """
@@ -93,15 +90,15 @@ class _MarvinModel(BaseModel):
 
     # Pydantic model configuration
     model_config = ConfigDict(
-        alias_generator=camelize, # Automatically generate camelCase aliases for fields
-        populate_by_name=True,    # Allow populating model fields by their original Python names (snake_case)
-                                  # as well as by their aliases (camelCase).
-        from_attributes=True,     # Allow creating Pydantic models from ORM objects (SQLAlchemy models).
+        alias_generator=camelize,  # Automatically generate camelCase aliases for fields
+        populate_by_name=True,  # Allow populating model fields by their original Python names (snake_case)
+        # as well as by their aliases (camelCase).
+        from_attributes=True,  # Allow creating Pydantic models from ORM objects (SQLAlchemy models).
     )
 
-    @model_validator(mode="before") # Runs before Pydantic's own validation
+    @model_validator(mode="before")  # Runs before Pydantic's own validation
     @classmethod
-    def fix_hour_only_tz(cls, data: Any) -> Any: # data can be dict or model instance
+    def fix_hour_only_tz(cls, data: Any) -> Any:  # data can be dict or model instance
         """
         Corrects datetime string timezones that only specify the hour part (e.g., "+05").
 
@@ -116,7 +113,7 @@ class _MarvinModel(BaseModel):
         Returns:
             Any: The (potentially modified) input data.
         """
-        if not isinstance(data, dict) and not hasattr(data, '__dict__'): # Process dicts or objects with __dict__
+        if not isinstance(data, dict) and not hasattr(data, "__dict__"):  # Process dicts or objects with __dict__
             return data
 
         for field_name, field_info in cls.model_fields.items():
@@ -125,7 +122,7 @@ class _MarvinModel(BaseModel):
                 # Get the value of the field from the input data
                 # Handles both dict input and object input (e.g., from ORM)
                 field_value = data.get(field_name) if isinstance(data, dict) else getattr(data, field_name, None)
-                
+
                 if isinstance(field_value, str):
                     # If the string value matches the hour-only timezone pattern, append ":00"
                     if HOUR_ONLY_TZ_PATTERN.search(field_value):
@@ -136,8 +133,8 @@ class _MarvinModel(BaseModel):
                             setattr(data, field_name, corrected_value)
         return data
 
-    @model_validator(mode="after") # Runs after Pydantic's own validation and model creation
-    def set_tz_info(self) -> Self:
+    @model_validator(mode="after")  # Runs after Pydantic's own validation and model creation
+    def set_tz_info(self) -> _MarvinModel:
         """
         Ensures all naive datetime attributes on the model instance are set to UTC.
 
@@ -150,12 +147,12 @@ class _MarvinModel(BaseModel):
         Returns:
             Self: The modified model instance with datetime fields set to UTC.
         """
-        for field_name in self.model_fields: # Iterate through defined fields of the model
+        for field_name in self.model_fields:  # Iterate through defined fields of the model
             field_value = getattr(self, field_name)
             if isinstance(field_value, datetime):
-                if field_value.tzinfo is None: # Check if the datetime is naive
+                if field_value.tzinfo is None:  # Check if the datetime is naive
                     # If naive, assume it's UTC and make it timezone-aware
-                    setattr(self, field_name, field_value.replace(tzinfo=timezone.utc))
+                    setattr(self, field_name, field_value.replace(tzinfo=datetime.UTC))
         return self
 
     def cast(self, target_cls: type[T], **kwargs: Any) -> T:
@@ -181,12 +178,12 @@ class _MarvinModel(BaseModel):
         # Collect fields from the current model that also exist in the target class
         shared_fields_data = {
             field_name: getattr(self, field_name)
-            for field_name in self.model_fields # Fields of the current model
-            if field_name in target_cls.model_fields # Check if field exists in target
+            for field_name in self.model_fields  # Fields of the current model
+            if field_name in target_cls.model_fields  # Check if field exists in target
         }
         # Update with any explicitly provided kwargs, allowing overrides
         shared_fields_data.update(kwargs)
-        return target_cls(**shared_fields_data) # Create instance of target class
+        return target_cls(**shared_fields_data)  # Create instance of target class
 
     def map_to(self, destination_model_instance: T) -> T:
         """
@@ -202,8 +199,8 @@ class _MarvinModel(BaseModel):
         Returns:
             T: The modified `destination_model_instance`.
         """
-        for field_name in self.model_fields: # Iterate fields of the source model (self)
-            if hasattr(destination_model_instance, field_name): # Check if destination has the same field
+        for field_name in self.model_fields:  # Iterate fields of the source model (self)
+            if hasattr(destination_model_instance, field_name):  # Check if destination has the same field
                 setattr(destination_model_instance, field_name, getattr(self, field_name))
         return destination_model_instance
 
@@ -218,11 +215,11 @@ class _MarvinModel(BaseModel):
         Args:
             source_model_instance (BaseModel): The source Pydantic model instance to map values from.
         """
-        for field_name in source_model_instance.model_fields: # Iterate fields of the source model
-            if field_name in self.model_fields: # Check if current model (self) has the same field
+        for field_name in source_model_instance.model_fields:  # Iterate fields of the source model
+            if field_name in self.model_fields:  # Check if current model (self) has the same field
                 setattr(self, field_name, getattr(source_model_instance, field_name))
 
-    def merge(self, source_model_instance: Self, replace_null: bool = False) -> None:
+    def merge(self, source_model_instance: _MarvinModel, replace_null: bool = False) -> None:
         """
         Merges attribute values from a `source_model_instance` into this model instance.
 
@@ -243,12 +240,12 @@ class _MarvinModel(BaseModel):
         """
         for field_name in source_model_instance.model_fields:
             source_value = getattr(source_model_instance, field_name)
-            if field_name in self.model_fields: # Check if current model has the field
-                if source_value is not None or replace_null: # Condition for copying value
+            if field_name in self.model_fields:  # Check if current model has the field
+                if source_value is not None or replace_null:  # Condition for copying value
                     setattr(self, field_name, source_value)
 
     @classmethod
-    def loader_options(cls) -> list[Any]: # Return type should be list[LoaderOption] from SQLAlchemy if used
+    def loader_options(cls) -> list[Any]:  # Return type should be list[LoaderOption] from SQLAlchemy if used
         """
         Placeholder for defining SQLAlchemy loader options for this model.
 
@@ -265,18 +262,18 @@ class _MarvinModel(BaseModel):
         # from sqlalchemy.orm import joinedload
         # from .related_model_schema import RelatedModelSchema # Assuming this maps to a related DB model
         # return [joinedload(cls.orm_model.relationship_name.of_type(RelatedModelSchema.orm_model))]
-        return [] # Default implementation returns no options
+        return []  # Default implementation returns no options
 
     @classmethod
     def filter_search_query(
         cls,
-        db_model: Any, # Should be type[SqlAlchemyBase] from marvin.db.models
-        query: Any,    # Should be type[Select] from sqlalchemy
+        db_model: Any,  # Should be type[SqlAlchemyBase] from marvin.db.models
+        query: Any,  # Should be type[Select] from sqlalchemy
         session: Any,  # Should be type[Session] from sqlalchemy.orm
         search_type: SearchType,
         search: str,
         search_list: list[str],
-    ) -> Any: # Should return type[Select]
+    ) -> Any:  # Should return type[Select]
         """
         Applies search filtering to a SQLAlchemy query based on this model's configuration.
 
@@ -306,17 +303,15 @@ class _MarvinModel(BaseModel):
         """
         if not cls._searchable_properties:
             # If no properties are defined as searchable, this method cannot proceed.
-            raise AttributeError(
-                f"Model {cls.__name__} has no '_searchable_properties' defined for search functionality."
-            )
+            raise AttributeError(f"Model {cls.__name__} has no '_searchable_properties' defined for search functionality.")
 
         # The following is a conceptual SQLAlchemy implementation based on the original code.
         # It requires SQLAlchemy imports (Select, or_, func, desc, text, InstrumentedAttribute, Session)
         # and `db_model` to be a valid SQLAlchemy model class.
-        
+
         # from sqlalchemy import or_, func, desc, text # Example imports
         # from sqlalchemy.orm import InstrumentedAttribute
-        
+
         # model_properties: list[InstrumentedAttribute] = [
         #     getattr(db_model, prop_name) for prop_name in cls._searchable_properties
         # ]
@@ -339,7 +334,7 @@ class _MarvinModel(BaseModel):
         #     for prop in model_properties:
         #         # Create LIKE conditions for each token in search_list against each property
         #         filters.extend([prop.ilike(f"%{term}%") for term in search_list]) # Use ilike for case-insensitivity
-            
+
         #     if model_properties:
         #         query = query.filter(or_(*filters)).order_by(
         #             desc(model_properties[0].ilike(f"%{search}%")) # Order by relevance to the full search string
@@ -349,10 +344,10 @@ class _MarvinModel(BaseModel):
         #     return query
         # else:
         #     return query # No known search type, return original query
-        
+
         # Placeholder until SQLAlchemy parts are actively used/integrated here:
         cls.logger.warning(f"Search for model {cls.__name__} was called but SQLAlchemy logic is placeholder.")
-        return query # Return unmodified query
+        return query  # Return unmodified query
 
 
 class HasUUID(Protocol):
@@ -363,7 +358,8 @@ class HasUUID(Protocol):
     objects identifiable by a UUID, without requiring them to inherit from a
     specific base class.
     """
-    id: UUID4 # The required attribute: an ID of type UUID4
+
+    id: UUID4  # The required attribute: an ID of type UUID4
 
 
 def extract_uuids(models: Sequence[HasUUID]) -> list[UUID4]:

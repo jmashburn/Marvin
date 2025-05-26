@@ -5,16 +5,18 @@ It includes the `Groups` model, which represents a user group within the applica
 Groups can have associated users, preferences, invite tokens, webhooks, reports,
 and event notifiers.
 """
+
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
 from pydantic import ConfigDict
-from sqlalchemy.orm import Mapped, Session, mapped_column # Added Session for __init__ type hint
+from sqlalchemy.orm import Mapped, Session, mapped_column  # Added Session for __init__ type hint
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
+
 # preferences is directly imported and used, ensure it's available
 from .preferences import GroupPreferencesModel
 
@@ -45,12 +47,12 @@ class Groups(SqlAlchemyBase, BaseMixins):
 
     # Relationship to GroupPreferencesModel (one-to-one: one group has one preferences object)
     preferences: Mapped["GroupPreferencesModel"] = orm.relationship(
-        "GroupPreferencesModel", # Corrected typing to use defined import
+        "GroupPreferencesModel",  # Corrected typing to use defined import
         back_populates="group",
         uselist=False,  # Indicates a one-to-one relationship
         single_parent=True,  # Group is the parent, deletion cascades
-        cascade="all, delete-orphan", # Operations on Group cascade to preferences
-        doc="Group-specific preferences."
+        cascade="all, delete-orphan",  # Operations on Group cascade to preferences
+        doc="Group-specific preferences.",
     )
 
     # Common arguments for several one-to-many relationships from Group
@@ -58,7 +60,7 @@ class Groups(SqlAlchemyBase, BaseMixins):
     # and should be deleted if the group is deleted.
     _common_relationship_args = {
         "back_populates": "group",  # Sets up bidirectional relationship
-        "cascade": "all, delete-orphan", # Cascades operations (especially delete)
+        "cascade": "all, delete-orphan",  # Cascades operations (especially delete)
         "single_parent": True,  # Ensures the related object has only one parent group
     }
 
@@ -80,7 +82,7 @@ class Groups(SqlAlchemyBase, BaseMixins):
     )
 
     model_config = ConfigDict(
-        arbitrary_types_allowed=True, # Standard Pydantic config
+        arbitrary_types_allowed=True,  # Standard Pydantic config
         # Fields to exclude from Pydantic model serialization by default.
         # This is useful if these fields are large, sensitive, or cause circular dependencies
         # when converting the SQLAlchemy model to a Pydantic model.
@@ -91,7 +93,7 @@ class Groups(SqlAlchemyBase, BaseMixins):
             "invite_tokens",
             # "group_reports" and "group_event_notifiers" might also be candidates for exclusion
             # depending on serialization needs.
-        }
+        },
     )
 
     @auto_init()

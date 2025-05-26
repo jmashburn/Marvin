@@ -4,6 +4,7 @@ This module defines the SQLAlchemy model for event notifier options.
 It includes the `EventNotifierOptionsModel` which stores configuration
 for different types of event notifications within the application.
 """
+
 from typing import TYPE_CHECKING
 
 from pydantic import ConfigDict  # Imported though not explicitly used, implies Pydantic integration
@@ -41,7 +42,6 @@ class EventNotifierOptionsModel(SqlAlchemyBase, BaseMixins):
     # Pydantic model_config, if used for serialization/validation by the application
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-
     @hybrid_property
     def option(self) -> str:
         """
@@ -73,7 +73,7 @@ class EventNotifierOptionsModel(SqlAlchemyBase, BaseMixins):
         # it would be set. The explicit `name` arg here is for slugification.
         # If `name` is also a mapped_column and in kwargs, `auto_init` will set it.
         # This __init__ primarily exists for the slug generation logic.
-        if name: # Ensure name is provided for slugification
+        if name:  # Ensure name is provided for slugification
             self.slug = slugify(name)
         # The `auto_init` decorator will then process all items in `kwargs`,
         # including `name` if it's passed in `kwargs` and is a model attribute.

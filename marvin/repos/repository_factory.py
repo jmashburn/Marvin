@@ -7,6 +7,7 @@ ensuring that they are created only when first accessed and then reused.
 This pattern helps in managing database sessions and repository dependencies
 efficiently.
 """
+
 from functools import cached_property
 
 from pydantic import UUID4
@@ -42,16 +43,16 @@ from marvin.schemas.user import LongLiveTokenRead, PrivateUser
 from marvin.schemas.user.password import PrivatePasswordResetToken
 
 # Import base repository types and specialized repositories
-from ._utils import NOT_SET, NotSet # Sentinel for optional group_id
-from .groups import RepositoryGroup # Specialized group repository
-from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric # Base generic repositories
-from .users import RepositoryUsers # Specialized user repository
+from ._utils import NOT_SET, NotSet  # Sentinel for optional group_id
+from .groups import RepositoryGroup  # Specialized group repository
+from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
+from .users import RepositoryUsers  # Specialized user repository
 
 # Constants for primary key / lookup key names used in repositories
 PK_ID = "id"  # Standard primary key
-PK_SLUG = "slug" # Slug identifier, often used for user-friendly URLs
-PK_TOKEN = "token" # Token string, used for invite tokens or password reset tokens
-PK_GROUP_ID = "group_id" # Foreign key for group association
+PK_SLUG = "slug"  # Slug identifier, often used for user-friendly URLs
+PK_TOKEN = "token"  # Token string, used for invite tokens or password reset tokens
+PK_GROUP_ID = "group_id"  # Foreign key for group association
 
 
 class AllRepositories:
@@ -125,9 +126,7 @@ class AllRepositories:
         """
         # Password resets are typically user-specific, not group-specific.
         # If group_id is NOT_SET or None, this repo will operate without group filtering.
-        return GroupRepositoryGeneric(
-            self.session, PK_TOKEN, PasswordResetModel, PrivatePasswordResetToken, group_id=self.group_id
-        )
+        return GroupRepositoryGeneric(self.session, PK_TOKEN, PasswordResetModel, PrivatePasswordResetToken, group_id=self.group_id)
 
     # ==============================================================================================================
     # Group-related repositories
@@ -149,9 +148,7 @@ class AllRepositories:
         Scoped by `group_id`. Uses `PK_GROUP_ID` as the match key, implying preferences
         are fetched directly using the group's ID.
         """
-        return GroupRepositoryGeneric(
-            self.session, PK_GROUP_ID, GroupPreferencesModel, GroupPreferencesRead, group_id=self.group_id
-        )
+        return GroupRepositoryGeneric(self.session, PK_GROUP_ID, GroupPreferencesModel, GroupPreferencesRead, group_id=self.group_id)
 
     @cached_property
     def group_reports(self) -> GroupRepositoryGeneric[ReportRead, ReportModel]:
@@ -177,7 +174,7 @@ class AllRepositories:
         """
         return GroupRepositoryGeneric(
             self.session,
-            PK_TOKEN, # Match key for operations like get_one by token string
+            PK_TOKEN,  # Match key for operations like get_one by token string
             GroupInviteToken,
             InviteTokenRead,
             group_id=self.group_id,

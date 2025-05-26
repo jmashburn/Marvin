@@ -5,14 +5,20 @@ events within the Marvin application's event bus system.
 These types are used to create, categorize, and carry data for events that
 are dispatched and handled by various listeners and publishers.
 """
-import uuid # For generating unique event IDs
-from datetime import datetime, timezone # For timestamping events
-from enum import Enum, auto # For creating enumerations
-from typing import Any # For generic type hints
 
-from pydantic import UUID4, Field, SerializeAsAny, field_validator # Core Pydantic components. Removed unused ValidationInfo.
+import uuid  # For generating unique event IDs
+from datetime import UTC, datetime  # For timestamping events
+from enum import Enum, auto  # For creating enumerations
+from typing import Any  # For generic type hints
 
-from marvin.schemas._marvin import _MarvinModel # Base Pydantic model
+from pydantic import (
+    UUID4,
+    Field,
+    SerializeAsAny,
+    field_validator,
+)  # Core Pydantic components. Removed unused ValidationInfo.
+
+from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model
 
 # Default integration ID for events originating from generic user actions or internal Marvin processes.
 INTERNAL_INTEGRATION_ID = "marvin_generic_user"
@@ -23,7 +29,8 @@ class EventNameSpaceBase(Enum):
     Abstract base class for event namespaces.
     Subclasses should define actual namespace values.
     """
-    ... # Ellipsis indicates this is an abstract base intended for subclassing.
+
+    ...  # Ellipsis indicates this is an abstract base intended for subclassing.
 
 
 class EventNameSpace(EventNameSpaceBase):
@@ -31,6 +38,7 @@ class EventNameSpace(EventNameSpaceBase):
     Enumeration defining namespaces for categorizing events.
     Namespaces help in organizing and filtering events.
     """
+
     namespace = "core"
     """The 'core' namespace, likely for fundamental application events."""
     # Example: USER = "user_events", TASK = "task_events"
@@ -41,7 +49,8 @@ class EventTypeBase(Enum):
     Abstract base class for event types.
     Subclasses should define specific event types using `auto()` or string values.
     """
-    ... # Ellipsis indicates this is an abstract base.
+
+    ...  # Ellipsis indicates this is an abstract base.
 
 
 class EventTypes(EventTypeBase):
@@ -73,7 +82,7 @@ class EventTypes(EventTypeBase):
     # RECIPE_CREATED = "recipe_created"
     # RECIPE_UPDATED = "recipe_updated"
     # SHOPPING_LIST_GENERATED = "shopping_list_generated"
-    TOKEN_REFRESHED = auto() # Added from auth_controller example
+    TOKEN_REFRESHED = auto()  # Added from auth_controller example
     """Event dispatched when a user's access token is refreshed."""
 
 
@@ -82,6 +91,7 @@ class EventDocumentTypeBase(Enum):
     Abstract base class for event document types.
     Defines the category of the data/document associated with an event.
     """
+
     ...
 
 
@@ -90,6 +100,7 @@ class EventDocumentType(EventDocumentTypeBase):
     Enumeration for the type of document or data payload associated with an event.
     Helps listeners understand the nature of `EventDocumentDataBase` content.
     """
+
     generic = "generic"
     """A generic document type, for events with non-specific or simple data."""
     user = "user"
@@ -102,6 +113,7 @@ class EventOperationBase(Enum):
     Abstract base class for event operation types.
     Describes the action performed that led to the event (e.g., create, update).
     """
+
     ...
 
 
@@ -110,10 +122,11 @@ class EventOperation(EventOperationBase):
     Enumeration for the type of operation that an event represents.
     Commonly used for CRUD-like events or informational messages.
     """
-    info = "info"       # Informational event, not necessarily a data change.
-    create = "create"   # Event related to the creation of a resource.
-    update = "update"   # Event related to the update of a resource.
-    delete = "delete"   # Event related to the deletion of a resource.
+
+    info = "info"  # Informational event, not necessarily a data change.
+    create = "create"  # Event related to the creation of a resource.
+    update = "update"  # Event related to the update of a resource.
+    delete = "delete"  # Event related to the deletion of a resource.
 
 
 class EventDocumentDataBase(_MarvinModel):
@@ -125,9 +138,10 @@ class EventDocumentDataBase(_MarvinModel):
     It should ideally have common fields or be fully abstract if no common fields exist
     beyond `document_type` and `operation` which are often set by subclasses.
     """
+
     document_type: EventDocumentTypeBase | None = None
     """The type of document/data this payload represents (e.g., generic, user)."""
-    operation: EventOperationBase # Should this be optional or have a default?
+    operation: EventOperationBase  # Should this be optional or have a default?
     """The operation that this event pertains to (e.g., create, info)."""
     # Ellipsis (`...`) as a field definition is unusual in Pydantic.
     # It implies the field is required but its type is not specified here,
@@ -146,11 +160,12 @@ class EventTokenRefreshData(EventDocumentDataBase):
     """
     Data payload for an event indicating a user's access token has been refreshed.
     """
-    document_type: EventDocumentTypeBase = EventDocumentType.generic # Specific document type
-    operation: EventOperationBase = EventOperation.info # Operation type is informational
+
+    document_type: EventDocumentTypeBase = EventDocumentType.generic  # Specific document type
+    operation: EventOperationBase = EventOperation.info  # Operation type is informational
     username: str
     """The username of the user whose token was refreshed."""
-    token: str # This is the new token. Consider if sending tokens via event bus is secure.
+    token: str  # This is the new token. Consider if sending tokens via event bus is secure.
     """The new access token. Sensitive: ensure event bus and listeners handle this securely."""
 
 
@@ -158,8 +173,9 @@ class EventUserSignupData(EventDocumentDataBase):
     """
     Data payload for an event indicating a new user has signed up.
     """
-    document_type: EventDocumentTypeBase = EventDocumentType.user # Specific document type
-    operation: EventOperationBase = EventOperation.create # Operation type is creation
+
+    document_type: EventDocumentTypeBase = EventDocumentType.user  # Specific document type
+    operation: EventOperationBase = EventOperation.create  # Operation type is creation
     username: str
     """The username of the newly signed-up user."""
     email: str
@@ -171,11 +187,12 @@ class EventWebhookData(EventDocumentDataBase):
     Data payload specifically for `webhook_task` events.
     Contains information needed by WebhookEventListener to find and trigger scheduled webhooks.
     """
+
     webhook_start_dt: datetime
     """The start datetime for the window in which to find scheduled webhooks."""
     webhook_end_dt: datetime
     """The end datetime for the window in which to find scheduled webhooks."""
-    webhook_body: Any = None # Body to be sent by the webhook, can be dynamically generated.
+    webhook_body: Any = None  # Body to be sent by the webhook, can be dynamically generated.
     """
     The body/payload to be sent by the webhook. This can be populated dynamically
     by the `WebhookEventListener` based on `webhook_type`. Defaults to None.
@@ -189,6 +206,7 @@ class EventBusMessage(_MarvinModel):
     Pydantic model for the user-facing message content within an event.
     Includes a title and a body for the notification.
     """
+
     title: str
     """The title of the event message (e.g., for a notification header)."""
     body: str = ""
@@ -212,9 +230,9 @@ class EventBusMessage(_MarvinModel):
         generated_title = event_type.name.replace("_", " ").title()
         return cls(title=generated_title, body=body)
 
-    @field_validator("body", mode="before") # Run before Pydantic's own validation
+    @field_validator("body", mode="before")  # Run before Pydantic's own validation
     @classmethod
-    def ensure_body_is_not_empty_for_apprise(cls, v: str | None) -> str: # Renamed, added cls, type hint for v
+    def ensure_body_is_not_empty_for_apprise(cls, v: str | None) -> str:  # Renamed, added cls, type hint for v
         """
         Pydantic validator to ensure the 'body' field is not empty.
 
@@ -230,7 +248,7 @@ class EventBusMessage(_MarvinModel):
         """
         # If the body is empty or None, Apprise might not send the notification.
         # Default to "generic" to ensure something is sent.
-        return v if v and v.strip() else "generic" # Ensure non-empty and not just whitespace
+        return v if v and v.strip() else "generic"  # Ensure non-empty and not just whitespace
 
 
 class Event(_MarvinModel):
@@ -241,16 +259,17 @@ class Event(_MarvinModel):
     and any associated document data. Event ID and timestamp are automatically
     generated upon instantiation.
     """
+
     message: EventBusMessage
     """The user-facing message content of the event."""
-    event_type: EventTypeBase # Should be EventTypes for specific values
+    event_type: EventTypeBase  # Should be EventTypes for specific values
     """The type of the event (e.g., user_signup, test_message)."""
     integration_id: str
     """An identifier for the system or integration that generated the event."""
-    
+
     # `SerializeAsAny` allows `document_data` to be any subclass of `EventDocumentDataBase`
     # and be correctly serialized/deserialized by Pydantic if `type` field is used for discrimination.
-    document_data: SerializeAsAny[EventDocumentDataBase] | None # Made optional
+    document_data: SerializeAsAny[EventDocumentDataBase] | None  # Made optional
     """
     The data payload associated with the event. Its specific schema depends on
     the `event_type` and `document_data.document_type`. Can be None.
@@ -259,7 +278,7 @@ class Event(_MarvinModel):
     # Fields automatically set at instantiation
     event_id: UUID4 = Field(default_factory=uuid.uuid4)
     """A unique identifier for this specific event instance."""
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     """Timestamp (UTC) of when the event object was created."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -283,7 +302,7 @@ class Event(_MarvinModel):
         # This re-assignment ensures they are always set, overriding any potential None from kwargs
         # if the fields were not Optional[None] = Field(default=None) but just Optional[None].
         # Given default_factory, this is fine but slightly redundant unless kwargs might pass `None`.
-        if self.event_id is None: # Should not be None due to default_factory
-             self.event_id = uuid.uuid4()
-        if self.timestamp is None: # Should not be None due to default_factory
-             self.timestamp = datetime.now(timezone.utc)
+        if self.event_id is None:  # Should not be None due to default_factory
+            self.event_id = uuid.uuid4()
+        if self.timestamp is None:  # Should not be None due to default_factory
+            self.timestamp = datetime.now(UTC)

@@ -5,12 +5,14 @@ specific webhook runner or handler implementations within the Marvin application
 Webhook runners are responsible for processing webhook events of a particular type,
 often by fetching relevant data or performing actions based on the event.
 """
-from typing import Any # For **kwargs in method signatures
-from pydantic import UUID4 # For UUID type hinting
-from sqlalchemy.orm import Session # For type hinting SQLAlchemy Session
+
+from typing import Any  # For **kwargs in method signatures
+
+from pydantic import UUID4  # For UUID type hinting
+from sqlalchemy.orm import Session  # For type hinting SQLAlchemy Session
 
 # `NOT_SET` and `NotSet` were imported but not used in this file.
-# from ...repos._utils import NOT_SET, NotSet 
+# from ...repos._utils import NOT_SET, NotSet
 
 
 class BaseWebhook:
@@ -56,7 +58,7 @@ class BaseWebhook:
         """
         return self._group_id
 
-    def info(self) -> Any: # Return type changed from str to Any for flexibility
+    def info(self) -> Any:  # Return type changed from str to Any for flexibility
         """
         Retrieves informational data relevant to this webhook type.
 
@@ -74,7 +76,7 @@ class BaseWebhook:
         # Example: A subclass might return a dictionary of current stats or settings.
         raise NotImplementedError("Subclasses must implement the 'info' method.")
 
-    def create(self, **kwargs: Any) -> Any: # Return type changed to Any
+    def create(self, **kwargs: Any) -> Any:  # Return type changed to Any
         """
         Handles a 'create' event or operation related to this webhook type.
 
@@ -94,7 +96,7 @@ class BaseWebhook:
         # Example: A subclass might create a resource based on kwargs and return its ID or representation.
         raise NotImplementedError("Subclasses must implement the 'create' method.")
 
-    def update(self, **kwargs: Any) -> Any: # Return type changed to Any
+    def update(self, **kwargs: Any) -> Any:  # Return type changed to Any
         """
         Handles an 'update' event or operation related to this webhook type.
 
@@ -113,7 +115,7 @@ class BaseWebhook:
         """
         raise NotImplementedError("Subclasses must implement the 'update' method.")
 
-    def delete(self, **kwargs: Any) -> Any: # Return type changed to Any
+    def delete(self, **kwargs: Any) -> Any:  # Return type changed to Any
         """
         Handles a 'delete' event or operation related to this webhook type.
 

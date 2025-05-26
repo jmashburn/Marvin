@@ -10,6 +10,7 @@ Configuration for the behavior of `auto_init` can be provided via a
 `model_config` attribute on the SQLAlchemy model class, using fields
 defined in `AutoInitConfig`.
 """
+
 from functools import wraps
 from uuid import UUID
 
@@ -66,7 +67,7 @@ def _get_config(model_cls: type[SqlAlchemyBase]) -> AutoInitConfig:
         AutoInitConfig: The resolved configuration for auto-initialization.
     """
     cfg = AutoInitConfig()
-    cfg_keys = cfg.model_fields.keys() # Use model_fields for Pydantic v2
+    cfg_keys = cfg.model_fields.keys()  # Use model_fields for Pydantic v2
 
     # Get the config from the class's model_config attribute
     try:
@@ -112,9 +113,7 @@ def get_lookup_attr(relation_cls: type[SqlAlchemyBase]) -> str:
     return lookup_attribute
 
 
-def handle_many_to_many(
-    session: Session, get_attr: str, relation_cls: type[SqlAlchemyBase], all_elements: list[dict]
-) -> list[SqlAlchemyBase]:
+def handle_many_to_many(session: Session, get_attr: str, relation_cls: type[SqlAlchemyBase], all_elements: list[dict]) -> list[SqlAlchemyBase]:
     """
     Handles the initialization or update of objects in a many-to-many relationship.
 
@@ -139,7 +138,7 @@ def handle_one_to_many_list(
     session: Session,
     get_attr: str,
     relation_cls: type[SqlAlchemyBase],
-    all_elements: list[dict] | list[str] | list[UUID], # Added list[UUID]
+    all_elements: list[dict] | list[str] | list[UUID],  # Added list[UUID]
 ) -> list[SqlAlchemyBase]:
     """
     Handles initialization or update of a list of related objects (one-to-many or many-to-many).
@@ -170,26 +169,26 @@ def handle_one_to_many_list(
 
         if isinstance(elem_data, dict):
             elem_id = elem_data.get(get_attr)
-        elif isinstance(elem_data, (str, UUID)): # Handle direct IDs
+        elif isinstance(elem_data, (str | UUID)):  # Handle direct IDs
             elem_id = elem_data
-        
+
         if elem_id is not None:
             stmt = select(relation_cls).filter_by(**{get_attr: elem_id})
             existing_elem = session.execute(stmt).scalars().one_or_none()
 
         if existing_elem:
-            if isinstance(elem_data, dict): # Update if full data provided
+            if isinstance(elem_data, dict):  # Update if full data provided
                 for key, value in elem_data.items():
-                    if key not in cfg.exclude: # Respect exclusions
+                    if key not in cfg.exclude:  # Respect exclusions
                         setattr(existing_elem, key, value)
             final_elements_list.append(existing_elem)
-        elif isinstance(elem_data, dict): # Prepare for creation if not found and data is dict
+        elif isinstance(elem_data, dict):  # Prepare for creation if not found and data is dict
             elems_to_create_data.append(elem_data)
         # If elem_data is just an ID and not found, it's skipped (could add logging or error)
 
     # Create new elements if any data was provided for them
     newly_created_elems = [safe_call(relation_cls, data.copy(), session=session) for data in elems_to_create_data]
-    final_elements_list.extend(filter(None, newly_created_elems)) # Add successfully created items
+    final_elements_list.extend(filter(None, newly_created_elems))  # Add successfully created items
 
     return final_elements_list
 
@@ -248,7 +247,7 @@ def auto_init():  # sourcery no-metrics
             """
             cls = self.__class__
             current_config = _get_config(cls)
-            exclude = config.exclude
+            exclude = current_config.exclude
 
             alchemy_mapper: Mapper = self.__mapper__
             model_columns: ColumnCollection = alchemy_mapper.columns
@@ -313,7 +312,7 @@ def auto_init():  # sourcery no-metrics
                         instances = handle_many_to_many(session, get_attr, relation_cls, val)
                         setattr(self, key, instances)
 
-            return init(self, *args, **kwargs)
+            return init_method(self, *args, **kwargs)
 
         return wrapper
 

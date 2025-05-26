@@ -2,14 +2,14 @@ from marvin.routes._base.routers import AdminAPIRouter
 
 from . import (
     about_controller,
-    maintenance_controller,
-    group_controller,
-    user_controller,
     debug_controller,
     email_controller,
+    group_controller,
+    maintenance_controller,
+    user_controller,
 )
 
-router = AdminAPIRouter(prefix="/admin", tags=["Admin"])
+router = AdminAPIRouter(prefix="/admin")
 
 router.include_router(about_controller.router, tags=["Admin: About"])
 router.include_router(debug_controller.router, tags=["Admin: Debug"])

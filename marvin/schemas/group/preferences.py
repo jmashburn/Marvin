@@ -6,15 +6,13 @@ These schemas are used for creating, updating, and representing preference
 settings associated with a user group, such as privacy settings or display options
 like the first day of the week.
 """
-from pydantic import UUID4, ConfigDict # For UUID type and Pydantic model configuration
-from sqlalchemy.orm import joinedload # For SQLAlchemy loader options
-from sqlalchemy.orm.interfaces import LoaderOption # Type for loader options
+
+from pydantic import UUID4, ConfigDict  # For UUID type and Pydantic model configuration
+from sqlalchemy.orm.interfaces import LoaderOption  # Type for loader options
 
 # Corresponding SQLAlchemy models (used in loader_options)
 # from marvin.db.models.groups import Groups # Groups model itself is used in a potentially confusing way in loader_options
-from marvin.db.models.groups.preferences import GroupPreferencesModel as GroupPreferencesSQLModel # Aliased for clarity
-
-from marvin.schemas._marvin import _MarvinModel # Base Pydantic model
+from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model
 
 
 class GroupPreferencesCreate(_MarvinModel):
@@ -26,9 +24,10 @@ class GroupPreferencesCreate(_MarvinModel):
     otherwise they might rely on database defaults or be set in an update.
     This schema primarily establishes the link to a group.
     """
+
     group_id: UUID4
     """The unique identifier of the group these preferences belong to."""
-    
+
     # Optional preference fields that can be set during creation
     private_group: bool = True
     """Indicates if the group is private. Defaults to True."""
@@ -37,28 +36,29 @@ class GroupPreferencesCreate(_MarvinModel):
     Sets the first day of the week for the group (e.g., 0 for Sunday, 1 for Monday).
     Defaults to 0 (Sunday).
     """
-    
-    model_config = ConfigDict(from_attributes=True) # Allows creating from ORM model attributes
+
+    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
 
 
-class GroupPreferencesUpdate(_MarvinModel): # Typically, update schemas allow partial updates.
+class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow partial updates.
     """
     Schema for updating existing group preferences.
     Requires the `id` of the preferences record to update.
     All other fields are optional for partial updates.
     """
-    id: UUID4 
+
+    id: UUID4
     """The unique identifier of the group preferences record to update."""
-    
-    group_id: UUID4 | None = None # Group ID is usually not updatable for existing preferences.
+
+    group_id: UUID4 | None = None  # Group ID is usually not updatable for existing preferences.
     """The group ID. Typically not changed during an update."""
-    
+
     private_group: bool | None = None
     """Optional: New value for the private group setting."""
-    
+
     first_day_of_week: int | None = None
     """Optional: New value for the first day of the week setting."""
-    
+
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
@@ -73,7 +73,7 @@ class GroupPreferencesUpdate(_MarvinModel): # Typically, update schemas allow pa
         - `load_only(Groups.group_id)` would apply to a query for `Groups`, not `GroupPreferencesSQLModel`,
           unless there's a relationship path from `GroupPreferencesSQLModel` to `Groups` that is
           being targeted in a very specific way not immediately obvious.
-        
+
         If the intent was to load only specific fields of `GroupPreferencesSQLModel` when it's
         part of another query (e.g., when loading a `Group` that has `preferences`),
         then this option would be defined in the schema for `Group` (e.g., `GroupRead`).
@@ -93,20 +93,21 @@ class GroupPreferencesUpdate(_MarvinModel): # Typically, update schemas allow pa
         # return [joinedload(GroupPreferencesSQLModel.group).load_only(Groups.id)] # Assuming 'group' is relationship name
         # Or if only specific fields of GroupPreferencesModel itself:
         # return [load_only(GroupPreferencesSQLModel.private_group, GroupPreferencesSQLModel.first_day_of_week)]
-        return [] # Returning empty as the original is confusing.
+        return []  # Returning empty as the original is confusing.
 
 
-class GroupPreferencesRead(GroupPreferencesCreate): # Extends Create, but usually Read is more comprehensive.
+class GroupPreferencesRead(GroupPreferencesCreate):  # Extends Create, but usually Read is more comprehensive.
     """
     Schema for representing group preferences when read from the system.
     Includes all preference fields.
     """
+
     # Inherits group_id, private_group, first_day_of_week from GroupPreferencesCreate's new definition.
     # If GroupPreferencesCreate was minimal (only group_id), then these would be explicitly defined here.
     # id: UUID4 # Usually a Read schema includes the ID of the preference record itself.
     # private_group: bool = True
     # first_day_of_week: int = 0
-    
+
     model_config = ConfigDict(from_attributes=True)
     # If this schema needs its own loader_options for when it's nested in other Read schemas,
     # they would be defined here. For example, if it had a relationship to another model.

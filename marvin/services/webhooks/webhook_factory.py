@@ -7,17 +7,19 @@ It allows for on-demand instantiation of specific webhook handlers
 (e.g., `GenericWebhook`, `UserWebhook`) associated with a given database
 session and an optional group context.
 """
-from functools import cached_property # For lazy-loading webhook handler instances
 
-from pydantic import UUID4 # For UUID type hinting
-from sqlalchemy.orm import Session # For type hinting SQLAlchemy Session
+from functools import cached_property  # For lazy-loading webhook handler instances
 
-# Import specific webhook handler implementations
-from .base_webhook import BaseWebhook # Base class for type hinting if needed
-from .generic import GenericWebhook
-from .user import UserWebhook
+from pydantic import UUID4  # For UUID type hinting
+from sqlalchemy.orm import Session  # For type hinting SQLAlchemy Session
+
 # `NOT_SET` and `NotSet` are imported for handling optional group_id.
 from ...repos._utils import NOT_SET, NotSet
+
+# Import specific webhook handler implementations
+from .base_webhook import BaseWebhook  # Base class for type hinting if needed
+from .generic import GenericWebhook
+from .user import UserWebhook
 
 
 class AllWebhooks:
@@ -36,7 +38,7 @@ class AllWebhooks:
 
     session: Session
     """The SQLAlchemy session passed to instantiated webhook handlers."""
-    group_id: UUID4 | None | NotSet # Changed to reflect actual usage
+    group_id: UUID4 | None | NotSet  # Changed to reflect actual usage
     """
     The group ID to scope webhook handlers to. Can be a UUID, None (for no specific group),
     or NOT_SET (if group context is truly optional or determined differently by handlers).
@@ -45,7 +47,7 @@ class AllWebhooks:
     def __init__(
         self,
         session: Session,
-        *, # Keyword-only arguments follow
+        *,  # Keyword-only arguments follow
         group_id: UUID4 | None | NotSet = NOT_SET,
     ) -> None:
         """
@@ -87,9 +89,9 @@ class AllWebhooks:
         # These properties are cached, so the handler is only instantiated once per AllWebhooks instance.
         if hasattr(self, webhook_type_name):
             handler = getattr(self, webhook_type_name)
-            if isinstance(handler, BaseWebhook): # Ensure it's a valid handler type
+            if isinstance(handler, BaseWebhook):  # Ensure it's a valid handler type
                 return handler
-        return None # Return None if the handler type name doesn't match a property or isn't a BaseWebhook
+        return None  # Return None if the handler type name doesn't match a property or isn't a BaseWebhook
 
     @cached_property
     def generic(self) -> GenericWebhook:

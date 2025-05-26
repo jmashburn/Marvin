@@ -6,6 +6,7 @@ LDAP server. If a user is found in LDAP but not in the Marvin database, a new
 Marvin user account can be created. It also supports syncing admin status based
 on LDAP group membership.
 """
+
 from datetime import timedelta
 
 import ldap
@@ -189,9 +190,7 @@ class LDAPProvider(CredentialsProvider):
             attributes = {}
             for attribute_key, attribute_name in attribute_keys.items():
                 if attribute_key not in user_attr or len(user_attr[attribute_key]) == 0:
-                    self._logger.error(
-                        f"[LDAP] Unable to create user due to missing '{attribute_name}' ('{attribute_key}') attribute"
-                    )
+                    self._logger.error(f"[LDAP] Unable to create user due to missing '{attribute_name}' ('{attribute_key}') attribute")
                     self._logger.debug(f"[LDAP] User has the following attributes: {user_attr}")
                     conn.unbind_s()
                     return None

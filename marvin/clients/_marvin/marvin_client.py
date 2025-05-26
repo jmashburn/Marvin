@@ -2,6 +2,7 @@
 This module defines the _MarvinClient class, which serves as a base client
 for accessing core Marvin functionalities like settings, logging, and directories.
 """
+
 from logging import Logger
 
 from pydantic import ConfigDict

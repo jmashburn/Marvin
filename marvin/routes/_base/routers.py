@@ -9,14 +9,15 @@ It includes:
 - `MarvinCrudRoute`: A custom APIRoute class that adds 'last-modified' and cache-control
   headers to responses, particularly for CRUD operations involving models with an 'updatedAt' field.
 """
+
 import contextlib
 import json
-from collections.abc import Callable # For typing callables
-from enum import Enum # For using Enums in tags if needed
-from json.decoder import JSONDecodeError # For safely trying to decode JSON
+from collections.abc import Callable  # For typing callables
+from enum import Enum  # For using Enums in tags if needed
+from json.decoder import JSONDecodeError  # For safely trying to decode JSON
 
-from fastapi import APIRouter, Depends, Request, Response # Core FastAPI components
-from fastapi.routing import APIRoute # For creating custom route class
+from fastapi import APIRouter, Depends, Request, Response  # Core FastAPI components
+from fastapi.routing import APIRoute  # For creating custom route class
 
 # Marvin specific dependencies for authentication
 from marvin.core.dependencies import get_admin_user, get_current_user
@@ -50,19 +51,16 @@ class AdminAPIRouter(BaseAPIRouter):
 
     Args:
         tags (list[str | Enum] | None, optional): Tags for OpenAPI documentation.
-            Defaults to ["Admin"] if not provided or can be augmented.
         prefix (str, optional): URL prefix for these admin routes (e.g., "/admin").
         **kwargs: Additional keyword arguments for `APIRouter`.
     """
 
     def __init__(self, tags: list[str | Enum] | None = None, prefix: str = "", **kwargs):
-        # Default tags for admin routes if not specified
-        final_tags = tags or ["Admin"]
         super().__init__(
-            tags=final_tags,
+            tags=tags,
             prefix=prefix,
-            dependencies=[Depends(get_admin_user)], # Automatically protect routes with admin auth
-            **kwargs
+            dependencies=[Depends(get_admin_user)],  # Automatically protect routes with admin auth
+            **kwargs,
         )
 
 
@@ -83,8 +81,8 @@ class UserAPIRouter(BaseAPIRouter):
         super().__init__(
             tags=tags,
             prefix=prefix,
-            dependencies=[Depends(get_current_user)], # Automatically protect routes with user auth
-            **kwargs
+            dependencies=[Depends(get_current_user)],  # Automatically protect routes with user auth
+            **kwargs,
         )
 
 
@@ -127,20 +125,20 @@ class MarvinCrudRoute(APIRoute):
             # Check content-type or just try-except decode if performance is not critical
             # For simplicity, using try-except here.
             # `contextlib.suppress` can be used to ignore JSONDecodeError if body is not JSON.
-            with contextlib.suppress(JSONDecodeError, AttributeError, TypeError): # Guard against non-JSON or non-dict body
+            with contextlib.suppress(JSONDecodeError, AttributeError, TypeError):  # Guard against non-JSON or non-dict body
                 # Ensure response.body is accessible and is bytes; some responses might not have .body
                 if hasattr(response, "body") and isinstance(response.body, bytes):
-                    response_body_dict = json.loads(response.body.decode()) # Decode bytes to str, then parse JSON
-                    
+                    response_body_dict = json.loads(response.body.decode())  # Decode bytes to str, then parse JSON
+
                     if isinstance(response_body_dict, dict):
                         # Try to get 'updatedAt' for the 'last-modified' header
                         last_modified_value = response_body_dict.get("updatedAt")
-                        if last_modified_value: # Ensure it's not None or empty
+                        if last_modified_value:  # Ensure it's not None or empty
                             response.headers["last-modified"] = str(last_modified_value)
 
                         # Force no-cache for all API responses to ensure clients get fresh data
                         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-            
+
             return response
 
         return custom_route_handler

@@ -6,8 +6,10 @@ in the database and properly converted back to `HttpUrl` objects when retrieved.
 This ensures that URL validation and serialization are handled correctly when
 interacting with the database.
 """
+
 from pydantic import HttpUrl
-from sqlalchemy.types import Dialect, String, TypeDecorator
+from sqlalchemy import Dialect
+from sqlalchemy.types import String, TypeDecorator
 
 
 class HttpUrlType(TypeDecorator[HttpUrl]):

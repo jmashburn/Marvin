@@ -1,3 +1,5 @@
+from typing import Any
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress
@@ -62,7 +64,7 @@ class MarvinDisplay:
         self.console.print(f"[dim]{message}...[/dim]")
         return self.progress.add_task(message)
 
-    def prompt(self, message: str, choices: list = None, default: str = None):
+    def prompt(self, message: str, choices: list = list[Any], default: str = None):
         """Display an interactive prompt.
 
         Args:

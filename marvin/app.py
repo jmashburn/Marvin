@@ -6,22 +6,25 @@ sets up lifespan events for application startup and shutdown (including database
 initialization and scheduler startup), registers API routes, and provides a `main`
 function to run the application using Uvicorn, primarily for development purposes.
 """
-from collections.abc import AsyncGenerator # For async generator type hint
-from contextlib import asynccontextmanager # For creating async context managers (lifespan)
 
-import uvicorn # ASGI server for running FastAPI
-from fastapi import FastAPI # The main FastAPI class
-from fastapi.middleware.cors import CORSMiddleware # Middleware for CORS
-from fastapi.middleware.gzip import GZipMiddleware # Middleware for GZip compression
+from collections.abc import AsyncGenerator  # For async generator type hint
+from contextlib import asynccontextmanager  # For creating async context managers (lifespan)
+
+import uvicorn  # ASGI server for running FastAPI
+from fastapi import FastAPI  # The main FastAPI class
+from fastapi.middleware.cors import CORSMiddleware  # Middleware for CORS
+from fastapi.middleware.gzip import GZipMiddleware  # Middleware for GZip compression
 
 # Marvin core components
-from marvin.core.config import get_app_settings # Access application settings
-from marvin.core.root_logger import get_logger # Application logger
-from marvin.core.settings.static import APP_VERSION # Static application version
-from marvin.routes import router as main_api_router # Main API router combining all app routes
-from marvin.routes.handlers import register_debug_handler # Registers custom exception handlers
+from marvin.core.config import get_app_settings  # Access application settings
+from marvin.core.root_logger import get_logger  # Application logger
+from marvin.core.settings.static import APP_VERSION  # Static application version
+from marvin.routes import router as main_api_router  # Main API router combining all app routes
+from marvin.routes.handlers import register_debug_handler  # Registers custom exception handlers
+
 # Scheduler components
-from marvin.services.scheduler import SchedulerRegistry, SchedulerService, tasks as scheduler_tasks
+from marvin.services.scheduler import SchedulerRegistry, SchedulerService
+from marvin.services.scheduler import tasks as scheduler_tasks
 
 # Initialize global settings and logger instances
 settings = get_app_settings()
@@ -36,7 +39,7 @@ Version: **{APP_VERSION}**
 
 
 @asynccontextmanager
-async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]: # Renamed app to _app
+async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]:  # Renamed app to _app
     """
     Asynchronous context manager for FastAPI application lifespan events.
 
@@ -54,7 +57,7 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]: # Renamed ap
 
     Args:
         _app (FastAPI): The FastAPI application instance (passed by FastAPI, often unused in the function body).
-    
+
     Yields:
         None: Control back to FastAPI after startup tasks are complete.
     """
@@ -62,9 +65,10 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]: # Renamed ap
     logger.info("------ SYSTEM STARTUP INITIATED ------")
 
     logger.info("Starting: Database initialization...")
-    import marvin.db.init_db as init_db # Local import to avoid premature DB calls if app is imported elsewhere
+    import marvin.db.init_db as init_db  # Local import to avoid premature DB calls if app is imported elsewhere
+
     try:
-        init_db.main() # Run database migrations and initial data seeding
+        init_db.main()  # Run database migrations and initial data seeding
         logger.info("Completed: Database initialization.")
     except Exception as e:
         logger.exception(f"Database initialization failed: {e}")
@@ -72,23 +76,22 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]: # Renamed ap
 
     logger.info("Starting: Scheduler service...")
     try:
-        await start_scheduler() # Register and start scheduled tasks
+        await start_scheduler()  # Register and start scheduled tasks
         logger.info("Completed: Scheduler service started.")
     except Exception as e:
         logger.exception(f"Scheduler service failed to start: {e}")
-
 
     logger.info("------ APPLICATION SETTINGS (Non-Sensitive) ------")
     # Log application settings, excluding potentially sensitive fields
     # Pydantic v2 uses model_dump_json
     loggable_settings = settings.model_dump_json(
         indent=2,
-        exclude={"theme", "SECRET", "ENV_SECRETS"}, # Exclude sensitive or verbose fields
+        exclude={"theme", "SECRET", "ENV_SECRETS"},  # Exclude sensitive or verbose fields
     )
     logger.info(loggable_settings)
     logger.info("------ SYSTEM STARTUP COMPLETE ------")
 
-    yield # Application runs after this point
+    yield  # Application runs after this point
 
     # --- Shutdown ---
     logger.info("------ SYSTEM SHUTDOWN INITIATED ------")
@@ -101,31 +104,31 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]: # Renamed ap
 
 # Initialize the FastAPI application instance
 app = FastAPI(
-    title="Marvin API", # Title for OpenAPI documentation
-    description=description, # Description from above
-    version=APP_VERSION, # Application version
-    docs_url=settings.DOCS_URL, # URL for Swagger UI (None if disabled in settings)
-    redoc_url=settings.REDOC_URL, # URL for ReDoc (None if disabled in settings)
-    lifespan=lifespan_fn, # Register the lifespan context manager
+    title="Marvin API",  # Title for OpenAPI documentation
+    description=description,  # Description from above
+    version=APP_VERSION,  # Application version
+    docs_url=settings.DOCS_URL,  # URL for Swagger UI (None if disabled in settings)
+    redoc_url=settings.REDOC_URL,  # URL for ReDoc (None if disabled in settings)
+    lifespan=lifespan_fn,  # Register the lifespan context manager
 )
 
 # Add GZip middleware to compress responses for supported clients
-app.add_middleware(GZipMiddleware, minimum_size=1000) # Compress responses larger than 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # Compress responses larger than 1KB
 
 # Configure CORS (Cross-Origin Resource Sharing) middleware for non-production environments
 if not settings.PRODUCTION:
     # Define allowed origins for CORS (typically frontend development server)
     allowed_origins = [
-        "http://localhost:3000", # Example: React frontend
-        "http://localhost:8080", # If API is also served/tested on a different port locally
+        "http://localhost:3000",  # Example: React frontend
+        "http://localhost:8080",  # If API is also served/tested on a different port locally
     ]
     logger.info(f"CORS enabled for development. Allowed origins: {allowed_origins}")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins, # List of allowed origins
-        allow_credentials=True, # Allow cookies to be included in cross-origin requests
-        allow_methods=["*"], # Allow all standard HTTP methods
-        allow_headers=["*"], # Allow all headers
+        allow_origins=allowed_origins,  # List of allowed origins
+        allow_credentials=True,  # Allow cookies to be included in cross-origin requests
+        allow_methods=["*"],  # Allow all standard HTTP methods
+        allow_headers=["*"],  # Allow all headers
     )
 else:
     logger.info("CORS middleware not enabled in production environment (or using different production CORS config).")
@@ -150,10 +153,7 @@ async def start_scheduler() -> None:
     )
 
     # Register minutely tasks (currently ping and post_group_webhooks)
-    SchedulerRegistry.register_minutely(
-        scheduler_tasks.ping, 
-        scheduler_tasks.post_group_webhooks
-    )
+    SchedulerRegistry.register_minutely(scheduler_tasks.ping, scheduler_tasks.post_group_webhooks)
 
     # Register hourly tasks
     SchedulerRegistry.register_hourly(
@@ -172,15 +172,16 @@ async def start_scheduler() -> None:
 register_debug_handler(app)
 
 
-def include_api_routers() -> None: # Renamed from api_routers for clarity
+def include_api_routers() -> None:  # Renamed from api_routers for clarity
     """
     Includes the main API router into the FastAPI application.
 
     This function modularizes router inclusion. All application routes
     are aggregated under `main_api_router` (imported from `marvin.routes`).
     """
-    app.include_router(main_api_router) # Include all routes defined in marvin.routes
+    app.include_router(main_api_router)  # Include all routes defined in marvin.routes
     logger.info("API routers included.")
+
 
 # Include all API routes from marvin.routes package
 include_api_routers()
@@ -198,17 +199,17 @@ def main() -> None:
     logger.info(f"Starting Uvicorn server for Marvin app (Version: {APP_VERSION})...")
     # Configure and run Uvicorn server
     uvicorn.run(
-        "marvin.app:app", # Path to the FastAPI app instance (module:variable)
-        host="0.0.0.0",   # Listen on all available network interfaces
-        port=settings.API_PORT, # Port from application settings
-        reload=not settings.PRODUCTION, # Enable auto-reloading in non-production environments
-        reload_dirs=["marvin"] if not settings.PRODUCTION else None, # Directories to watch for changes
-        reload_delay=2 if not settings.PRODUCTION else None,        # Delay before reloading
-        log_level="info", # Uvicorn's own log level
+        "marvin.app:app",  # Path to the FastAPI app instance (module:variable)
+        host="0.0.0.0",  # Listen on all available network interfaces
+        port=settings.API_PORT,  # Port from application settings
+        reload=not settings.PRODUCTION,  # Enable auto-reloading in non-production environments
+        reload_dirs=["marvin"] if not settings.PRODUCTION else None,  # Directories to watch for changes
+        reload_delay=2 if not settings.PRODUCTION else None,  # Delay before reloading
+        log_level="info",  # Uvicorn's own log level
         use_colors=True,  # Enable colored logging output
         log_config=None,  # Use Uvicorn's default logging config (can be customized)
-        workers=1,        # Number of worker processes (typically 1 for dev, more for prod)
-        forwarded_allow_ips="*", # Trust X-Forwarded-For headers from any IP (use with caution, specific IPs better for prod)
+        workers=1,  # Number of worker processes (typically 1 for dev, more for prod)
+        forwarded_allow_ips="*",  # Trust X-Forwarded-For headers from any IP (specific IPs better for prod)
     )
 
 

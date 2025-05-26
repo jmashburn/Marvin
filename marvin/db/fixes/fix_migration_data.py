@@ -6,6 +6,7 @@ that might be affected by schema changes or require updates post-migration.
 Currently, it includes a `dummy_fix` as a placeholder and a main function
 `fix_migration_data` to orchestrate the execution of these fixes.
 """
+
 from sqlalchemy.orm import Session
 
 from marvin.core import root_logger

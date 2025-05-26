@@ -8,13 +8,14 @@ dispatching emails using a configurable email sender (defaulting to SMTP).
 The service supports sending various types of emails, such as password resets,
 invitations, and test emails.
 """
-from pathlib import Path # For path manipulation (template directory)
 
-from jinja2 import Template # For rendering HTML templates
-from pydantic import BaseModel # For creating data models like EmailTemplate
+from pathlib import Path  # For path manipulation (template directory)
 
-from marvin.core.root_logger import get_logger # Application logger
-from marvin.services import BaseService # Base service class
+from jinja2 import Template  # For rendering HTML templates
+from pydantic import BaseModel  # For creating data models like EmailTemplate
+
+from marvin.core.root_logger import get_logger  # Application logger
+from marvin.services import BaseService  # Base service class
 
 # Email sender implementations
 from .email_senders import ABCEmailSender, DefaultEmailSender
@@ -35,6 +36,7 @@ class EmailTemplate(BaseModel):
     is often provided as localization keys (e.g., "emails.password.subject")
     which would be resolved by a translation service if integrated.
     """
+
     subject: str
     """The subject line of the email (can be a localization key)."""
     header_text: str
@@ -48,7 +50,7 @@ class EmailTemplate(BaseModel):
     button_text: str
     """The text displayed on the call-to-action button (can be a localization key)."""
 
-    def render_html(self, template_file: Path) -> str: # Renamed `template` to `template_file`
+    def render_html(self, template_file: Path) -> str:  # Renamed `template` to `template_file`
         """
         Renders the email content into an HTML string using a Jinja2 template.
 
@@ -63,8 +65,8 @@ class EmailTemplate(BaseModel):
             str: The rendered HTML content as a string.
         """
         # Read the template file content
-        tmpl_str = template_file.read_text(encoding="utf-8") # Added encoding
-        jinja_template = Template(tmpl_str) # Create a Jinja2 Template object
+        tmpl_str = template_file.read_text(encoding="utf-8")  # Added encoding
+        jinja_template = Template(tmpl_str)  # Create a Jinja2 Template object
 
         # Render the template with the data from this EmailTemplate instance
         # The template should expect a 'data' variable containing the model's fields.
@@ -80,6 +82,7 @@ class EmailService(BaseService):
     `DefaultEmailSender` if not provided). It provides methods for sending
     specific types of application emails like password resets and invitations.
     """
+
     def __init__(self, sender: ABCEmailSender | None = None, locale: str | None = None) -> None:
         """
         Initializes the EmailService.
@@ -92,22 +95,21 @@ class EmailService(BaseService):
                 so this parameter's effect is pending full i18n implementation.
                 Defaults to None.
         """
-        super().__init__() # Initialize BaseService (likely for settings, logger)
-        
-        self.templates_dir: Path = CWD / "templates" # Path to the email templates directory
-        self.default_template: Path = self.templates_dir / "default.html" # Path to the default email template
-        
+        super().__init__()  # Initialize BaseService (likely for settings, logger)
+
+        self.templates_dir: Path = CWD / "templates"  # Path to the email templates directory
+        self.default_template: Path = self.templates_dir / "default.html"  # Path to the default email template
+
         # Use provided sender or instantiate DefaultEmailSender
         self.sender: ABCEmailSender = sender or DefaultEmailSender()
-        
+
         # Placeholder for localization/translation functionality.
         # If uncommented, `local_provider` would need to be defined and return a Translator instance.
-        # self.translator: Translator = local_provider(locale) 
+        # self.translator: Translator = local_provider(locale)
         # For now, string keys in EmailTemplate will be used as-is if no translation occurs.
-        self.logger.info(f"EmailService initialized. Sender: {type(self.sender).__name__}. Locale: {locale or 'default'}.")
+        self._logger.info(f"EmailService initialized. Sender: {type(self.sender).__name__}. Locale: {locale or 'default'}.")
 
-
-    def send_email(self, email_to: str, email_data: EmailTemplate) -> bool: # Renamed `data` to `email_data`
+    def send_email(self, email_to: str, email_data: EmailTemplate) -> bool:  # Renamed `data` to `email_data`
         """
         Sends an email using the configured sender and default HTML template.
 
@@ -124,8 +126,8 @@ class EmailService(BaseService):
                   False otherwise. Note: Returning True when SMTP is disabled might
                   be misleading; consider alternative return or logging.
         """
-        if not self.settings.SMTP_ENABLED:
-            self.logger.info(f"SMTP is disabled. Email not sent to {email_to} (Subject: {email_data.subject}).")
+        if not self._settings.SMTP_ENABLED:
+            self._logger.info(f"SMTP is disabled. Email not sent to {email_to} (Subject: {email_data.subject}).")
             # Returning False might be more indicative that no email was actually sent.
             # However, if the intent is "operation considered successful if SMTP off", True is okay.
             # Let's change to False for clarity that no email dispatch occurred.
@@ -133,16 +135,16 @@ class EmailService(BaseService):
 
         # Render the HTML content using the default template and email_data
         html_content = email_data.render_html(self.default_template)
-        
+
         # Send the email via the configured sender
         success = self.sender.send(email_to, email_data.subject, html_content)
         if success:
-            self.logger.info(f"Email '{email_data.subject}' sent successfully to {email_to}.")
+            self._logger.info(f"Email '{email_data.subject}' sent successfully to {email_to}.")
         else:
-            self.logger.error(f"Failed to send email '{email_data.subject}' to {email_to}.")
+            self._logger.error(f"Failed to send email '{email_data.subject}' to {email_to}.")
         return success
 
-    def send_forgot_password(self, recipient_address: str, reset_password_url: str) -> bool: # Renamed params
+    def send_forgot_password(self, recipient_address: str, reset_password_url: str) -> bool:  # Renamed params
         """
         Sends a "forgot password" email to the user.
 
@@ -159,16 +161,16 @@ class EmailService(BaseService):
         # Construct the EmailTemplate with content specific to password reset
         # These string values are presumably localization keys.
         forgot_password_template = EmailTemplate(
-            subject="emails.password.subject", # Localization key for subject
+            subject="emails.password.subject",  # Localization key for subject
             header_text="emails.password.header_text",
             message_top="emails.password.message_top",
             message_bottom="emails.password.message_bottom",
-            button_link=reset_password_url, # The actual reset URL
+            button_link=reset_password_url,  # The actual reset URL
             button_text="emails.password.button_text",
         )
         return self.send_email(recipient_address, forgot_password_template)
 
-    def send_invitation(self, recipient_address: str, invitation_url: str) -> bool: # Renamed params
+    def send_invitation(self, recipient_address: str, invitation_url: str) -> bool:  # Renamed params
         """
         Sends a group invitation email to a prospective user.
 
@@ -184,16 +186,16 @@ class EmailService(BaseService):
         """
         # Construct the EmailTemplate with content specific to invitations
         invitation_template = EmailTemplate(
-            subject="emails.invitation.subject", # Localization key for subject
+            subject="emails.invitation.subject",  # Localization key for subject
             header_text="emails.invitation.header_text",
             message_top="emails.invitation.message_top",
             message_bottom="emails.invitation.message_bottom",
-            button_link=invitation_url, # The actual invitation URL
+            button_link=invitation_url,  # The actual invitation URL
             button_text="emails.invitation.button_text",
         )
         return self.send_email(recipient_address, invitation_template)
 
-    def send_test_email(self, recipient_address: str) -> bool: # Renamed param
+    def send_test_email(self, recipient_address: str) -> bool:  # Renamed param
         """
         Sends a test email to verify SMTP configuration.
 
@@ -208,11 +210,11 @@ class EmailService(BaseService):
         """
         # Construct the EmailTemplate with content specific for a test email
         test_email_template = EmailTemplate(
-            subject="emails.test.subject", # Localization key for subject
+            subject="emails.test.subject",  # Localization key for subject
             header_text="emails.test.header_text",
             message_top="emails.test.message_top",
             message_bottom="emails.test.message_bottom",
-            button_link=str(self.settings.BASE_URL), # Link to the application's base URL
+            button_link=str(self._settings.BASE_URL),  # Link to the application's base URL
             button_text="emails.test.button_text",
         )
         return self.send_email(recipient_address, test_email_template)

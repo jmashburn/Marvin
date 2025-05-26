@@ -8,9 +8,10 @@ which are stored in static lists categorized by their intended frequency.
 This allows different parts of the application to register functions to be run
 by a central scheduler without needing direct access to the scheduler instance itself.
 """
-from collections.abc import Callable, Iterable # For type hinting callables and iterables
 
-from marvin.core import root_logger # Application logger
+from collections.abc import Callable, Iterable  # For type hinting callables and iterables
+
+from marvin.core import root_logger  # Application logger
 
 # Logger instance for this module
 logger = root_logger.get_logger()
@@ -31,15 +32,15 @@ class SchedulerRegistry:
     """
 
     # Static lists to store registered callback functions for different frequencies.
-    _daily: list[Callable[[], None]] = [] # Callbacks to be run daily. Type hint assumes no args, no return.
-    _hourly: list[Callable[[], None]] = [] # Callbacks to be run hourly.
-    _minutely: list[Callable[[], None]] = [] # Callbacks to be run every minute.
+    _daily: list[Callable[[], None]] = []  # Callbacks to be run daily. Type hint assumes no args, no return.
+    _hourly: list[Callable[[], None]] = []  # Callbacks to be run hourly.
+    _minutely: list[Callable[[], None]] = []  # Callbacks to be run every minute.
 
     @staticmethod
     def _register(
-        frequency_name: str, # Renamed `name` to `frequency_name` for clarity
-        callback_list: list[Callable[[], None]], # Renamed `callbacks` to `callback_list`
-        new_callbacks: Iterable[Callable[[], None]] # Renamed `callback` to `new_callbacks`
+        frequency_name: str,  # Renamed `name` to `frequency_name` for clarity
+        callback_list: list[Callable[[], None]],  # Renamed `callbacks` to `callback_list`
+        new_callbacks: Iterable[Callable[[], None]],  # Renamed `callback` to `new_callbacks`
     ) -> None:
         """
         Internal static helper method to register one or more callbacks to a specific list.
@@ -53,12 +54,12 @@ class SchedulerRegistry:
             new_callbacks (Iterable[Callable[[], None]]): An iterable of callback functions
                                                           to register.
         """
-        for cb_func in new_callbacks: # Renamed `cb` to `cb_func`
+        for cb_func in new_callbacks:  # Renamed `cb` to `cb_func`
             logger.debug(f"Registering {frequency_name} callback: {getattr(cb_func, '__name__', repr(cb_func))}")
             callback_list.append(cb_func)
 
     @staticmethod
-    def register_daily(*callbacks_to_add: Callable[[], None]) -> None: # Renamed `callbacks`
+    def register_daily(*callbacks_to_add: Callable[[], None]) -> None:  # Renamed `callbacks`
         """
         Registers one or more callback functions to be scheduled for daily execution.
 
@@ -70,7 +71,7 @@ class SchedulerRegistry:
         SchedulerRegistry._register("daily", SchedulerRegistry._daily, callbacks_to_add)
 
     @staticmethod
-    def remove_daily(callback_to_remove: Callable[[], None]) -> None: # Renamed `callback`
+    def remove_daily(callback_to_remove: Callable[[], None]) -> None:  # Renamed `callback`
         """
         Removes a previously registered daily callback function.
 
@@ -85,11 +86,12 @@ class SchedulerRegistry:
             logger.debug(f"Removing daily callback: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}")
             SchedulerRegistry._daily.remove(callback_to_remove)
         except ValueError:
-            logger.warning(f"Attempted to remove daily callback not found in registry: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}")
-
+            logger.warning(
+                f"Attempted to remove daily callback not found in registry: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}"
+            )
 
     @staticmethod
-    def register_hourly(*callbacks_to_add: Callable[[], None]) -> None: # Renamed
+    def register_hourly(*callbacks_to_add: Callable[[], None]) -> None:  # Renamed
         """
         Registers one or more callback functions to be scheduled for hourly execution.
 
@@ -100,13 +102,13 @@ class SchedulerRegistry:
         SchedulerRegistry._register("hourly", SchedulerRegistry._hourly, callbacks_to_add)
 
     @staticmethod
-    def remove_hourly(callback_to_remove: Callable[[], None]) -> None: # Renamed
+    def remove_hourly(callback_to_remove: Callable[[], None]) -> None:  # Renamed
         """
         Removes a previously registered hourly callback function.
 
         Args:
             callback_to_remove (Callable[[], None]): The callback to remove.
-        
+
         Raises:
             ValueError: If the callback is not found.
         """
@@ -114,11 +116,12 @@ class SchedulerRegistry:
             logger.debug(f"Removing hourly callback: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}")
             SchedulerRegistry._hourly.remove(callback_to_remove)
         except ValueError:
-            logger.warning(f"Attempted to remove hourly callback not found in registry: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}")
-
+            logger.warning(
+                f"Attempted to remove hourly callback not found in registry: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}"
+            )
 
     @staticmethod
-    def register_minutely(*callbacks_to_add: Callable[[], None]) -> None: # Renamed
+    def register_minutely(*callbacks_to_add: Callable[[], None]) -> None:  # Renamed
         """
         Registers one or more callback functions to be scheduled for minutely execution.
 
@@ -128,7 +131,7 @@ class SchedulerRegistry:
         SchedulerRegistry._register("minutely", SchedulerRegistry._minutely, callbacks_to_add)
 
     @staticmethod
-    def remove_minutely(callback_to_remove: Callable[[], None]) -> None: # Renamed
+    def remove_minutely(callback_to_remove: Callable[[], None]) -> None:  # Renamed
         """
         Removes a previously registered minutely callback function.
 
@@ -142,8 +145,9 @@ class SchedulerRegistry:
             logger.debug(f"Removing minutely callback: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}")
             SchedulerRegistry._minutely.remove(callback_to_remove)
         except ValueError:
-            logger.warning(f"Attempted to remove minutely callback not found in registry: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}")
-
+            logger.warning(
+                f"Attempted to remove minutely callback not found in registry: {getattr(callback_to_remove, '__name__', repr(callback_to_remove))}"
+            )
 
     @staticmethod
     def print_jobs() -> None:
@@ -156,7 +160,7 @@ class SchedulerRegistry:
         """
         logger.debug("--- Registered Daily Jobs ---")
         if SchedulerRegistry._daily:
-            for job_func in SchedulerRegistry._daily: # Renamed `job` to `job_func`
+            for job_func in SchedulerRegistry._daily:  # Renamed `job` to `job_func`
                 logger.debug(f"Daily job: {getattr(job_func, '__name__', repr(job_func))}")
         else:
             logger.debug("No daily jobs registered.")

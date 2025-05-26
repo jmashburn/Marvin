@@ -18,19 +18,19 @@ Note: This code is subject to the MIT license of the original `fastapi-utils` pr
 
 import inspect
 from collections.abc import Callable
-from typing import Any, ClassVar, ForwardRef, TypeVar, cast, get_origin, get_type_hints
+from typing import Any, ClassVar, ForwardRef, TypeVar, get_origin, get_type_hints
 
 from fastapi import APIRouter, Depends
 from fastapi.routing import APIRoute
-from starlette.routing import Route, WebSocketRoute # Used for route instance checks
+from starlette.routing import Route, WebSocketRoute  # Used for route instance checks
 
 # Type variable for generic decorators
 T = TypeVar("T")
 
 # Internal keys used to store metadata on CBV classes
 CBV_CLASS_KEY = "__cbv_class__"  # Marks a class as a CBV
-INCLUDE_INIT_PARAMS_KEY = "__include_init_params__" # Controls if __init__ params are included in DI
-RETURN_TYPES_FUNC_KEY = "__return_types_func__" # Stores a function that provides return type hints
+INCLUDE_INIT_PARAMS_KEY = "__include_init_params__"  # Controls if __init__ params are included in DI
+RETURN_TYPES_FUNC_KEY = "__return_types_func__"  # Stores a function that provides return type hints
 
 
 def controller(router: APIRouter, *urls: str) -> Callable[[type[T]], type[T]]:
@@ -101,6 +101,7 @@ def _cbv(router: APIRouter, cls: type[T], *urls: str, instance: Any | None = Non
 # copied from Pydantic V1 source code. They are used to identify ClassVar annotations
 # so that they are not treated as injectable dependencies for the CBV class.
 
+
 def _check_classvar(v: type[Any] | None) -> bool:
     """
     Checks if a type annotation is `typing.ClassVar` (Pydantic V1 internal utility).
@@ -149,24 +150,21 @@ def _init_cbv(cls: type[Any], instance: Any | None = None) -> None:
     original_signature = inspect.signature(original_init)
     # Parameters of the original __init__ (excluding 'self')
     original_init_params = list(original_signature.parameters.values())[1:]
-    
-    # Parameters to keep for the new __init__ signature (excluding *args, **kwargs from original)
-    new_init_signature_params = [
-        p for p in original_init_params 
-        if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
-    ]
 
-    private_attributes_to_none: list[str] = [] # Store names of private attributes to set to None
+    # Parameters to keep for the new __init__ signature (excluding *args, **kwargs from original)
+    new_init_signature_params = [p for p in original_init_params if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)]
+
+    private_attributes_to_none: list[str] = []  # Store names of private attributes to set to None
 
     # Identify class-level dependencies to inject
     class_dependency_names: list[str] = []
-    type_hints = get_type_hints(cls) # Get all type hints for the class
+    type_hints = get_type_hints(cls)  # Get all type hints for the class
 
     for name, hint in type_hints.items():
         if _is_classvar(hint):  # Skip ClassVar attributes
             continue
 
-        if name.startswith("_"): # Handle private attributes
+        if name.startswith("_"):  # Handle private attributes
             private_attributes_to_none.append(name)
             continue
 
@@ -174,23 +172,21 @@ def _init_cbv(cls: type[Any], instance: Any | None = None) -> None:
         class_dependency_names.append(name)
         # Create a parameter for this dependency for the new __init__ signature
         # It's keyword-only, and its default is taken from the class attribute if present
-        param_kwargs = {"default": getattr(cls, name, inspect.Parameter.empty)} # Use inspect.Parameter.empty for no default
-        new_init_signature_params.append(
-            inspect.Parameter(name=name, kind=inspect.Parameter.KEYWORD_ONLY, annotation=hint, **param_kwargs)
-        )
-    
+        param_kwargs = {"default": getattr(cls, name, inspect.Parameter.empty)}  # Use inspect.Parameter.empty for no default
+        new_init_signature_params.append(inspect.Parameter(name=name, kind=inspect.Parameter.KEYWORD_ONLY, annotation=hint, **param_kwargs))
+
     # Create the new signature for __init__
     # If no instance is provided OR if the class explicitly wants init params included for DI
     if not instance or hasattr(cls, INCLUDE_INIT_PARAMS_KEY):
         final_signature = original_signature.replace(parameters=new_init_signature_params)
-    else: # If an instance is provided and init params are not explicitly included
-        final_signature = inspect.Signature(()) # Empty signature, DI won't call __init__ with class vars
+    else:  # If an instance is provided and init params are not explicitly included
+        final_signature = inspect.Signature(())  # Empty signature, DI won't call __init__ with class vars
 
     # Define the new __init__ method
     def new_init(self: Any, *args: Any, **kwargs: Any) -> None:
         # Inject class-level dependencies first
         for dep_name in class_dependency_names:
-            if dep_name in kwargs: # Dependency provided via FastAPI's DI
+            if dep_name in kwargs:  # Dependency provided via FastAPI's DI
                 setattr(self, dep_name, kwargs.pop(dep_name))
             # If not in kwargs, it might have a default value from class or be an error (FastAPI handles missing DI)
 
@@ -199,7 +195,7 @@ def _init_cbv(cls: type[Any], instance: Any | None = None) -> None:
         if instance and not hasattr(cls, INCLUDE_INIT_PARAMS_KEY):
             # This is a more complex scenario, potentially for singleton-like behavior or pre-configured instances.
             # It replaces the newly created `self`'s state with that of the provided `instance`.
-            self.__class__ = instance.__class__ #
+            self.__class__ = instance.__class__  #
             self.__dict__ = instance.__dict__
         else:
             # Call the original __init__ with its original args and remaining kwargs
@@ -208,13 +204,13 @@ def _init_cbv(cls: type[Any], instance: Any | None = None) -> None:
     # Replace original __init__ and __signature__
     cls.__signature__ = final_signature
     cls.__init__ = new_init
-    setattr(cls, CBV_CLASS_KEY, True) # Mark as initialized
+    setattr(cls, CBV_CLASS_KEY, True)  # Mark as initialized
 
     # Ensure private attributes (like _repos, _logger in BaseController) are set to None initially
     # if not handled by the original __init__ or class definition.
     for name in private_attributes_to_none:
-        if not hasattr(cls, name): # Or if getattr(cls, name, None) is Ellipsis from param_kwargs setup
-             setattr(cls, name, None)
+        if not hasattr(cls, name):  # Or if getattr(cls, name, None) is Ellipsis from param_kwargs setup
+            setattr(cls, name, None)
 
 
 def _register_endpoints(router: APIRouter, cls: type[Any], *urls: str) -> None:
@@ -234,7 +230,7 @@ def _register_endpoints(router: APIRouter, cls: type[Any], *urls: str) -> None:
         cls (type[Any]): The CBV class.
         *urls (str): URL prefixes.
     """
-    cbv_specific_router = APIRouter() # Temporary router for CBV methods
+    cbv_specific_router = APIRouter()  # Temporary router for CBV methods
     function_members = inspect.getmembers(cls, inspect.isfunction)
 
     # This function seems to handle cases where routes are defined by method names (e.g. def get(): ...).
@@ -248,7 +244,7 @@ def _register_endpoints(router: APIRouter, cls: type[Any], *urls: str) -> None:
     router_path_methods = []
     for r in router.routes:
         if isinstance(r, APIRoute):
-            router_path_methods.append((r.path, frozenset(r.methods or {}))) # Use frozenset for hashability
+            router_path_methods.append((r.path, frozenset(r.methods or {})))  # Use frozenset for hashability
     if len(set(router_path_methods)) != len(router_path_methods):
         # This exception message might be too generic. A more detailed one could list duplicates.
         raise Exception("An identical route (path and method) has been defined more than once on the router.")
@@ -257,39 +253,37 @@ def _register_endpoints(router: APIRouter, cls: type[Any], *urls: str) -> None:
     # This is to re-register them correctly for the CBV pattern.
     # Only considers FastAPI's Route or WebSocketRoute instances.
     numbered_routes_by_endpoint_fn = {
-        route.endpoint: (i, route) 
-        for i, route in enumerate(router.routes) 
-        if isinstance(route, (Route, WebSocketRoute))
+        route.endpoint: (i, route) for i, route in enumerate(router.routes) if isinstance(route, (Route | WebSocketRoute))
     }
 
     # Store routes that belong to the CBV to re-add them later, ordered by original definition
     routes_to_re_add_ordered: list[tuple[int, Route | WebSocketRoute]] = []
-    
+
     # Remove original prefix length to get relative path for CBV router
     # This seems to assume that routes on the main router might already include its prefix.
     main_router_prefix_len = len(router.prefix)
 
-    for _, func_member in function_members: # Iterate through all functions in the class
+    for _, func_member in function_members:  # Iterate through all functions in the class
         # Check if this function was registered as an endpoint on the main router
         indexed_route_info = numbered_routes_by_endpoint_fn.get(func_member)
 
         if indexed_route_info is None:
-            continue # This function is not a registered endpoint, skip it.
+            continue  # This function is not a registered endpoint, skip it.
 
         original_index, route_object = indexed_route_info
-        
+
         # Adjust route path: remove main router's prefix if it was part of the path.
         # This prepares the route for inclusion in the `cbv_specific_router` which will
         # then be included into the main router with the prefix.
         if route_object.path.startswith(router.prefix):
             route_object.path = route_object.path[main_router_prefix_len:]
-            
+
         routes_to_re_add_ordered.append((original_index, route_object))
-        router.routes.remove(route_object) # Temporarily remove from main router
+        router.routes.remove(route_object)  # Temporarily remove from main router
 
         # Update the function signature for CBV dependency injection
         _update_cbv_route_endpoint_signature(cls, route_object)
-    
+
     # Sort routes by their original index to maintain order
     routes_to_re_add_ordered.sort(key=lambda item: item[0])
 
@@ -304,13 +298,11 @@ def _register_endpoints(router: APIRouter, cls: type[Any], *urls: str) -> None:
     # This implies the main `router` object passed to `controller()` might be
     # mutated in a way that could be surprising if it's used for other things later.
     original_main_router_prefix = router.prefix
-    router.prefix = "" # Temporarily clear prefix
-    router.include_router(cbv_specific_router, prefix=original_main_router_prefix) # Re-apply prefix here
+    router.prefix = ""  # Temporarily clear prefix
+    router.include_router(cbv_specific_router, prefix=original_main_router_prefix)  # Re-apply prefix here
 
 
-def _allocate_routes_by_method_name(
-    router: APIRouter, url: str, function_members: list[tuple[str, Any]]
-) -> None:
+def _allocate_routes_by_method_name(router: APIRouter, url: str, function_members: list[tuple[str, Any]]) -> None:
     """
     Automatically creates routes for methods in a CBV based on their names (e.g., `get`, `post`).
 
@@ -328,28 +320,25 @@ def _allocate_routes_by_method_name(
                                                  pairs from the CBV class.
     """
     # sourcery skip: merge-nested-ifs (original skip comment from source)
-    
+
     # Get endpoints and paths of routes already registered on the router
     # to avoid duplicating route registrations for the same (function, url) pair.
     existing_routes_info: list[tuple[Any, str]] = []
     for r in router.routes:
-        if isinstance(r, APIRoute): # Only consider APIRoutes
+        if isinstance(r, APIRoute):  # Only consider APIRoutes
             existing_routes_info.append((r.endpoint, r.path))
 
     for method_name, func_obj in function_members:
         # Check if method_name corresponds to a router method (like 'get', 'post')
         # and is a public method (not starting/ending with dunder).
-        if hasattr(router, method_name) and \
-           not method_name.startswith("__") and \
-           not method_name.endswith("__"):
-            
+        if hasattr(router, method_name) and not method_name.startswith("__") and not method_name.endswith("__"):
             # Check if this specific function for this URL isn't already registered
             if (func_obj, url) not in existing_routes_info:
                 # Default FastAPI route parameters
                 response_model = None
                 responses = None
-                kwargs_for_route = {} # Additional kwargs for router.api_route
-                status_code = 200 # Default HTTP 200 OK
+                kwargs_for_route = {}  # Additional kwargs for router.api_route
+                status_code = 200  # Default HTTP 200 OK
 
                 # Check if the function has stored return type metadata (set by another decorator perhaps)
                 # This allows fine-tuning response_model, status_code, etc., on a per-method basis.
@@ -362,19 +351,19 @@ def _allocate_routes_by_method_name(
                 # Using getattr(router, method_name) is more direct if method_name is 'get', 'post', etc.
                 # However, api_route is more general. The original capitalized method might be a convention.
                 # Sticking to `api_route` with capitalized method for closer adherence if that was intended.
-                http_method_registrar = router.api_route 
-                
+                http_method_registrar = router.api_route
+
                 # Register the function as an API route for the given URL and HTTP method
                 # The HTTP method is derived from the function's name (e.g., 'get' -> 'GET')
                 route_decorator = http_method_registrar(
                     url,
-                    methods=[method_name.upper()], # HTTP method (e.g., GET, POST)
+                    methods=[method_name.upper()],  # HTTP method (e.g., GET, POST)
                     response_model=response_model,
                     status_code=status_code,
                     responses=responses,
                     **kwargs_for_route,
                 )
-                route_decorator(func_obj) # Apply the route decorator to the function
+                route_decorator(func_obj)  # Apply the route decorator to the function
 
 
 def _update_cbv_route_endpoint_signature(cls: type[Any], route: Route | WebSocketRoute) -> None:
@@ -396,7 +385,7 @@ def _update_cbv_route_endpoint_signature(cls: type[Any], route: Route | WebSocke
     original_signature = inspect.signature(original_endpoint_func)
     original_parameters: list[inspect.Parameter] = list(original_signature.parameters.values())
 
-    if not original_parameters: # Should not happen for a method
+    if not original_parameters:  # Should not happen for a method
         return
 
     # The first parameter is assumed to be 'self' (or equivalent)
@@ -406,13 +395,11 @@ def _update_cbv_route_endpoint_signature(cls: type[Any], route: Route | WebSocke
 
     # Subsequent parameters are made keyword-only, a common pattern with FastAPI DI
     # when the first arg is a `Depends`.
-    remaining_params = [
-        param.replace(kind=inspect.Parameter.KEYWORD_ONLY) for param in original_parameters[1:]
-    ]
-    
+    remaining_params = [param.replace(kind=inspect.Parameter.KEYWORD_ONLY) for param in original_parameters[1:]]
+
     updated_parameters = [injected_self_param] + remaining_params
     updated_signature = original_signature.replace(parameters=updated_parameters)
-    
+
     # Directly assign the new signature to the endpoint function
     # This is a somewhat advanced Python feature, modifying a function's perceived signature.
     route.endpoint.__signature__ = updated_signature

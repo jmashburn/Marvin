@@ -4,11 +4,12 @@ This module provides a factory function for accessing all application repositori
 It simplifies the creation of an `AllRepositories` instance, which serves as a
 central point of access for all data repositories within the Marvin application.
 """
-from pydantic import UUID4 # Used for type hinting UUIDs
+
+from pydantic import UUID4  # Used for type hinting UUIDs
 from sqlalchemy.orm import Session
 
-from ._utils import NOT_SET, NotSet # Sentinel for unset parameters
-from .repository_factory import AllRepositories # The factory class being instantiated
+from ._utils import NOT_SET, NotSet  # Sentinel for unset parameters
+from .repository_factory import AllRepositories  # The factory class being instantiated
 
 
 def get_repositories(session: Session, *, group_id: UUID4 | None | NotSet = NOT_SET) -> AllRepositories:

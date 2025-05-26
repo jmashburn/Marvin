@@ -7,6 +7,7 @@ It includes:
 - `GroupEventNotifierModel`: Represents a notification service (e.g., an Apprise URL)
   configured for a group, along with its specific notification event preferences.
 """
+
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import ConfigDict
@@ -19,8 +20,7 @@ from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
-    from ..groups import Groups # For relationship typing
-    from marvin.db.models.events.events import EventNotifierOptionsModel as GlobalEventNotifierOptionsModel
+    from ..groups import Groups  # For relationship typing
 
 
 class GroupEventNotifierOptionsModel(SqlAlchemyBase, BaseMixins):
@@ -33,7 +33,12 @@ class GroupEventNotifierOptionsModel(SqlAlchemyBase, BaseMixins):
 
     __tablename__ = "group_events_notifier_options"
 
-    id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for this group-specific notifier option entry.")
+    id: Mapped[GUID] = mapped_column(
+        GUID,
+        primary_key=True,
+        default=GUID.generate,
+        doc="Unique identifier for this group-specific notifier option entry.",
+    )
     namespace: Mapped[str] = mapped_column(String, nullable=False, doc="Namespace of the global event notifier option (e.g., 'email', 'webhook').")
     slug: Mapped[str] = mapped_column(String, nullable=False, doc="Slug of the global event notifier option (e.g., 'new_user_signup').")
     # Note: There isn't a unique constraint on (namespace, slug, group_event_notifiers_id) here,
@@ -44,9 +49,7 @@ class GroupEventNotifierOptionsModel(SqlAlchemyBase, BaseMixins):
         GUID, ForeignKey("group_events_notifiers.id"), index=True, doc="ID of the parent GroupEventNotifierModel."
     )
     # Relationship back to the parent GroupEventNotifierModel
-    group_event_notifiers: Mapped["GroupEventNotifierModel"] = orm.relationship(
-        "GroupEventNotifierModel", back_populates="options"
-    )
+    group_event_notifiers: Mapped["GroupEventNotifierModel"] = orm.relationship("GroupEventNotifierModel", back_populates="options")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -87,13 +90,17 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the group event notifier.")
     name: Mapped[str] = mapped_column(String, nullable=False, doc="User-defined name for this notifier (e.g., 'Admin Slack Channel').")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, doc="Whether this notifier configuration is currently active.")
-    apprise_url: Mapped[str] = mapped_column(String, nullable=False, doc="The Apprise URL for sending notifications (e.g., 'slack://tokenA/tokenB/tokenC').")
+    apprise_url: Mapped[str] = mapped_column(
+        String, nullable=False, doc="The Apprise URL for sending notifications (e.g., 'slack://tokenA/tokenB/tokenC')."
+    )
 
     # Foreign key to the Groups model
     group_id: Mapped[GUID | None] = mapped_column(GUID, ForeignKey("groups.id"), index=True, doc="ID of the group this notifier belongs to.")
     # Relationship to the parent Group
     group: Mapped[Optional["Groups"]] = orm.relationship(
-        "Groups", back_populates="group_event_notifiers", single_parent=True # single_parent implies cascading deletes if group is deleted
+        "Groups",
+        back_populates="group_event_notifiers",
+        single_parent=True,  # single_parent implies cascading deletes if group is deleted
     )
 
     # Relationship to the specific notification options enabled for this notifier
@@ -102,7 +109,7 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
     )
 
     model_config = ConfigDict(
-        arbitrary_types_allowed=True, # Keep this if model uses non-standard types not shown
+        arbitrary_types_allowed=True,  # Keep this if model uses non-standard types not shown
         # Pydantic config to exclude 'options' during serialization if needed,
         # especially if 'options' are handled separately or could cause circular issues.
         exclude={"options"},
@@ -135,7 +142,9 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
 
         # 1. Populate with globally enabled system notifications by default
         globally_enabled_options: list[GlobalEventNotifierOptionsModel] = (
-            session.execute(select(GlobalEventNotifierOptionsModel).filter(GlobalEventNotifierOptionsModel.enabled == True))
+            session.execute(
+                select(GlobalEventNotifierOptionsModel).filter(GlobalEventNotifierOptionsModel.enabled == True)  # noqa: E712 - SQLAlchemy specific comparison
+            )
             .scalars()
             .all()
         )
@@ -147,7 +156,7 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
                 # so its existence in this list implies it's "on" for this notifier.
                 # If `GroupEventNotifierOptionsModel` had an `enabled` flag, it would be set here.
                 group_opt_instance = GroupEventNotifierOptionsModel(
-                    session=session, # Pass session for its own auto_init if needed
+                    session=session,  # Pass session for its own auto_init if needed
                     namespace=global_opt.namespace,
                     slug=global_opt.slug,
                     # group_event_notifiers_id would be set by relationship append if not handled by auto_init for child
@@ -178,26 +187,21 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
                     # Or log a warning/error
                     # For now, assume valid format or let it raise implicitly later if split fails.
                     # Adding explicit error handling for robustness:
-                    raise ValueError(f"Invalid option format: '{option_str}'. Expected 'namespace.slug'.")
-
+                    raise ValueError(f"Invalid option format: '{option_str}'. Expected 'namespace.slug'.") from None
 
                 # Check if this specific option is already added from global defaults
                 if (namespace, slug) not in existing_option_keys:
                     # Fetch the global option to ensure it's valid
                     global_option_to_add: GlobalEventNotifierOptionsModel | None = (
-                        session.execute(
-                            select(GlobalEventNotifierOptionsModel).filter_by(namespace=namespace, slug=slug)
-                        )
+                        session.execute(select(GlobalEventNotifierOptionsModel).filter_by(namespace=namespace, slug=slug))
                         .scalars()
-                        .one_or_none() # Use one_or_none for safety
+                        .one_or_none()  # Use one_or_none for safety
                     )
 
                     if global_option_to_add is None:
                         # This means a requested option string (e.g., "email.non_existent_event")
                         # does not correspond to any defined system notification.
-                        raise ValueError(
-                            f"Notification option '{option_str}' does not exist in system-wide EventNotifierOptionsModel."
-                        )
+                        raise ValueError(f"Notification option '{option_str}' does not exist in system-wide EventNotifierOptionsModel.") from None
 
                     # Add this specific option to the notifier's list
                     specific_group_opt = GroupEventNotifierOptionsModel(
@@ -206,5 +210,5 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
                         slug=global_option_to_add.slug,
                     )
                     self.options.append(specific_group_opt)
-                    existing_option_keys.add((namespace, slug)) # Add to set to track
+                    existing_option_keys.add((namespace, slug))  # Add to set to track
         # `auto_init` will handle other kwargs passed to this __init__

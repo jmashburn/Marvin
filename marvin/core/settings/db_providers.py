@@ -6,6 +6,7 @@ for SQLite (`SQLiteProvider`) and PostgreSQL (`PostgresProvider`).
 A factory function `db_provider_factory` is provided to create instances
 of these providers based on configuration.
 """
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from urllib import parse as urlparse
@@ -144,9 +145,7 @@ class PostgresProvider(AbstractDBProvider, BaseSettings):
         return self.db_url.replace(user, "*********", 1).replace(password, "***********", 1)
 
 
-def db_provider_factory(
-    provider_name: str, data_dir: Path, env_file: Path, env_encoding="utf-8"
-) -> AbstractDBProvider:
+def db_provider_factory(provider_name: str, data_dir: Path, env_file: Path, env_encoding="utf-8") -> AbstractDBProvider:
     """
     Factory function to create a database provider instance.
 

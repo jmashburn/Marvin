@@ -82,7 +82,7 @@ async def get_public_group(group_slug: str = fastapi.Path(...), session=Depends(
     group = repos.groups.get_by_slug_or_id(group_slug)
 
     if not group or group.preferences.private_group:
-        raise HTTPException(404, "group not found")
+        raise HTTPException(404, "Group not found")
     else:
         return group
 
@@ -180,7 +180,7 @@ async def get_integration_id(token: str = Depends(oauth2_scheme)) -> str:
     """
     try:
         decoded_token = jwt.decode(token, settings.SECRET, algorithms=[ALGORITHM])
-        return decoded_token.get("integration_id", DEFAULT_INTEGRATION_ID)
+        return decoded_token.get("integration_id", settings._DEFAULT_INTEGRATION_ID)
 
     except PyJWTError as e:
         raise credentials_exception from e

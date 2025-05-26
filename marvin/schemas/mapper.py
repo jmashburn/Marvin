@@ -6,16 +6,17 @@ These functions are helpful for transforming data from one schema representation
 to another, for example, when converting an API request model to a database model,
 or a database model to an API response model.
 """
-from typing import TypeVar, Any # Added Any for **kwargs
 
-from pydantic import BaseModel # Base Pydantic model for type hinting
+from typing import Any, TypeVar  # Added Any for **kwargs
+
+from pydantic import BaseModel  # Base Pydantic model for type hinting
 
 # Define TypeVars for generic type hinting, ensuring inputs are Pydantic models.
-T = TypeVar("T", bound=BaseModel) # Represents the destination model type.
-U = TypeVar("U", bound=BaseModel) # Represents the source model type.
+T = TypeVar("T", bound=BaseModel)  # Represents the destination model type.
+U = TypeVar("U", bound=BaseModel)  # Represents the source model type.
 
 
-def mapper(source: U, dest: T, **_: Any) -> T: # Added Any type for unused kwargs placeholder
+def mapper(source: U, dest: T, **_: Any) -> T:  # Added Any type for unused kwargs placeholder
     """
     Maps attribute values from a `source` Pydantic model instance to a `dest`
     Pydantic model instance.
@@ -43,11 +44,11 @@ def mapper(source: U, dest: T, **_: Any) -> T: # Added Any type for unused kwarg
         if field_name in dest.model_fields:
             # If so, set the attribute on the destination model with the value from the source model
             setattr(dest, field_name, getattr(source, field_name))
-    
-    return dest # Return the modified destination model
+
+    return dest  # Return the modified destination model
 
 
-def cast(source: U, target_cls: type[T], **kwargs: Any) -> T: # Renamed dest to target_cls for clarity
+def cast(source: U, target_cls: type[T], **kwargs: Any) -> T:  # Renamed dest to target_cls for clarity
     """
     Casts a `source` Pydantic model instance to a new instance of `target_cls` type.
 
@@ -73,12 +74,12 @@ def cast(source: U, target_cls: type[T], **kwargs: Any) -> T: # Renamed dest to 
     # Extract data from the source model for fields that are also present in the target class
     create_data = {
         field_name: getattr(source, field_name)
-        for field_name in source.model_fields # Iterate fields of the source model
-        if field_name in target_cls.model_fields # Check if field also exists in the target class
+        for field_name in source.model_fields  # Iterate fields of the source model
+        if field_name in target_cls.model_fields  # Check if field also exists in the target class
     }
     # Update this dictionary with any additional keyword arguments provided.
     # Kwargs will override values if there are common keys.
     create_data.update(kwargs or {})
-    
+
     # Create and return a new instance of the target class using the combined data
     return target_cls(**create_data)

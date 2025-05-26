@@ -4,6 +4,7 @@ This module handles the loading and management of plugins for the Marvin applica
 It defines the `AppPlugins` class, which is responsible for discovering,
 importing, and providing access to plugins located in a specified directory.
 """
+
 import importlib
 import pkgutil
 import sys
@@ -84,9 +85,6 @@ class AppPlugins:
             if module_name.startswith(self.PLUGIN_PREFIX):
                 module = self._import_module(module_name)
                 # Check for __meta__ attribute and required keys for a valid plugin
-                if hasattr(module, "__meta__") and \
-                   isinstance(module.__meta__, dict) and \
-                   "name" in module.__meta__ and \
-                   "version" in module.__meta__:
+                if hasattr(module, "__meta__") and isinstance(module.__meta__, dict) and "name" in module.__meta__ and "version" in module.__meta__:
                     loaded_apps[module_name] = module
         return loaded_apps

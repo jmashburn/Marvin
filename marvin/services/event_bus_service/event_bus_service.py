@@ -10,15 +10,16 @@ notifications. Events can be dispatched synchronously or as background tasks.
 The `EventSource` class is also defined here, potentially for structuring
 event metadata, though it's not directly used by `EventBusService` in this file.
 """
-from typing import Any # For EventSource.kwargs and EventSource.dict() return
-from fastapi import BackgroundTasks, Depends # For background tasks and dependency injection
-from pydantic import UUID4 # For UUID type hinting
-from sqlalchemy.orm.session import Session # SQLAlchemy session type
+
+from typing import Any  # For EventSource.kwargs and EventSource.dict() return
+
+from fastapi import BackgroundTasks, Depends  # For background tasks and dependency injection
+from pydantic import UUID4  # For UUID type hinting
+from sqlalchemy.orm.session import Session  # SQLAlchemy session type
 
 # Marvin core and utility imports
-# from marvin.core.config import get_app_settings # get_app_settings was imported but not used directly
-# from marvin.db.db_setup import generate_session # generate_session is used in as_dependency
-# from marvin.repos.all_repositories import get_repositories # get_repositories was imported but not used
+from marvin.db.db_setup import generate_session  # generate_session is used in as_dependency
+from marvin.services import BaseService  # Base service class for common functionality
 
 # Event listener implementations
 from marvin.services.event_bus_service.event_bus_listener import (
@@ -26,6 +27,7 @@ from marvin.services.event_bus_service.event_bus_listener import (
     EventListenerBase,
     WebhookEventListener,
 )
+
 # Core event types used by the bus
 from .event_types import Event, EventBusMessage, EventDocumentDataBase, EventTypeBase
 
@@ -45,11 +47,12 @@ class EventSource:
     `EventBusService` within this file. It might be intended for use by
     event producers before they call `EventBusService.dispatch`.
     """
+
     event_type: str
     """A string identifying the type of event (e.g., "item_created", "user_login")."""
     item_type: str
     """A string identifying the type of item related to the event (e.g., "recipe", "user_profile")."""
-    item_id: UUID4 | int # Assuming item_id can also be an integer
+    item_id: UUID4 | int  # Assuming item_id can also be an integer
     """The unique identifier of the item related to the event."""
     kwargs: dict[str, Any]
     """A dictionary for any additional context-specific data related to the event source."""
@@ -77,12 +80,12 @@ class EventSource:
         return {
             "event_type": self.event_type,
             "item_type": self.item_type,
-            "item_id": str(self.item_id), # Ensure item_id is string for consistent serialization
+            "item_id": str(self.item_id),  # Ensure item_id is string for consistent serialization
             **self.kwargs,
         }
 
 
-class EventBusService:
+class EventBusService(BaseService):
     """
     Service for dispatching events to registered listeners.
 
@@ -91,15 +94,16 @@ class EventBusService:
     It can operate synchronously or dispatch event publishing as a background task
     if a `BackgroundTasks` instance is provided.
     """
-    bg_tasks: BackgroundTasks | None = None # Corrected attribute name from `bg` to `bg_tasks`
+
+    bg_tasks: BackgroundTasks | None = None  # Corrected attribute name from `bg` to `bg_tasks`
     """Optional FastAPI BackgroundTasks instance for asynchronous event publishing."""
-    session: Session | None = None # This session is primarily for the `as_dependency` factory method.
+    session: Session | None = None  # This session is primarily for the `as_dependency` factory method.
     """Optional SQLAlchemy session, mainly used when service is instantiated as a dependency."""
 
     def __init__(
         self,
-        bg_tasks: BackgroundTasks | None = None, # Renamed `bg` to `bg_tasks`
-        session: Session | None = None, # Session passed here is often from `as_dependency`
+        bg_tasks: BackgroundTasks | None = None,  # Renamed `bg` to `bg_tasks`
+        session: Session | None = None,  # Session passed here is often from `as_dependency`
     ) -> None:
         """
         Initializes the EventBusService.
@@ -115,7 +119,7 @@ class EventBusService:
                 Defaults to None.
         """
         self.bg_tasks = bg_tasks
-        self.session = session # Stored, but not directly used by dispatch logic here.
+        self.session = session  # Stored, but not directly used by dispatch logic here.
 
     def _get_listeners(self, group_id: UUID4) -> list[EventListenerBase]:
         """
@@ -136,8 +140,8 @@ class EventBusService:
         # Original comment: "Why would I send it to the Apprise listener frst? Chhanging the order"
         # Current order: Webhook, then Apprise.
         return [
-            WebhookEventListener(group_id), # Handles custom webhook integrations for the group.
-            AppriseEventListener(group_id),   # Handles notifications via Apprise for the group.
+            WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
+            AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.
         ]
 
     def _publish_event(self, event: Event, group_id: UUID4) -> None:
@@ -162,21 +166,22 @@ class EventBusService:
         for listener in self._get_listeners(group_id):
             try:
                 subscribers = listener.get_subscribers(event)
-                if subscribers: # If the listener has relevant subscribers for this event
+                if subscribers:  # If the listener has relevant subscribers for this event
                     listener.publish_to_subscribers(event, subscribers)
             except Exception as e:
                 # Log error during listener processing but continue with other listeners.
-                logger = get_logger() # Get logger instance if not available via self.logger
-                logger.error(f"Error processing listener {type(listener).__name__} for event {event.event_type.name} in group {group_id}: {e}", exc_info=True)
-
+                self._logger.error(
+                    f"Error processing listener {type(listener).__name__} for event {event.event_type.name} in group {group_id}: {e}",
+                    exc_info=True,
+                )
 
     def dispatch(
         self,
-        integration_id: str, # Identifier for the system/module dispatching the event
-        group_id: UUID4,     # Group context for the event
-        event_type: EventTypeBase, # The type of event (enum member)
-        document_data: EventDocumentDataBase | None, # Data associated with the event
-        message: str = "", # Optional human-readable message for the event
+        integration_id: str,  # Identifier for the system/module dispatching the event
+        group_id: UUID4,  # Group context for the event
+        event_type: EventTypeBase,  # The type of event (enum member)
+        document_data: EventDocumentDataBase | None,  # Data associated with the event
+        message: str = "",  # Optional human-readable message for the event
     ) -> None:
         """
         Dispatches an event to the event bus.
@@ -196,10 +201,10 @@ class EventBusService:
         """
         # Construct the full Event object
         event_payload = Event(
-            message=EventBusMessage.from_type(event_type, body=message), # Standardized message structure
+            message=EventBusMessage.from_type(event_type, body=message),  # Standardized message structure
             event_type=event_type,
             integration_id=integration_id,
-            document_data=document_data, # The actual data payload of the event
+            document_data=document_data,  # The actual data payload of the event
         )
 
         # If BackgroundTasks instance is available, run publishing as a background task
@@ -212,9 +217,9 @@ class EventBusService:
     @classmethod
     def as_dependency(
         cls,
-        bg_tasks: BackgroundTasks, # FastAPI BackgroundTasks dependency
-        session: Session = Depends(generate_session), # FastAPI DB session dependency
-    ) -> EventBusService: # Return type is an instance of the class itself
+        bg_tasks: BackgroundTasks,  # FastAPI BackgroundTasks dependency
+        session: Session = Depends(generate_session),  # FastAPI DB session dependency
+    ):  # Return type is an instance of the class itself
         """
         Class method to provide an instance of `EventBusService` as a FastAPI dependency.
 

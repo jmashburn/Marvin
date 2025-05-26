@@ -8,7 +8,8 @@ It includes:
   back to timezone-aware UTC when retrieved. This standardizes datetime handling
   across different database backends.
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 from sqlalchemy.types import DateTime, TypeDecorator
 
@@ -17,14 +18,14 @@ def get_utc_now():
     """
     Returns the current time in UTC.
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def get_utc_today():
     """
     Returns the current date in UTC.
     """
-    return datetime.now(timezone.utc).date()
+    return datetime.now(UTC).date()
 
 
 class NaiveDateTime(TypeDecorator):
@@ -45,7 +46,7 @@ class NaiveDateTime(TypeDecorator):
 
         try:
             if value.tzinfo is not None:
-                value = value.astimezone(timezone.utc)
+                value = value.astimezone(UTC)
             return value.replace(tzinfo=None)
         except Exception:
             return value
@@ -53,7 +54,7 @@ class NaiveDateTime(TypeDecorator):
     def process_result_value(self, value: datetime | None, dialect):
         try:
             if value is not None:
-                value = value.replace(tzinfo=timezone.utc)
+                value = value.replace(tzinfo=UTC)
         except Exception:
             pass
 

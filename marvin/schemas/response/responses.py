@@ -11,25 +11,29 @@ Each model includes a `respond` class method as a convenient way to construct
 and serialize the response, particularly useful when providing detail payloads
 for FastAPI's `HTTPException`.
 """
-from pydantic import BaseModel # Using Pydantic's BaseModel directly for simple responses
 
-from marvin.schemas._marvin import _MarvinModel # Base Marvin model for more complex responses if needed
+from typing import Any  # For generic type hints
+
+from pydantic import BaseModel  # Using Pydantic's BaseModel directly for simple responses
+
+from marvin.schemas._marvin import _MarvinModel  # Base Marvin model for more complex responses if needed
 
 
-class ErrorResponse(BaseModel): # Can use BaseModel if no _MarvinModel specific features needed
+class ErrorResponse(BaseModel):  # Can use BaseModel if no _MarvinModel specific features needed
     """
     Standardized schema for API error responses.
     Provides a user-friendly message, an error flag, and optional exception details.
     """
-    message: str 
+
+    message: str
     """A human-readable message describing the error."""
-    error: bool = True 
+    error: bool = True
     """A boolean flag indicating that this is an error response. Defaults to True."""
-    exception: str | None = None 
+    exception: str | None = None
     """Optional string representation of the exception that occurred, useful for debugging."""
 
     @classmethod
-    def respond(cls, message: str, exception: str | None = None) -> dict[str, Any]: # Return type Any for dict values
+    def respond(cls, message: str, exception: str | None = None) -> dict[str, Any]:  # Return type Any for dict values
         """
         Helper method to create an `ErrorResponse` instance and return its dictionary
         representation.
@@ -48,18 +52,19 @@ class ErrorResponse(BaseModel): # Can use BaseModel if no _MarvinModel specific 
         return cls(message=message, exception=exception).model_dump()
 
 
-class SuccessResponse(BaseModel): # Can use BaseModel if no _MarvinModel specific features needed
+class SuccessResponse(BaseModel):  # Can use BaseModel if no _MarvinModel specific features needed
     """
     Standardized schema for generic API success responses.
     Provides a success message and an error flag set to False.
     """
+
     message: str
     """A human-readable message indicating the success of the operation."""
     error: bool = False
     """A boolean flag indicating a successful response. Defaults to False."""
 
     @classmethod
-    def respond(cls, message: str = "Operation successful.") -> dict[str, Any]: # Added default message, return type Any
+    def respond(cls, message: str = "Operation successful.") -> dict[str, Any]:  # Added default message, return type Any
         """
         Helper method to create a `SuccessResponse` instance and return its dictionary
         representation.
@@ -73,15 +78,16 @@ class SuccessResponse(BaseModel): # Can use BaseModel if no _MarvinModel specifi
         return cls(message=message).model_dump()
 
 
-class FileTokenResponse(_MarvinModel): # Using _MarvinModel if it has specific shared configs
+class FileTokenResponse(_MarvinModel):  # Using _MarvinModel if it has specific shared configs
     """
     Schema for API responses that include a file access token.
     """
+
     file_token: str
     """The generated file access token string."""
 
     @classmethod
-    def respond(cls, token: str) -> dict[str, str]: # Value is specifically str here
+    def respond(cls, token: str) -> dict[str, str]:  # Value is specifically str here
         """
         Helper method to create a `FileTokenResponse` instance and return its
         dictionary representation.

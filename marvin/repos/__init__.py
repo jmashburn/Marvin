@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import datetime
 from math import ceil
 from typing import Any, Generic, TypeVar
 
@@ -26,7 +26,6 @@ from marvin.schemas.response.pagination import (
 from marvin.schemas.response.query_filter import QueryFilterBuilder
 from marvin.schemas.response.query_search import SearchFilter
 
-from ._utils import NOT_SET, NotSet
 from .repository_factory import AllRepositories
 
 __all__ = ["AllRepositories"]
@@ -72,7 +71,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
         return {}
 
     def _random_seed(self) -> str:
-        return str(datetime.now(tz=timezone.utc))
+        return str(datetime.now(tz=datetime.UTC))
 
     def _log_exception(self, e: Exception) -> None:
         self.logger.error(f"Error processing query for Repo model={self.model.__name__} schema={self.schema.__name__}")
@@ -146,9 +145,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
         fltr = self._filter_builder(**{match_key: match_value})
         return self.session.execute(self._query().filter_by(**fltr)).unique().scalars().one()
 
-    def get_one(
-        self, value: str | int | UUID4, key: str | None = None, any_case=False, override_schema=None
-    ) -> Schema | None:
+    def get_one(self, value: str | int | UUID4, key: str | None = None, any_case=False, override_schema=None) -> Schema | None:
         key = key or self.primary_key
         eff_schema = override_schema or self.schema
 
@@ -442,13 +439,9 @@ class RepositoryGeneric(Generic[Schema, Model]):
                         order_by = order_by_val
                         order_dir = request_query.order_direction
 
-                    _, order_attr, query = QueryFilterBuilder.get_model_and_model_attr_from_attr_string(
-                        order_by, self.model, query=query
-                    )
+                    _, order_attr, query = QueryFilterBuilder.get_model_and_model_attr_from_attr_string(order_by, self.model, query=query)
 
-                    query = self.add_order_attr_to_query(
-                        query, order_attr, order_dir, request_query.order_by_null_position
-                    )
+                    query = self.add_order_attr_to_query(query, order_attr, order_dir, request_query.order_by_null_position)
 
                 except ValueError as e:
                     raise HTTPException(

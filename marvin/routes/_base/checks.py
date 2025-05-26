@@ -7,8 +7,10 @@ route controllers or services to verify if the user has the necessary
 permissions to perform certain operations. If a check fails, it raises
 an appropriate FastAPI HTTPException.
 """
-from fastapi import HTTPException, status # For standard HTTP exceptions
-from marvin.schemas.user import PrivateUser # Pydantic schema for user data
+
+from fastapi import HTTPException, status  # For standard HTTP exceptions
+
+from marvin.schemas.user import PrivateUser  # Pydantic schema for user data
 
 
 class OperationChecks:
@@ -30,16 +32,15 @@ class OperationChecks:
     # Pre-defined HTTP exceptions for common authentication/authorization errors.
     ForbiddenException = HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="User does not have sufficient permissions for this operation." # Added more specific default detail
+        detail="User does not have sufficient permissions for this operation.",  # Added more specific default detail
     )
     """HTTPException raised when a permission check fails (403 Forbidden)."""
 
     UnauthorizedException = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="User is not authenticated." # Added more specific default detail
+        detail="User is not authenticated.",  # Added more specific default detail
     )
     """HTTPException for cases where authentication is required but missing (401 Unauthorized)."""
-
 
     def __init__(self, user: PrivateUser) -> None:
         """
@@ -98,7 +99,7 @@ class OperationChecks:
         Returns:
             bool: True if the user has 'organize' permissions.
         """
-        if not hasattr(self.user, 'can_organize') or not self.user.can_organize: # Added hasattr check for safety
+        if not hasattr(self.user, "can_organize") or not self.user.can_organize:  # Added hasattr check for safety
             # User does not have the 'can_organize' permission, or attribute is missing.
             raise self.ForbiddenException
         return True

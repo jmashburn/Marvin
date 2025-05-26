@@ -4,10 +4,11 @@ This module defines the SQLAlchemy model for group invitation tokens.
 It includes the `GroupInviteToken` model, which stores tokens that can be used
 to invite users to a specific group. Each token can have a limited number of uses.
 """
+
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import ForeignKey, Integer, String, orm
-from sqlalchemy.orm import Mapped, Session, mapped_column # Added Session for __init__
+from sqlalchemy.orm import Mapped, Session, mapped_column  # Added Session for __init__
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init

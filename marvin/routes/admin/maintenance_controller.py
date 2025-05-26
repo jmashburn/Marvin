@@ -7,22 +7,22 @@ details about specific directory sizes, and to perform cleanup operations
 like clearing the temporary directory. It also includes a utility function
 for tailing log files (though not currently exposed via an HTTP endpoint).
 """
-import shutil # For directory removal (rmtree)
-import uuid # Imported but not used in the current code
-from pathlib import Path # For path manipulation
 
-from fastapi import APIRouter, HTTPException, status # Added status for HTTPException
+import shutil  # For directory removal (rmtree)
+from pathlib import Path  # For path manipulation
+
+from fastapi import APIRouter, HTTPException, status  # Added status for HTTPException
 
 # Marvin specific imports
-from marvin.pkgs.stats import fs_stats # Filesystem statistics utilities
-from marvin.routes._base import BaseAdminController, controller # Base admin controller
-from marvin.schemas.admin import MaintenanceSummary # Pydantic schema for maintenance summary
-from marvin.schemas.admin.maintenance import MaintenanceStorageDetails # Schema for storage details
-from marvin.schemas.response import ErrorResponse, SuccessResponse # Standardized response schemas
+from marvin.pkgs.stats import fs_stats  # Filesystem statistics utilities
+from marvin.routes._base import BaseAdminController, controller  # Base admin controller
+from marvin.schemas.admin import MaintenanceSummary  # Pydantic schema for maintenance summary
+from marvin.schemas.admin.maintenance import MaintenanceStorageDetails  # Schema for storage details
+from marvin.schemas.response import ErrorResponse, SuccessResponse  # Standardized response schemas
 
 # APIRouter for admin maintenance section, prefixed with /maintenance
 # All routes here will be under /admin/maintenance.
-router = APIRouter(prefix="/maintenance", tags=["Admin - Maintenance"])
+router = APIRouter(prefix="/maintenance")
 
 
 def tail_log(log_file: Path, n: int) -> list[str]:
@@ -39,15 +39,14 @@ def tail_log(log_file: Path, n: int) -> list[str]:
                    does not exist.
     """
     try:
-        with open(log_file, "r", encoding="utf-8") as f: # Added encoding for robustness
+        with open(log_file, encoding="utf-8") as f:  # Added encoding for robustness
             lines = f.readlines()
     except FileNotFoundError:
-        return [f"Log file not found: {log_file}"] # More informative message
-    except Exception as e: # Catch other potential read errors
+        return [f"Log file not found: {log_file}"]  # More informative message
+    except Exception as e:  # Catch other potential read errors
         return [f"Error reading log file {log_file}: {e}"]
 
-
-    return lines[-n:] # Return the last n lines
+    return lines[-n:]  # Return the last n lines
 
 
 @controller(router)
@@ -70,7 +69,7 @@ class AdminMaintenanceController(BaseAdminController):
         Returns:
             MaintenanceSummary: A Pydantic model containing the data directory size.
         """
-        data_dir = self.directories.DATA_DIR # Access DATA_DIR via base controller
+        data_dir = self.directories.DATA_DIR  # Access DATA_DIR via base controller
         return MaintenanceSummary(
             data_dir_size=fs_stats.pretty_size(fs_stats.get_dir_size(data_dir)),
         )
@@ -87,7 +86,7 @@ class AdminMaintenanceController(BaseAdminController):
         Returns:
             MaintenanceStorageDetails: A Pydantic model containing the sizes of key directories.
         """
-        dirs = self.directories # Access application directories via base controller
+        dirs = self.directories  # Access application directories via base controller
         return MaintenanceStorageDetails(
             temp_dir_size=fs_stats.pretty_size(fs_stats.get_dir_size(dirs.TEMP_DIR)),
             backups_dir_size=fs_stats.pretty_size(fs_stats.get_dir_size(dirs.BACKUP_DIR)),
@@ -106,12 +105,12 @@ class AdminMaintenanceController(BaseAdminController):
 
         Returns:
             SuccessResponse: A Pydantic model indicating the success of the operation.
-        
+
         Raises:
             HTTPException (500 Internal Server Error): If an error occurs during
                                                       the directory cleaning process.
         """
-        temp_dir = self.directories.TEMP_DIR # Path to the temporary directory
+        temp_dir = self.directories.TEMP_DIR  # Path to the temporary directory
         try:
             if temp_dir.exists():
                 # Remove the entire temporary directory tree
@@ -125,8 +124,8 @@ class AdminMaintenanceController(BaseAdminController):
             self.logger.error(f"Failed to clean temporary directory {temp_dir}: {e}")
             # Raise an HTTPException if any error occurs during the process
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, # Use 500 for server-side file system errors
-                detail=ErrorResponse.respond(message="Failed to clean temporary directory.", exception=str(e))
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,  # Use 500 for server-side file system errors
+                detail=ErrorResponse.respond(message="Failed to clean temporary directory.", exception=str(e)),
             ) from e
 
         return SuccessResponse.respond("Temporary (.temp) directory has been cleaned successfully.")

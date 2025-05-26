@@ -6,24 +6,26 @@ reading, summarizing, and paginating group data. These schemas are used for
 API request validation, response serialization, and potentially for internal
 data transfer.
 """
-from typing import Annotated # For adding metadata to type hints (e.g., StringConstraints)
 
-from pydantic import UUID4, ConfigDict, StringConstraints # Core Pydantic components and constraints
+from typing import Annotated  # For adding metadata to type hints (e.g., StringConstraints)
+
+from pydantic import UUID4, ConfigDict, StringConstraints  # Core Pydantic components and constraints
+
 # SQLAlchemy ORM imports for loader_options method.
 # These are relevant for optimizing database queries when fetching related data.
-from sqlalchemy.orm import joinedload, selectinload 
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
 
 # Corresponding SQLAlchemy models (used in loader_options)
 from marvin.db.models.groups import Groups
-from marvin.db.models.users import Users # For specifying nested loading for users within a group
-from marvin.schemas._marvin import _MarvinModel # Base Pydantic model
-from marvin.schemas.response.pagination import PaginationBase # Base for pagination responses
+from marvin.db.models.users import Users  # For specifying nested loading for users within a group
+from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model
+from marvin.schemas.response.pagination import PaginationBase  # Base for pagination responses
 
 # Schemas from related domains (user, group preferences, webhooks)
-from ..user import UserSummary # Summary schema for users within a group
-from .preferences import GroupPreferencesRead, GroupPreferencesUpdate # Schemas for group preferences
-from .webhook import WebhookCreate, WebhookRead # Schemas for group webhooks
+from ..user import UserSummary  # Summary schema for users within a group
+from .preferences import GroupPreferencesRead, GroupPreferencesUpdate  # Schemas for group preferences
+from .webhook import WebhookCreate, WebhookRead  # Schemas for group webhooks
 
 
 class GroupCreate(_MarvinModel):
@@ -31,10 +33,11 @@ class GroupCreate(_MarvinModel):
     Schema for creating a new group. Requires only a name.
     The name will be stripped of whitespace and must have a minimum length of 1.
     """
+
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     """The name of the group. Must be at least 1 character long after stripping whitespace."""
-    
-    model_config = ConfigDict(from_attributes=True) # Allows creating from ORM model attributes
+
+    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
 
 
 class GroupAdminUpdate(GroupCreate):
@@ -42,24 +45,26 @@ class GroupAdminUpdate(GroupCreate):
     Schema for administrators to update a group.
     Allows updating the name and group preferences. Inherits `name` from `GroupCreate`.
     """
-    id: UUID4 
+
+    id: UUID4
     """The unique identifier of the group to update."""
-    name: str # Overrides name to not have Annotated constraints here, or could re-apply if needed
+    name: str  # Overrides name to not have Annotated constraints here, or could re-apply if needed
     """The new name for the group."""
     preferences: GroupPreferencesUpdate | None = None
     """Optional: New preference settings for the group. If None, preferences are not updated."""
 
 
-class GroupUpdate(GroupCreate): # This seems like a user-facing update schema
+class GroupUpdate(GroupCreate):  # This seems like a user-facing update schema
     """
     Schema for regular users to update a group they manage (details depend on permissions).
     Allows updating the name and associated webhooks. Inherits `name` from `GroupCreate`.
     """
+
     id: UUID4
     """The unique identifier of the group to update."""
-    name: str # Overrides name
+    name: str  # Overrides name
     """The new name for the group."""
-    webhooks: list[WebhookCreate] = [] # TODO: Should this be WebhookUpdate or a list of IDs/full objects?
+    webhooks: list[WebhookCreate] = []  # TODO: Should this be WebhookUpdate or a list of IDs/full objects?
     """
     A list of webhook configurations to associate with the group.
     This implies replacing all existing webhooks with this new list.
@@ -68,20 +73,21 @@ class GroupUpdate(GroupCreate): # This seems like a user-facing update schema
     """
 
 
-class GroupRead(GroupUpdate): # Extends GroupUpdate, which might be unusual if GroupUpdate is for input.
-                            # Often, Read schemas are more comprehensive or extend a base.
+class GroupRead(GroupUpdate):  # Extends GroupUpdate, which might be unusual if GroupUpdate is for input.
+    # Often, Read schemas are more comprehensive or extend a base.
     """
     Schema for representing a group when read from the system, including detailed information.
     This typically serves as a response model for GET requests.
     Inherits `id`, `name`, and `webhooks` (as `WebhookRead`) from `GroupUpdate`.
     """
+
     id: UUID4
     """The unique identifier of the group."""
     users: list[UserSummary] | None = None
     """Optional list of user summaries for members of this group."""
     preferences: GroupPreferencesRead | None = None
     """Optional group preference settings."""
-    webhooks: list[WebhookRead] = [] # Overrides webhooks to use WebhookRead for output
+    webhooks: list[WebhookRead] = []  # Overrides webhooks to use WebhookRead for output
     """List of webhooks configured for this group."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -103,27 +109,28 @@ class GroupRead(GroupUpdate): # Extends GroupUpdate, which might be unusual if G
             list[LoaderOption]: A list of SQLAlchemy loader options.
         """
         return [
-            joinedload(Groups.webhooks), # Eager load associated webhooks
-            joinedload(Groups.preferences), # Eager load associated preferences
-            selectinload(Groups.users).joinedload(Users.group), # Eager load users, and their group (back-ref)
-            selectinload(Groups.users).joinedload(Users.tokens), # Eager load users, and their API tokens
+            joinedload(Groups.webhooks),  # Eager load associated webhooks
+            joinedload(Groups.preferences),  # Eager load associated preferences
+            selectinload(Groups.users).joinedload(Users.group),  # Eager load users, and their group (back-ref)
+            selectinload(Groups.users).joinedload(Users.tokens),  # Eager load users, and their API tokens
         ]
 
 
-class GroupSummary(GroupCreate): # Extends GroupCreate, which only has 'name'.
+class GroupSummary(GroupCreate):  # Extends GroupCreate, which only has 'name'.
     """
     Schema for a summary representation of a group.
     Provides key identifying information like ID, name, slug, and preferences.
     """
+
     id: UUID4
     """The unique identifier of the group."""
-    name: str # Inherited from GroupCreate, but explicitly listed for clarity
+    name: str  # Inherited from GroupCreate, but explicitly listed for clarity
     """The name of the group."""
     slug: str
     """The URL-friendly slug of the group."""
     preferences: GroupPreferencesRead | None = None
     """Optional group preference settings."""
-    
+
     # model_config from_attributes=True is inherited from GroupCreate via _MarvinModel
 
     @classmethod
@@ -137,7 +144,7 @@ class GroupSummary(GroupCreate): # Extends GroupCreate, which only has 'name'.
             list[LoaderOption]: A list of SQLAlchemy loader options.
         """
         return [
-            joinedload(Groups.preferences), # Eager load associated preferences
+            joinedload(Groups.preferences),  # Eager load associated preferences
         ]
 
 
@@ -146,5 +153,6 @@ class GroupPagination(PaginationBase):
     Schema for paginated responses containing a list of groups.
     The items in the list are expected to conform to the `GroupRead` schema.
     """
-    items: list[GroupRead] 
+
+    items: list[GroupRead]
     """The list of groups for the current page, serialized as `GroupRead`."""

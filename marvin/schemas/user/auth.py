@@ -6,33 +6,36 @@ It includes models for representing authentication tokens, data embedded within 
 results of operations like unlocking users, and structures for handling credential
 submissions via API requests and HTML forms.
 """
-from typing import Annotated # For type hinting with FastAPI Form and Pydantic constraints
 
-from fastapi import Form # For defining form data dependencies in FastAPI
-from pydantic import UUID4, BaseModel, StringConstraints # Core Pydantic components and constraints
+from typing import Annotated  # For type hinting with FastAPI Form and Pydantic constraints
 
-from marvin.schemas._marvin import _MarvinModel # Base Pydantic model for Marvin schemas
+from fastapi import Form  # For defining form data dependencies in FastAPI
+from pydantic import UUID4, BaseModel, StringConstraints  # Core Pydantic components and constraints
+
+from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvin schemas
 
 
-class Token(BaseModel): # Can use BaseModel if no _MarvinModel specific features needed
+class Token(BaseModel):  # Can use BaseModel if no _MarvinModel specific features needed
     """
     Schema for representing an access token response.
     Typically returned to the client after successful authentication.
     """
+
     access_token: str
     """The access token string."""
     token_type: str
     """The type of the token (e.g., "bearer")."""
 
 
-class TokenData(BaseModel): # Can use BaseModel
+class TokenData(BaseModel):  # Can use BaseModel
     """
     Schema for data embedded within an access token (e.g., JWT payload).
     Contains identifying information about the user.
     """
+
     user_id: UUID4 | None = None
     """Optional: The unique identifier of the user associated with the token."""
-    username: Annotated[str, StringConstraints(to_lower=True, strip_whitespace=True)] | None = None # type: ignore
+    username: Annotated[str, StringConstraints(to_lower=True, strip_whitespace=True)] | None = None  # type: ignore
     """
     Optional: The username associated with the token.
     The annotation ensures it's processed as lowercase and stripped of whitespace.
@@ -45,15 +48,17 @@ class UnlockResults(_MarvinModel):
     Schema for the response when an operation to unlock user accounts is performed.
     Indicates how many user accounts were successfully unlocked.
     """
+
     unlocked: int = 0
     """The number of user accounts that were successfully unlocked. Defaults to 0."""
 
 
-class CredentialsRequest(BaseModel): # Can use BaseModel
+class CredentialsRequest(BaseModel):  # Can use BaseModel
     """
     Schema for a generic credentials request, typically used for API-based login
     where data is sent as JSON.
     """
+
     username: str
     """The username for authentication."""
     password: str
@@ -76,9 +81,9 @@ class CredentialsRequestForm:
 
     def __init__(
         self,
-        username: str = Form(""), # Defines 'username' as a form field, defaulting to empty string.
-        password: str = Form(""), # Defines 'password' as a form field.
-        remember_me: bool = Form(False), # Defines 'remember_me' as a boolean form field.
+        username: str = Form(""),  # Defines 'username' as a form field, defaulting to empty string.
+        password: str = Form(""),  # Defines 'password' as a form field.
+        remember_me: bool = Form(False),  # Defines 'remember_me' as a boolean form field.
     ):
         """
         Initializes with data received from a form submission.

@@ -8,6 +8,7 @@ It defines a `Hasher` protocol and provides two implementations:
 The `get_hasher` function returns the appropriate hasher based on the
 application settings (FakeHasher for testing, BcryptHasher otherwise).
 """
+
 from functools import lru_cache
 from typing import Protocol
 

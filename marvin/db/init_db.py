@@ -8,16 +8,18 @@ It includes functions to:
 - Initialize plugin-specific database schemas.
 - Apply any necessary data fixes after migrations.
 """
+
 import os
 from collections.abc import Callable
 from pathlib import Path
 from time import sleep
-
-from sqlalchemy import engine, orm, text
+from typing import Any
 
 from alembic import command, config, script
 from alembic.config import Config
 from alembic.runtime import migration
+from sqlalchemy import engine, orm, text
+
 from marvin.core import root_logger
 from marvin.core.config import AppPlugins, get_app_plugins, get_app_settings
 from marvin.db.db_setup import session_context
@@ -25,9 +27,9 @@ from marvin.db.fixes.fix_migration_data import fix_migration_data
 from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
 from marvin.repos.seed.init_users import default_user_init
-from marvin.services.seeders.seeder_service import SeederService
 from marvin.schemas.group.group import GroupCreate, GroupRead
 from marvin.services.group.group_service import GroupService
+from marvin.services.seeders.seeder_service import SeederService
 
 PROJECT_DIR = Path(__file__).parent.parent.parent
 
@@ -156,6 +158,7 @@ def include_name(name: str, type_: str, parent_names: dict[str, Any]) -> bool:
             # This is a placeholder for how these might be accessed.
             # The actual mechanism might be different in Alembic's execution context.
             from marvin.db.models import Base  # Assuming Base has the metadata
+
             target_metadata = Base.metadata
             # PLUGIN_PREFIX would likely come from settings or another global config
             settings = get_app_settings()
@@ -164,7 +167,7 @@ def include_name(name: str, type_: str, parent_names: dict[str, Any]) -> bool:
         except ImportError:
             logger.warning("Could not import Base for target_metadata in include_name hook.")
             # Fallback or stricter behavior might be needed
-            return False # Or True, depending on desired safety if metadata can't be checked
+            return False  # Or True, depending on desired safety if metadata can't be checked
     return True
 
 
@@ -186,7 +189,7 @@ def db_is_at_head(alembic_cfg: config.Config) -> bool:
     if not url:
         raise ValueError("No database url found")
 
-    connectable = engine.create_engine(url) # Note: global `engine` is used here
+    connectable = engine.create_engine(url)  # Note: global `engine` is used here
     directory = script.ScriptDirectory.from_config(alembic_cfg)
     with connectable.connect() as connection:
         context = migration.MigrationContext.configure(

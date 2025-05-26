@@ -6,25 +6,26 @@ It provides a public endpoint for new users to register, subject to application
 settings (e.g., whether signups are globally allowed or if a valid group
 invitation token is required).
 """
-from fastapi import APIRouter, Depends, HTTPException, status # Core FastAPI components
+
+from fastapi import APIRouter, Depends, HTTPException, status  # Core FastAPI components
 
 # Marvin core, schemas, services, and base controller
-from marvin.core.config import get_app_settings # Access application settings
-from marvin.repos.all_repositories import get_repositories # For creating repositories instance for service
-from marvin.routes._base import BasePublicController, controller # Base public controller
-from marvin.schemas.response import ErrorResponse # Standardized error response
-from marvin.schemas.user.registration import UserRegistrationCreate # Pydantic schema for registration data
-from marvin.schemas.user.user import UserRead # Pydantic schema for user response
-from marvin.services.event_bus_service.event_bus_service import EventBusService # Event bus for dispatching events
-from marvin.services.event_bus_service.event_types import EventTypes, EventUserSignupData # Event types
-from marvin.services.user.registration_service import RegistrationService # Service for registration logic
+from marvin.core.config import get_app_settings  # Access application settings
+from marvin.repos.all_repositories import get_repositories  # For creating repositories instance for service
+from marvin.routes._base import BasePublicController, controller  # Base public controller
+from marvin.schemas.response import ErrorResponse  # Standardized error response
+from marvin.schemas.user.registration import UserRegistrationCreate  # Pydantic schema for registration data
+from marvin.schemas.user.user import UserRead  # Pydantic schema for user response
+from marvin.services.event_bus_service.event_bus_service import EventBusService  # Event bus for dispatching events
+from marvin.services.event_bus_service.event_types import EventTypes, EventUserSignupData  # Event types
+from marvin.services.user.registration_service import RegistrationService  # Service for registration logic
 
 # APIRouter for user registration. This is a public endpoint.
 # All routes here will be under /register.
-router = APIRouter(prefix="/register", tags=["Authentication - Registration"])
+router = APIRouter(prefix="/register")
 
 
-@controller(router) # Registers this class-based view with the defined router
+@controller(router)  # Registers this class-based view with the defined router
 class RegistrationController(BasePublicController):
     """
     Controller for handling new user registrations.
@@ -33,6 +34,7 @@ class RegistrationController(BasePublicController):
     behavior is governed by application settings, such as `ALLOW_SIGNUP` and
     the requirement for group invitation tokens.
     """
+
     # Dependency injection for the EventBusService, available to methods in this controller
     event_bus: EventBusService = Depends(EventBusService.as_dependency)
 
@@ -64,7 +66,7 @@ class RegistrationController(BasePublicController):
                                                   invalid group token), handled by the
                                                   `RegistrationService`.
         """
-        settings = get_app_settings() # Get current application settings
+        settings = get_app_settings()  # Get current application settings
 
         # Check if registration is allowed based on settings and provided group token
         can_register_globally = settings.ALLOW_SIGNUP
@@ -82,8 +84,8 @@ class RegistrationController(BasePublicController):
         # Note: Repositories are created here with group_id=None, implying the service
         # handles any group-specific logic internally (e.g., validating token against a group).
         registration_service = RegistrationService(
-            logger=self.logger, # Pass logger from base controller
-            repos=get_repositories(self.session, group_id=None), # Provide non-scoped repos
+            logger=self.logger,  # Pass logger from base controller
+            repos=get_repositories(self.session, group_id=None),  # Provide non-scoped repos
         )
 
         # Attempt to register the user via the service layer
@@ -94,18 +96,15 @@ class RegistrationController(BasePublicController):
         # This allows other parts of the system to react to new user registrations.
         try:
             self.event_bus.dispatch(
-                integration_id="user_registration_process", # Identifier for this event source
-                group_id=newly_registered_user.group_id, # Associate event with the user's group
+                integration_id="user_registration_process",  # Identifier for this event source
+                group_id=newly_registered_user.group_id,  # Associate event with the user's group
                 event_type=EventTypes.user_signup,
-                document_data=EventUserSignupData(
-                    username=newly_registered_user.username, 
-                    email=newly_registered_user.email
-                ),
-                message=f"New user registered: {newly_registered_user.username}"
+                document_data=EventUserSignupData(username=newly_registered_user.username, email=newly_registered_user.email),
+                message=f"New user registered: {newly_registered_user.username}",
             )
             self.logger.info(f"User signup event dispatched for user: {newly_registered_user.username}")
         except Exception as e:
             # Log if event dispatch fails, but don't let it fail the registration response
             self.logger.error(f"Failed to dispatch user_signup event for {newly_registered_user.username}: {e}")
-            
+
         return newly_registered_user

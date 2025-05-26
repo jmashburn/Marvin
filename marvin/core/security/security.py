@@ -8,8 +8,9 @@ It includes functions for:
 - Password hashing.
 - Generation of URL-safe tokens.
 """
+
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import jwt
@@ -20,8 +21,7 @@ from marvin.core.config import get_app_settings
 from marvin.core.security.hasher import get_hasher
 from marvin.core.security.providers.auth_providers import AuthProvider
 from marvin.core.security.providers.credentials_provider import CredentialsProvider
-
-# from marvin.core.security.providers.ldap_provider import LDAPProvider
+from marvin.core.security.providers.ldap_provider import LDAPProvider
 from marvin.schemas.user.auth import CredentialsRequest, CredentialsRequestForm
 
 ALGORITHM = "HS256"
@@ -69,7 +69,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     to_encode = data.copy()
     expires_delta = expires_delta or timedelta(hours=settings.TOKEN_TIME)
 
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.now(UTC) + expires_delta
 
     to_encode["exp"] = expire
     return jwt.encode(to_encode, settings.SECRET, algorithm=ALGORITHM)

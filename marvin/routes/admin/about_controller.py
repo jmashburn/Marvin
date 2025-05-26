@@ -5,12 +5,13 @@ for the Marvin application.
 It provides endpoints for administrators to retrieve general application details,
 version information, configuration status, and basic statistics.
 """
+
 from fastapi import APIRouter
 
 from marvin.core.release_checker import get_latest_version
-from marvin.core.settings.static import APP_VERSION # Current application version
-from marvin.routes._base import BaseAdminController, controller # Base controller for admin routes
-from marvin.schemas.admin.about import ( # Pydantic schemas for response models
+from marvin.core.settings.static import APP_VERSION  # Current application version
+from marvin.routes._base import BaseAdminController, controller  # Base controller for admin routes
+from marvin.schemas.admin.about import (  # Pydantic schemas for response models
     AdminAboutInfo,
     AppStatistics,
     CheckAppConfig,
@@ -18,7 +19,7 @@ from marvin.schemas.admin.about import ( # Pydantic schemas for response models
 
 # APIRouter for admin "about" section, prefixed with /about
 # All routes in this controller will be under /admin/about due to AdminAPIRouter in main app and this prefix.
-router = APIRouter(prefix="/about", tags=["Admin - About"])
+router = APIRouter(prefix="/about")
 
 
 @controller(router)
@@ -43,21 +44,21 @@ class AdminAboutController(BaseAdminController):
         Returns:
             AdminAboutInfo: A Pydantic model containing various application details.
         """
-        settings = self.settings # Access application settings via base controller property
+        settings = self.settings  # Access application settings via base controller property
 
         # Construct and return the AdminAboutInfo response model
         return AdminAboutInfo(
             production=settings.PRODUCTION,
             version=APP_VERSION,
-            versionLatest=get_latest_version(settings.GITHUB_VERSION_URL), # Fetches latest version from GitHub
+            versionLatest=get_latest_version(settings.GITHUB_VERSION_URL),  # Fetches latest version from GitHub
             demo_status=settings.IS_DEMO,
             api_port=settings.API_PORT,
             api_docs=settings.API_DOCS,
             db_type=settings.DB_ENGINE,
-            db_url=settings.DB_URL_PUBLIC, # Public (masked) database URL
+            db_url=settings.DB_URL_PUBLIC,  # Public (masked) database URL
             default_group=settings._DEFAULT_GROUP,
             allow_signup=settings.ALLOW_SIGNUP,
-            build_id=settings.GIT_COMMIT_HASH, # Git commit hash for the build
+            build_id=settings.GIT_COMMIT_HASH,  # Git commit hash for the build
             enable_oidc=settings.OIDC_AUTH_ENABLED,
             oidc_redirect=settings.OIDC_AUTO_REDIRECT,
             oidc_provider_name=settings.OIDC_PROVIDER_NAME,
@@ -78,8 +79,8 @@ class AdminAboutController(BaseAdminController):
         """
         # Utilize repositories to fetch counts
         return AppStatistics(
-            total_users=self.repos.users.count_all(),      # Total users in the system
-            total_groups=self.repos.groups.count_all(),    # Total groups in the system
+            total_users=self.repos.users.count_all(),  # Total users in the system
+            total_groups=self.repos.groups.count_all(),  # Total groups in the system
         )
 
     @router.get("/check", response_model=CheckAppConfig, summary="Check Application Configuration Status")
@@ -95,21 +96,18 @@ class AdminAboutController(BaseAdminController):
         Returns:
             CheckAppConfig: A Pydantic model indicating the readiness of different configurations.
         """
-        settings = self.settings # Access application settings
+        settings = self.settings  # Access application settings
 
         # Determine if the application is considered up-to-date.
         # 'develop' or 'nightly' versions are always considered "up-to-date" for this check.
         # Otherwise, compare current APP_VERSION with the latest fetched version.
-        is_up_to_date_status = (
-            APP_VERSION in ["develop", "nightly"] or 
-            get_latest_version(settings.GITHUB_VERSION_URL) == APP_VERSION
-        )
+        is_up_to_date_status = APP_VERSION in ["develop", "nightly"] or get_latest_version(settings.GITHUB_VERSION_URL) == APP_VERSION
 
         return CheckAppConfig(
             email_ready=settings.SMTP_ENABLED,  # SMTP (email) configured and enabled
-            ldap_ready=settings.LDAP_ENABLED,   # LDAP configured and enabled
-            base_url_set=settings.BASE_URL != "http://localhost:8080", # Base URL customized from default
-            is_up_to_date=is_up_to_date_status, # Application version is current
-            oidc_ready=settings.OIDC_READY,     # OIDC configured and ready
-            enable_openai=settings.OPENAI_ENABLED, # OpenAI configured and enabled
+            ldap_ready=settings.LDAP_ENABLED,  # LDAP configured and enabled
+            base_url_set=settings.BASE_URL != "http://localhost:8080",  # Base URL customized from default
+            is_up_to_date=is_up_to_date_status,  # Application version is current
+            oidc_ready=settings.OIDC_READY,  # OIDC configured and ready
+            enable_openai=settings.OPENAI_ENABLED,  # OpenAI configured and enabled
         )

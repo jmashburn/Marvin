@@ -5,6 +5,7 @@ It provides the `AbstractSeeder` class, which outlines the common interface
 and initialization for all seeder implementations used to populate the
 database with initial or sample data.
 """
+
 from abc import ABC, abstractmethod
 from logging import Logger
 from pathlib import Path
@@ -42,7 +43,7 @@ class AbstractSeeder(ABC):
         self.directories = get_app_dirs()  # Access to application directory structure.
 
     @abstractmethod
-    def seed(self, path: str | None = None) -> None:
+    def seed(self, name: str | None = None) -> None:
         """
         Abstract method to perform the seeding operation.
 
@@ -50,8 +51,8 @@ class AbstractSeeder(ABC):
         is created and inserted into the database.
 
         Args:
-            path (str | None, optional): An optional path or identifier,
+            name (str | None, optional): An optional path or identifier,
                                          potentially to a specific data file or
                                          subset of data to seed. Defaults to None.
         """
-        ... # Ellipsis indicates that the method must be implemented by subclasses.
+        ...  # Ellipsis indicates that the method must be implemented by subclasses.

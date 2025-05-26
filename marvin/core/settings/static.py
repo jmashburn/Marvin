@@ -5,7 +5,9 @@ These constants include the application version and base directory paths.
 They are intended to be immutable and provide fundamental information
 about the application's structure and version.
 """
+
 from pathlib import Path
+
 from marvin import __version__
 
 APP_VERSION = __version__

@@ -8,15 +8,16 @@ The class also determines whether a "fuzzy" or "tokenized" search strategy
 should be employed based on factors like database dialect and the nature of
 the search query.
 """
-import re # For regular expression operations
 
-from sqlalchemy import Select # For type hinting SQLAlchemy Select statements
-from sqlalchemy.orm import Session # For type hinting SQLAlchemy Session
-from text_unidecode import unidecode # For removing diacritics from text
+import re  # For regular expression operations
+
+from sqlalchemy import Select  # For type hinting SQLAlchemy Select statements
+from sqlalchemy.orm import Session  # For type hinting SQLAlchemy Session
+from text_unidecode import unidecode  # For removing diacritics from text
 
 # Marvin specific imports
-from marvin.db.models import SqlAlchemyBase # Base SQLAlchemy model
-from marvin.schemas._marvin import SearchType, _MarvinModel # Base Pydantic model and SearchType enum
+from marvin.db.models import SqlAlchemyBase  # Base SQLAlchemy model
+from marvin.schemas._marvin import SearchType, _MarvinModel  # Base Pydantic model and SearchType enum
 
 
 class SearchFilter:
@@ -42,13 +43,13 @@ class SearchFilter:
 
     # Regex for punctuation characters to be replaced by spaces during normalization.
     # Excludes single and double quotes to preserve them for phrase searching.
-    punctuation: str = r"!#$%&()*+,-./:;<=>?@[\\]^_`{|}~" 
-    
+    punctuation: str = r"!#$%&()*+,-./:;<=>?@[\\]^_`{|}~"
+
     # Regex to find quoted substrings (handles both single and double quotes, and escaped quotes within).
     quoted_regex: re.Pattern[str] = re.compile(r"""(["'])(?:(?=(\\?))\2.)*?\1""")
-    
+
     # Regex to remove the outer quotes from an already extracted quoted string.
-    remove_quotes_regex: re.Pattern[str] = re.compile(r"""^['"](.*)['"]$""") # Added ^ and $ for full match
+    remove_quotes_regex: re.Pattern[str] = re.compile(r"""^['"](.*)['"]$""")  # Added ^ and $ for full match
 
     @classmethod
     def _normalize_search(cls, search_string: str, normalize_characters: bool) -> str:
@@ -107,29 +108,27 @@ class SearchFilter:
         if cls.quoted_regex.search(remaining_string_parts):
             # Find all quoted phrases
             quoted_literals_raw = [match.group(0) for match in cls.quoted_regex.finditer(remaining_string_parts)]
-            
+
             # Remove outer quotes from these literals and add to final list
             for q_literal_raw in quoted_literals_raw:
                 # Use sub() with a lambda to correctly handle stripping one layer of quotes
                 # or use remove_quotes_regex.match() and group(1) if it's simpler.
                 # The original `cls.remove_quotes_regex.sub("\\1", q_literal_raw)` is fine.
                 stripped_literal = cls.remove_quotes_regex.sub(r"\1", q_literal_raw)
-                search_list_final.append(stripped_literal.strip()) # Also strip internal padding if any from original quote
+                search_list_final.append(stripped_literal.strip())  # Also strip internal padding if any from original quote
 
             # Remove all quoted phrases from the string to process remaining parts
             remaining_string_parts = cls.quoted_regex.sub("", remaining_string_parts)
 
         # Process the remaining parts of the string (non-quoted tokens)
         # Replace punctuation with spaces and split into tokens
-        if remaining_string_parts.strip(): # Ensure there's something left to process
-            token_string = remaining_string_parts.translate(
-                str.maketrans(cls.punctuation, " " * len(cls.punctuation))
-            )
-            unquoted_tokens = token_string.split() # Split by spaces
+        if remaining_string_parts.strip():  # Ensure there's something left to process
+            token_string = remaining_string_parts.translate(str.maketrans(cls.punctuation, " " * len(cls.punctuation)))
+            unquoted_tokens = token_string.split()  # Split by spaces
             search_list_final.extend(unquoted_tokens)
-        
+
         # Final strip for all collected terms (though individual parts should be stripped already)
-        return [term.strip() for term in search_list_final if term.strip()] # Ensure no empty strings
+        return [term.strip() for term in search_list_final if term.strip()]  # Ensure no empty strings
 
     def __init__(self, session: Session, search_query: str, normalize_characters: bool = False) -> None:
         """
@@ -148,7 +147,7 @@ class SearchFilter:
                                                    Defaults to False.
         """
         self.session: Session = session
-        
+
         # Determine search type:
         # Fuzzy search is preferred for PostgreSQL if the query is simple (no quoted literals).
         # Quoted literals imply the user wants exact phrase matching within those quotes,
@@ -166,9 +165,7 @@ class SearchFilter:
         # Build the list of search terms (tokens and literals).
         self.search_list: list[str] = self._build_search_list(self.search)
 
-    def filter_query_by_search(
-        self, query: Select, schema_class: type[_MarvinModel], db_model_class: type[SqlAlchemyBase]
-    ) -> Select:
+    def filter_query_by_search(self, query: Select, schema_class: type[_MarvinModel], db_model_class: type[SqlAlchemyBase]) -> Select:
         """
         Applies the processed search terms to a SQLAlchemy query.
 
@@ -190,10 +187,10 @@ class SearchFilter:
         # Delegate to the schema's static/class method for applying the search.
         # This allows search logic to be customized per schema/model.
         return schema_class.filter_search_query(
-            db_model=db_model_class, 
-            query=query, 
-            session=self.session, # Pass session for dialect-specific features like pg_trgm settings
-            search_type=self.search_type, 
-            search=self.search, # Full normalized search string
-            search_list=self.search_list # List of tokens and literals
+            db_model=db_model_class,
+            query=query,
+            session=self.session,  # Pass session for dialect-specific features like pg_trgm settings
+            search_type=self.search_type,
+            search=self.search,  # Full normalized search string
+            search_list=self.search_list,  # List of tokens and literals
         )

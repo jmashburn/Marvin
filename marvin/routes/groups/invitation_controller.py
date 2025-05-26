@@ -5,27 +5,27 @@ within the Marvin application.
 It provides endpoints for creating and listing group invitation tokens,
 and for sending email invitations containing these tokens.
 """
-from typing import Annotated # For type hinting with FastAPI Header
 
-from fastapi import APIRouter, Header, HTTPException, status # Core FastAPI components
-from pydantic import UUID4 # For type hinting UUIDs, though not directly used in this controller's args
+from typing import Annotated  # For type hinting with FastAPI Header
+
+from fastapi import APIRouter, Header, HTTPException, status  # Core FastAPI components
 
 # Marvin core, schemas, services, and base controller
-from marvin.core.security import url_safe_token # For generating secure tokens
-from marvin.routes._base import BaseUserController, controller # Base controller for user-authenticated routes
-from marvin.schemas.group.invite_token import ( # Pydantic schemas for invite tokens
+from marvin.core.security import url_safe_token  # For generating secure tokens
+from marvin.routes._base import BaseUserController, controller  # Base controller for user-authenticated routes
+from marvin.schemas.group.invite_token import (  # Pydantic schemas for invite tokens
     EmailInitationResponse,
     EmailInvitation,
     InviteTokenCreate,
     InviteTokenRead,
     # InviteTokenUpdate, # InviteTokenUpdate was imported but not used
 )
-from marvin.schemas.response.pagination import PaginationQuery # For pagination parameters
-from marvin.services.email.email_service import EmailService # Service for sending emails
+from marvin.schemas.response.pagination import PaginationQuery  # For pagination parameters
+from marvin.services.email.email_service import EmailService  # Service for sending emails
 
 # APIRouter for group invitations, prefixed accordingly.
 # All routes here will be under /groups/invitations based on router prefix in main app and this.
-router = APIRouter(prefix="/groups/invitations", tags=["Groups - Invitations"])
+router = APIRouter(prefix="/groups/invitations")
 
 
 @controller(router)
@@ -54,7 +54,7 @@ class GroupInvitationsController(BaseUserController):
         # by `BaseUserController`'s `repos` property.
         # Fetch all items by setting per_page to -1 (or a very large number if -1 isn't supported by pagination).
         all_tokens_page = self.repos.group_invite_tokens.page_all(
-            PaginationQuery(page=1, per_page=-1) # Fetches all tokens for the group
+            PaginationQuery(page=1, per_page=-1)  # Fetches all tokens for the group
         )
         # The print statement is for debugging and should ideally be removed in production.
         # print(all_tokens_page.items) # Original print statement
@@ -62,7 +62,7 @@ class GroupInvitationsController(BaseUserController):
         return all_tokens_page.items
 
     @router.post("", response_model=InviteTokenRead, status_code=status.HTTP_201_CREATED, summary="Create an Invite Token")
-    def create_invite_token(self, token_data: InviteTokenCreate) -> InviteTokenRead: # Renamed `token` to `token_data`
+    def create_invite_token(self, token_data: InviteTokenCreate) -> InviteTokenRead:  # Renamed `token` to `token_data`
         """
         Creates a new invitation token for a group.
 
@@ -103,11 +103,11 @@ class GroupInvitationsController(BaseUserController):
         # Note: The input `token_data` (InviteTokenCreate) has `uses`, but the model uses `uses_left`.
         # Assuming `token_data.uses` is meant for `uses_left`.
         final_token_payload = InviteTokenCreate(
-            uses_left=token_data.uses_left, # uses_left from input schema
+            uses_left=token_data.uses_left,  # uses_left from input schema
             group_id=target_group_id,
-            token=url_safe_token() # Generate a new secure token string
+            token=url_safe_token(),  # Generate a new secure token string
         )
-        
+
         # Create the token using the group_invite_tokens repository
         created_token = self.repos.group_invite_tokens.create(final_token_payload)
         self.logger.info(f"Invite token created by user {self.user.username} for group {target_group_id}")
@@ -116,8 +116,8 @@ class GroupInvitationsController(BaseUserController):
     @router.post("/email", response_model=EmailInitationResponse, summary="Send Email Invitation")
     def email_invitation(
         self,
-        invite_data: EmailInvitation, # Renamed `invite` to `invite_data`
-        accept_language: Annotated[str | None, Header()] = None, # Optional language preference
+        invite_data: EmailInvitation,  # Renamed `invite` to `invite_data`
+        accept_language: Annotated[str | None, Header()] = None,  # Optional language preference
     ) -> EmailInitationResponse:
         """
         Sends an email invitation containing a group invite token.
@@ -136,19 +136,17 @@ class GroupInvitationsController(BaseUserController):
             EmailInitationResponse: A Pydantic model indicating whether the email was
                                     sent successfully and any error message if it failed.
         """
-        email_service = EmailService(locale=accept_language) # Initialize email service with locale
-        
+        email_service = EmailService(locale=accept_language)  # Initialize email service with locale
+
         # Construct the full registration URL including the token
         registration_url = f"{self.settings.BASE_URL}/register?token={invite_data.token}"
 
-        email_sent_successfully = False # Default status
-        error_message: str | None = None # Default error message
+        email_sent_successfully = False  # Default status
+        error_message: str | None = None  # Default error message
 
         try:
             # Attempt to send the invitation email
-            email_sent_successfully = email_service.send_invitation(
-                address=invite_data.email, invitation_url=registration_url
-            )
+            email_sent_successfully = email_service.send_invitation(address=invite_data.email, invitation_url=registration_url)
             if email_sent_successfully:
                 self.logger.info(f"Invitation email sent to {invite_data.email} with token {invite_data.token}")
             else:

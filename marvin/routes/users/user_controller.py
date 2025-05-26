@@ -12,26 +12,31 @@ dedicated controller files (e.g., `marvin/routes/admin/user_controller.py` and
 `marvin/routes/users/api_token_controller.py` respectively) or are pending
 implementation/refactoring.
 """
+
 # from datetime import timedelta # Imported but not used in active code
-from fastapi import Depends, HTTPException, status, APIRouter # APIRouter for consistency
-from pydantic import UUID4 # For UUID type validation
+from fastapi import HTTPException, status  # APIRouter for consistency
+from pydantic import UUID4  # For UUID type validation
 
 # Marvin core, schemas, services, and base controllers
-from marvin.core.security import hash_password #, create_access_token # create_access_token not used in active code
-from marvin.core.security.providers.credentials_provider import CredentialsProvider # For password verification
-from marvin.db.models.users.users import AuthMethod # Enum for authentication methods
-from marvin.routes._base import BaseUserController, controller # Base controller for user-auth routes
+from marvin.core.security import hash_password  # , create_access_token # create_access_token not used in active code
+from marvin.core.security.providers.credentials_provider import CredentialsProvider  # For password verification
+from marvin.db.models.users.users import AuthMethod  # Enum for authentication methods
+from marvin.routes._base import BaseUserController, controller  # Base controller for user-auth routes
+
 # from marvin.routes._base.mixins import HttpRepo # HttpRepo not directly used by UserController methods
-from marvin.routes._base.routers import UserAPIRouter # Router for user-authenticated endpoints
+from marvin.routes._base.routers import UserAPIRouter  # Router for user-authenticated endpoints
+
 # from marvin.routes._base.routers import AdminAPIRouter # AdminAPIRouter not used for active UserController
-from marvin.routes.users._helpers import assert_user_change_allowed # Permission assertion helper
-from marvin.schemas.response import ErrorResponse, SuccessResponse # Standardized response schemas
+from marvin.routes.users._helpers import assert_user_change_allowed  # Permission assertion helper
+from marvin.schemas.response import ErrorResponse, SuccessResponse  # Standardized response schemas
+
 # from marvin.schemas.response.pagination import PaginationQuery # Not used in active UserController
-from marvin.schemas.user import ( # User Pydantic schemas
+from marvin.schemas.user import (  # User Pydantic schemas
     ChangePassword,
+    PrivateUser,  # Represents the authenticated user profile
     # UserCreate, # Not used by active UserController endpoints for creation
     UserRead,
-    UserUpdate, # Using UserUpdate for user profile updates
+    UserUpdate,  # Using UserUpdate for user profile updates
     # Schemas related to API tokens, not used in active UserController:
     # LongLiveTokenCreate,
     # LongLiveTokenRead,
@@ -40,11 +45,12 @@ from marvin.schemas.user import ( # User Pydantic schemas
     # TokenCreate,
     # LongLiveTokenCreateResponse,
 )
+
 # from marvin.schemas.user.user import UserPagination # Not used in active UserController
 
 # Router for user-specific, self-service operations.
 # All routes here will be under /users (or a parent prefix if UserAPIRouter is included with one).
-user_router = UserAPIRouter(tags=["Users - Self Service"]) # Renamed tag for clarity
+user_router = UserAPIRouter(tags=["User: Self Service"])  # Renamed tag for clarity
 
 # Commented-out AdminAPIRouter. Admin user operations are likely in admin/user_controller.py.
 # admin_router = AdminAPIRouter(prefix="/users", tags=["Users: Admin CRUD"])
@@ -62,7 +68,7 @@ user_router = UserAPIRouter(tags=["Users - Self Service"]) # Renamed tag for cla
 #     # ... (implementation omitted as it's commented out)
 
 
-@controller(user_router) # Registers this class-based view with the user_router
+@controller(user_router)  # Registers this class-based view with the user_router
 class UserController(BaseUserController):
     """
     Controller for user self-service operations.
@@ -73,7 +79,7 @@ class UserController(BaseUserController):
     """
 
     @user_router.get("/self", response_model=UserRead, summary="Get Current User Profile")
-    def get_logged_in_user(self) -> PrivateUser: # Return type from BaseUserController is PrivateUser
+    def get_logged_in_user(self) -> PrivateUser:  # Return type from BaseUserController is PrivateUser
         """
         Retrieves the profile information of the currently authenticated user.
 
@@ -105,26 +111,27 @@ class UserController(BaseUserController):
                                            update fails for other reasons.
         """
         # Check if user's password is managed externally (e.g., LDAP)
-        if self.user.auth_method == AuthMethod.LDAP: # Comparing with enum member
+        if self.user.auth_method == AuthMethod.LDAP:  # Comparing with enum member
             self.logger.warning(f"User {self.user.username} (LDAP) attempted to change password via Marvin.")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=ErrorResponse.respond("Password for LDAP users cannot be changed here.")
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse.respond("Password for LDAP users cannot be changed here."),
             )
-        
+
         # Verify the current password
         if not CredentialsProvider.verify_password(
-            password_change_data.current_password, self.user.password # user.password should be hashed
+            password_change_data.current_password,
+            self.user.password,  # user.password should be hashed
         ):
             self.logger.warning(f"Incorrect current password provided by user {self.user.username} during password update.")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=ErrorResponse.respond("The current password provided is incorrect.")
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorResponse.respond("The current password provided is incorrect."),
             )
 
         # Hash the new password before updating
         hashed_new_password = hash_password(password_change_data.new_password)
-        
+
         try:
             # Update the password in the repository
             # The `update_password` method on the repo is assumed to handle the actual DB update.
@@ -136,14 +143,14 @@ class UserController(BaseUserController):
         except Exception as e:
             self.logger.exception(f"Failed to update password for user {self.user.username}: {e}")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, # Changed to 500 for unexpected update failure
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,  # Changed to 500 for unexpected update failure
                 detail=ErrorResponse.respond("Failed to update password due to a server error."),
             ) from e
 
         return SuccessResponse.respond("User password updated successfully.")
 
     @user_router.put("/{item_id}", response_model=SuccessResponse, summary="Update User Profile")
-    def update_user(self, item_id: UUID4, new_data: UserUpdate) -> SuccessResponse: # Changed new_data type to UserUpdate
+    def update_user(self, item_id: UUID4, new_data: UserUpdate) -> SuccessResponse:  # Changed new_data type to UserUpdate
         """
         Updates the profile information for a specified user.
 
@@ -180,7 +187,7 @@ class UserController(BaseUserController):
         except Exception as e:
             self.logger.exception(f"Failed to update user profile for ID {item_id}: {e}")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, # Changed to 500 for unexpected update failure
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,  # Changed to 500 for unexpected update failure
                 detail=ErrorResponse.respond("Failed to update user profile due to a server error."),
             ) from e
 

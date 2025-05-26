@@ -5,6 +5,7 @@ It allows loading logging configurations from JSON files, supporting different
 configurations for production, development, and testing environments. It also
 supports substituting placeholders in the configuration files.
 """
+
 import json
 import logging
 import pathlib

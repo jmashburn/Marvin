@@ -6,13 +6,15 @@ attributes (like logger, settings, and directory configurations) intended to be
 inherited by all other service classes within this package. This promotes
 consistency and reduces boilerplate in concrete service implementations.
 """
-from logging import Logger # For type hinting the logger attribute
+
+from logging import Logger  # For type hinting the logger attribute
 
 # Marvin core components for accessing application-wide configurations and utilities
 from marvin.core.config import AppDirectories, AppSettings, get_app_dirs, get_app_settings
+
 # get_app_plugins was imported but not used in BaseService.
 # from marvin.core.config import get_app_plugins
-from marvin.core.root_logger import get_logger # For obtaining a logger instance
+from marvin.core.root_logger import get_logger  # For obtaining a logger instance
 
 
 class BaseService:
@@ -27,6 +29,7 @@ class BaseService:
     Services inheriting from `BaseService` will automatically have these
     attributes initialized and available for use.
     """
+
     def __init__(self) -> None:
         """
         Initializes the BaseService.
@@ -34,9 +37,9 @@ class BaseService:
         Sets up common attributes: `logger`, `settings`, and `directories` by
         calling their respective global accessor functions from `marvin.core`.
         """
-        self.logger: Logger = get_logger()
+        self._logger: Logger = get_logger()
         """A logger instance for service-specific logging."""
-        self.settings: AppSettings = get_app_settings()
+        self._settings: AppSettings = get_app_settings()
         """An instance of `AppSettings` providing access to application configuration."""
-        self.directories: AppDirectories = get_app_dirs()
+        self._directories: AppDirectories = get_app_dirs()
         """An instance of `AppDirectories` providing access to key application paths."""

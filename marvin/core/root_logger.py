@@ -5,6 +5,7 @@ It initializes and configures a root logger based on the application settings
 and environment (development, testing, or production). Modules can then obtain
 logger instances from this root logger.
 """
+
 import logging
 
 from .config import get_app_dirs, get_app_settings
@@ -33,9 +34,7 @@ def get_logger(module=None) -> logging.Logger:
 
         substitutions = {"DATA_DIR": dirs.DATA_DIR.as_posix(), "LOG_LEVEL": app_settings.LOG_LEVEL.upper()}
 
-        __root_logger = configured_logger(
-            mode=mode, config_override=app_settings.LOG_CONFIG_OVERRIDE, substitutions=substitutions
-        )
+        __root_logger = configured_logger(mode=mode, config_override=app_settings.LOG_CONFIG_OVERRIDE, substitutions=substitutions)
 
     if module is None:
         return __root_logger

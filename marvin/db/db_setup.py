@@ -4,6 +4,7 @@ This module handles the global setup for the SQLAlchemy database connection.
 It initializes the database engine and session maker, and provides
 functions for generating and managing database sessions.
 """
+
 from collections.abc import Generator
 from contextlib import contextmanager
 

@@ -7,11 +7,12 @@ managing features, schedules, and sensitive data.
 
 Settings are loaded from environment variables and .env files.
 """
+
 import logging
 import os
 import secrets
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, NamedTuple
 
@@ -191,16 +192,14 @@ class AppSettings(BaseSettings):
         except ValueError:
             local_hour = 23
             local_minute = 45
-            self.logger.exception(
-                f"Unable to parse {self.DAILY_SCHEDULE_TIME=} as HH:MM; defaulting to {local_hour}:{local_minute}"
-            )
+            self.logger.exception(f"Unable to parse {self.DAILY_SCHEDULE_TIME=} as HH:MM; defaulting to {local_hour}:{local_minute}")
 
         # DAILY_SCHEDULE_TIME is in local time, so we convert it to UTC
         local_tz = tzlocal()
 
         now = datetime.now(local_tz)
         local_time = now.replace(hour=local_hour, minute=local_minute)
-        utc_time = local_time.astimezone(timezone.utc)
+        utc_time = local_time.astimezone(UTC)
 
         self.logger.debug(f"Local time: {local_hour}:{local_minute} | UTC time: {utc_time.hour}:{utc_time.minute}")
         return ScheduleTime(utc_time.hour, utc_time.minute)
@@ -266,6 +265,9 @@ class AppSettings(BaseSettings):
 
     _DEFAULT_GROUP: str = "Default"
     """Default group for the initial admin user, if created."""
+
+    _DEFAULT_INTEGRATION_ID: str = "generic"
+    """# Default identifier for integrations if not specified when creating an API token."""
 
     # ===============================================
     # Email Configuration
@@ -500,7 +502,7 @@ class AppSettings(BaseSettings):
         description = None
         if not self.OPENAI_API_KEY:
             description = "OPENAI_API_KEY is not set"
-        elif not self.OPENAI_MODEL: # Corrected: check if OPENAI_MODEL is not set
+        elif not self.OPENAI_MODEL:  # Corrected: check if OPENAI_MODEL is not set
             description = "OPENAI_MODEL is not set"
 
         return FeatureDetails(
@@ -606,12 +608,12 @@ def app_plugin_settings_constructor(
     production: bool,
     env_secrets: Path,
     secrets_dir: Path,
-        env_encoding: str = "utf-8",
+    env_encoding: str = "utf-8",
     description: str | None = None,
     author: str | None = None,
     author_email: str | None = None,
     env_nested_delimiter: str = "__",
-        settings_class: type[PluginSettings] = PluginSettings, # Changed default to PluginSettings
+    settings_class: type[PluginSettings] = PluginSettings,  # Changed default to PluginSettings
 ) -> PluginSettings:
     """
     Factory function to create and configure `PluginSettings` objects.

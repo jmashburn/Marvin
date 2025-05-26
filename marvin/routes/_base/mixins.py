@@ -7,16 +7,18 @@ It standardizes exception handling by converting repository or database errors
 into appropriate FastAPI `HTTPException` responses. This mixin is intended
 to be used via composition within FastAPI route controller classes.
 """
-from collections.abc import Callable # For typing callables like exception_msgs
-from logging import Logger # For type hinting logger
-from typing import Generic, TypeVar # For creating generic classes and types
 
-import sqlalchemy.exc # For catching specific SQLAlchemy exceptions
-from fastapi import HTTPException, status # For raising HTTP exceptions
-from pydantic import UUID4, BaseModel # For UUID type and base Pydantic model
+from collections.abc import Callable  # For typing callables like exception_msgs
+from logging import Logger  # For type hinting logger
+from typing import Generic, TypeVar  # For creating generic classes and types
+
+import sqlalchemy.exc  # For catching specific SQLAlchemy exceptions
+from fastapi import HTTPException, status  # For raising HTTP exceptions
+from pydantic import UUID4, BaseModel  # For UUID type and base Pydantic model
 
 # Assuming RepositoryGeneric is defined elsewhere and provides CRUD methods
 from marvin.repos.repository_generic import RepositoryGeneric
+
 # Assuming ErrorResponse is a Pydantic model or utility for formatting error details
 from marvin.schemas.response import ErrorResponse
 
@@ -44,7 +46,7 @@ class HttpRepo(Generic[C, R, U]):
     ```
     """
 
-    repo: RepositoryGeneric[R, Any, C, U] # Type hint for the repository this mixin operates on
+    repo: RepositoryGeneric  # Type hint for the repository this mixin operates on
     """The generic repository instance for database operations."""
 
     exception_msgs: Callable[[type[Exception]], str] | None
@@ -61,7 +63,7 @@ class HttpRepo(Generic[C, R, U]):
 
     def __init__(
         self,
-        repo: RepositoryGeneric[R, Any, C, U], # Specific type hints for repo based on C, R, U
+        repo: RepositoryGeneric,  # Specific type hints for repo based on C, R, U
         logger: Logger,
         exception_msgs: Callable[[type[Exception]], str] | None = None,
         default_message: str | None = None,
@@ -70,7 +72,7 @@ class HttpRepo(Generic[C, R, U]):
         Initializes the HttpRepo mixin.
 
         Args:
-            repo (RepositoryGeneric[R, Any, C, U]): The repository instance for data operations.
+            repo (RepositoryGeneric[R, C, U]): The repository instance for data operations.
                 The generic types `R`, `C`, `U` should correspond to the Pydantic
                 schemas for Read, Create, and Update operations respectively for the
                 entity being managed. `Any` is used for the SQLAlchemy Model type as
@@ -86,7 +88,7 @@ class HttpRepo(Generic[C, R, U]):
         self.logger = logger
         self.exception_msgs = exception_msgs
 
-        if default_message: # Override default message if provided
+        if default_message:  # Override default message if provided
             self.default_message = default_message
 
     def get_exception_message(self, ex: Exception) -> str:
@@ -104,7 +106,7 @@ class HttpRepo(Generic[C, R, U]):
         """
         if self.exception_msgs:
             custom_msg = self.exception_msgs(type(ex))
-            if custom_msg: # Ensure the callable returned a non-empty message
+            if custom_msg:  # Ensure the callable returned a non-empty message
                 return custom_msg
         return self.default_message
 
@@ -125,7 +127,7 @@ class HttpRepo(Generic[C, R, U]):
         # Log the full exception traceback for debugging
         self.logger.exception(ex)
         # Rollback the current database session to prevent inconsistent state
-        if hasattr(self.repo, 'session') and self.repo.session:
+        if hasattr(self.repo, "session") and self.repo.session:
             self.repo.session.rollback()
 
         # Determine the user-facing error message
@@ -143,11 +145,11 @@ class HttpRepo(Generic[C, R, U]):
         else:
             # Default to 400 Bad Request for other handled operational errors
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, # Or consider 500 for truly unexpected internal errors
+                status_code=status.HTTP_400_BAD_REQUEST,  # Or consider 500 for truly unexpected internal errors
                 detail=ErrorResponse.respond(message=msg, exception=str(ex)),
             )
 
-    def create_one(self, data: C) -> R: # Return type R, as create usually returns the created object
+    def create_one(self, data: C) -> R:  # Return type R, as create usually returns the created object
         """
         Creates a single new resource.
 
@@ -170,7 +172,7 @@ class HttpRepo(Generic[C, R, U]):
             # handle_exception raises, so this part is effectively unreachable,
             # but linters/compilers might require a return path.
             # Consider re-raising or returning a specific error model if handle_exception didn't raise.
-            raise # Should be unreachable as handle_exception raises
+            raise  # Should be unreachable as handle_exception raises
 
     def get_one(self, item_id: int | str | UUID4, key: str | None = None) -> R:
         """
@@ -198,7 +200,7 @@ class HttpRepo(Generic[C, R, U]):
             )
         return item
 
-    def update_one(self, item_id: int | str | UUID4, data: U) -> R: # item_id first for consistency
+    def update_one(self, item_id: int | str | UUID4, data: U) -> R:  # item_id first for consistency
         """
         Updates an existing resource.
 
@@ -220,7 +222,7 @@ class HttpRepo(Generic[C, R, U]):
         # Note: This is an extra DB call. If repo.update handles not found by raising
         # an exception that handle_exception can map to 404, this explicit check could be removed.
         # However, it's safer to ensure the item exists first.
-        _ = self.get_one(item_id) # Ensures item exists, will raise 404 if not.
+        _ = self.get_one(item_id)  # Ensures item exists, will raise 404 if not.
 
         try:
             # Assuming repo.update takes ID and data, and returns an object validatable to R
@@ -228,9 +230,9 @@ class HttpRepo(Generic[C, R, U]):
             return updated_item
         except Exception as ex:
             self.handle_exception(ex)
-            raise # Unreachable due to handle_exception raising
+            raise  # Unreachable due to handle_exception raising
 
-    def patch_one(self, item_id: int | str | UUID4, data: U) -> R: # item_id first
+    def patch_one(self, item_id: int | str | UUID4, data: U) -> R:  # item_id first
         """
         Partially updates an existing resource using a PATCH-like approach.
 
@@ -250,13 +252,13 @@ class HttpRepo(Generic[C, R, U]):
             HTTPException (404 Not Found): If the resource to patch is not found.
             HTTPException: If the patch operation fails (via `handle_exception`).
         """
-        _ = self.get_one(item_id) # Ensures item exists, will raise 404 if not.
+        _ = self.get_one(item_id)  # Ensures item exists, will raise 404 if not.
 
         try:
             # Prepare data for partial update (only fields that are set)
             patch_data = data.model_dump(exclude_unset=True, exclude_defaults=True)
-            if not patch_data: # If no actual data sent for patching
-                 raise HTTPException(
+            if not patch_data:  # If no actual data sent for patching
+                raise HTTPException(
                     status.HTTP_400_BAD_REQUEST,
                     detail=ErrorResponse.respond(message="No fields provided for patch operation."),
                 )
@@ -267,13 +269,13 @@ class HttpRepo(Generic[C, R, U]):
             # If `RepositoryGeneric` has a `patch` method:
             # patched_item = self.repo.patch(item_id, patch_data)
             # If not, and `update` handles dicts with partial data:
-            patched_item = self.repo.update(item_id, patch_data) # type: ignore # If update expects full U schema
+            patched_item = self.repo.update(item_id, patch_data)  # type: ignore # If update expects full U schema
             return patched_item
         except Exception as ex:
             self.handle_exception(ex)
-            raise # Unreachable
+            raise  # Unreachable
 
-    def delete_one(self, item_id: int | str | UUID4) -> R: # Return type R for consistency
+    def delete_one(self, item_id: int | str | UUID4) -> R:  # Return type R for consistency
         """
         Deletes a single resource by its ID.
 
@@ -296,4 +298,4 @@ class HttpRepo(Generic[C, R, U]):
             return deleted_item
         except Exception as ex:
             self.handle_exception(ex)
-            raise # Unreachable
+            raise  # Unreachable

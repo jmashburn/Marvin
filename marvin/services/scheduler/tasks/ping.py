@@ -5,11 +5,12 @@ The primary purpose of this task is to provide a basic, lightweight function
 that can be scheduled to run periodically, allowing administrators or developers
 to verify that the scheduler service is operational by observing the logs.
 """
-from marvin.core import root_logger # Application logger
+
+from marvin.core import root_logger  # Application logger
 
 # Logger instance for this module, typically will inherit the "scheduler" logger if called from there
 # or can be configured to be specific like "scheduler.tasks.ping".
-logger = root_logger.get_logger(__name__) # Using __name__ for more specific logger if desired
+logger = root_logger.get_logger(__name__)  # Using __name__ for more specific logger if desired
 
 
 def ping() -> None:

@@ -10,7 +10,7 @@ It serves as a basic or placeholder webhook handler, primarily overriding the
 # `Session` from sqlalchemy.orm.session was imported but not used directly in type hints here.
 # from sqlalchemy.orm.session import Session
 
-from .base_webhook import BaseWebhook # Base class for webhook handlers
+from .base_webhook import BaseWebhook  # Base class for webhook handlers
 
 
 class GenericWebhook(BaseWebhook):

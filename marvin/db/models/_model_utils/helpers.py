@@ -9,6 +9,7 @@ It includes utilities to:
   objects or calling functions where the input data might contain extra keys
   that are not part of the function's signature.
 """
+
 import inspect
 from collections.abc import Callable
 from typing import Any

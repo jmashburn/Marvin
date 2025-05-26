@@ -5,18 +5,20 @@ It provides a simple way to verify that the application is running and responsiv
 This endpoint is typically used by monitoring services or container orchestration
 platforms (like Kubernetes or Docker Swarm) to determine the application's health status.
 """
-from fastapi import Response, status, APIRouter # Added APIRouter for router instantiation
-from pydantic import BaseModel # For defining response models
+
+from fastapi import Response, status  # Added APIRouter for router instantiation
+from pydantic import BaseModel  # For defining response models
 
 # Marvin core components and base controller
 from marvin.core.config import get_app_settings
+
 # from marvin.core.settings.static import APP_VERSION # APP_VERSION import is unused in this file
-from marvin.routes._base import BasePublicController, BaseAPIRouter, controller
+from marvin.routes._base import BaseAPIRouter, BasePublicController, controller
 
 # APIRouter for health check, using BaseAPIRouter for consistency.
 # This is a public endpoint, so no specific authentication dependencies are added here.
 # All routes will be under /app/health.
-router = BaseAPIRouter(prefix="/health", tags=["Application - Health"])
+router = BaseAPIRouter(prefix="/health")
 
 
 class HealthCheck(BaseModel):
@@ -24,7 +26,8 @@ class HealthCheck(BaseModel):
     Response model for the health check endpoint.
     Indicates the operational status of the application.
     """
-    status: str = "OK" # Default status indicating the application is healthy.
+
+    status: str = "OK"  # Default status indicating the application is healthy.
 
 
 @controller(router)
@@ -41,8 +44,8 @@ class HealthController(BasePublicController):
         "",
         summary="Perform a Health Check",
         response_description="Returns HTTP Status Code 200 (OK) if the application is healthy.",
-        status_code=status.HTTP_200_OK, # Explicitly set success status code
-        response_model=HealthCheck,    # Define the response model
+        status_code=status.HTTP_200_OK,  # Explicitly set success status code
+        response_model=HealthCheck,  # Define the response model
     )
     def get_health(self, resp: Response) -> HealthCheck:
         """
@@ -61,12 +64,12 @@ class HealthController(BasePublicController):
         Returns:
             HealthCheck: A Pydantic model indicating the health status (typically "OK").
         """
-        _ = get_app_settings() # Access settings, though not directly used in response here, ensures config loads.
-        
+        _ = get_app_settings()  # Access settings, though not directly used in response here, ensures config loads.
+
         # Set Cache-Control header to allow public caching for 1 week (604800 seconds).
         # This can reduce load if the health check is called very frequently.
         # 604600 is slightly less than 7 days. Standard 7 days = 604800.
-        resp.headers["Cache-Control"] = "public, max-age=604800" # Corrected max-age
-        
+        resp.headers["Cache-Control"] = "public, max-age=604800"  # Corrected max-age
+
         # Return the health status
         return HealthCheck(status="OK")

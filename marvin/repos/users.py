@@ -5,19 +5,21 @@ It provides the `RepositoryUsers` class, which extends `GroupRepositoryGeneric`
 to include user-specific operations and logic, such as password updates and
 special handling for a demo mode where default user modifications are restricted.
 """
-from pydantic import UUID4 # For type hinting UUIDs
+
+from pydantic import UUID4  # For type hinting UUIDs
 from sqlalchemy import select
 
-from marvin.core.config import get_app_settings # Access application settings like IS_DEMO
-from marvin.schemas.user.user import PrivateUser, UserCreate, UserUpdate # Pydantic schemas for User
-from ..db.models.users import Users as UsersModel # SQLAlchemy User model, aliased for clarity
-from .repository_generic import GroupRepositoryGeneric # Base class for group-scoped repositories
+from marvin.core.config import get_app_settings  # Access application settings like IS_DEMO
+from marvin.schemas.user.user import PrivateUser, UserCreate, UserUpdate  # Pydantic schemas for User
+
+from ..db.models.users import Users as UsersModel  # SQLAlchemy User model, aliased for clarity
+from .repository_generic import GroupRepositoryGeneric  # Base class for group-scoped repositories
 
 # Global application settings instance
 settings = get_app_settings()
 
 
-class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel, UserCreate, UserUpdate]):
+class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
     """
     Specialized repository for User entities.
 
@@ -41,11 +43,11 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel, UserCreate
 
         Returns:
             PrivateUser: The Pydantic schema of the user with the updated password.
-        
+
         Raises:
             HTTPException(404): If the user is not found (from `_query_one`).
         """
-        entry = self._query_one(match_value=user_id) # Fetches the SQLAlchemy User model instance
+        entry = self._query_one(match_value=user_id)  # Fetches the SQLAlchemy User model instance
         if not entry:
             # This case should ideally be handled by _query_one raising an error
             # or returning None, which should then be checked.
@@ -55,23 +57,22 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel, UserCreate
             # Based on RepositoryGeneric._query_one, it calls .one() which raises if not found.
             pass
 
-
         if settings.IS_DEMO:
             # In demo mode, prevent password updates for the default user.
             # Assumes the schema or model has an 'is_default_user' attribute.
             user_schema_for_check = self.schema.model_validate(entry)
             if hasattr(user_schema_for_check, "is_default_user") and user_schema_for_check.is_default_user:
                 self.logger.warning(f"Attempt to update password for default user in demo mode (User ID: {user_id}). Operation blocked.")
-                return user_schema_for_check # Return user data without changes
+                return user_schema_for_check  # Return user data without changes
 
         # Call the method on the SQLAlchemy model instance to update the password
-        entry.update_password(password) 
+        entry.update_password(password)
         self.session.commit()
-        self.session.refresh(entry) # Refresh to get any DB-side updates
+        self.session.refresh(entry)  # Refresh to get any DB-side updates
 
         return self.schema.model_validate(entry)
 
-    def create(self, user_data: UserCreate | dict) -> PrivateUser: # type: ignore
+    def create(self, user_data: UserCreate | dict) -> PrivateUser:  # type: ignore
         """
         Creates a new user.
 
@@ -109,15 +110,15 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel, UserCreate
         if settings.IS_DEMO:
             # Fetch the user first to check if it's the default user.
             # Use `get_one` which returns the schema, suitable for checking `is_default_user`.
-            user_to_update_check = self.get_one(match_value) # `match_value` could be ID or other key if `get_one` is flexible
+            user_to_update_check = self.get_one(match_value)  # `match_value` could be ID or other key if `get_one` is flexible
             if user_to_update_check and hasattr(user_to_update_check, "is_default_user") and user_to_update_check.is_default_user:
                 self.logger.warning(f"Attempt to update default user in demo mode (User ID/match: {match_value}). Operation blocked.")
-                return user_to_update_check # Return existing data without changes
+                return user_to_update_check  # Return existing data without changes
 
         # If not demo mode or not the default user, proceed with the update.
         return super().update(match_value, new_data)
 
-    def delete(self, value: UUID4 | str, match_key: str | None = None) -> PrivateUser: # Changed return to PrivateUser
+    def delete(self, value: UUID4 | str, match_key: str | None = None) -> PrivateUser:  # Changed return to PrivateUser
         """
         Deletes a user.
 
@@ -137,7 +138,7 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel, UserCreate
             user_to_delete_check = self.get_one(value, key=match_key)
             if user_to_delete_check and hasattr(user_to_delete_check, "is_default_user") and user_to_delete_check.is_default_user:
                 self.logger.warning(f"Attempt to delete default user in demo mode (User ID/match: {value}). Operation blocked.")
-                return user_to_delete_check # Return existing data without deletion
+                return user_to_delete_check  # Return existing data without deletion
 
         # If not demo mode or not default user, proceed with deletion.
         # super().delete returns Schema (which is PrivateUser here).
@@ -162,7 +163,7 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel, UserCreate
         # If usernames should be group-scoped, this query needs adjustment.
         stmt = select(UsersModel).filter(UsersModel.username == username)
         db_user = self.session.execute(stmt).scalars().one_or_none()
-        
+
         if db_user is None:
             return None
         return self.schema.model_validate(db_user)
@@ -179,6 +180,6 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel, UserCreate
         # This query also bypasses `_filter_builder` and seems to fetch system-wide
         # locked users, not scoped by the repository's `group_id`.
         # This is generally appropriate for system admin tasks.
-        stmt = select(UsersModel).filter(UsersModel.locked_at.isnot(None)) # Corrected SQLAlchemy filter for NOT NULL
+        stmt = select(UsersModel).filter(UsersModel.locked_at.isnot(None))  # Corrected SQLAlchemy filter for NOT NULL
         db_users = self.session.execute(stmt).scalars().all()
         return [self.schema.model_validate(user_model) for user_model in db_users]

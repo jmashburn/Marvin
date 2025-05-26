@@ -5,16 +5,17 @@ accessible to authenticated users within the Marvin application.
 It provides endpoints to retrieve general application details (like version),
 startup configuration information, and theme settings.
 """
-from fastapi import Response, APIRouter # APIRouter needed for router instantiation
+
+from fastapi import Response  # APIRouter needed for router instantiation
 
 from marvin.core.config import get_app_settings
-from marvin.core.settings.static import APP_VERSION # Current application version
-from marvin.routes._base import UserAPIRouter # Base router for authenticated user endpoints
-from marvin.schemas.app import AppInfo, AppStartupInfo, AppTheme # Pydantic response models
+from marvin.core.settings.static import APP_VERSION  # Current application version
+from marvin.routes._base import UserAPIRouter  # Base router for authenticated user endpoints
+from marvin.schemas.app import AppInfo, AppStartupInfo, AppTheme  # Pydantic response models
 
 # APIRouter for "about" section, prefixed with /about and using UserAPIRouter for auth
 # All routes in this controller will be under /app/about due to UserAPIRouter in main app and this prefix.
-router = UserAPIRouter(prefix="/about", tags=["Application - About"])
+router = UserAPIRouter(prefix="/about")
 
 
 @router.get("", response_model=AppInfo, summary="Get Basic Application Information")
@@ -28,11 +29,11 @@ def get_app_info() -> AppInfo:
     Returns:
         AppInfo: A Pydantic model containing the application version and production status.
     """
-    settings = get_app_settings() # Access application settings
+    settings = get_app_settings()  # Access application settings
 
     return AppInfo(
-        version=APP_VERSION, # From static settings
-        production=settings.PRODUCTION, # From dynamic settings
+        version=APP_VERSION,  # From static settings
+        production=settings.PRODUCTION,  # From dynamic settings
     )
 
 
@@ -49,7 +50,7 @@ def get_startup_info() -> AppStartupInfo:
     Returns:
         AppStartupInfo: A Pydantic model (currently empty) intended for startup information.
     """
-    settings = get_app_settings() # Access application settings (though not used in current AppStartupInfo)
+    # settings = get_app_settings()  # Access application settings (though not used in current AppStartupInfo)
 
     # Assuming AppStartupInfo might be populated with settings in the future.
     # For now, it will return an empty AppStartupInfo object if the schema has no fields.
@@ -72,11 +73,11 @@ def get_app_theme(resp: Response) -> AppTheme:
     Returns:
         AppTheme: A Pydantic model containing the application theme settings.
     """
-    settings = get_app_settings() # Access application settings
+    settings = get_app_settings()  # Access application settings
 
     # Set Cache-Control header to allow public caching for 1 week (604800 seconds)
     # max-age is in seconds. 604600 is slightly less than 7 days. Standard 7 days = 604800.
-    resp.headers["Cache-Control"] = "public, max-age=604800" # Corrected max-age
-    
+    resp.headers["Cache-Control"] = "public, max-age=604800"  # Corrected max-age
+
     # Return theme settings, unpacking the theme model from settings
     return AppTheme(**settings.theme.model_dump())

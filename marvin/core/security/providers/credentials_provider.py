@@ -5,6 +5,7 @@ It allows users to authenticate using their username and password stored in the
 application's database. It also handles login attempt tracking and user locking
 to prevent brute-force attacks.
 """
+
 from datetime import timedelta
 
 from sqlalchemy.orm.session import Session
@@ -62,9 +63,7 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
 
         if user.auth_method != AuthMethod.MARVIN:
             self.verify_fake_password()
-            self._logger.warning(
-                "Found user but their auth method is not 'MARVIN'. Unable to continue with credentials login"
-            )
+            self._logger.warning("Found user but their auth method is not 'MARVIN'. Unable to continue with credentials login")
             return None
 
         if user.login_attemps >= settings.SECURITY_MAX_LOGIN_ATTEMPTS or user.is_locked:

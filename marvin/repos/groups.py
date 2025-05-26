@@ -6,22 +6,23 @@ to include group-specific operations such as automatic slug generation,
 handling of unique name constraints with retries, and fetching groups
 by name or slug/ID.
 """
+
 from collections.abc import Iterable
 from typing import cast
-from uuid import UUID as PyUUID # Alias UUID to avoid confusion with pydantic.UUID4
+from uuid import UUID as PyUUID  # Alias UUID to avoid confusion with pydantic.UUID4
 
-from pydantic import UUID4 # For type hinting
-from slugify import slugify # For generating URL-friendly slugs
+from pydantic import UUID4  # For type hinting
+from slugify import slugify  # For generating URL-friendly slugs
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError # For handling database constraint violations
+from sqlalchemy.exc import IntegrityError  # For handling database constraint violations
 
-from marvin.db.models.groups import Groups as GroupsModel # Aliased for clarity
+from marvin.db.models.groups import Groups as GroupsModel  # Aliased for clarity
 from marvin.schemas.group import GroupCreate, GroupRead, GroupUpdate
 
 from .repository_generic import RepositoryGeneric
 
 
-class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel, GroupCreate, GroupUpdate]):
+class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel]):
     """
     Specialized repository for Group entities.
 
@@ -55,27 +56,26 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel, GroupCreate, Gro
             # Ensure we are working with a copy if it's a dictionary
             data_dict = data.copy()
 
-
         max_attempts = 10
-        original_name = cast(str, data_dict["name"]) # Keep track of the original name for retries
+        original_name = cast(str, data_dict["name"])  # Keep track of the original name for retries
         current_name = original_name
 
         attempts = 0
         while True:
-            data_dict["name"] = current_name # Use current (potentially modified) name
-            data_dict["slug"] = slugify(current_name) # Generate slug from current name
+            data_dict["name"] = current_name  # Use current (potentially modified) name
+            data_dict["slug"] = slugify(current_name)  # Generate slug from current name
 
             try:
                 # Attempt to create the group using the generic superclass method
                 created_group = super().create(data_dict)
                 return created_group
             except IntegrityError:
-                self.session.rollback() # Rollback the failed transaction
+                self.session.rollback()  # Rollback the failed transaction
                 attempts += 1
                 if attempts >= max_attempts:
                     # If max attempts reached, re-raise the last IntegrityError
                     raise
-                
+
                 # Modify name for the next attempt
                 current_name = f"{original_name} ({attempts})"
 
@@ -112,17 +112,16 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel, GroupCreate, Gro
             GroupRead: The Pydantic schema of the updated group.
         """
         if isinstance(new_data, GroupUpdate):
-            data_dict = new_data.model_dump(exclude_unset=True) # Prepare data for update
-            if "name" in data_dict: # If name is being updated, regenerate slug
+            data_dict = new_data.model_dump(exclude_unset=True)  # Prepare data for update
+            if "name" in data_dict:  # If name is being updated, regenerate slug
                 data_dict["slug"] = slugify(data_dict["name"])
         elif isinstance(new_data, dict):
-            data_dict = new_data.copy() # Work with a copy
+            data_dict = new_data.copy()  # Work with a copy
             if "name" in data_dict:
                 data_dict["slug"] = slugify(data_dict["name"])
         else:
             # Should not happen if type hints are respected
             raise TypeError("new_data must be of type GroupUpdate or dict")
-
 
         return super().update(match_value, data_dict)
 
@@ -152,12 +151,11 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel, GroupCreate, Gro
                 # Depending on `RepositoryGeneric.update`'s `match_key` this might fail.
                 # If `match_key` is not 'id', this needs adjustment.
                 # Assuming default `match_key` is 'id' for this example.
-                raise ValueError("Group ID not found for update_many operation.") # Or log and continue
-            
+                raise ValueError("Group ID not found for update_many operation.")  # Or log and continue
+
             # The first argument to update is `match_value`. If the generic update uses 'id' as match_key:
             updated_groups.append(self.update(group_id, group_data))
         return updated_groups
-
 
     def get_by_name(self, name: str) -> GroupRead | None:
         """
@@ -169,9 +167,7 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel, GroupCreate, Gro
         Returns:
             GroupRead | None: The group schema if found, otherwise None.
         """
-        db_group = self.session.execute(
-            select(self.model).filter_by(name=name)
-        ).scalars().one_or_none()
+        db_group = self.session.execute(select(self.model).filter_by(name=name)).scalars().one_or_none()
 
         if db_group is None:
             return None
@@ -190,8 +186,8 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel, GroupCreate, Gro
         Returns:
             GroupRead | None: The group schema if found, otherwise None.
         """
-        if isinstance(slug_or_id, (PyUUID, UUID4)): # Check if it's already a UUID object
-            return self.get_one(slug_or_id, key="id") # Use 'id' as the key for lookup
+        if isinstance(slug_or_id, (PyUUID | UUID4)):  # Check if it's already a UUID object
+            return self.get_one(slug_or_id, key="id")  # Use 'id' as the key for lookup
         elif isinstance(slug_or_id, str):
             # Try to convert string to UUID first, in case an ID was passed as string
             try:
@@ -205,5 +201,5 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel, GroupCreate, Gro
                 pass
             # If not found by ID (or wasn't a valid UUID string), try by slug
             return self.get_one(slug_or_id, key="slug")
-        
-        return None # Should not be reached if type hints are correct
+
+        return None  # Should not be reached if type hints are correct

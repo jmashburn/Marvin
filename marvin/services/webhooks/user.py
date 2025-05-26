@@ -10,7 +10,7 @@ associated with user events, overriding the base `info` method to identify itsel
 # `Session` from sqlalchemy.orm.session was imported but not used directly in type hints here.
 # from sqlalchemy.orm.session import Session
 
-from .base_webhook import BaseWebhook # Base class for webhook handlers
+from .base_webhook import BaseWebhook  # Base class for webhook handlers
 
 
 class UserWebhook(BaseWebhook):
@@ -29,7 +29,7 @@ class UserWebhook(BaseWebhook):
     than full CRUD operations via webhooks for users.
     """
 
-    def info(self) -> str: # Consider returning a dict or Pydantic model for more structured info
+    def info(self) -> str:  # Consider returning a dict or Pydantic model for more structured info
         """
         Provides identifying information for this user-specific webhook type.
 
