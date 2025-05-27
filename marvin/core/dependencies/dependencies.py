@@ -65,11 +65,24 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
 
 
 async def get_public_group(group_slug: str = fastapi.Path(...), session=Depends(generate_session)) -> GroupRead:
+    """
+    FastAPI dependency to get a public group by its slug.
+
+    Args:
+        group_slug (str): The slug of the group.
+        session: SQLAlchemy session dependency.
+
+    Raises:
+        HTTPException: If the group is not found or is private.
+
+    Returns:
+        GroupRead: The public group.
+    """
     repos = get_repositories(session)
     group = repos.groups.get_by_slug_or_id(group_slug)
 
     if not group or group.preferences.private_group:
-        raise HTTPException(404, "group not found")
+        raise HTTPException(404, "Group not found")
     else:
         return group
 
@@ -79,6 +92,19 @@ async def try_get_current_user(
     token: str = Depends(oauth2_scheme_soft_fail),
     session=Depends(generate_session),
 ) -> PrivateUser | None:
+    """
+    FastAPI dependency to try to get the current user.
+
+    This dependency will not raise an exception if the user is not authenticated.
+
+    Args:
+        request (Request): The FastAPI request object.
+        token (str, optional): The OAuth2 token. Defaults to Depends(oauth2_scheme_soft_fail).
+        session: SQLAlchemy session dependency.
+
+    Returns:
+        PrivateUser | None: The current user if authenticated, otherwise None.
+    """
     try:
         return await get_current_user(request, token, session)
     except Exception:
@@ -90,6 +116,22 @@ async def get_current_user(
     token: str | None = Depends(oauth2_scheme_soft_fail),
     session=Depends(generate_session),
 ) -> PrivateUser:
+    """
+    FastAPI dependency to get the current authenticated user.
+
+    It tries to get the token from the Authorization header or a cookie.
+
+    Args:
+        request (Request): The FastAPI request object.
+        token (str | None, optional): The OAuth2 token. Defaults to Depends(oauth2_scheme_soft_fail).
+        session: SQLAlchemy session dependency.
+
+    Raises:
+        HTTPException: If the user is not authenticated or the token is invalid.
+
+    Returns:
+        PrivateUser: The authenticated user.
+    """
     if token is None and "marvin.access_token" in request.cookies:
         # Try extract from cookie
         token = request.cookies.get("marvin.access_token", "")
@@ -124,21 +166,59 @@ async def get_current_user(
 
 
 async def get_integration_id(token: str = Depends(oauth2_scheme)) -> str:
+    """
+    FastAPI dependency to get the integration ID from the token.
+
+    Args:
+        token (str): The OAuth2 token. Defaults to Depends(oauth2_scheme).
+
+    Raises:
+        HTTPException: If the token is invalid.
+
+    Returns:
+        str: The integration ID.
+    """
     try:
         decoded_token = jwt.decode(token, settings.SECRET, algorithms=[ALGORITHM])
-        return decoded_token.get("integration_id", DEFAULT_INTEGRATION_ID)
+        return decoded_token.get("integration_id", settings._DEFAULT_INTEGRATION_ID)
 
     except PyJWTError as e:
         raise credentials_exception from e
 
 
 async def get_admin_user(current_user: PrivateUser = Depends(get_current_user)) -> PrivateUser:
+    """
+    FastAPI dependency to ensure the current user is an admin.
+
+    Args:
+        current_user (PrivateUser): The current authenticated user. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: If the user is not an admin.
+
+    Returns:
+        PrivateUser: The admin user.
+    """
     if not current_user.admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN)
     return current_user
 
 
 def validate_long_live_token(session: Session, client_token: str, user_id: str) -> PrivateUser:
+    """
+    Validates a long-lived API token.
+
+    Args:
+        session (Session): SQLAlchemy session.
+        client_token (str): The token provided by the client.
+        user_id (str): The user ID associated with the token.
+
+    Raises:
+        HTTPException: If the token is invalid or not found.
+
+    Returns:
+        PrivateUser: The user associated with the token.
+    """
     repos = get_repositories(session, group_id=None)
 
     token = repos.api_tokens.multi_query({"token": client_token, "user_id": user_id})
@@ -178,6 +258,15 @@ def validate_file_token(token: str | None = None) -> Path:
 
 @contextmanager
 def get_temporary_zip_path(auto_unlink=True) -> Generator[Path, None, None]:
+    """
+    Context manager to get a temporary path for a zip file.
+
+    Args:
+        auto_unlink (bool, optional): Whether to automatically delete the file on exit. Defaults to True.
+
+    Yields:
+        Generator[Path, None, None]: The path to the temporary zip file.
+    """
     app_dirs.TEMP_DIR.mkdir(exist_ok=True, parents=True)
     temp_path = app_dirs.TEMP_DIR.joinpath("my_zip_archive.zip")
     try:
@@ -189,6 +278,15 @@ def get_temporary_zip_path(auto_unlink=True) -> Generator[Path, None, None]:
 
 @contextmanager
 def get_temporary_path(auto_unlink=True) -> Generator[Path, None, None]:
+    """
+    Context manager to get a temporary directory path.
+
+    Args:
+        auto_unlink (bool, optional): Whether to automatically delete the directory on exit. Defaults to True.
+
+    Yields:
+        Generator[Path, None, None]: The path to the temporary directory.
+    """
     temp_path = app_dirs.TEMP_DIR.joinpath(uuid4().hex)
     temp_path.mkdir(exist_ok=True, parents=True)
     try:
@@ -200,7 +298,15 @@ def get_temporary_path(auto_unlink=True) -> Generator[Path, None, None]:
 
 def temporary_file(ext: str = "") -> Callable[[], Generator[tempfile._TemporaryFileWrapper, None, None]]:
     """
-    Returns a temporary file with the specified extension
+    Returns a context manager that yields a temporary file with the specified extension.
+
+    The file is created in the application's temporary directory and is deleted on exit.
+
+    Args:
+        ext (str, optional): The file extension. Defaults to "".
+
+    Returns:
+        Callable[[], Generator[tempfile._TemporaryFileWrapper, None, None]]: A context manager function.
     """
 
     def func():

@@ -3,7 +3,7 @@ name = "marvin"
 version = "0.1.0"
 description = "Marvin"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.15.2",
     "apprise>=1.9.3",
@@ -13,17 +13,19 @@ dependencies = [
     "fastapi>=0.115.12",
     "go-task-bin>=3.43.3",
     "html2text>=2025.4.15",
-    "humps>=0.2.2",
     "isodate>=0.7.2",
     "jinja2>=3.1.6",
     "mangum>=0.19.0",
     "marvin-test",
     "mcp[cli]>=1.7.1",
+    "numpy>=2.2.6",
     "pre-commit>=4.2.0",
+    "pydantic-core>=2.33.2",
     "pydantic-settings>=2.9.1",
     "pyhumps>=3.8.0",
     "pyjwt>=2.10.1",
     "python-dateutil>=2.9.0.post0",
+    "python-ldap>=3.4.4",
     "python-slugify>=8.0.4",
     "rich>=14.0.0",
     "ruff>=0.11.7",
@@ -31,21 +33,24 @@ dependencies = [
     "sqlalchemy-ext>=0.2",
     "sqlalchemy-orm>=1.2.10",
     "starlette>=0.46.2",
-    "sync>=1.0.0",
     "text-unidecode>=1.3",
+    "types-python-dateutil>=2.9.0.20250516",
+    "types-requests>=2.32.0.20250515",
     "unicode>=2.9",
     "uvicorn>=0.34.2",
 ]
 
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
     "coverage>=7.8.0",
     "freezegun>=1.5.1",
+    "materialx>=1.39.3",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.14",
     "mypy>=1.15.0",
     "pylint>=3.3.7",
     "pytest>=8.3.5",
@@ -60,6 +65,7 @@ postgres = [
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"
+asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
 python_classes = '*Tests'
 python_files = 'test_*'
@@ -73,43 +79,68 @@ skip_empty = true
 follow_imports = "skip"
 ignore_missing_imports = true
 plugins = "pydantic.mypy"
-python_version = "3.10"
+python_version = "3.12"
 strict_optional = true
 
 [tool.ruff]
-line-length = 120
+line-length = 150
 output-format = "concise"
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "venv",
+]
+
+# Assume Python 3.12.
+target-version = "py312"
+
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]
 
 [tool.ruff.lint]
 # Enable Pyflakes `E` and `F` codes by default.
 ignore = ["F403", "TID252", "B008"]
 select = [
+  "B",  # flake8-bugbear
+  "C4", # McCabe complexity
+  "C90", # flake8-comprehensions
+  "DTZ", # flake8-datetimez
   "E",  # pycodestyles
   "F",  # pyflakes
   "I",  # isort
   "T",  # flake8-print
   "UP", # pyupgrade
-  "B",  # flake8-bugbear
   # "ANN", # flake8-annotations
-  # "C", # McCabe complexity
-  # "RUF", # Ruff specific
   # "BLE", # blind-except
+  # "RUF", # Ruff specific
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "E501"]
+"mealie/alembic/versions/*" = ["E501", "I001"]
+"dev/scripts/all_recipes_stress_test.py" = ["E501"]
 "ldap_provider.py" = ["UP032"]
+"tests/conftest.py" = ["E402"]
+"tests/utils/routes/__init__.py" = ["F401"]
 
 [tool.ruff.lint.mccabe]
 # Unlike Flake8, default to a complexity level of 10.
-max-complexity = 10
-
-[tool.uv.workspace]
-members = [
-    "plugins/marvin_test",
-    "plugins/marvin_tests",
-    "dev/plugins/Marvin_Test",
-]
-
-[tool.uv.sources]
-marvin-test = { workspace = true }
+max-complexity = 24  # Default is 10.

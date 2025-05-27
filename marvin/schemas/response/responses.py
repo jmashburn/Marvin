@@ -1,42 +1,101 @@
-from pydantic import BaseModel
+"""
+This module defines standardized Pydantic response schemas for common API
+feedback scenarios within the Marvin application.
 
-from marvin.schemas._marvin import _MarvinModel
+It includes models for:
+- `ErrorResponse`: A structured error response.
+- `SuccessResponse`: A generic success response, often with a message.
+- `FileTokenResponse`: A response for operations that return a file access token.
+
+Each model includes a `respond` class method as a convenient way to construct
+and serialize the response, particularly useful when providing detail payloads
+for FastAPI's `HTTPException`.
+"""
+
+from typing import Any  # For generic type hints
+
+from pydantic import BaseModel  # Using Pydantic's BaseModel directly for simple responses
+
+from marvin.schemas._marvin import _MarvinModel  # Base Marvin model for more complex responses if needed
 
 
-class ErrorResponse(BaseModel):
+class ErrorResponse(BaseModel):  # Can use BaseModel if no _MarvinModel specific features needed
+    """
+    Standardized schema for API error responses.
+    Provides a user-friendly message, an error flag, and optional exception details.
+    """
+
     message: str
+    """A human-readable message describing the error."""
     error: bool = True
+    """A boolean flag indicating that this is an error response. Defaults to True."""
     exception: str | None = None
+    """Optional string representation of the exception that occurred, useful for debugging."""
 
     @classmethod
-    def respond(cls, message: str, exception: str | None = None) -> dict:
+    def respond(cls, message: str, exception: str | None = None) -> dict[str, Any]:  # Return type Any for dict values
         """
-        This method is an helper to create an object and convert to a dictionary
-        in the same call, for use while providing details to a HTTPException
+        Helper method to create an `ErrorResponse` instance and return its dictionary
+        representation.
+
+        This is particularly useful for constructing the `detail` field of FastAPI's
+        `HTTPException`.
+
+        Args:
+            message (str): The error message.
+            exception (str | None, optional): Optional string representation of the exception.
+                                              Defaults to None.
+
+        Returns:
+            dict[str, Any]: A dictionary representing the error response.
         """
         return cls(message=message, exception=exception).model_dump()
 
 
-class SuccessResponse(BaseModel):
+class SuccessResponse(BaseModel):  # Can use BaseModel if no _MarvinModel specific features needed
+    """
+    Standardized schema for generic API success responses.
+    Provides a success message and an error flag set to False.
+    """
+
     message: str
+    """A human-readable message indicating the success of the operation."""
     error: bool = False
+    """A boolean flag indicating a successful response. Defaults to False."""
 
     @classmethod
-    def respond(cls, message: str = "") -> dict:
+    def respond(cls, message: str = "Operation successful.") -> dict[str, Any]:  # Added default message, return type Any
         """
-        This method is an helper to create an object and convert to a dictionary
-        in the same call, for use while providing details to a HTTPException
+        Helper method to create a `SuccessResponse` instance and return its dictionary
+        representation.
+
+        Args:
+            message (str, optional): The success message. Defaults to "Operation successful.".
+
+        Returns:
+            dict[str, Any]: A dictionary representing the success response.
         """
         return cls(message=message).model_dump()
 
 
-class FileTokenResponse(_MarvinModel):
+class FileTokenResponse(_MarvinModel):  # Using _MarvinModel if it has specific shared configs
+    """
+    Schema for API responses that include a file access token.
+    """
+
     file_token: str
+    """The generated file access token string."""
 
     @classmethod
-    def respond(cls, token: str) -> dict:
+    def respond(cls, token: str) -> dict[str, str]:  # Value is specifically str here
         """
-        This method is an helper to create an object and convert to a dictionary
-        in the same call, for use while providing details to a HTTPException
+        Helper method to create a `FileTokenResponse` instance and return its
+        dictionary representation.
+
+        Args:
+            token (str): The file access token string.
+
+        Returns:
+            dict[str, str]: A dictionary representing the file token response.
         """
         return cls(file_token=token).model_dump()

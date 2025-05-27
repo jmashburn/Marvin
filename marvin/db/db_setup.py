@@ -1,3 +1,10 @@
+"""
+This module handles the global setup for the SQLAlchemy database connection.
+
+It initializes the database engine and session maker, and provides
+functions for generating and managing database sessions.
+"""
+
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -10,7 +17,17 @@ from marvin.core.config import get_app_settings
 settings = get_app_settings()
 
 
-def sql_global_init(db_url: str):
+def sql_global_init(db_url: str) -> tuple[sessionmaker[Session], sa.engine.Engine]:
+    """
+    Initializes the SQLAlchemy engine and session maker.
+
+    Args:
+        db_url (str): The database connection URL.
+
+    Returns:
+        tuple[sessionmaker[Session], sa.engine.Engine]: A tuple containing the
+            session maker (SessionLocal) and the database engine.
+    """
     connect_args = {}
     if "sqlite" in db_url:
         connect_args["check_same_thread"] = False

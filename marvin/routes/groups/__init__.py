@@ -2,8 +2,8 @@ from fastapi import APIRouter
 
 from . import (
     invitation_controller,
-    webhook_controller,
     notification_controller,
+    webhook_controller,
 )
 
 router = APIRouter()

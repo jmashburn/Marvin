@@ -1,8 +1,18 @@
+"""
+This module provides filesystem statistics utilities, primarily focused on
+calculating and formatting directory and file sizes.
+
+It includes functions to:
+- Get the total size of a directory (recursively).
+- Convert a raw size in bytes into a human-readable string with appropriate units
+  (bytes, KB, MB, GB, TB).
+"""
+
 import os
 from pathlib import Path
 
-megabyte = 1_048_576
-gigabyte = 1_073_741_824
+megabyte = 1_048_576  # 1 MB in bytes (1024 * 1024)
+gigabyte = 1_073_741_824  # 1 GB in bytes (1024 * 1024 * 1024)
 
 
 def pretty_size(size: int) -> str:

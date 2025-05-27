@@ -1,4 +1,12 @@
-from datetime import datetime, timezone
+"""
+This module provides functionality to check for the latest release of a GitHub repository.
+
+It uses the GitHub API to fetch release information and caches the result to avoid
+excessive API calls. The cache is reset periodically to ensure the information
+stays up-to-date.
+"""
+
+from datetime import UTC, datetime
 from functools import lru_cache
 
 import requests
@@ -32,7 +40,7 @@ def get_latest_version(url: str) -> str:
 
     global _LAST_RESET
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if not _LAST_RESET or now - _LAST_RESET > datetime.timedelta(days=MAX_DAYS_OLD):
         _LAST_RESET = now

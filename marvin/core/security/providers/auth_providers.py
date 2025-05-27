@@ -1,5 +1,5 @@
 import abc
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Generic, TypeVar
 
 import jwt
@@ -17,9 +17,24 @@ T = TypeVar("T")
 
 
 class AuthProvider(Generic[T], metaclass=abc.ABCMeta):
-    """Base Authentication Provider interface"""
+    """
+    Abstract base class for authentication providers.
+
+    This class defines the interface for different authentication strategies,
+    such as credentials-based or LDAP-based authentication.
+
+    Type Parameters:
+        T: The type of the input data used for authentication (e.g., CredentialsRequest).
+    """
 
     def __init__(self, session: Session, data: T) -> None:
+        """
+        Initializes the authentication provider.
+
+        Args:
+            session (Session): SQLAlchemy session.
+            data (T): The authentication data.
+        """
         self.session = session
         self.data = data
         self.user: PrivateUser | None = None
@@ -30,6 +45,17 @@ class AuthProvider(Generic[T], metaclass=abc.ABCMeta):
         return hasattr(__subclass, "authenticate") and callable(__subclass.authenticate)
 
     def get_access_token(self, user: PrivateUser, remember_me=False) -> tuple[str, timedelta]:
+        """
+        Generates an access token for the given user.
+
+        Args:
+            user (PrivateUser): The user for whom to create the token.
+            remember_me (bool, optional): If True, the token will have a longer
+                                         expiration time. Defaults to False.
+
+        Returns:
+            tuple[str, timedelta]: A tuple containing the access token and its expiration delta.
+        """
         settings = get_app_settings()
 
         duration = timedelta(hours=settings.TOKEN_TIME)
@@ -40,12 +66,24 @@ class AuthProvider(Generic[T], metaclass=abc.ABCMeta):
 
     @staticmethod
     def create_access_token(data: dict, expires_delta: timedelta | None = None) -> tuple[str, timedelta]:
+        """
+        Creates a JWT access token.
+
+        Args:
+            data (dict): The data to include in the token payload.
+            expires_delta (timedelta | None, optional): The token expiration time.
+                Defaults to the value specified in application settings.
+
+        Returns:
+            tuple[str, timedelta]: A tuple containing the encoded JWT access token
+                                 and its expiration delta.
+        """
         settings = get_app_settings()
 
         to_encode = data.copy()
         expires_delta = expires_delta or timedelta(hours=settings.TOKEN_TIME)
 
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
 
         to_encode["exp"] = expire
         to_encode["iss"] = ISS
@@ -55,7 +93,18 @@ class AuthProvider(Generic[T], metaclass=abc.ABCMeta):
         )
 
     def try_get_user(self, username: str) -> PrivateUser | None:
-        """Try to get a user from the database, first trying username, then trying email"""
+        """
+        Tries to retrieve a user from the database by username or email.
+
+        It first searches by username, and if not found, searches by email.
+        The result is cached to avoid redundant database queries.
+
+        Args:
+            username (str): The username or email to search for.
+
+        Returns:
+            PrivateUser | None: The found user, or None if not found.
+        """
         if self.__has_tried_user:
             return self.user
 
@@ -70,5 +119,17 @@ class AuthProvider(Generic[T], metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def authenticate(self) -> tuple[str, timedelta] | None:
-        """Attempt to authenticate a user"""
+        """
+        Attempts to authenticate a user based on the provided data.
+
+        This method must be implemented by subclasses.
+
+        Raises:
+            NotImplementedError: If the method is not implemented by a subclass.
+
+        Returns:
+            tuple[str, timedelta] | None: A tuple containing the access token and
+                                         its expiration delta if authentication is
+                                         successful, otherwise None.
+        """
         raise NotImplementedError

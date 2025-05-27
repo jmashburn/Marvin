@@ -1,14 +1,20 @@
+from typing import Any
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress
 
 
 def get_display():
+    """Get an instance of the MarvinDisplay class."""
     return MarvinDisplay()
 
 
 class MarvinDisplay:
+    """A class to handle display messages in the console."""
+
     def __init__(self):
+        """Initialize the MarvinDisplay class."""
         self.console = Console()
         self.progress = Progress(
             *Progress.get_default_columns(),
@@ -50,12 +56,22 @@ class MarvinDisplay:
         self.console.print(f"[bold red]{message}[/bold red]")
 
     def spinner(self, message: str):
-        """Start a spinner with a message."""
+        """Start a spinner with a message.
+
+        Args:
+            message (str): The message to display with the spinner.
+        """
         self.console.print(f"[dim]{message}...[/dim]")
         return self.progress.add_task(message)
 
-    def prompt(self, message: str, choices: list = None, default: str = None):
-        """Display an interactive prompt."""
+    def prompt(self, message: str, choices: list = list[Any], default: str = None):
+        """Display an interactive prompt.
+
+        Args:
+            message (str): The message to display in the prompt.
+            choices (list, optional): A list of choices for the prompt. Defaults to None.
+            default (str, optional): The default value for the prompt. Defaults to None.
+        """
         prompt = f"{message}"
         if choices:
             prompt += f" ({'/'.join(choices)})"

@@ -28,13 +28,20 @@ class NoEntryFound(Exception):
     pass
 
 
-class UserLockedOut(Exception): ...
+class UserLockedOut(Exception):
+    """Exception raised when a user is locked out."""
+
+    ...
 
 
-class MissingClaimException(Exception): ...
+class MissingClaimException(Exception):
+    """Exception raised when a required claim is missing."""
+
+    ...
 
 
 def registered_exceptions() -> dict:
+    """Returns a dictionary of registered exceptions and their default messages."""
     return {
         PermissionDenied: "You do not have permission to perform this action",
         NoEntryFound: "The requested resource was not found",
