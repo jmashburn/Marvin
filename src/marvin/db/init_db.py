@@ -31,7 +31,7 @@ from marvin.schemas.group.group import GroupCreate, GroupRead
 from marvin.services.group.group_service import GroupService
 from marvin.services.seeders.seeder_service import SeederService
 
-PROJECT_DIR = Path(__file__).parent.parent.parent
+PROJECT_DIR = Path(__file__).parent.parent
 
 logger = root_logger.get_logger()
 

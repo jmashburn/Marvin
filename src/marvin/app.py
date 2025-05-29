@@ -203,7 +203,7 @@ def main() -> None:
         host="0.0.0.0",  # Listen on all available network interfaces
         port=settings.API_PORT,  # Port from application settings
         reload=not settings.PRODUCTION,  # Enable auto-reloading in non-production environments
-        reload_dirs=["marvin"] if not settings.PRODUCTION else None,  # Directories to watch for changes
+        reload_dirs=["."] if not settings.PRODUCTION else None,  # Directories to watch for changes
         reload_delay=2 if not settings.PRODUCTION else None,  # Delay before reloading
         log_level="info",  # Uvicorn's own log level
         use_colors=True,  # Enable colored logging output
@@ -212,6 +212,8 @@ def main() -> None:
         forwarded_allow_ips="*",  # Trust X-Forwarded-For headers from any IP (specific IPs better for prod)
     )
 
+
+__all__ = ["main", "__version__"]
 
 if __name__ == "__main__":
     # This block executes when the script is run directly (e.g., `python marvin/app.py`)

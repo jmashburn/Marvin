@@ -7,7 +7,7 @@ from utils import render_python_template
 CWD = Path(__file__).parent
 
 TEMPLATE = CWD / "templates" / "test_data.py.j2"
-TEST_DATA = CWD.parent.parent / "tests" / "data"
+TEST_DATA = CWD.parent.parent.parent / "tests" / "data"
 GENERATED = CWD / "generated"
 
 
