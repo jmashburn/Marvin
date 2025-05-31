@@ -9,13 +9,13 @@ from marvin.core.settings import app_plugin_settings_constructor, app_settings_c
 from .settings import AppDirectories, AppPlugins, AppSettings, PluginSettings
 
 CWD = Path(__file__).parent
-BASE_DIR = CWD.parent.parent
+BASE_DIR = Path(os.getenv("BASED_DIR", CWD.parent.parent))
 ENV = BASE_DIR.joinpath(".env")
 ENV_SECRETS = BASE_DIR.joinpath(".env.secrets")
 
 dotenv.load_dotenv(ENV)
-PRODUCTION = os.getenv("PRODUCTION", "False") == "True"
-TESTING = os.getenv("TESTING", "False") == "True"
+PRODUCTION = os.getenv("PRODUCTION", "False").capitalize() == "True"
+TESTING = os.getenv("TESTING", "False").capitalize() == "True"
 DATA_DIR = os.getenv("DATA_DIR")
 PLUGIN_DIR = os.getenv("PLUGIN_DIR")
 SECRETS_DIR = os.getenv("SECRETS_DIR")
@@ -32,7 +32,7 @@ def determine_data_dir() -> Path:
         ## Make sure Path is absoulte
         return Path(DATA_DIR if DATA_DIR else BASE_DIR.joinpath("app", "data"))
 
-    return BASE_DIR.joinpath("dev", "data")
+    return Path(DATA_DIR if DATA_DIR else BASE_DIR.joinpath("dev", "data"))
 
 
 def determin_plugin_dir() -> Path:
