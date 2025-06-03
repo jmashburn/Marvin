@@ -58,6 +58,8 @@ class EventNotifierOptionsCreate(_MarvinModel):
     """Optional detailed description of what this event notifier option represents or does."""
     enabled: bool | None = False
     """Whether this notifier option is enabled by default upon creation. Defaults to False."""
+    slug: str | None = None
+    """The URL-friendly slug of the event notifier option."""
 
 
 class EventNotifierOptionsUpdate(EventNotifierOptionsCreate):
@@ -86,6 +88,8 @@ class EventNotifierOptionsRead(_MarvinModel):
     """Detailed description of the event notifier option."""
     enabled: bool | None = False
     """Current status (enabled/disabled) of the event notifier option."""
+    slug: str | None
+    """The URL-friendly slug of the event notifier option."""
 
     # Pydantic model configuration
     # `from_attributes=True` allows creating instances from ORM objects (e.g., SQLAlchemy models).

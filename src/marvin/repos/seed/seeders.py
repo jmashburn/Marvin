@@ -30,7 +30,7 @@ class NotifierOptionSeeder(AbstractSeeder):
     default set of notifier options packaged with the application.
     """
 
-    _namespace: str = EventNameSpace.namespace.name  # Default namespace if not specified in JSON
+    _namespace: str = EventNameSpace.namespace.value  # Default namespace if not specified in JSON
 
     def get_file(self, name: str) -> pathlib.Path:
         """

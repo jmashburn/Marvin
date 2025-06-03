@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import ConfigDict  # Imported though not explicitly used, implies Pydantic integration
 from slugify import slugify
+from humps import decamelize
 from sqlalchemy import Boolean, String, orm
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
@@ -74,7 +75,7 @@ class EventNotifierOptionsModel(SqlAlchemyBase, BaseMixins):
         # If `name` is also a mapped_column and in kwargs, `auto_init` will set it.
         # This __init__ primarily exists for the slug generation logic.
         if name:  # Ensure name is provided for slugification
-            self.slug = slugify(name)
+            self.slug = decamelize(name)
         # The `auto_init` decorator will then process all items in `kwargs`,
         # including `name` if it's passed in `kwargs` and is a model attribute.
         # If `name` is only passed as an explicit arg to __init__ and not in kwargs,

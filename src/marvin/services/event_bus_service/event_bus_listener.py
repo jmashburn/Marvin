@@ -32,8 +32,10 @@ from sqlalchemy import select  # For SQLAlchemy select statements
 
 # from sqlalchemy import func # `func` was imported but not used
 from sqlalchemy.orm.session import Session  # SQLAlchemy session type
+from logging import Logger
 
 # Marvin specific imports
+from marvin.core import root_logger  # Application logger
 from marvin.db.db_setup import session_context  # Context manager for DB sessions
 from marvin.db.models.groups.webhooks import GroupWebhooksModel  # , Method # Method enum not directly used here
 from marvin.repos.repository_factory import AllRepositories  # Central repository access
@@ -61,6 +63,8 @@ class EventListenerBase(ABC):
     for ensuring database sessions and repository access.
     """
 
+    _logger: Logger = root_logger.get_logger("event_bus_listener")
+    """A logger instance for service-specific logging."""
     _session: Session | None = None
     """Optional pre-existing SQLAlchemy session."""
     _repos: AllRepositories | None = None
