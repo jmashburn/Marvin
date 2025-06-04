@@ -91,6 +91,6 @@ def complete_password_reset(  # Renamed function for clarity
     password_reset_service = PasswordResetService(session)
     # The service method handles token validation and password update.
     # It should raise an HTTPException if the token is invalid or password update fails.
-    password_reset_service.reset_password(reset_data.token, reset_data.password)
+    password_reset_service.reset_password(reset_data.token, reset_data.password, reset_data.passwordConfirm)
 
     return SuccessResponse(message="Your password has been successfully reset.")

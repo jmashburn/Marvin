@@ -156,7 +156,7 @@ class PasswordResetService(BaseService):
                 detail="Failed to send password reset email due to a server error.",
             ) from e
 
-    def reset_password(self, token: str, new_password: str) -> bool:  # Return bool for success
+    def reset_password(self, token: str, new_password: str, new_password_confirm: str) -> bool:  # Return bool for success
         """
         Resets a user's password using a provided reset token and new password.
 
@@ -190,6 +190,9 @@ class PasswordResetService(BaseService):
             self.logger.error(f"User not found for valid password reset token. User ID: {token_entry_db.user_id}, Token: {token}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User associated with token not found.")
 
+        if new_password != new_password_confirm:
+            self.logger.warning(f"Passwords do not match for User ID: {token_entry_db.user_id}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match.")
         # Hash the new password
         hashed_new_password = hash_password(new_password)
 

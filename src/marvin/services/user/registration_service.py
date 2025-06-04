@@ -43,7 +43,7 @@ class RegistrationService:
     This attribute is set by the `register_user` method.
     """
 
-    def __init__(self, logger: Logger, db_repos: AllRepositories) -> None:  # Renamed `db` to `db_repos`
+    def __init__(self, logger: Logger, repos: AllRepositories) -> None:  # Renamed `db` to `db_repos`
         """
         Initializes the RegistrationService.
 
@@ -53,7 +53,7 @@ class RegistrationService:
                                      access to all necessary data repositories.
         """
         self.logger = logger
-        self.repos = db_repos
+        self.repos = repos
         # `self.registration` will be set when `register_user` is called.
 
     def _create_new_user(self, target_group: GroupRead, is_new_group: bool) -> PrivateUser:  # Renamed params
@@ -240,7 +240,7 @@ class RegistrationService:
                     group_id=group_invite_token_entry.group_id,  # Pass required fields for the schema
                     token=group_invite_token_entry.token,
                 )
-                self.repos.group_invite_tokens.update(group_invite_token_entry.id, update_data)  # Update by ID
+                self.repos.group_invite_tokens.update(group_invite_token_entry.token, update_data)  # Update by ID
 
         self.logger.info(f"User '{new_user.username}' successfully registered with ID {new_user.id}.")
         return new_user

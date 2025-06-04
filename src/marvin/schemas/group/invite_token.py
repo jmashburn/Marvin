@@ -65,12 +65,16 @@ class InviteTokenUpdate(InviteTokenCreate):  # Usually, Update schemas have opti
     this schema might be more focused.
     """
 
-    # Inherits uses_left (if renamed from uses), group_id, token from InviteTokenCreate.
-    # If `uses` was distinct from `uses_left`:
-    # uses: Optional[int] = None # Total allowed uses, might be updatable.
-    uses_left: int  # Explicitly making uses_left updatable.
+    id: UUID4
+    """The unique identifier of the invitation token."""
+    token: str
+    """The unique token string."""
+    uses_left: int
     """The remaining number of times this token can be used."""
-    # group_id and token are usually not updatable for an existing token.
+    group_id: UUID4
+    """The unique identifier of the group this token belongs to."""
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InviteTokenRead(_MarvinModel):

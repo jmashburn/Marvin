@@ -7,7 +7,7 @@ It provides endpoints for authenticated users to create and delete their own API
 
 from datetime import timedelta  # For setting token expiration
 
-from fastapi import HTTPException, status  # APIRouter for instantiation
+from fastapi import HTTPException, Depends, status  # APIRouter for instantiation
 from pydantic import UUID4  # For type hinting token_id, though it's int in delete method currently
 
 # Marvin core components, schemas, and base controller
@@ -18,9 +18,12 @@ from marvin.schemas.user import (  # Pydantic schemas related to API tokens
     LongLiveTokenCreate,
     LongLiveTokenCreateResponse,  # Response schema after creating a token, includes the token string
     LongLiveTokenRead,  # Schema for reading token details (excluding the token string itself)
+    LongLiveTokenPagination,
     TokenCreate,  # Internal schema for creating token model in DB
     TokenResponseDelete,  # Response schema after deleting a token
 )
+from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters
+
 
 # Router for user API token management.
 # All routes will be under /users/api-tokens due to UserAPIRouter prefix and this prefix.
@@ -36,6 +39,26 @@ class UserApiTokensController(BaseUserController):
     Authenticated users can use these endpoints to create new API tokens for
     programmatic access and to delete their existing tokens.
     """
+
+    # TODO
+    # @router.get("", response_model=LongLiveTokenPagination, summary="List API Tokens")
+    # def get_all(self, q: PaginationQuery = Depends(PaginationQuery)) -> LongLiveTokenPagination:
+    #     """
+    #     Retrieves a paginated list of webhooks configured for the current user's group.
+
+    #     Args:
+    #         q (PaginationQuery): FastAPI dependency for pagination query parameters.
+
+    #     Returns:
+    #         WebhookPagination: Paginated list of webhooks.
+    #     """
+    #     # `self.repo` is already group-scoped by BaseUserController logic.
+    #     paginated_response = self.repos.api_tokens.page_all(
+    #         pagination=q,
+    #         override_schema=LongLiveTokenRead,  # Ensure items are serialized as WebhookRead
+    #     )
+    #     paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
+    #     return paginated_response
 
     @router.post(
         "",
@@ -97,12 +120,12 @@ class UserApiTokensController(BaseUserController):
         if new_token_db_entry:  # Check if DB creation was successful
             self.logger.info(f"API Token '{token_params.name}' created for user ID {self.user.id}")
             return LongLiveTokenCreateResponse(
-                id=new_token_db_entry.id,
-                name=new_token_db_entry.name,
-                integration_id=new_token_db_entry.integration_id,
-                user_id=new_token_db_entry.user_id,
-                created_at=new_token_db_entry.created_at,
-                updated_at=new_token_db_entry.updated_at,
+                # id=new_token_db_entry.id,
+                # name=new_token_db_entry.name,
+                # integration_id=new_token_db_entry.integration_id,
+                # user_id=new_token_db_entry.user_id,
+                # created_at=new_token_db_entry.created_at,
+                # updated_at=new_token_db_entry.updated_at,
                 token=generated_token_string,  # Return the actual token string on creation
             )
         else:

@@ -76,7 +76,6 @@ class LongLiveToken(SqlAlchemyBase, BaseMixins):
             user_id (GUID): The ID of the user this token belongs to.
             **kwargs: Additional keyword arguments for `BaseMixins`.
         """
-        super().__init__(**kwargs)  # Call super to handle BaseMixins initialization
         self.name = name
         self.token = token
         self.user_id = user_id
