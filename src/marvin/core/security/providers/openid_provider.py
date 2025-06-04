@@ -59,16 +59,16 @@ class OpenIDProvider(AuthProvider[UserInfo]):
         settings = get_app_settings()
         claims = self.data
         if not claims:
-            self._logger.error("[OIDC] No claims in the id_token")
+            self.logger.error("[OIDC] No claims in the id_token")
             raise MissingClaimException()
 
         # Log all claims for debugging
-        self._logger.debug("[OIDC] Received claims:")
+        self.logger.debug("[OIDC] Received claims:")
         for key, value in claims.items():
-            self._logger.debug("[OIDC]   %s: %s", key, value)
+            self.logger.debug("[OIDC]   %s: %s", key, value)
 
         if not self.required_claims.issubset(claims.keys()):
-            self._logger.error(
+            self.logger.error(
                 "[OIDC] Required claims not present. Expected: %s Actual: %s",
                 self.required_claims,
                 claims.keys(),
@@ -78,7 +78,7 @@ class OpenIDProvider(AuthProvider[UserInfo]):
         # Check for empty required claims
         for claim in self.required_claims:
             if not claims.get(claim):
-                self._logger.error("[OIDC] Required claim '%s' is empty", claim)
+                self.logger.error("[OIDC] Required claim '%s' is empty", claim)
                 raise MissingClaimException()
 
         repos = get_repositories(self.session, group_id=None)
@@ -90,7 +90,7 @@ class OpenIDProvider(AuthProvider[UserInfo]):
             is_valid_user = settings.OIDC_USER_GROUP in group_claim if settings.OIDC_USER_GROUP else True
 
             if not (is_valid_user or is_admin):
-                self._logger.warning(
+                self.logger.warning(
                     "[OIDC] Successfully authenticated, but user does not have one of the required group(s). \
                     Found: %s - Required (one of): %s",
                     group_claim,
@@ -101,10 +101,10 @@ class OpenIDProvider(AuthProvider[UserInfo]):
         user = self.try_get_user(claims.get(settings.OIDC_USER_CLAIM))
         if not user:
             if not settings.OIDC_SIGNUP_ENABLED:
-                self._logger.debug("[OIDC] No user found. Not creating a new user - new user creation is disabled.")
+                self.logger.debug("[OIDC] No user found. Not creating a new user - new user creation is disabled.")
                 return None
 
-            self._logger.debug("[OIDC] No user found. Creating new OIDC user.")
+            self.logger.debug("[OIDC] No user found. Creating new OIDC user.")
 
             try:
                 # some IdPs don't provide a username (looking at you Google), so if we don't have the claim,
@@ -123,19 +123,19 @@ class OpenIDProvider(AuthProvider[UserInfo]):
                 self.session.commit()
 
             except Exception as e:
-                self._logger.error("[OIDC] Exception while creating user: %s", e)
+                self.logger.error("[OIDC] Exception while creating user: %s", e)
                 return None
 
             return self.get_access_token(user, settings.OIDC_REMEMBER_ME)  # type: ignore
 
         if user:
             if settings.OIDC_ADMIN_GROUP and user.admin != is_admin:
-                self._logger.debug("[OIDC] %s user as admin", "Setting" if is_admin else "Removing")
+                self.logger.debug("[OIDC] %s user as admin", "Setting" if is_admin else "Removing")
                 user.admin = is_admin
                 repos.users.update(user.id, user)
             return self.get_access_token(user, settings.OIDC_REMEMBER_ME)
 
-        self._logger.warning("[OIDC] Found user but their AuthMethod does not match OIDC")
+        self.logger.warning("[OIDC] Found user but their AuthMethod does not match OIDC")
         return None
 
     @property
@@ -149,9 +149,7 @@ class OpenIDProvider(AuthProvider[UserInfo]):
         Returns:
             set: A set of required OIDC claim names.
         """
-        settings = get_app_settings()
-
-        claims = {settings.OIDC_NAME_CLAIM, "email", settings.OIDC_USER_CLAIM}
+        claims = {self.settings.OIDC_NAME_CLAIM, "email", self.settings.OIDC_USER_CLAIM}
         if settings.OIDC_REQUIRES_GROUP_CLAIM:
             claims.add(settings.OIDC_GROUPS_CLAIM)
         return claims

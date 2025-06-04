@@ -113,12 +113,3 @@ class AllWebhooks:
         """
         effective_group_id = None if self.group_id is NOT_SET else self.group_id
         return UserWebhook(self.session, group_id=effective_group_id)
-
-    # To add more webhook types, define them as classes inheriting from BaseWebhook
-    # (like GenericWebhook, UserWebhook) and then add a new cached_property here:
-    #
-    # @cached_property
-    # def another_type(self) -> AnotherWebhookTypeHandler:
-    #     return AnotherWebhookTypeHandler(self.session, self.group_id)
-    #
-    # The `get_webhook_handler` method would then be able to retrieve it by name "another_type".

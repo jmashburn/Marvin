@@ -107,7 +107,7 @@ class EmailService(BaseService):
         # If uncommented, `local_provider` would need to be defined and return a Translator instance.
         # self.translator: Translator = local_provider(locale)
         # For now, string keys in EmailTemplate will be used as-is if no translation occurs.
-        self._logger.info(f"EmailService initialized. Sender: {type(self.sender).__name__}. Locale: {locale or 'default'}.")
+        self.logger.info(f"EmailService initialized. Sender: {type(self.sender).__name__}. Locale: {locale or 'default'}.")
 
     def send_email(self, email_to: str, email_data: EmailTemplate) -> bool:  # Renamed `data` to `email_data`
         """
@@ -126,8 +126,8 @@ class EmailService(BaseService):
                   False otherwise. Note: Returning True when SMTP is disabled might
                   be misleading; consider alternative return or logging.
         """
-        if not self._settings.SMTP_ENABLED:
-            self._logger.info(f"SMTP is disabled. Email not sent to {email_to} (Subject: {email_data.subject}).")
+        if not self.settings.SMTP_ENABLED:
+            self.logger.info(f"SMTP is disabled. Email not sent to {email_to} (Subject: {email_data.subject}).")
             # Returning False might be more indicative that no email was actually sent.
             # However, if the intent is "operation considered successful if SMTP off", True is okay.
             # Let's change to False for clarity that no email dispatch occurred.
@@ -139,9 +139,9 @@ class EmailService(BaseService):
         # Send the email via the configured sender
         success = self.sender.send(email_to, email_data.subject, html_content)
         if success:
-            self._logger.info(f"Email '{email_data.subject}' sent successfully to {email_to}.")
+            self.logger.info(f"Email '{email_data.subject}' sent successfully to {email_to}.")
         else:
-            self._logger.error(f"Failed to send email '{email_data.subject}' to {email_to}.")
+            self.logger.error(f"Failed to send email '{email_data.subject}' to {email_to}.")
         return success
 
     def send_forgot_password(self, recipient_address: str, reset_password_url: str) -> bool:  # Renamed params
@@ -214,7 +214,7 @@ class EmailService(BaseService):
             header_text="emails.test.header_text",
             message_top="emails.test.message_top",
             message_bottom="emails.test.message_bottom",
-            button_link=str(self._settings.BASE_URL),  # Link to the application's base URL
+            button_link=str(self.settings.BASE_URL),  # Link to the application's base URL
             button_text="emails.test.button_text",
         )
         return self.send_email(recipient_address, test_email_template)

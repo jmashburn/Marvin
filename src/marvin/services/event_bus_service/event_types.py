@@ -78,11 +78,14 @@ class EventTypes(EventTypeBase):
     """An event that triggers scheduled webhook processing."""
     user_signup = auto()
     """Event dispatched when a new user signs up."""
+    user_authenticated = auto()
+    """Event dispatched when a user authenticates."""
+
     # Application-specific events (examples):
     # RECIPE_CREATED = "recipe_created"
     # RECIPE_UPDATED = "recipe_updated"
     # SHOPPING_LIST_GENERATED = "shopping_list_generated"
-    TOKEN_REFRESHED = auto()  # Added from auth_controller example
+    token_refreshed = auto()  # Added from auth_controller example
     """Event dispatched when a user's access token is refreshed."""
 
 

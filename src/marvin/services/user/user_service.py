@@ -50,7 +50,7 @@ class UserService(BaseService):
         Returns:
             list[PrivateUser]: A list of Pydantic `PrivateUser` schemas for locked users.
         """
-        self._logger.debug("Fetching list of all users currently marked as locked in the database.")
+        self.logger.debug("Fetching list of all users currently marked as locked in the database.")
         # The repository method `get_locked_users` is responsible for the exact DB query.
         return self.repos.users.get_locked_users()
 
@@ -73,7 +73,7 @@ class UserService(BaseService):
         """
         # Get all users that have a `locked_at` timestamp (potential candidates for unlocking)
         candidate_locked_users = self.get_locked_users()
-        self._logger.info(f"Found {len(candidate_locked_users)} users with a locked_at timestamp. Checking for reset eligibility.")
+        self.logger.info(f"Found {len(candidate_locked_users)} users with a locked_at timestamp. Checking for reset eligibility.")
 
         unlocked_count = 0
         for user_schema in candidate_locked_users:  # Iterate through Pydantic schemas
@@ -85,13 +85,13 @@ class UserService(BaseService):
             #   - `user.is_locked` is False (lockout period has expired) AND `user.locked_at` is set (was actually locked)
             if force or (not user_schema.is_locked and user_schema.locked_at is not None):
                 try:
-                    self._logger.info(f"Unlocking user '{user_schema.username}' (ID: {user_schema.id}). Force: {force}.")
+                    self.logger.info(f"Unlocking user '{user_schema.username}' (ID: {user_schema.id}). Force: {force}.")
                     self.unlock_user(user_schema)  # Pass the Pydantic schema to unlock_user
                     unlocked_count += 1
                 except Exception as e:
-                    self._logger.error(f"Failed to unlock user '{user_schema.username}' (ID: {user_schema.id}): {e}", exc_info=True)
+                    self.logger.error(f"Failed to unlock user '{user_schema.username}' (ID: {user_schema.id}): {e}", exc_info=True)
 
-        self._logger.info(f"Finished resetting locked users. Total unlocked: {unlocked_count}.")
+        self.logger.info(f"Finished resetting locked users. Total unlocked: {unlocked_count}.")
         return unlocked_count
 
     def lock_user(self, user_schema: PrivateUser) -> PrivateUser:  # Parameter is Pydantic schema
@@ -108,7 +108,7 @@ class UserService(BaseService):
         Returns:
             PrivateUser: The updated Pydantic schema of the user, reflecting the locked status.
         """
-        self._logger.info(f"Locking user account for '{user_schema.username}' (ID: {user_schema.id}).")
+        self.logger.info(f"Locking user account for '{user_schema.username}' (ID: {user_schema.id}).")
         # Set the locked_at timestamp to current UTC time
         user_schema.locked_at = datetime.now(UTC)
         # Persist the changes using the user repository.
@@ -127,7 +127,7 @@ class UserService(BaseService):
         Returns:
             PrivateUser: The updated Pydantic schema of the user, reflecting the unlocked status.
         """
-        self._logger.info(f"Unlocking user account for '{user_schema.username}' (ID: {user_schema.id}).")
+        self.logger.info(f"Unlocking user account for '{user_schema.username}' (ID: {user_schema.id}).")
         # Clear the locked_at timestamp
         user_schema.locked_at = None
         # Reset failed login attempts count

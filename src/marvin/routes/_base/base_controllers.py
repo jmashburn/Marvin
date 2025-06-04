@@ -33,7 +33,7 @@ from marvin.services.event_bus_service.event_types import (
 )
 
 
-class _BaseController(ABC):  # noqa: B024
+class BaseController(ABC):  # noqa: B024
     """
     An abstract base controller providing common dependencies and properties.
 
@@ -41,6 +41,9 @@ class _BaseController(ABC):  # noqa: B024
     other base or specific controllers. It initializes lazy-loaded properties for
     database session, repositories, settings, directories, and logger.
     """
+
+    # FastAPI dependency to inject the EventBusService
+    event_bus: EventBusService = Depends(EventBusService.as_dependency)
 
     # FastAPI dependency to inject a SQLAlchemy session into controller methods
     session: Session = Depends(generate_session)
@@ -92,11 +95,33 @@ class _BaseController(ABC):  # noqa: B024
         """
         return NOT_SET
 
+    def publish_event(
+        self,
+        event_type: EventTypes,
+        document_data: EventDocumentDataBase,
+        message: str = "",
+    ) -> None:
+        """
+        Publishes an event to the application's event bus.
+
+        Args:
+            event_type (EventTypes): The type of event to publish (e.g., ITEM_CREATED).
+            document_data (EventDocumentDataBase): The data associated with the event,
+                                                   often the created/updated/deleted entity.
+            message (str, optional): An optional descriptive message for the event.
+                                     Defaults to "".
+        """
+        self.event_bus.dispatch(
+            event_type=event_type,
+            document_data=document_data,  # This should be the Pydantic model of the entity
+            message=message,
+        )
+
     # Pydantic model configuration to allow arbitrary types for properties like `session`
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class BasePublicController(_BaseController):
+class BasePublicController(BaseController):
     """
     Base controller for public routes that do not require user authentication.
 
@@ -105,10 +130,10 @@ class BasePublicController(_BaseController):
     to scope public data (which would be unusual).
     """
 
-    pass  # No additional functionalities beyond _BaseController for now
+    pass  # No additional functionalities beyond BaseController for now
 
 
-class BaseUserController(_BaseController):
+class BaseUserController(BaseController):
     """
     Base controller for routes that require an authenticated user.
 
@@ -198,35 +223,35 @@ class BaseAdminController(BaseUserController):
         return self._repos
 
 
-class BaseCrudController(BaseUserController):
-    """
-    Base controller for CRUD operations, extending `BaseUserController`.
+# class BaseCrudController(BaseUserController):
+#     """
+#     Base controller for CRUD operations, extending `BaseUserController`.
 
-    Provides an `EventBusService` dependency and a helper method `publish_event`
-    for dispatching events related to CRUD actions.
-    """
+#     Provides an `EventBusService` dependency and a helper method `publish_event`
+#     for dispatching events related to CRUD actions.
+#     """
 
-    # FastAPI dependency to inject the EventBusService
-    event_bus: EventBusService = Depends(EventBusService.as_dependency)
+#     # FastAPI dependency to inject the EventBusService
+#     event_bus: EventBusService = Depends(EventBusService.as_dependency)
 
-    def publish_event(
-        self,
-        event_type: EventTypes,
-        document_data: EventDocumentDataBase,
-        message: str = "",
-    ) -> None:
-        """
-        Publishes an event to the application's event bus.
+#     def publish_event(
+#         self,
+#         event_type: EventTypes,
+#         document_data: EventDocumentDataBase,
+#         message: str = "",
+#     ) -> None:
+#         """
+#         Publishes an event to the application's event bus.
 
-        Args:
-            event_type (EventTypes): The type of event to publish (e.g., ITEM_CREATED).
-            document_data (EventDocumentDataBase): The data associated with the event,
-                                                   often the created/updated/deleted entity.
-            message (str, optional): An optional descriptive message for the event.
-                                     Defaults to "".
-        """
-        self.event_bus.dispatch(
-            event_type=event_type,
-            document_data=document_data,  # This should be the Pydantic model of the entity
-            message=message,
-        )
+#         Args:
+#             event_type (EventTypes): The type of event to publish (e.g., ITEM_CREATED).
+#             document_data (EventDocumentDataBase): The data associated with the event,
+#                                                    often the created/updated/deleted entity.
+#             message (str, optional): An optional descriptive message for the event.
+#                                      Defaults to "".
+#         """
+#         self.event_bus.dispatch(
+#             event_type=event_type,
+#             document_data=document_data,  # This should be the Pydantic model of the entity
+#             message=message,
+#         )

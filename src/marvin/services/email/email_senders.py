@@ -110,7 +110,7 @@ class Message(BaseService):
         except IndexError:
             # Fallback if sender's email address is not standard (e.g., no '@')
             # This is unlikely for valid emails but provides a robust fallback.
-            self._logger.warning(f"Could not parse domain from sender email '{self.mail_from_address}' for Message-ID. Using address as domain.")
+            self.logger.warning(f"Could not parse domain from sender email '{self.mail_from_address}' for Message-ID. Using address as domain.")
             message_id_value = f"<{uuid4()}@{self.mail_from_address}>"
             # The SMTP server itself might also assign a Message-ID if this one is problematic.
 
@@ -141,10 +141,10 @@ class Message(BaseService):
             return SMTPResponse(success=success, message=response_message, errors=send_errors)
 
         except smtplib.SMTPException as e:  # Catch various SMTP errors (connection, auth, etc.)
-            self._logger.error(f"SMTP error while sending email to {to_address}: {e}")
+            self.logger.error(f"SMTP error while sending email to {to_address}: {e}")
             return SMTPResponse(success=False, message=f"SMTP error: {e}", errors={to_address: (0, str(e))})  # Simulate error dict
         except Exception as e:  # Catch any other unexpected errors
-            self._logger.error(f"Unexpected error sending email to {to_address}: {e}")
+            self.logger.error(f"Unexpected error sending email to {to_address}: {e}")
             return SMTPResponse(success=False, message=f"Unexpected error: {e}", errors={to_address: (0, str(e))})
 
 
@@ -199,49 +199,49 @@ class DefaultEmailSender(ABCEmailSender, BaseService):
                         are not configured in the application settings.
         """
         # Validate that essential sender information is configured
-        if not self._settings.SMTP_FROM_EMAIL or not self._settings.SMTP_FROM_NAME:
-            self._logger.error("SMTP_FROM_EMAIL and SMTP_FROM_NAME must be set for sending emails.")
+        if not self.settings.SMTP_FROM_EMAIL or not self.settings.SMTP_FROM_NAME:
+            self.logger.error("SMTP_FROM_EMAIL and SMTP_FROM_NAME must be set for sending emails.")
             raise ValueError("SMTP_FROM_EMAIL and SMTP_FROM_NAME must be set in the config file.")
 
         # Create the email message object
         email_msg = Message(
-            logger=self._logger,  # Pass logger for logging within Message
+            logger=self.logger,  # Pass logger for logging within Message
             subject=subject,
             html=html_content,
-            mail_from_name=self._settings.SMTP_FROM_NAME,
-            mail_from_address=self._settings.SMTP_FROM_EMAIL,
+            mail_from_name=self.settings.SMTP_FROM_NAME,
+            mail_from_address=self.settings.SMTP_FROM_EMAIL,
         )
 
         # Validate that essential SMTP server settings are configured
-        if not self._settings.SMTP_HOST or not self._settings.SMTP_PORT:
-            self._logger.error("SMTP_HOST and SMTP_PORT must be set for sending emails.")
+        if not self.settings.SMTP_HOST or not self.settings.SMTP_PORT:
+            self.logger.error("SMTP_HOST and SMTP_PORT must be set for sending emails.")
             raise ValueError("SMTP_HOST and SMTP_PORT must be set in the config file.")
 
         # Prepare SMTP options from application settings
         smtp_options = EmailOptions(
-            host=self._settings.SMTP_HOST,
-            port=int(self._settings.SMTP_PORT),  # Ensure port is integer
+            host=self.settings.SMTP_HOST,
+            port=int(self.settings.SMTP_PORT),  # Ensure port is integer
             # Determine TLS/SSL usage based on configured strategy (case-insensitive)
-            tls=(self._settings.SMTP_AUTH_STRATEGY.upper() == "TLS" if self._settings.SMTP_AUTH_STRATEGY else False),
-            ssl=(self._settings.SMTP_AUTH_STRATEGY.upper() == "SSL" if self._settings.SMTP_AUTH_STRATEGY else False),
+            tls=(self.settings.SMTP_AUTH_STRATEGY.upper() == "TLS" if self.settings.SMTP_AUTH_STRATEGY else False),
+            ssl=(self.settings.SMTP_AUTH_STRATEGY.upper() == "SSL" if self.settings.SMTP_AUTH_STRATEGY else False),
         )
 
         # Add SMTP authentication credentials if configured
-        if self._settings.SMTP_USER:
-            smtp_options.username = self._settings.SMTP_USER
-        if self._settings.SMTP_PASSWORD:  # Password should be accessed securely
-            smtp_options.password = self._settings.SMTP_PASSWORD
+        if self.settings.SMTP_USER:
+            smtp_options.username = self.settings.SMTP_USER
+        if self.settings.SMTP_PASSWORD:  # Password should be accessed securely
+            smtp_options.password = self.settings.SMTP_PASSWORD
 
         # Send the message using the Message object's send method
         smtp_response = email_msg.send(to_address=email_to, smtp_config=smtp_options)
 
-        self._logger.debug(
+        self.logger.debug(
             f"Send email result to {email_to}: {smtp_response.message}, Success: {smtp_response.success}, Errors: {smtp_response.errors}"
         )
 
         if not smtp_response.success:
             # Log detailed errors if sending failed
-            self._logger.error(
+            self.logger.error(
                 f"Failed to send email to {email_to}. Subject: '{subject}'. SMTP Response: {smtp_response.message}, Errors: {smtp_response.errors}"
             )
 

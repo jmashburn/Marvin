@@ -9,6 +9,8 @@ consistency and reduces boilerplate in concrete service implementations.
 
 from logging import Logger  # For type hinting the logger attribute
 
+from pydantic import ConfigDict
+
 # Marvin core components for accessing application-wide configurations and utilities
 from marvin.core.config import AppDirectories, AppSettings, get_app_dirs, get_app_settings
 
@@ -30,16 +32,42 @@ class BaseService:
     attributes initialized and available for use.
     """
 
-    def __init__(self) -> None:
-        """
-        Initializes the BaseService.
+    _logger: Logger | None = None
+    _settings: AppSettings | None = None
+    _directories: AppDirectories | None = None
 
-        Sets up common attributes: `logger`, `settings`, and `directories` by
-        calling their respective global accessor functions from `marvin.core`.
+    @property
+    def logger(self) -> Logger:
         """
-        self._logger: Logger = get_logger()
-        """A logger instance for service-specific logging."""
-        self._settings: AppSettings = get_app_settings()
-        """An instance of `AppSettings` providing access to application configuration."""
-        self._directories: AppDirectories = get_app_dirs()
-        """An instance of `AppDirectories` providing access to key application paths."""
+        Provides access to the Marvin application logger.
+
+        Initializes the logger on first access.
+        """
+        if not self._logger:
+            self._logger = get_logger()
+        return self._logger
+
+    @property
+    def settings(self) -> AppSettings:
+        """
+        Provides access to the Marvin application settings.
+
+        Initializes settings on first access.
+        """
+        if not self._settings:
+            self._settings = get_app_settings()
+        return self._settings
+
+    @property
+    def directories(self) -> AppDirectories:
+        """
+        Provides access to the Marvin application directories.
+
+        Initializes directories on first access.
+        """
+        if not self._directories:
+            self._directories = get_app_dirs()
+        return self._directories
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    """Pydantic model configuration to allow arbitrary types."""

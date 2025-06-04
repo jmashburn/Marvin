@@ -71,14 +71,14 @@ class PasswordResetService(BaseService):
         user = self.db.users.get_one(email, key="email", any_case=True)
 
         if user is None:
-            self._logger.warning(f"Password reset attempt for non-existent email: {email}")
+            self.logger.warning(f"Password reset attempt for non-existent email: {email}")
             # Do not confirm to the client that the email doesn't exist (prevents user enumeration).
             return None
 
         # Check if user's password is managed externally (e.g., LDAP)
         # The original check `user.password == "LDAP"` is brittle; relying on `auth_method` is better.
         if user.auth_method == AuthMethod.LDAP:
-            self._logger.warning(f"Password reset attempt for LDAP user: {email}. Denied.")
+            self.logger.warning(f"Password reset attempt for LDAP user: {email}. Denied.")
             return None  # LDAP users cannot reset passwords via this Marvin mechanism.
 
         # Generate a cryptographically secure URL-safe token
@@ -138,18 +138,18 @@ class PasswordResetService(BaseService):
         # Initialize email service with locale preference
         email_service = EmailService(locale=accept_language)
         # Construct the full password reset URL
-        reset_url = f"{self._settings.BASE_URL}/reset-password/?token={token_entry_schema.token}"
+        reset_url = f"{self.settings.BASE_URL}/reset-password/?token={token_entry_schema.token}"
 
         try:
             # Send the "forgot password" email
             success = email_service.send_forgot_password(email, reset_url)
             if success:
-                self._logger.info(f"Password reset email successfully dispatched for: {email}")
+                self.logger.info(f"Password reset email successfully dispatched for: {email}")
             else:
-                self._logger.error(f"Password reset email failed to dispatch for: {email} (EmailService returned False)")
+                self.logger.error(f"Password reset email failed to dispatch for: {email} (EmailService returned False)")
             return success
         except Exception as e:
-            self._logger.exception(f"Failed to send password reset email to {email} due to an unexpected error: {e}")
+            self.logger.exception(f"Failed to send password reset email to {email} due to an unexpected error: {e}")
             # Re-raise as HTTPException to be handled by FastAPI error middleware
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -180,14 +180,14 @@ class PasswordResetService(BaseService):
         token_entry_db = self.db.tokens_pw_reset.get_one(token, key="token")
 
         if token_entry_db is None:
-            self._logger.warning(f"Password reset attempt with invalid or expired token: {token}")
+            self.logger.warning(f"Password reset attempt with invalid or expired token: {token}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired password reset token.")
 
         # Fetch the user associated with the token
         # `token_entry_db.user_id` should be available from the schema/model used by the repo.
         user_to_update = self.db.users.get_one(token_entry_db.user_id)  # Assuming user_id is on token_entry_db
         if not user_to_update:  # Should not happen if token is valid and DB is consistent
-            self._logger.error(f"User not found for valid password reset token. User ID: {token_entry_db.user_id}, Token: {token}")
+            self.logger.error(f"User not found for valid password reset token. User ID: {token_entry_db.user_id}, Token: {token}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User associated with token not found.")
 
         # Hash the new password
@@ -204,13 +204,13 @@ class PasswordResetService(BaseService):
         # For now, assuming `update_password` raises on failure or returns a clear status.
         # If `update_password` returns the updated user schema:
         if updated_user_schema.password != hashed_new_password:  # This check may not be reliable if schema hides password
-            self._logger.error(f"Password update failed for user {user_to_update.username} despite repository indicating success.")
+            self.logger.error(f"Password update failed for user {user_to_update.username} despite repository indicating success.")
             # This indicates an internal logic issue if reached.
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Password update confirmation failed.")
 
         # Delete the used password reset token from the database
         # `delete` method on repo needs value and key. `token_entry_db.token` is the value.
         self.db.tokens_pw_reset.delete(token_entry_db.token, match_key="token")
-        self._logger.info(f"Password successfully reset for user {user_to_update.username}. Token {token} deleted.")
+        self.logger.info(f"Password successfully reset for user {user_to_update.username}. Token {token} deleted.")
 
         return True

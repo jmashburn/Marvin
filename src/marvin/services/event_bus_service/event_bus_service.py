@@ -170,7 +170,7 @@ class EventBusService(BaseService):
                     listener.publish_to_subscribers(event, subscribers)
             except Exception as e:
                 # Log error during listener processing but continue with other listeners.
-                self._logger.error(
+                self.logger.error(
                     f"Error processing listener {type(listener).__name__} for event {event.event_type.name} in group {group_id}: {e}",
                     exc_info=True,
                 )
@@ -209,9 +209,11 @@ class EventBusService(BaseService):
 
         # If BackgroundTasks instance is available, run publishing as a background task
         if self.bg_tasks:
+            self.logger.debug(f"Adding Event: {event_type} to Background Task")
             self.bg_tasks.add_task(self._publish_event, event=event_payload, group_id=group_id)
         else:
             # Otherwise, publish synchronously (blocks until all listeners processed)
+            self.logger.debug(f"Adding Event: {event_type}")
             self._publish_event(event=event_payload, group_id=group_id)
 
     @classmethod

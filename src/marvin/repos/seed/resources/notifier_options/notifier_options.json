@@ -8,5 +8,10 @@
         "name": "Webhook Task",
         "description": "Webhook task to send data to a specified URL.",
         "enabled": false
+    },
+    {
+        "name": "Token Refreshed",
+        "description": "When a Token is refreshed send data to a specificed URL.",
+        "enabled": false
     }
 ]

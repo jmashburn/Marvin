@@ -50,9 +50,9 @@ class SeederService(BaseService):
                                          Passed to the seeder's `seed` method.
                                          If None, the seeder might use a default.
         """
-        self._logger.info(f"Initiating seeding of notifier options with configuration: '{name or 'default'}'")
+        self.logger.info(f"Initiating seeding of notifier options with configuration: '{name or 'default'}'")
         # Instantiate the specific seeder for notifier options
-        notifier_seeder = NotifierOptionSeeder(db=self.repos, logger=self._logger)
+        notifier_seeder = NotifierOptionSeeder(db=self.repos, logger=self.logger)
         # Execute the seed operation
         notifier_seeder.seed(name)
-        self._logger.info(f"Completed seeding of notifier options for configuration: '{name or 'default'}'")
+        self.logger.info(f"Completed seeding of notifier options for configuration: '{name or 'default'}'")

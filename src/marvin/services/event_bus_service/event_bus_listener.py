@@ -35,7 +35,7 @@ from sqlalchemy.orm.session import Session  # SQLAlchemy session type
 from logging import Logger
 
 # Marvin specific imports
-from marvin.core import root_logger  # Application logger
+from marvin.core.root_logger import get_logger  # Application logger
 from marvin.db.db_setup import session_context  # Context manager for DB sessions
 from marvin.db.models.groups.webhooks import GroupWebhooksModel  # , Method # Method enum not directly used here
 from marvin.repos.repository_factory import AllRepositories  # Central repository access
@@ -63,8 +63,8 @@ class EventListenerBase(ABC):
     for ensuring database sessions and repository access.
     """
 
-    _logger: Logger = root_logger.get_logger("event_bus_listener")
-    """A logger instance for service-specific logging."""
+    _logger: Logger | None = None
+
     _session: Session | None = None
     """Optional pre-existing SQLAlchemy session."""
     _repos: AllRepositories | None = None
@@ -90,6 +90,17 @@ class EventListenerBase(ABC):
         self._session = None
         self._repos = None
         self._webhooks = None  # Initialize webhooks attribute
+
+    @property
+    def logger(self) -> Logger:
+        """
+        Provides access to the Marvin application logger.
+
+        Initializes the logger on first access.
+        """
+        if not self._logger:
+            self._logger = get_logger("event_bus_listener")
+        return self._logger
 
     @abstractmethod
     def get_subscribers(self, event: Event) -> list[Any]:  # Return type can vary by implementation
@@ -232,6 +243,10 @@ class AppriseEventListener(EventListenerBase):
         Returns:
             list[str]: A list of processed Apprise URLs ready for notification.
         """
+        # This listener only acts on events that are not `webhook_task`
+        if event.event_type == EventTypes.webhook_task:
+            return []
+
         apprise_urls: list[str] = []
         with self.ensure_repos(self.group_id) as repos:
             # Fetch all enabled group event notifiers (private schema to access apprise_url)
@@ -239,15 +254,18 @@ class AppriseEventListener(EventListenerBase):
                 {"enabled": True}, override_schema=GroupEventNotifierPrivate
             )
 
-            # Construct the target event option string (e.g., "core.test-message")
-            target_event_option_str = f"{EventNameSpace.namespace.value}.{event.event_type.name.replace('_', '-')}"
+            # Construct the target event option string (e.g., "core.test_message")
+            target_event_option_str = f"{EventNameSpace.namespace.value}.{event.event_type.name.replace('-', '_')}"
+            self.logger.debug(f"Target Event {target_event_option_str}")
 
             for notifier in enabled_notifiers:
                 if not notifier.apprise_url:  # Skip if no URL configured
                     continue
                 # Check if any of this notifier's subscribed options match the current event
                 for option_summary in notifier.options:
+                    print(target_event_option_str)
                     if getattr(option_summary, self._option_value_field_name, None) == target_event_option_str:
+                        self.logger.debug(f"Appending {notifier.apprise_url}")
                         apprise_urls.append(notifier.apprise_url)
                         break  # Found a match for this notifier, no need to check its other options
 
@@ -408,7 +426,7 @@ class WebhookEventListener(EventListenerBase):
         # with self.ensure_repos(self.group_id) as repos: # `repos` is not used in this method
 
         if not isinstance(event.document_data, EventWebhookData):
-            self._logger.warning(f"WebhookEventListener received event with mismatched document_data type: {type(event.document_data)}")
+            self.logger.warning(f"WebhookEventListener received event with mismatched document_data type: {type(event.document_data)}")
             return
 
         webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
@@ -426,11 +444,11 @@ class WebhookEventListener(EventListenerBase):
                             try:
                                 # Call the .info() method of the handler to get dynamic data
                                 dynamic_payload_data = webhook_type_handler.info()
-                                self._logger.debug(
+                                self.logger.debug(
                                     f"Dynamic data for webhook {webhook_config.name} (type: {webhook_config.webhook_type.name}): {dynamic_payload_data}"
                                 )
                             except Exception as e:
-                                self._logger.error(
+                                self.logger.error(
                                     f"Error executing .info() for webhook type {webhook_config.webhook_type.name} on webhook {webhook_config.name}: {e}"
                                 )
 
@@ -475,7 +493,7 @@ class WebhookEventListener(EventListenerBase):
                     method=webhook_config.method.name,  # HTTP method for this webhook
                 )
             else:
-                self._logger.info(f"Skipping webhook {webhook_config.name} as no data was generated by its type handler and it's not a GET request.")
+                self.logger.info(f"Skipping webhook {webhook_config.name} as no data was generated by its type handler and it's not a GET request.")
         # Original code had `return True` which doesn't match `-> None` type hint.
         # Assuming side effect only, so no explicit return.
         return

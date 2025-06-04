@@ -42,9 +42,6 @@ class EventsNotifierOptionsController(BaseUserController):
     Requires user authentication for access.
     """
 
-    # Dependency injection for the EventBusService
-    event_bus: EventBusService = Depends(EventBusService.as_dependency)
-
     @cached_property
     def repo(self):  # Type hint could be RepositoryGeneric[EventNotifierOptionsSummary, EventNotifierOptionsModel]
         """

@@ -8,10 +8,17 @@ to prevent brute-force attacks.
 
 from datetime import timedelta
 
+from logging import Logger
+
+from pydantic import ConfigDict
+
+from marvin.core.config import get_app_dirs, get_app_settings
+from marvin.core.root_logger import get_logger
+from marvin.core.settings import AppSettings
+from marvin.core.settings.directories import AppDirectories
+
 from sqlalchemy.orm.session import Session
 
-from marvin.core import root_logger
-from marvin.core.config import get_app_settings
 from marvin.core.exceptions import UserLockedOut
 from marvin.core.security.hasher import get_hasher
 from marvin.core.security.providers.auth_providers import AuthProvider
@@ -24,7 +31,9 @@ from marvin.services.user.user_service import UserService
 class CredentialsProvider(AuthProvider[CredentialsRequest]):
     """Authentication provider that authenticates a user the database using username/password combination"""
 
-    _logger = root_logger.get_logger("credentials_provider")
+    _logger: Logger | None = None
+    _settings: AppSettings | None = None
+    _directories: AppDirectories | None = None
 
     def __init__(self, session: Session, data: CredentialsRequest) -> None:
         """
@@ -36,6 +45,42 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
                                        username and password.
         """
         super().__init__(session, data)
+
+    @property
+    def logger(self) -> Logger:
+        """
+        Provides access to the Marvin application logger.
+
+        Initializes the logger on first access.
+        """
+        if not self._logger:
+            self._logger = get_logger("credentials_provider")
+        return self._logger
+
+    @property
+    def settings(self) -> AppSettings:
+        """
+        Provides access to the Marvin application settings.
+
+        Initializes settings on first access.
+        """
+        if not self._settings:
+            self._settings = get_app_settings()
+        return self._settings
+
+    @property
+    def directories(self) -> AppDirectories:
+        """
+        Provides access to the Marvin application directories.
+
+        Initializes directories on first access.
+        """
+        if not self._directories:
+            self._directories = get_app_dirs()
+        return self._directories
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    """Pydantic model configuration to allow arbitrary types."""
 
     def authenticate(self) -> tuple[str, timedelta] | None:
         """
@@ -53,7 +98,6 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
                                          its expiration delta if authentication is
                                          successful, otherwise None.
         """
-        settings = get_app_settings()
         db = get_repositories(self.session, group_id=None)
         user = self.try_get_user(self.data.username)
 
@@ -63,17 +107,17 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
 
         if user.auth_method != AuthMethod.MARVIN:
             self.verify_fake_password()
-            self._logger.warning("Found user but their auth method is not 'MARVIN'. Unable to continue with credentials login")
+            self.logger.warning("Found user but their auth method is not 'MARVIN'. Unable to continue with credentials login")
             return None
 
-        if user.login_attemps >= settings.SECURITY_MAX_LOGIN_ATTEMPTS or user.is_locked:
+        if user.login_attemps >= self.settings.SECURITY_MAX_LOGIN_ATTEMPTS or user.is_locked:
             raise UserLockedOut()
 
         if not CredentialsProvider.verify_password(self.data.password, user.password):
             user.login_attemps += 1
             db.users.update(user.id, user)
 
-            if user.login_attemps >= settings.SECURITY_MAX_LOGIN_ATTEMPTS:
+            if user.login_attemps >= self.settings.SECURITY_MAX_LOGIN_ATTEMPTS:
                 user_service = UserService(db)
                 user_service.lock_user(user)
 
