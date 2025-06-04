@@ -9,7 +9,7 @@ from marvin.core.settings import app_plugin_settings_constructor, app_settings_c
 from .settings import AppDirectories, AppPlugins, AppSettings, PluginSettings
 
 CWD = Path(__file__).parent
-BASE_DIR = Path(os.getenv("BASED_DIR", CWD.parent.parent))
+BASE_DIR = Path(os.getenv("BASE_DIR", CWD.parent.parent))
 ENV = BASE_DIR.joinpath(".env")
 ENV_SECRETS = BASE_DIR.joinpath(".env.secrets")
 
