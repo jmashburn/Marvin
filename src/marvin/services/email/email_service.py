@@ -95,8 +95,6 @@ class EmailService(BaseService):
                 so this parameter's effect is pending full i18n implementation.
                 Defaults to None.
         """
-        super().__init__()  # Initialize BaseService (likely for settings, logger)
-
         self.templates_dir: Path = CWD / "templates"  # Path to the email templates directory
         self.default_template: Path = self.templates_dir / "default.html"  # Path to the default email template
 
@@ -161,12 +159,12 @@ class EmailService(BaseService):
         # Construct the EmailTemplate with content specific to password reset
         # These string values are presumably localization keys.
         forgot_password_template = EmailTemplate(
-            subject="emails.password.subject",  # Localization key for subject
-            header_text="emails.password.header_text",
-            message_top="emails.password.message_top",
-            message_bottom="emails.password.message_bottom",
+            subject="Forgot Password",  # Localization key for subject
+            header_text="Forgot Password",
+            message_top="You have requested to reset your password.",
+            message_bottom="Please click the button above to reset your password.",
             button_link=reset_password_url,  # The actual reset URL
-            button_text="emails.password.button_text",
+            button_text="Reset Password",
         )
         return self.send_email(recipient_address, forgot_password_template)
 
@@ -186,12 +184,12 @@ class EmailService(BaseService):
         """
         # Construct the EmailTemplate with content specific to invitations
         invitation_template = EmailTemplate(
-            subject="emails.invitation.subject",  # Localization key for subject
-            header_text="emails.invitation.header_text",
-            message_top="emails.invitation.message_top",
-            message_bottom="emails.invitation.message_bottom",
+            subject="Invitation to Join",  # Localization key for subject
+            header_text="You're Invited!",
+            message_top="You have been invited to join",
+            message_bottom="Please click the button above to accept the invitation.",
             button_link=invitation_url,  # The actual invitation URL
-            button_text="emails.invitation.button_text",
+            button_text="Accept Invitation",
         )
         return self.send_email(recipient_address, invitation_template)
 
@@ -210,11 +208,11 @@ class EmailService(BaseService):
         """
         # Construct the EmailTemplate with content specific for a test email
         test_email_template = EmailTemplate(
-            subject="emails.test.subject",  # Localization key for subject
-            header_text="emails.test.header_text",
-            message_top="emails.test.message_top",
-            message_bottom="emails.test.message_bottom",
+            subject="Test Email",  # Localization key for subject
+            header_text="Test Email",
+            message_top="This is a test email",
+            message_bottom="Please click the button above to test the email.",
             button_link=str(self.settings.BASE_URL),  # Link to the application's base URL
-            button_text="emails.test.button_text",
+            button_text="Open",
         )
         return self.send_email(recipient_address, test_email_template)

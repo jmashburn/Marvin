@@ -28,7 +28,7 @@ class PasswordResetModel(SqlAlchemyBase, BaseMixins):
 
     __tablename__ = "password_reset_tokens"
     # `id` (PK), `created_at`, `updated_at` are inherited from BaseMixins
-
+    id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the token.")
     # Foreign key to the Users model
     user_id: Mapped[GUID] = mapped_column(
         GUID,
@@ -53,7 +53,7 @@ class PasswordResetModel(SqlAlchemyBase, BaseMixins):
     # Consider adding an `expires_at: Mapped[datetime]` column for token expiry.
     # Consider adding a `used: Mapped[bool]` column to mark token as used.
 
-    def __init__(self, user_id: GUID, token: str, **kwargs) -> None:
+    def __init__(self, user_id: GUID, token: str, **_) -> None:
         """
         Initializes a PasswordResetModel instance.
 
@@ -64,6 +64,5 @@ class PasswordResetModel(SqlAlchemyBase, BaseMixins):
                       if it has its own __init__ or uses `auto_init`.
                       If `BaseMixins` has `auto_init`, `session` might be needed in `kwargs`.
         """
-        super().__init__(**kwargs)  # Call super to handle BaseMixins initialization if any
         self.user_id = user_id
         self.token = token

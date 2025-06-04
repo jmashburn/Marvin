@@ -263,7 +263,6 @@ class AppriseEventListener(EventListenerBase):
                     continue
                 # Check if any of this notifier's subscribed options match the current event
                 for option_summary in notifier.options:
-                    print(target_event_option_str)
                     if getattr(option_summary, self._option_value_field_name, None) == target_event_option_str:
                         self.logger.debug(f"Appending {notifier.apprise_url}")
                         apprise_urls.append(notifier.apprise_url)

@@ -115,7 +115,6 @@ class Message(BaseService):
             # The SMTP server itself might also assign a Message-ID if this one is problematic.
 
         msg["Message-ID"] = message_id_value
-        msg["MIME-Version"] = "1.0"  # Standard MIME header
 
         # Send the email using SMTP or SMTP_SSL
         send_errors: dict = {}  # To store errors from server.send_message()
@@ -205,7 +204,6 @@ class DefaultEmailSender(ABCEmailSender, BaseService):
 
         # Create the email message object
         email_msg = Message(
-            logger=self.logger,  # Pass logger for logging within Message
             subject=subject,
             html=html_content,
             mail_from_name=self.settings.SMTP_FROM_NAME,
