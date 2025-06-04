@@ -56,7 +56,7 @@ tasks:
     desc: Starts postgres and mailpit
     dir: docker
     cmds:
-      - docker compose -f docker-compose.yml up
+      - docker compose -f docker-compose.dev.yml up
 
   dev:clean:
     desc: Cleans up development environment
