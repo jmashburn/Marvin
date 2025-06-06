@@ -98,6 +98,17 @@ class EmailService(BaseService):
         self.templates_dir: Path = CWD / "templates"  # Path to the email templates directory
         self.default_template: Path = self.templates_dir / "default.html"  # Path to the default email template
 
+        if Path(self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE).is_file():
+            self.default_template: Path = (
+                self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE
+            )  # Path to the default email template per settings
+
+        if Path(self.directories.TEMPLATE_DIR / self.settings._DEFAULT_EMAIL_TEMPLATE).is_file():
+            self.templates_dir = self.directories.TEMPLATE_DIR
+            self.default_template = self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE
+
+        self.logger.debug(f"Loading {self.templates_dir} in {self.default_template}")
+
         # Use provided sender or instantiate DefaultEmailSender
         self.sender: ABCEmailSender = sender or DefaultEmailSender()
 

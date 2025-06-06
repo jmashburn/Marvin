@@ -272,6 +272,8 @@ class AppSettings(BaseSettings):
     # ===============================================
     # Email Configuration
 
+    _DEFAULT_EMAIL_TEMPLATE: str = "branded.html"
+    """Default Email Template. place in templates folder"""
     SMTP_HOST: str | None = None
     """SMTP server hostname or IP address."""
     SMTP_PORT: str | None = "587"
