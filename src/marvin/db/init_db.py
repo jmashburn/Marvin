@@ -49,7 +49,7 @@ def init_plugin_db(session: orm.Session, plugins: AppPlugins) -> None:
         plugins (AppPlugins): An AppPlugins instance containing loaded plugins.
     """
     settings = get_app_settings()
-    if settings.PLUGINS:
+    if settings.PLUGIN_ENABLED:
         logger.info("-------Plugins: Init DB-------")
         for plugin_name, plugin in plugins.LOADED_PLUGINS.items():
             logger.debug(f"-------Initializing Plugin DB: {plugin_name}-------")
@@ -243,7 +243,7 @@ def main() -> None:
 
         alembic_cfg_paths = {"main": os.getenv("ALEMBIC_CONFIG_FILE", default=str(PROJECT_DIR / "alembic.ini"))}
 
-        if settings.PLUGINS:
+        if settings.PLUGIN_ENABLED:
             logger.info("-------Plugins Alembic Enabled-------")
             plugins = get_app_plugins(settings.PLUGIN_PREFIX)
             for plugin_name, plugin in plugins.LOADED_PLUGINS.items():
@@ -284,4 +284,5 @@ def main() -> None:
             logger.info("Main Database contains no users initializing...")
             init_db(session)
 
-        init_plugin_db(session, plugins)
+        if settings.PLUGIN_ENABLED:
+            init_plugin_db(session, plugins)

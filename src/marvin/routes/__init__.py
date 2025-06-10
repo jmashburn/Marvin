@@ -31,7 +31,7 @@ def load_routes():
                 router.include_router(routers)
 
 
-if settings.PLUGINS:
+if settings.PLUGIN_ENABLED:
     logger.info("-------Plugins Enabled-------")
     plugins = get_app_plugins(settings.PLUGIN_PREFIX)
     load_routes()

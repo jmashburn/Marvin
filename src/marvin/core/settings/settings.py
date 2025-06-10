@@ -18,7 +18,7 @@ from typing import Annotated, Any, NamedTuple
 
 from dateutil.tz import tzlocal
 from dotenv import dotenv_values
-from pydantic import PlainSerializer, field_validator
+from pydantic import PlainSerializer, field_validator, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .db_providers import AbstractDBProvider, db_provider_factory
@@ -127,10 +127,6 @@ class AppSettings(BaseSettings):
     SECRET: str
 
     ENV_SECRETS: OrderedDict | None = None
-
-    PLUGIN_PREFIX: str = "marvin_"
-
-    PLUGINS: bool = True
 
     API_HOST: str = "0.0.0.0"
 
@@ -260,7 +256,7 @@ class AppSettings(BaseSettings):
     _DEFAULT_EMAIL: str = "changeme@example.com"
     """Default email for the initial admin user, if created."""
 
-    _DEFAULT_PASSWORD: str = "MyPassword"
+    _DEFAULT_PASSWORD: SecretStr = "MyPassword"
     """Default password for the initial admin user, if created."""
 
     _DEFAULT_GROUP: str = "Default"
@@ -268,6 +264,34 @@ class AppSettings(BaseSettings):
 
     _DEFAULT_INTEGRATION_ID: str = "generic"
     """# Default identifier for integrations if not specified when creating an API token."""
+
+    # ===============================================
+    # Plugin Configurtion
+
+    PLUGIN_PREFIX: str | None = "marvin_"
+
+    @property
+    def PLUGIN_ENABLED(self) -> bool:
+        """Indicates if Plugin is configured and enabled."""
+        return self.PLUGIN_FEATURE.enabled
+
+    @property
+    def PLUGIN_FEATURE(self) -> FeatureDetails:
+        """Details about the PLUGIN feature status"""
+        description = None
+        required = {
+            "PLUGIN_PREFIX": self.PLUGIN_PREFIX,
+        }
+
+        not_none = None not in required.values()
+        if not not_none and not description:
+            missing_values = [key for (key, value) in required.items() if value is None]
+            description = f"Missing required values for {missing_values}"
+
+        return FeatureDetails(
+            enabled=not_none,
+            description=description,
+        )
 
     # ===============================================
     # Email Configuration

@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from urllib import parse as urlparse
 
-from pydantic import BaseModel, PostgresDsn
+from pydantic import BaseModel, PostgresDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -83,7 +83,7 @@ class PostgresProvider(AbstractDBProvider, BaseSettings):
     """
 
     POSTGRES_USER: str = ""
-    POSTGRES_PASSWORD: str = ""
+    POSTGRES_PASSWORD: SecretStr = ""
     POSTGRES_SERVER: str = ""
     POSTGRES_PORT: str = ""
     POSTGRES_DB: str = ""
@@ -122,7 +122,7 @@ class PostgresProvider(AbstractDBProvider, BaseSettings):
             return safe_url
         return str(
             PostgresDsn.build(
-                schema="postgresql",
+                scheme="postgres",
                 username=self.POSTGRES_USER,
                 password=urlparse.quote(self.POSTGRES_PASSWORD),
                 host=f"{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}",
