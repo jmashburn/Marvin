@@ -3,6 +3,7 @@ name = "marvin"
 version = "0.1.0"
 description = "Marvin"
 readme = "README.md"
+
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.15.2",
@@ -24,7 +25,6 @@ dependencies = [
     "pyhumps>=3.8.0",
     "pyjwt>=2.10.1",
     "python-dateutil>=2.9.0.post0",
-    "python-ldap>=3.4.4",
     "python-slugify>=8.0.4",
     "rich>=14.0.0",
     "ruff>=0.11.7",
@@ -39,8 +39,12 @@ dependencies = [
     "uvicorn>=0.34.2",
 ]
 
+[project.scripts]
+marvin = "marvin.app:main"
+#healthz = "marvin.scripts.healthcheck"
+
 [build-system]
-requires = ["hatchling >= 1.26"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
@@ -58,6 +62,7 @@ dev = [
     "ruff>=0.11.7",
     "types-pyyaml>=6.0.12.20250402",
 ]
+ldap = []
 postgres = [
     "postgres>=4.0",
 ]
@@ -83,6 +88,7 @@ strict_optional = true
 
 [tool.ruff]
 line-length = 150
+indent-width = 4
 output-format = "concise"
 
 # Exclude a variety of commonly ignored directories.
@@ -139,6 +145,12 @@ select = [
 "ldap_provider.py" = ["UP032"]
 "tests/conftest.py" = ["E402"]
 "tests/utils/routes/__init__.py" = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.ruff.lint.mccabe]
 # Unlike Flake8, default to a complexity level of 10.

@@ -1,7 +1,3 @@
-#Ignore local logger config file changes
-logconf.*.json
-
-
 # Byte-compiled / optimized / DLL files
 .env
 .env.secrets

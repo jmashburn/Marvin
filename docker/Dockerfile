@@ -1,79 +1,120 @@
-##################################
-# Base Image - Python
-##################################
 ARG IMAGE="python"
-ARG VARIENT="3.11"
-FROM ${IMAGE}:${VARIENT} AS python-base
-
-
-ENV MARVIN_HOME="/app"
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACH_DIR=off \
-    PIP_DISABLE_PIP_VERSION_CHECK=on \
-    PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_HOME="/opt/poetry" \
-    POETRY_VIRTUALENVS_IN_PROJECT=true  \
-    POETRY_NO_INTERACTION=1 \
-    PYSETUP_PATH="/opt/pysetup" \
-    VENV_PATH="/opt/pysetup/.venv"
-
-ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
-
-RUN mkdir "$MARVIN_HOME"
+ARG VARIENT="3.12-slim"
+ARG UV_IMAGE="ghcr.io/astral-sh/uv"
+ARG UV_VARIENT="python3.12-bookworm"
 
 ##################################
 # Builder Image - Python
 ##################################
+
+FROM ${IMAGE}:${VARIENT} AS python-base
+
+ENV MARVIN_HOME="/app"
+
+RUN useradd -U -d $MARVIN_HOME -s /bin/bash app && \
+    usermod -G users app && \
+    mkdir $MARVIN_HOME
+
+##################################
+# Base Image - Packages
+##################################
+
 FROM python-base AS builder-base
+
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     curl \
     build-essential \
     libsasl2-dev libldap2-dev libssl-dev \
     gnupg gnupg2 gnupg1 \
-    && apt-get clean \
-    && pip install -U --no-cache-dir pip
+    && apt-get clean
 
+##################################
+# Base Image - uv
+##################################
+#FROM builder-base AS uv-base
+FROM ${UV_IMAGE}:${UV_VARIENT} AS uv-base
 
-# install poetry - respect  $POETRY_VERSION & $POETRY_HOME
-ENV POETRY_VERSION=1.3.1
-RUN curl -sSL https://install.python-poetry.org | python3 -
+# Install the project into `/app`
+WORKDIR /app
 
-# copy project requirement files here to ensure they will be cached.
-WORKDIR $PYSETUP_PATH
-COPY ./README.md ./poetry.lock ./pyproject.toml ./
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
 
-RUN poetry install --only main
+# Copy from the cache instead of linking since its a mounted vol
+ENV UV_LINK_MODE=copy
+
+# Generate proper TOML lockfile first
+RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv lock
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    uv sync --frozen --no-install-project --no-dev --no-editable
+
+# The, add the rest of the projects source code and install it
+ADD . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    uv sync --frozen --no-dev --no-editable
+
+# Remove unnecessary files from the virtual env before copying
+RUN find /app/.venv -name '__pycache__' -type d -exec rm -rf {} + && \
+    find /app/.venv -name '*.pyc' -delete && \
+    find /app/.venv -name '*.pyo' -delete && \
+    echo "Cleaned .venv"
+
 
 # ##################################
 # Production Base Image
 # ##################################
-FROM python-base AS production-base
-ENV PRODUCTION=true
-ENV TESTING=false
+FROM builder-base AS build-base
 
-ARG COMMIT
-ENV GIT_COMMIT_HASh=${COMMIT}
-
-COPY --from=builder-base $POETRY_HOME $POETRY_HOME
-COPY --from=builder-base $PYSETUP_PATH $PYSETUP_PATH
-
-COPY ./marvin $MARVIN_HOME/marvin
-COPY ./README.md ./poetry.lock ./pyproject.toml $MARVIN_HOME
-
-WORKDIR $MARVIN_HOME
-RUN . $VENV_PATH/bin/activate && poetry install --only main
-WORKDIR /
+COPY --from=uv-base --chown=app:app /app/.venv /app/.venv
+ENV BASE_DIR=$MARVIN_HOME
 
 # ##################################
 # Production Image
 # ##################################
-FROM pre-prod AS production
-COPY ./docker/entry.sh $MARVIN_HOME/run.sh
+FROM build-base AS production
 
-RUN chmod +x $MARVIN_HOME/run.sh
-ENTRYPOINT ["/app/run.sh"]
+ENV PRODUCTION=True
+ENV TESTING=False
+ENV DATA_DIR="$MARVIN_HOME/data"
+# create directory used for Docker Secrets
+RUN mkdir -p /run/secrets
+
+VOLUME [ "$MARVIN_HOME/data/" ]
+
+ENV API_PORT=8080
+
+EXPOSE ${API_PORT}
+
+ARG COMMIT
+ENV GIT_COMMIT_HASH=${COMMIT}
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+ENV HOST=0.0.0.0
+
+#HEALTHCHECK CMD python -m marvin.scripts.healthcheck || exit 1
+
+ENTRYPOINT ["marvin"]
+
+
+
+# # ##################################
+# # Testing Image
+# # ##################################
+# FROM build-base AS test
+
+# ENV PRODUCTION=false
+# ENV TESTING=true
+
+# ENV PATH="/app/.venv/bin:$PATH"
+
+# CMD ["marvin"]
 
 
 # ##################################

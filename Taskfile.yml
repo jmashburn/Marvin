@@ -21,7 +21,7 @@ tasks:
   docs:gen:
     desc: runs the API documentation generator
     cmds:
-      - uv run dev/code_generation/gen_docs_api.py
+      - uv run src/dev/code_generation/gen_docs_api.py
 
   docs:
     desc: runs the documentation server
@@ -49,28 +49,28 @@ tasks:
   dev:generate:
     desc: Generate the API documentation
     cmds:
-      - uv run dev/code_generation/main.py
+      - uv run src/dev/code_generation/main.py
       - task: py:format
 
   dev:services:
     desc: Starts postgres and mailpit
     dir: docker
     cmds:
-      - docker compose -f docker-compose.yml up
+      - docker compose -f docker-compose.dev.yml up
 
   dev:clean:
     desc: Cleans up development environment
     vars:
       DEV_DATA: ""
     cmds:
-      - rm -r ./dev/data/marvin*.db
-      - rm -r ./dev/data/marvin.log
-      - rm -r ./dev/data/.secret
+      - rm -r .src/dev/data/marvin*.db
+      - rm -r .src/dev/data/marvin.log
+      - rm -r .src/dev/data/.secret
 
   py:mypy:
     desc: Runs python type checking
     cmds:
-      - uv run mypy marvin
+      - uv run mypy src/marvin
 
   py:test:
     desc: runs python tests (support args after '--')
@@ -80,12 +80,12 @@ tasks:
   py:format:
     desc: runs python code formater
     cmds:
-      - uv run ruff format .
+      - uv run ruff format src/marvin
 
   py:lint:
     desc: runs python linter
     cmds:
-      - uv run ruff check marvin
+      - uv run ruff check src/marvin
 
   py:check:
     desc: runs all linters, type checkers and formaters
@@ -107,7 +107,7 @@ tasks:
   py:
     desc: runs the backend server
     cmds:
-      - uv run python marvin/app.py
+      - uv run src/marvin/app.py
 
   py:server:
     desc: Generate a Running Server for webhook tests
@@ -117,7 +117,7 @@ tasks:
   py:migrate:
     desc: generates a new database migration file e.g. task py:migrate -- "add new column"
     cmds:
-      - uv run alembic --config marvin/alembic/alembic.ini revision --autogenerate -m "{{ .CLI_ARGS }}"
+      - uv run alembic --config src/marvin/alembic.ini revision --autogenerate -m "{{ .CLI_ARGS }}"
       - task: py:format
 
   docker:prod:
@@ -126,7 +126,12 @@ tasks:
     cmds:
       - docker compose -f docker-compose.yml -p marvin up -d --build
 
+  docker:uv:
+    desc: Build up to uv
+    cmds:
+      - docker build -f docker/Dockerfile --target production --build-arg="UV_IMAGE=ghcr.io/astral-sh/uv" --tag=marvin:latest .
+
   docker:lambda:
     desc: builds and docker image for lambda
     cmds:
-      - docker build -f docker/Dockerfile --target lambda --build-arg="IMAGE=public.ecr.aws/lambda/python" --tag=marvin:lastest .
+      - docker build -f docker/Dockerfile --target uv-base --build-arg="IMAGE=public.ecr.aws/lambda/python" --tag=marvin:lastest .

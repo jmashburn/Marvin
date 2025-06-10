@@ -1,4 +1,3 @@
-version: "3.4"
 services:
     marvin:
         container_name: marvin
@@ -8,5 +7,20 @@ services:
             target: production
             dockerfile: ./docker/Dockerfile
         restart: always
+        volumes:
+          - marvin-data:/app/data
         ports:
-            - 9091:9000
+            - 8080:8080
+        environment:
+            PRODUCTION: True
+            ALLOW_SIGNUP: "false"
+            LOG_LEVEL: DEBUG
+            DB_ENGINE: sqlite
+        secrets:
+          - DB_ENGINE
+volumes:
+  marvin-data:
+    driver: local
+secrets:
+    DB_ENGINE:
+        environment: COLORTERM
