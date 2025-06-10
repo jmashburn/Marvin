@@ -110,7 +110,7 @@ class PostgresProvider(AbstractDBProvider, BaseSettings):
             url = self.POSTGRES_URL_OVERRIDE
 
             schema, remainder = url.split("://", 1)
-            if schema != "postgres":
+            if schema != "postgresql":
                 raise ValueError("POSTGRES_URL_OVERRIDE schema must be postgresql")
 
             remainder = remainder.split(":", 1)[1]

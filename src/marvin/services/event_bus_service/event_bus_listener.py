@@ -514,14 +514,12 @@ class WebhookEventListener(EventListenerBase):
         """
         with self.ensure_session() as session:
             # Convert start/end datetimes to UTC time objects for comparison
-            start_time_utc = start_datetime.astimezone(UTC).time()
-            end_time_utc = end_datetime.astimezone(UTC).time()
-
             # Build the query for fetching scheduled webhooks
+
             stmt = select(GroupWebhooksModel).where(
                 GroupWebhooksModel.enabled == True,  # noqa: E712 - SQLAlchemy specific comparison
-                GroupWebhooksModel.scheduled_time >= start_time_utc,  # Compare time part
-                GroupWebhooksModel.scheduled_time < end_time_utc,  # Compare time part (exclusive end)
+                GroupWebhooksModel.scheduled_time >= start_datetime.astimezone(UTC).time(),  # Compare time part
+                GroupWebhooksModel.scheduled_time < end_datetime.astimezone(UTC).time(),  # Compare time part (exclusive end)
                 GroupWebhooksModel.group_id == self.group_id,  # Scope to listener's group
             )
             # Execute query and convert SQLAlchemy models to Pydantic schemas
