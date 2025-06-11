@@ -130,8 +130,3 @@ tasks:
     desc: Build up to uv
     cmds:
       - docker build -f docker/Dockerfile --target production --build-arg="UV_IMAGE=ghcr.io/astral-sh/uv" --tag=marvin:latest .
-
-  docker:lambda:
-    desc: builds and docker image for lambda
-    cmds:
-      - docker build -f docker/Dockerfile --target uv-base --build-arg="IMAGE=public.ecr.aws/lambda/python" --tag=marvin:lastest .
