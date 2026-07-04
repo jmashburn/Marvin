@@ -4,8 +4,7 @@
         "dockerfile": "Dockerfile",
         "context": "..",
         "args": {
-            "VARIANT": "3.11-bookworm",
-            "NODE_VERSION": "16",
+            "VARIANT": "3.12-bookworm",
             "APT_PROXY": "none"
         }
     },
@@ -20,6 +19,12 @@
                 "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
                 "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
                 "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
+                "editor.rulers": [
+                    {
+                        "column": 120
+                    }
+                ],
+                "git.allowForcePush": true
             },
             "extensions": [
                 "ms-python.python",
@@ -31,22 +36,31 @@
             ]
         }
     },
+    "postCreateCommand": "bash -t .devcontainer/post-create.sh",
+    "waitFor": "postCreateCommand",
+    "features": {
+        "ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv:1": {
+            "version": "latest"
+        },
+        "ghcr.io/eitsupi/devcontainer-features/go-task:1": {
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "moby": true,
+            "azureDnsAutoDetection": true,
+            "installDockerBuildx": true,
+            "version": "latest",
+            "dockerDashComposeVersion": "none"
+        },
+        "ghcr.io/devcontainers-extra/features/claude-code:1": {
+            "version": "latest"
+        }
+    },
     "forwardPorts": [
         3000,
         9000,
         9091,
         25678
     ],
-    "remoteUser": "vscode",
     "onCreateCommand": "task setup"
-    // "features": {
-    //     // "ghcr.io/devcontainers/features/docker-in-docker:2": {
-    //     //     "moby": true,
-    //     //     "azureDnsAutoDetection": true,
-    //     //     "installDockerBuildx": true,
-    //     //     "installDockerComposeSwitch": true,
-    //     //     "version": "lastest",
-    //     //     "dockerDashComposeVersion": "v2"
-    //     // }
-    // }
 }

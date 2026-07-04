@@ -1,0 +1,31 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/as/resourceOwner",
+        "bodyPatterns": [
+            {
+                "contains": "grant_type=client_credentials"
+            }
+        ]
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json",
+            "X-Correlation-Id": "{{ randomValue type='UUID'}}"
+        },
+        "jsonBody": {
+            "access_token": "mock_access_token_{{randomValue type='UUID'}}",
+            "token_type": "Bearer",
+            "expires_in": 28800,
+            "scope": "AppIdClaimsTrust",
+            "correlation_id": "{{randomValue type='UUID'}}",
+            "ldap_attributes": {
+                "cn": "Service Account",
+                "mail": "service@example.com",
+                "uid": "srvAP138830DEV"
+            }
+        },
+        "transformers": ["response-template"]
+    }
+}

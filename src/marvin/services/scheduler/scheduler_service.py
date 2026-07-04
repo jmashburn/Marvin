@@ -30,7 +30,7 @@ CWD = Path(__file__).parent
 
 # Constants for intervals in minutes
 MINUTES_DAY = 1440  # Number of minutes in a day (24 * 60)
-MINUTES_5 = 5  # 5 minutes interval
+MINUTES = 1  # 1 minute interval
 MINUTES_HOUR = 60  # Number of minutes in an hour
 
 
@@ -176,20 +176,20 @@ async def run_hourly() -> None:  # Made async as repeat_every can handle it
     logger.info("Finished processing hourly callbacks.")
 
 
-@repeat_every(minutes=MINUTES_5, wait_first=True, logger=logger)
+@repeat_every(minutes=MINUTES, wait_first=True, logger=logger)
 async def run_minutely() -> None:  # Made async
     """
     Executes all registered minutely tasks (currently set for every 5 minutes).
 
-    Decorated with `@repeat_every` to run at `MINUTES_5` intervals.
+    Decorated with `@repeat_every` to run at `MINUTES` intervals.
     `wait_first=True` means it waits for the initial interval before the first run.
     It iterates through `SchedulerRegistry._minutely` callbacks.
     """
     current_time_utc = datetime.now(UTC)
-    next_run_time = current_time_utc + timedelta(minutes=MINUTES_5)
+    next_run_time = current_time_utc + timedelta(minutes=MINUTES)
     logger.info(
-        f"Running minutely (every {MINUTES_5} mins) callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        f" {MINUTES} mins) callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
     )
     for registered_func in SchedulerRegistry._minutely:
         _scheduled_task_wrapper(registered_func)
-    logger.info(f"Finished processing minutely (every {MINUTES_5} mins) callbacks.")
+    logger.info(f"Finished processing minutely (every {MINUTES} mins) callbacks.")

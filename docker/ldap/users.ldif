@@ -1,0 +1,87 @@
+# Base structure with 3 OUs: users, groups, servers
+# Adjust dc=example,dc=com to match your domain
+
+# Create Users OU
+dn: ou=users,dc=example,dc=com
+objectClass: organizationalUnit
+objectClass: top
+ou: users
+description: Users organizational unit
+
+# Create Groups OU
+dn: ou=groups,dc=example,dc=com
+objectClass: organizationalUnit
+objectClass: top
+ou: groups
+description: Groups organizational unit
+
+# Create Servers OU
+dn: ou=servers,dc=example,dc=com
+objectClass: organizationalUnit
+objectClass: top
+ou: servers
+description: Servers organizational unit
+
+# Create Administrator group
+dn: cn=Administrator,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: Administrator
+description: Administrator group
+member: cn=John Doe,ou=users,dc=example,dc=com
+
+# Create Developer group
+dn: cn=Developer,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: Developer
+description: Developer group
+member: cn=John Doe,ou=users,dc=example,dc=com
+member: cn=Jane Smith,ou=users,dc=example,dc=com
+
+# Create John Doe
+dn: cn=John Doe,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: John Doe
+sn: Doe
+mail: john.doe@example.com
+uid: john.doe
+userPassword: {SSHA}KzLyHyxf5eshQBcn1zfueSVoYNVfLx3I
+description: John Does user account
+
+# Create User2
+dn: cn=Jane Smith,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: Jane Smith
+sn: Smith
+mail: jane.smith@example.com
+uid: jane.smith
+userPassword: {SSHA}KzLyHyxf5eshQBcn1zfueSVoYNVfLx3I
+description: Jane Smiths user account
+
+# Create User3
+dn: cn=User One,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+cn: User One
+sn: One
+mail: user01@example.com
+uid: user01
+userPassword: {SSHA}0HIDARaa8lRtbIh0vovvKqx01W8L9u9i
+description: Third user account
+
+# Create Server1
+dn: cn=server1,ou=servers,dc=example,dc=com
+objectClass: device
+objectClass: top
+cn: server1
+description: Server 1
+serialNumber: SRV001

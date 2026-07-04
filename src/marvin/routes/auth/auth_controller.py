@@ -269,10 +269,10 @@ class PublicAuthenticiationController(BasePublicController):
                 marvin_auth_result = oidc_auth_provider_endpoint.authenticate()
 
         except MissingClaimException as e:
-            self.logger.error(f"OIDC authentication failed due to missing claims: {e}")
+            self.logger.error("OIDC authentication failed due to missing claims: %s", e)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"OIDC authentication failed: {e}") from e
         except Exception as e:  # Catch other unexpected errors during OIDC auth provider logic
-            self.logger.error(f"OIDC authentication processing error: {e}")
+            self.logger.error("OIDC authentication processing error: %s", e)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing OIDC user information.") from e
 
         if not marvin_auth_result:

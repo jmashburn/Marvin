@@ -1,8 +1,9 @@
 services:
   mailpit:
-    image: axllent/mailpit:latest
-    container_name: marvin_dev_mailpit
-    restart: no
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    image: docker.io/axllent/mailpit:latest
+    container_name: mailpit
     environment:
       - "MP_SMTP_AUTH_ACCEPT_ANY=true"
       - "MP_SMTP_AUTH_ALLOW_INSECURE=true"
@@ -10,11 +11,116 @@ services:
       - "8025:8025"
       - "1025:1025"
   postgres:
-    container_name: marvin_dev_postgres
-    image: postgres:15
-    restart: no
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: postgres
+    image: docker.io/postgres:15
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_PASSWORD: marvin
-      POSTGRES_USER: marvin
+      POSTGRES_PASSWORD: default
+      POSTGRES_USER: default
+  apprise:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    image: docker.io/caronc/apprise:latest
+    container_name: apprise
+    ports:
+      - "8000:8000"
+    user: "1000:1000"
+    environment:
+      APPRISE_STATEFUL_MODE: simple
+      APPRISE_WORKER_COUNT: "1"
+    volumes:
+      - ./docker/config/config:/config
+      - ./docker/config/plugin:/plugin
+      - ./docker/config/attach:/attach
+  httpbin:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: httpbin
+    image: docker.io/kennethreitz/httpbin:latest
+    ports:
+      - "8080:80"
+    environment:
+      GUNICORN_CMD_ARGS: "--capture-output --error-logfile - --access-logfile - --log-level=DEBUG"
+
+  # OpenLDAP Server for testing LDAP client
+  openldap:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: openldap
+    image: osixia/openldap:1.5.0
+    ports:
+      - "1389:389"
+      - "1636:636"
+    environment:
+      - LDAP_ORGANISATION=Example Inc.
+      - LDAP_DOMAIN=example.com
+      - LDAP_ADMIN_PASSWORD=adminpassword
+      - LDAP_CONFIG_PASSWORD=configpassword
+      - LDAP_READONLY_USER=false
+      - LDAP_TLS=false
+    command: --copy-service --loglevel debug
+    volumes:
+      - openldap_data:/var/lib/ldap
+      - openldap_config:/etc/ldap/slapd.d
+      #- ./ldap:/container/service/slapd/assets/config/bootstrap/ldif/custom
+
+  # phpLDAPadmin - Web UI for OpenLDAP
+  phpldapadmin:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: phpldapadmin
+    image: docker.io/osixia/phpldapadmin:latest
+    ports:
+      - "8081:80"
+    environment:
+      - PHPLDAPADMIN_LDAP_HOSTS=openldap
+      - PHPLDAPADMIN_HTTPS=false
+    depends_on:
+      - openldap
+
+  # HashiCorp Vault for testing Vault client
+  vault:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: vault
+    image: docker.io/hashicorp/vault:latest
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=root-token-for-dev
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    command: server -dev
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Mock OAuth Server for testing OAuth client
+  mock-oauth:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: mock-oauth
+    image: docker.io/wiremock/wiremock:latest
+    ports:
+      - "8082:8080"
+    environment:
+      - WIREMOCK_OPTIONS=--verbose --global-response-templating
+    volumes:
+      - ./docker/wiremock/mappings:/home/wiremock/mappings
+      - ./docker/wiremock/__files:/home/wiremock/__files
+    command:
+      - --verbose
+      - --global-response-templating
+
+volumes:
+  openldap_data:
+    driver: local
+  openldap_config:
+    driver: local
