@@ -1,0 +1,29 @@
+---
+import type { MarvinEntry } from "@/lib/api/types";
+
+interface Props {
+  entry: MarvinEntry;
+}
+
+const { entry } = Astro.props;
+const asset = entry.assets?.find((item) => item.role === "featured" || item.role === "hero") ?? entry.assets?.[0];
+const frontmatter = entry.frontmatter ?? {};
+const material = typeof frontmatter.material === "string" ? frontmatter.material : undefined;
+const schema = typeof frontmatter.schema === "string" ? frontmatter.schema : undefined;
+---
+
+<article class="card">
+  <div class="media">
+    {asset?.url ? <img src={asset.url} alt={asset.alt_text ?? entry.title} style={`object-position: ${asset.focal_point ?? "50% 50%"}`} /> : null}
+  </div>
+  <div class="card-body">
+    <h2>{entry.title}</h2>
+    <p>{entry.summary}</p>
+    <div class="meta">
+      <span class={`pill ${entry.status}`}>{entry.status}</span>
+      <span class="pill">{entry.entry_type}</span>
+      {material && <span class="pill">{material}</span>}
+      {schema && <span class="pill">{schema}</span>}
+    </div>
+  </div>
+</article>

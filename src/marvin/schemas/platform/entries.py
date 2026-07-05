@@ -1,0 +1,87 @@
+"""Entry schemas."""
+
+from datetime import datetime
+from typing import Annotated
+
+from pydantic import ConfigDict, StringConstraints, UUID4, field_validator
+
+from marvin.schemas._marvin import _MarvinModel
+
+ENTRY_STATUSES = {
+    "inbox",
+    "processing",
+    "draft",
+    "needs_review",
+    "approved",
+    "published",
+    "archived",
+}
+
+
+class EntryCreate(_MarvinModel):
+    """Schema for creating an entry."""
+
+    entry_type_id: UUID4
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    summary: str | None = None
+    description: str | None = None
+    content_markdown: str | None = None
+    status: str = "inbox"
+    published_at: datetime | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        if value not in ENTRY_STATUSES:
+            raise ValueError(f"status must be one of: {', '.join(sorted(ENTRY_STATUSES))}")
+        return value
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryUpdate(_MarvinModel):
+    """Schema for patching an entry."""
+
+    entry_type_id: UUID4 | None = None
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    summary: str | None = None
+    description: str | None = None
+    content_markdown: str | None = None
+    status: str | None = None
+    published_at: datetime | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in ENTRY_STATUSES:
+            raise ValueError(f"status must be one of: {', '.join(sorted(ENTRY_STATUSES))}")
+        return value
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryRead(_MarvinModel):
+    """Schema for reading an entry."""
+
+    id: UUID4
+    group_id: UUID4
+    entry_type_id: UUID4
+    title: str
+    slug: str
+    summary: str | None = None
+    description: str | None = None
+    content_markdown: str | None = None
+    status: str
+    published_at: datetime | None = None
+    created_at: datetime | None = None
+    update_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntrySummary(EntryRead):
+    """Summary schema for an entry."""
+
+    pass

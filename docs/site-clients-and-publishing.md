@@ -86,6 +86,31 @@ collections
 assets
 ```
 
+Assets in entry responses should include both file facts and placement facts.
+
+File facts describe the reusable upload:
+
+```text
+slug
+url
+mime_type
+width
+height
+alt_text
+metadata
+```
+
+Placement facts describe how that file is used on this entry:
+
+```text
+role
+usage
+position
+focal_point
+caption
+placement_metadata
+```
+
 Do not expose:
 
 ```text

@@ -28,3 +28,6 @@ class BaseMixins:
         for k, v in kwargs.items():
             if hasattr(self, k) and v == []:
                 setattr(self, k, v)
+
+
+from .platform import Entries, EntryTypes  # noqa: E402, F401

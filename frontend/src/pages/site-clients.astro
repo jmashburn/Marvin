@@ -1,0 +1,41 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getSiteClients } from "@/lib/api/platform";
+
+const siteClients = await getSiteClients();
+---
+
+<AppLayout title="Site Clients">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0;font-size:20px;">Publishing access</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Read-only identities for Astro and other external sites.</p>
+    </div>
+    <a class="button" href="/site-clients/new">New Client</a>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Slug</th>
+        <th>Status</th>
+        <th>Permissions</th>
+        <th>Last used</th>
+      </tr>
+    </thead>
+    <tbody>
+      {siteClients.map((client) => (
+        <tr>
+          <td><strong>{client.name}</strong></td>
+          <td>{client.slug}</td>
+          <td><span class={`pill ${client.is_active ? "published" : "draft"}`}>{client.is_active ? "active" : "inactive"}</span></td>
+          <td>
+            <div class="meta">{client.permissions.map((permission) => <span class="pill">{permission}</span>)}</div>
+          </td>
+          <td>{client.last_used_at ? new Date(client.last_used_at).toLocaleString() : "Never"}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</AppLayout>

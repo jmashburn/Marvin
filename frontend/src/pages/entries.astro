@@ -1,0 +1,26 @@
+---
+import EntryCard from "@/components/EntryCard.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getEntries } from "@/lib/api/platform";
+
+const type = Astro.url.searchParams.get("type") ?? "";
+const entries = await getEntries(type || undefined);
+const types = ["", "project", "bench_note", "reference"];
+---
+
+<AppLayout title="Entries">
+  <div class="toolbar">
+    <nav class="segmented" aria-label="Entry type">
+      {types.map((item) => (
+        <a href={item ? `/entries?type=${item}` : "/entries"} aria-current={type === item ? "page" : undefined}>
+          {item || "all"}
+        </a>
+      ))}
+    </nav>
+    <a class="button" href="/entries/new">New Entry</a>
+  </div>
+
+  <section class="grid" aria-label="Entries">
+    {entries.map((entry) => <EntryCard entry={entry} />)}
+  </section>
+</AppLayout>

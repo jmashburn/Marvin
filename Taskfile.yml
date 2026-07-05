@@ -31,6 +31,24 @@ tasks:
     cmds:
       - uv run -m mkdocs serve
 
+  frontend:setup:
+    desc: Install Astro frontend dependencies
+    dir: frontend
+    cmds:
+      - npm install
+
+  frontend:
+    desc: Runs the Astro frontend
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  frontend:build:
+    desc: Builds the Astro frontend
+    dir: frontend
+    cmds:
+      - npm run build
+
   setup:py:
     desc: Stup python dependencies
     cmds:

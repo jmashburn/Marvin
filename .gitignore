@@ -13,6 +13,8 @@ docs/site/
 
 .DS_Store
 node_modules
+frontend/.astro/
+frontend/dist/
 
 
 # local env files

@@ -47,6 +47,7 @@ from ._utils import NOT_SET, NotSet  # Sentinel for optional group_id
 from .groups import RepositoryGroup  # Specialized group repository
 from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
 from .users import RepositoryUsers  # Specialized user repository
+from .platform import EntriesRepository, EntryTypesRepository
 
 # Constants for primary key / lookup key names used in repositories
 PK_ID = "id"  # Standard primary key
@@ -219,3 +220,13 @@ class AllRepositories:
         Scoped by `group_id`.
         """
         return GroupRepositoryGeneric(self.session, PK_ID, GroupWebhooksModel, WebhookRead, group_id=self.group_id)
+
+    @cached_property
+    def entry_types(self) -> EntryTypesRepository:
+        """Provides access to workspace-scoped entry type records."""
+        return EntryTypesRepository(self.session, self.group_id)
+
+    @cached_property
+    def entries(self) -> EntriesRepository:
+        """Provides access to workspace-scoped entry records."""
+        return EntriesRepository(self.session, self.group_id)
