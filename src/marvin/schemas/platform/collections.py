@@ -1,5 +1,6 @@
 """Collection schemas."""
 
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import ConfigDict, StringConstraints, UUID4
@@ -16,6 +17,12 @@ class CollectionCreate(_MarvinModel):
     """URL-friendly slug for the collection."""
     description: str | None = None
     """Optional description of the collection."""
+    sort_order: int = 0
+    """Display order for UI (lower numbers first)."""
+    icon: str | None = None
+    """Optional icon identifier for UI display."""
+    color: str | None = None
+    """Optional color code for UI display (e.g., '#FF5733')."""
     is_smart: bool = False
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
@@ -24,11 +31,27 @@ class CollectionCreate(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CollectionUpdate(CollectionCreate):
+class CollectionUpdate(_MarvinModel):
     """Schema for updating a collection."""
 
-    id: UUID4
-    """The unique identifier of the collection to update."""
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    """Name of the collection."""
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    """URL-friendly slug for the collection."""
+    description: str | None = None
+    """Optional description of the collection."""
+    sort_order: int | None = None
+    """Display order for UI."""
+    icon: str | None = None
+    """Optional icon identifier."""
+    color: str | None = None
+    """Optional color code."""
+    is_smart: bool | None = None
+    """Whether this is a smart collection based on rules."""
+    smart_rules: dict | None = None
+    """Optional rules for smart collections."""
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CollectionSummary(_MarvinModel):
@@ -42,8 +65,18 @@ class CollectionSummary(_MarvinModel):
     """URL-friendly slug."""
     description: str | None = None
     """Optional description."""
+    sort_order: int
+    """Display order."""
+    icon: str | None = None
+    """Optional icon identifier."""
+    color: str | None = None
+    """Optional color code."""
     is_smart: bool
     """Whether this is a smart collection."""
+    created_at: datetime | None = None
+    """Timestamp when the collection was created."""
+    update_at: datetime | None = None
+    """Timestamp when the collection was last updated."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -51,7 +84,9 @@ class CollectionSummary(_MarvinModel):
 class CollectionRead(CollectionSummary):
     """Full schema for reading a collection."""
 
-    entry_count: int | None = None
-    """Number of entries in the collection."""
+    group_id: UUID4
+    """The workspace/group this collection belongs to."""
+    smart_rules: dict | None = None
+    """Optional rules for smart collections."""
 
     model_config = ConfigDict(from_attributes=True)

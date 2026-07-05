@@ -18,6 +18,10 @@ class ResourceCreate(_MarvinModel):
     """Type of resource (fabric, tool, supplier, etc)."""
     description: str | None = None
     """Optional description of the resource."""
+    url: str | None = None
+    """External URL (supplier site, GitHub repo, API docs, etc)."""
+    external_id: str | None = None
+    """External identifier (supplier SKU, ISBN, repo path, etc)."""
     metadata: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
     """Optional metadata as JSON."""
 
@@ -44,6 +48,10 @@ class ResourceSummary(_MarvinModel):
     """Type of resource."""
     description: str | None = None
     """Optional description."""
+    url: str | None = None
+    """External URL."""
+    external_id: str | None = None
+    """External identifier."""
 
     model_config = ConfigDict(from_attributes=True)
 

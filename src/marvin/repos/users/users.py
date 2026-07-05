@@ -12,8 +12,8 @@ from sqlalchemy import select
 from marvin.core.config import get_app_settings  # Access application settings like IS_DEMO
 from marvin.schemas.user.user import PrivateUser, UserCreate, UserUpdate  # Pydantic schemas for User
 
-from ..db.models.users import Users as UsersModel  # SQLAlchemy User model, aliased for clarity
-from .repository_generic import GroupRepositoryGeneric  # Base class for group-scoped repositories
+from ...db.models.users import Users as UsersModel  # SQLAlchemy User model, aliased for clarity
+from ..repository_generic import GroupRepositoryGeneric  # Base class for group-scoped repositories
 
 # Global application settings instance
 settings = get_app_settings()

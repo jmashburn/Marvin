@@ -1,408 +1,247 @@
 # Astro Integration Guide
 
-This document describes how to integrate Marvin's publishing API with Astro-based static sites.
+**How to use Marvin as the single source of truth for an Astro website**
+
+---
 
 ## Overview
 
-Astro sites consume published content from Marvin via the read-only Publishing API. Each Astro site has its own site client token scoped to a specific workspace.
+Marvin provides a read-only Publishing API that Astro can use to fetch all content at build time. This eliminates the need for local Markdown files and centralizes content management in Marvin.
 
-## Setup
+**Benefits**:
+- ✅ Single source of truth for all content
+- ✅ Content reviewed and approved before publishing
+- ✅ No git commits required for content updates
+- ✅ Webhook-triggered rebuilds on publish
+- ✅ Assets managed centrally
+- ✅ Metadata structured in database
 
-### 1. Create a Site Client in Marvin Admin
+---
 
-In Marvin Admin (`/admin/platform/site-clients`):
+## Prerequisites
 
-1. Click "Create Site Client"
-2. Enter site name: `My Astro Site`
-3. Enter slug: `my-astro-site`
-4. Select permissions:
-   - `read:published_entries`
-   - `read:collections`
-   - `read:assets`
-5. Copy the token (shown only once!)
-6. Store securely in your Astro environment
+1. **Marvin instance** running and accessible
+2. **API Client** created in Marvin for your workspace
+3. **API Client token** (starts with `marvin_sk_`)
+4. **Astro 4.0+** project
 
-### 2. Configure Astro Environment Variables
+---
 
-In `.env.local` (never commit this file):
+## Step 1: Environment Configuration
+
+Create `.env` file in your Astro project:
 
 ```bash
 # Marvin Publishing API Configuration
-MARVIN_API_URL=https://marvin.example.com
-MARVIN_SITE_CLIENT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-MARVIN_GROUP_SLUG=my-workspace
+MARVIN_API_URL=https://marvin.your-domain.com
+MARVIN_API_TOKEN=marvin_sk_your_token_here
+MARVIN_WORKSPACE=default
 ```
 
-### 3. Create a Marvin Client
+---
 
-Create `src/lib/marvin.ts`:
+## Step 2: Create API Client
 
 ```typescript
-const MARVIN_BASE = import.meta.env.MARVIN_API_URL;
-const MARVIN_TOKEN = import.meta.env.MARVIN_SITE_CLIENT_TOKEN;
-const GROUP_SLUG = import.meta.env.MARVIN_GROUP_SLUG;
-
-interface MarvinEntry {
-  id: string;
-  slug: string;
-  title: string;
-  entry_type: string;
-  summary?: string;
-  content_markdown: string;
-  frontmatter?: Record<string, unknown>;
-  published_at: string;
-  collections?: Array<{ id: string; slug: string; name: string }>;
-  assets?: Array<{
-    id: string;
-    slug: string;
-    url: string;
-    alt_text?: string;
-    role?: 'hero' | 'featured' | 'support' | 'inline' | 'download';
-    usage?: 'material' | 'process' | 'detail' | 'texture' | 'workshop';
-    position?: number;
-    focal_point?: string;
-    caption?: string;
-    placement_metadata?: Record<string, unknown>;
-  }>;
-}
-
-interface MarvinCollection {
-  id: string;
-  slug: string;
-  name: string;
-  description?: string;
-  entries?: Array<{ id: string; slug: string; title: string }>;
-}
-
-const headers = {
-  'Authorization': `Bearer ${MARVIN_TOKEN}`,
-  'Content-Type': 'application/json',
-};
-
-export async function getPublishedEntries(): Promise<MarvinEntry[]> {
-  const res = await fetch(
-    `${MARVIN_BASE}/api/publish/${GROUP_SLUG}/entries`,
-    { headers }
-  );
+// src/lib/marvin.ts
+export async function fetchFromMarvin<T>(endpoint: string): Promise<T> {
+  const apiUrl = import.meta.env.MARVIN_API_URL;
+  const apiToken = import.meta.env.MARVIN_API_TOKEN;
+  const workspace = import.meta.env.MARVIN_WORKSPACE;
   
-  if (!res.ok) {
-    throw new Error(`Failed to fetch entries: ${res.statusText}`);
+  const url = `${apiUrl}/api/publish/${workspace}${endpoint}`;
+
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Marvin API error: ${response.status}`);
   }
-  
-  const data = await res.json();
-  return data.data || data;
-}
 
-export async function getEntry(slug: string): Promise<MarvinEntry> {
-  const res = await fetch(
-    `${MARVIN_BASE}/api/publish/${GROUP_SLUG}/entries/${slug}`,
-    { headers }
-  );
-  
-  if (!res.ok) {
-    throw new Error(`Failed to fetch entry: ${res.statusText}`);
-  }
-  
-  return res.json();
-}
-
-export async function getCollections(): Promise<MarvinCollection[]> {
-  const res = await fetch(
-    `${MARVIN_BASE}/api/publish/${GROUP_SLUG}/collections`,
-    { headers }
-  );
-  
-  if (!res.ok) {
-    throw new Error(`Failed to fetch collections: ${res.statusText}`);
-  }
-  
-  const data = await res.json();
-  return data.data || data;
-}
-
-export async function getAssets() {
-  const res = await fetch(
-    `${MARVIN_BASE}/api/publish/${GROUP_SLUG}/assets`,
-    { headers }
-  );
-  
-  if (!res.ok) {
-    throw new Error(`Failed to fetch assets: ${res.statusText}`);
-  }
-  
-  const data = await res.json();
-  return data.data || data;
+  return response.json();
 }
 ```
 
-## Usage
-
-### Display a List of Entries
-
-In `src/pages/blog/index.astro`:
-
-```astro
----
-import { getPublishedEntries } from '@/lib/marvin';
-
-const entries = await getPublishedEntries();
 ---
 
-<html>
-  <head>
-    <title>Blog</title>
-  </head>
-  <body>
-    <h1>Blog Posts</h1>
-    <ul>
-      {entries.map((entry) => (
-        <li>
-          <a href={`/blog/${entry.slug}`}>
-            {entry.title}
-          </a>
-          {entry.summary && <p>{entry.summary}</p>}
-        </li>
-      ))}
-    </ul>
-  </body>
-</html>
+## Publishing API Endpoints
+
+### Workspace Info
+```
+GET /api/publish/{workspace}
 ```
 
-### Display a Single Entry
+### List Published Entries
+```
+GET /api/publish/{workspace}/entries
 
-In `src/pages/blog/[slug].astro`:
+Filters:
+  ?entry_type=page         # Filter by type
+  ?collection=projects     # Filter by collection
+  ?slug=about,contact      # Batch fetch specific slugs
+  ?updated_since=2026-07-01T00:00:00Z  # Incremental builds
+  ?limit=1000              # Page size
+```
+
+### Get Single Entry
+```
+GET /api/publish/{workspace}/entries/{slug}
+
+Returns:
+  - Full markdown content
+  - Metadata JSON
+  - Collections
+  - Resources (with quantities)
+  - Assets (with dimensions)
+```
+
+### List Collections
+```
+GET /api/publish/{workspace}/collections
+
+Returns all collections with entry counts, sorted by sort_order
+```
+
+### Get Collection with Entries
+```
+GET /api/publish/{workspace}/collections/{slug}
+```
+
+---
+
+## Step 3: Fetch Content in Astro
+
+```typescript
+// src/content/config.ts
+import { defineCollection, z } from 'astro:content';
+import { fetchFromMarvin } from '../lib/marvin';
+
+const entries = defineCollection({
+  loader: async () => {
+    const { data } = await fetchFromMarvin('/entries?limit=1000');
+    
+    // Fetch full content for each entry
+    const fullEntries = await Promise.all(
+      data.map(async (entry) => {
+        const full = await fetchFromMarvin(`/entries/${entry.slug}`);
+        return { id: entry.slug, ...full };
+      })
+    );
+    
+    return fullEntries;
+  },
+  schema: z.object({
+    slug: z.string(),
+    title: z.string(),
+    entry_type: z.string(),
+    content_markdown: z.string().optional(),
+    metadata: z.record(z.any()).optional(),
+    resources: z.array(z.any()).default([]),
+    assets: z.array(z.any()).default([]),
+  }),
+});
+
+export const collections = { entries };
+```
+
+---
+
+## Step 4: Generate Pages
 
 ```astro
 ---
-import { getPublishedEntries, getEntry } from '@/lib/marvin';
+// src/pages/[...slug].astro
+import { getCollection } from 'astro:content';
 
 export async function getStaticPaths() {
-  const entries = await getPublishedEntries();
-  return entries.map((entry) => ({
-    params: { slug: entry.slug },
-  }));
-}
-
-const { slug } = Astro.params;
-const entry = await getEntry(slug);
----
-
-<html>
-  <head>
-    <title>{entry.title}</title>
-  </head>
-  <body>
-    <article>
-      <h1>{entry.title}</h1>
-      {entry.summary && <p class="summary">{entry.summary}</p>}
-      
-      {entry.assets && entry.assets.length > 0 && (
-        <figure>
-          <img
-            src={entry.assets[0].url}
-            alt={entry.assets[0].alt_text || entry.title}
-          />
-        </figure>
-      )}
-      
-      <div set:html={markdownToHtml(entry.content_markdown)} />
-      
-      {entry.collections && entry.collections.length > 0 && (
-        <footer>
-          <p>
-            Collections: {entry.collections.map(c => c.name).join(', ')}
-          </p>
-        </footer>
-      )}
-    </article>
-  </body>
-</html>
-```
-
-### Markdown Rendering
-
-Install a markdown parser:
-
-```bash
-npm install marked
-```
-
-In `src/lib/marvin.ts`, add:
-
-```typescript
-import { marked } from 'marked';
-
-export async function renderMarkdown(markdown: string): Promise<string> {
-  return marked(markdown);
-}
-```
-
-Then in your component:
-
-```astro
----
-import { renderMarkdown } from '@/lib/marvin';
-
-const html = await renderMarkdown(entry.content_markdown);
----
-
-<div set:html={html} />
-```
-
-### Displaying Collections
-
-In `src/pages/collections.astro`:
-
-```astro
----
-import { getCollections } from '@/lib/marvin';
-
-const collections = await getCollections();
----
-
-<html>
-  <body>
-    <h1>Collections</h1>
-    <ul>
-      {collections.map((collection) => (
-        <li>
-          <h2>{collection.name}</h2>
-          {collection.description && <p>{collection.description}</p>}
-          {collection.entries && (
-            <ul>
-              {collection.entries.map((entry) => (
-                <li>
-                  <a href={`/blog/${entry.slug}`}>{entry.title}</a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </li>
-      ))}
-    </ul>
-  </body>
-</html>
-```
-
-## Error Handling
-
-The Marvin API returns standard HTTP status codes:
-
-- **200 OK**: Successful request
-- **401 Unauthorized**: Invalid or missing token
-- **403 Forbidden**: Token doesn't have access to this workspace
-- **404 Not Found**: Entry/collection/asset not found or not published
-- **429 Too Many Requests**: Rate limited (check `Retry-After` header)
-
-Example error handling:
-
-```typescript
-export async function safeGetEntry(slug: string) {
-  try {
-    return await getEntry(slug);
-  } catch (error) {
-    console.error(`Error fetching entry ${slug}:`, error);
-    return null;
-  }
-}
-```
-
-## Static Generation
-
-Astro's static generation mode works perfectly with Marvin:
-
-```astro
----
-// This runs at build time
-const entries = await getPublishedEntries();
-
-// Generate a static page for each entry
-export async function getStaticPaths() {
-  return entries.map((entry) => ({
-    params: { slug: entry.slug },
+  const entries = await getCollection('entries');
+  return entries.map(entry => ({
+    params: { slug: entry.data.slug },
     props: { entry },
   }));
 }
+
+const { entry } = Astro.props;
 ---
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{entry.data.title}</title>
+  </head>
+  <body>
+    <h1>{entry.data.title}</h1>
+    <div set:html={entry.data.content_markdown} />
+  </body>
+</html>
 ```
 
-Rebuild your Astro site when content is published in Marvin using:
+---
 
-- Webhook triggers (deploy on Marvin publish event)
-- Scheduled builds (e.g., hourly via CI/CD)
-- Manual rebuilds
+## Mash & Burn Co. Example
 
-## Caching
+**Entry Types**:
+- `page` - Static pages (About, Contact, Sizing)
+- `project` - Project writeups
+- `bench-note` - Process notes
 
-Consider caching Marvin API responses to reduce network requests:
+**Collections**:
+- Featured Projects
+- Denim
+- 2024 Projects
 
-```typescript
-const CACHE_TTL = 3600; // 1 hour in seconds
-const cache = new Map<string, { data: unknown; timestamp: number }>();
-
-export async function getCachedEntries() {
-  const key = 'entries';
-  const cached = cache.get(key);
-  
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL * 1000) {
-    return cached.data;
-  }
-  
-  const data = await getPublishedEntries();
-  cache.set(key, { data, timestamp: Date.now() });
-  return data;
+**Resources**:
+```json
+{
+  "name": "13oz Black Denim",
+  "resource_type": "fabric",
+  "quantity": "2",
+  "unit": "yards",
+  "url": "https://supplier.com/product"
 }
 ```
 
-## Best Practices
+**Result**: Complete site built from Marvin, zero local Markdown files.
 
-1. **Environment Variables**: Never commit tokens. Use `.env.local` and add to `.gitignore`
-2. **Error Boundaries**: Wrap API calls in try-catch blocks
-3. **Type Safety**: Use TypeScript interfaces for Marvin responses
-4. **Caching**: Cache API responses to minimize bandwidth and build time
-5. **Rebuild Triggers**: Set up webhooks or scheduled builds to keep content fresh
-6. **Asset URLs**: Always use absolute URLs from the asset API response
-7. **Markdown Parsing**: Choose a markdown library that suits your needs (marked, remark, etc)
-8. **Metadata**: Extract frontmatter for SEO tags, structured data, etc
+---
 
-## Deployment
+## Performance Tips
 
-### Environment Variables in Vercel
+1. **Parallel fetching**: Use `Promise.all()` for details
+2. **Batch fetch pages**: `?slug=about,contact,sizing`
+3. **Incremental builds**: `?updated_since=...`
+4. **Cache responses**: 5-minute TTL during development
 
-1. Go to Project Settings → Environment Variables
-2. Add `MARVIN_API_URL`, `MARVIN_SITE_CLIENT_TOKEN`, `MARVIN_GROUP_SLUG`
-3. Redeploy
+---
 
-### Webhook-Based Rebuilds
+## Testing
 
-Configure Marvin to trigger rebuilds on publish:
+```bash
+# Test API directly
+curl -H "Authorization: Bearer marvin_sk_your_token" \
+  http://localhost:8080/api/publish/default/entries?entry_type=page
 
-```
-Webhook URL: https://api.vercel.com/v1/deployments
-Method: POST
-Headers:
-  Authorization: Bearer <VERCEL_TOKEN>
-  Content-Type: application/json
+# Should return all published pages
 ```
 
-This keeps your static site in sync when content is published in Marvin.
+---
 
-## Troubleshooting
+## Summary
 
-### 401 Unauthorized
+**Marvin provides**:
+- Published entries with full content
+- Collections for navigation
+- Resources with quantities
+- Assets with dimensions
+- Metadata for Astro frontmatter
 
-- Check token is correct and hasn't expired
-- Verify `MARVIN_API_URL` is correct
-- Check token starts with `Bearer `
+**Astro consumes**:
+- Via Publishing API
+- At build time
+- No local files needed
 
-### 404 Not Found
-
-- Entry exists but isn't published (check status in Marvin)
-- Group slug is wrong
-- Entry slug doesn't match
-
-### 429 Too Many Requests
-
-- Rate limit exceeded
-- Build too frequently
-- Implement caching to reduce API calls
+**Result**: Single source of truth validated ✅

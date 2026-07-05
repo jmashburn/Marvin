@@ -51,7 +51,9 @@ class LongLiveTokenCreate(_MarvinModel):
     """
 
     name: str
-    """A user-defined name for the token to help identify its purpose (e.g., "GitHub Actions Token")."""
+    """A user-defined name for the token to help identify its purpose (e.g., "CI/CD Token")."""
+    description: str | None = None
+    """Optional description of the token's purpose or usage."""
     integration_id: str = settings._DEFAULT_INTEGRATION_ID
     """
     An optional identifier for an external integration this token might be used with.
@@ -59,10 +61,26 @@ class LongLiveTokenCreate(_MarvinModel):
     """
 
 
+class LongLiveTokenUpdate(_MarvinModel):
+    """
+    Schema for updating an existing long-lived API token.
+    All fields are optional.
+    """
+
+    name: str | None = None
+    """Updated name for the token."""
+    description: str | None = None
+    """Updated description for the token."""
+    enabled: bool | None = None
+    """Enable or disable the token."""
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LongLiveTokenRead(_MarvinModel):
     """
     Schema for representing a long-lived API token when read from the system.
-    This view typically excludes the sensitive token string itself.
+    Excludes the sensitive token string itself (never return token_hash).
+    Includes security fields: enabled, last_used_at, revoked_at.
     """
 
     id: UUID4
@@ -71,18 +89,24 @@ class LongLiveTokenRead(_MarvinModel):
     """The unique identifier of the user to whom this token belongs."""
     name: str
     """The user-defined name of the API token."""
-    created_at: datetime | None = None  # Should be `datetime` if always present from BaseMixins
+    description: str | None = None
+    """Optional description of the token's purpose."""
+    enabled: bool
+    """Whether the token is currently active and can authenticate."""
+    last_used_at: datetime | None = None
+    """Timestamp (UTC) of when the token was last used for authentication."""
+    revoked_at: datetime | None = None
+    """Timestamp (UTC) of when the token was revoked (soft delete)."""
+    created_at: datetime | None = None
     """Timestamp (UTC) of when the token was created."""
-
-    update_at: datetime | None = None  # Should be `datetime` if always present from BaseMixins
-    """Timestamp (UTC) of when the token was created."""
-
+    update_at: datetime | None = None
+    """Timestamp (UTC) of when the token was last updated."""
     integration_id: str = settings._DEFAULT_INTEGRATION_ID
     """
     An optional identifier for an external integration this token might be used with.
     Defaults to "generic".
     """
-    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def loader_options(cls) -> list[LoaderOption]:
@@ -90,29 +114,60 @@ class LongLiveTokenRead(_MarvinModel):
         Provides SQLAlchemy loader options for optimizing queries for `LongLiveTokenRead`.
         Configures eager loading for the `user` relationship of the token.
         """
-        # Eagerly load the 'user' related to the LongLiveTokenSQLModel
         return [joinedload(LongLiveTokenSQLModel.user)]
 
 
 class LongLiveTokenSummary(_MarvinModel):
+    """
+    Schema for summarized token information in lists.
+    """
+
     id: UUID4
     """The unique identifier of the API token."""
     name: str
     """The user-defined name of the API token."""
-    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+    enabled: bool
+    """Whether the token is currently active."""
+    last_used_at: datetime | None = None
+    """Timestamp (UTC) of when the token was last used."""
+    model_config = ConfigDict(from_attributes=True)
 
 
-class LongLiveTokenCreateResponse(_MarvinModel):  # Extends LongLiveTokenRead to include common fields
+class LongLiveTokenWithToken(_MarvinModel):
     """
+    Schema for the response when a new token is created or rotated.
+    Includes the actual `token` string, which is shown ONLY ONCE.
+
+    IMPORTANT: The plaintext token is never stored in the database.
+    Only the bcrypt hash is stored.
+    """
+
+    id: UUID4
+    """The unique identifier of the API token."""
+    user_id: UUID4
+    """The unique identifier of the user to whom this token belongs."""
+    name: str
+    """The user-defined name of the API token."""
+    description: str | None = None
+    """Optional description of the token's purpose."""
+    enabled: bool
+    """Whether the token is currently active."""
+    token: str
+    """The plaintext API token. SHOWN ONCE. Format: marvin_tk_{random}"""
+    created_at: datetime | None = None
+    """Timestamp (UTC) of when the token was created."""
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LongLiveTokenCreateResponse(_MarvinModel):
+    """
+    DEPRECATED: Use LongLiveTokenWithToken instead.
     Schema for the response when a new long-lived API token is created.
-    Crucially, this schema includes the actual `token` string, which should
-    ONLY be returned at the time of creation and not stored or displayed again.
     """
 
     token: str
     """The generated API token string. This is sensitive and should be handled securely."""
-    # Inherits id, name, created_at from LongLiveTokenRead
-    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LongLiveTokenPagination(PaginationBase):
@@ -125,17 +180,21 @@ class LongLiveTokenPagination(PaginationBase):
     """The list of groups for the current page, serialized as `LongLiveTokenSummary`."""
 
 
-class TokenCreate(LongLiveTokenCreate):  # Extends LongLiveTokenCreate for request data
+class TokenCreate(LongLiveTokenCreate):
     """
-    Schema used internally for creating a token record in the database.
-    Includes the user ID and the hashed token string (if hashing were applied here,
-    though JWTs are typically stored as is).
+    DEPRECATED: Internal schema for creating a token record.
+    Repository now handles token generation and hashing directly.
+
+    This schema is kept for backward compatibility but should not be used
+    for new code. Use LongLiveTokenCreate instead.
     """
 
     user_id: UUID4
     """The unique identifier of the user to whom this token belongs."""
-    token: str
-    """The actual token string to be stored."""
+    token_hash: str
+    """The bcrypt hash of the token (not the plaintext token)."""
+    created_by: UUID4
+    """The unique identifier of the user who created this token."""
     model_config = ConfigDict(from_attributes=True)
 
 

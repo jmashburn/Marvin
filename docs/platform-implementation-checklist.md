@@ -70,43 +70,85 @@ Rules:
 
 - [ ] Add route/repository tests for entry types.
 - [ ] Add route/repository tests for entries.
+- [ ] Add route/repository tests for collections.
 - [x] Document missing tests because the project currently has no clear route/repository test pattern beyond shared test setup.
 
-## Sprint 5: Publishing API
+## Phase 1.5: Make Entries Feel Real
 
-Read-only publishing routes:
+- [ ] Seed default entry types when workspace is created (Page, Project, Article, Guide)
+- [ ] Wire seeding to group registration flow
+- [ ] Support user-customizable seed templates
+- [ ] Add status workflow validation (draft → review → published)
 
-- [ ] `GET /api/publish/{group_slug}/collections`
-- [ ] `GET /api/publish/{group_slug}/entries`
-- [ ] `GET /api/publish/{group_slug}/entries/{slug}`
-- [ ] `GET /api/publish/{group_slug}/assets`
+See: `/Volumes/Code/Marvin/SEED_IMPROVEMENTS.md`
 
-Rules:
+## Phase 3: Publishing API
 
-- [ ] Validate site client token.
-- [ ] Match token to `group_id`.
-- [ ] Return only published entries.
-- [ ] Respect collection restrictions.
-- [ ] Never expose draft/admin/private fields.
+**This is where Marvin becomes special.**
 
-## Sprint 6: Astro Integration
+Astro doesn't care about your admin API. It only talks to the publish API.
 
-- [ ] Document how Astro calls the publishing API.
-- [ ] Return Markdown content and frontmatter metadata.
-- [ ] Return asset URLs and alt text.
-- [ ] Keep public sites separate from Marvin Admin.
+See: `/Volumes/Code/Marvin/docs/phase-3-publishing.md`
+
+### Site Clients Table
+
+- [ ] Run migration for site_clients table
+- [ ] Add site client CRUD routes (create, list, update, revoke)
+- [ ] Implement token generation (show plaintext once)
+- [ ] Implement token hashing (bcrypt)
+
+### Publishing Auth
+
+- [ ] Create publishing auth middleware
+- [ ] Validate site client tokens
+- [ ] Enforce workspace matching
+- [ ] Update last_used_at timestamp
+- [ ] Add rate limiting (1000 req/hour per token)
+
+### Publishing Routes
+
+- [ ] `GET /api/publish/{workspace}` - Workspace info
+- [ ] `GET /api/publish/{workspace}/entries` - List published entries
+- [ ] `GET /api/publish/{workspace}/entries/{slug}` - Get published entry
+- [ ] `GET /api/publish/{workspace}/pages/{slug}` - Get published page
+- [ ] `GET /api/publish/{workspace}/articles/{slug}` - Get published article
+- [ ] `GET /api/publish/{workspace}/projects/{slug}` - Get published project
+- [ ] `GET /api/publish/{workspace}/collections/{slug}` - Get collection with entries
+- [ ] `GET /api/publish/{workspace}/assets/{slug}` - Serve asset
+
+### Publishing Rules
+
+- [ ] Filter to `status = 'published'` only
+- [ ] Exclude all admin fields
+- [ ] Exclude draft/archived entries
+- [ ] Generate frontmatter from structured data
+- [ ] Return asset URLs and alt text
+- [ ] Support pagination (page, limit)
+- [ ] Support filtering (type, collection)
+
+## Phase 4: Astro Integration
+
+- [ ] Document Astro client library
+- [ ] Example TypeScript fetch functions
+- [ ] Example dynamic route ([...slug].astro)
+- [ ] Example collection listing page
+- [ ] Environment variable setup (.env.example)
+- [ ] Frontmatter mapping examples
+- [ ] Asset URL handling
+- [ ] Error handling (404, 403, rate limit)
 
 ## Implementation Status
 
-| Sprint | Status | Notes |
-|--------|--------|-------|
-| 1 | ✅ Complete | All documentation added |
-| 2 | ✅ Complete | Migration file created, ready to run |
-| 3 | ✅ Complete | Entry Type and Entry models, schemas, and repos implemented |
-| 4 | ✅ Complete | Authenticated user CRUD routes implemented |
-| 4.5 | 🚧 In Progress | Tests documented as missing; no existing route/repository pattern yet |
-| 5 | ⏳ Deferred | Publishing API is future work |
-| 6 | ⏳ Deferred | Astro integration is future work |
+| Phase | Progress | Status | Notes |
+|-------|----------|--------|-------|
+| 1: Documentation | 100% | ✅ Complete | All architecture docs added, Phase 3 plan added |
+| 2: Database Migration | 60% | 🚧 Partial | Entry types, entries, collections done; resources/assets/site_clients pending |
+| 3: Backend Models | 60% | 🚧 Partial | Models exist for all tables, only 3 fully wired |
+| 4: Authenticated APIs | 60% | 🚧 Partial | Entry types, entries, collections fully functional |
+| 4.5: Tests | 10% | 🔴 Blocked | No test pattern established yet |
+| 1.5: Make Entries Real | 0% | ⏳ Planned | Seeding plan ready for implementation |
+| 3: Publishing API | 0% | ⏳ Planned | Full implementation plan documented |
+| 4: Astro Integration | 0% | ⏳ Planned | Depends on Publishing API |
 
 ## Next Steps
 

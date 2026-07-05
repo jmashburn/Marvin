@@ -19,10 +19,7 @@ from sqlalchemy.orm.session import Session
 from marvin.core import root_logger
 from marvin.core.config import get_app_settings
 from marvin.core.security.hasher import get_hasher
-from marvin.core.security.providers.auth_providers import AuthProvider
-from marvin.core.security.providers.credentials_provider import CredentialsProvider
 
-# from marvin.core.security.providers.ldap_provider import LDAPProvider
 from marvin.schemas.user.auth import CredentialsRequest, CredentialsRequestForm
 
 ALGORITHM = "HS256"
@@ -30,7 +27,7 @@ ALGORITHM = "HS256"
 logger = root_logger.get_logger("security")
 
 
-def get_auth_provider(session: Session, data: CredentialsRequestForm) -> AuthProvider:
+def get_auth_provider(session: Session, data: CredentialsRequestForm):
     """
     Returns the appropriate authentication provider based on application settings.
 
@@ -44,10 +41,15 @@ def get_auth_provider(session: Session, data: CredentialsRequestForm) -> AuthPro
     Returns:
         AuthProvider: The selected authentication provider.
     """
+    # Import here to avoid circular dependency with repos
+    from marvin.core.security.providers.credentials_provider import CredentialsProvider
+    # from marvin.core.security.providers.ldap_provider import LDAPProvider
+
     settings = get_app_settings()
 
     credentials_request = CredentialsRequest(**data.__dict__)
     if settings.LDAP_ENABLED:
+        from marvin.core.security.providers.ldap_provider import LDAPProvider
         return LDAPProvider(session, credentials_request)
 
     return CredentialsProvider(session, credentials_request)
@@ -93,6 +95,22 @@ def create_file_token(file_path: Path) -> str:
 def hash_password(password: str) -> str:
     """Takes in a raw password and hashes it. Used prior to saving a new password to the database."""
     return get_hasher().hash(password)
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """
+    Verifies a password against a bcrypt hash.
+
+    Used for validating API client tokens and user passwords.
+
+    Args:
+        password (str): The plaintext password or token to verify.
+        hashed (str): The bcrypt hash to verify against.
+
+    Returns:
+        bool: True if the password matches the hash, False otherwise.
+    """
+    return get_hasher().verify(password, hashed)
 
 
 def url_safe_token() -> str:

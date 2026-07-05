@@ -1,11 +1,15 @@
 """Entry schemas."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, TYPE_CHECKING
 
 from pydantic import ConfigDict, StringConstraints, UUID4, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
+
+if TYPE_CHECKING:
+    from .assets import EntryAssetRead
+    from .resources import ResourceSummary
 
 ENTRY_STATUSES = {
     "inbox",
@@ -75,8 +79,13 @@ class EntryRead(_MarvinModel):
     content_markdown: str | None = None
     status: str
     published_at: datetime | None = None
+    created_by: UUID4 | None = None
     created_at: datetime | None = None
     update_at: datetime | None = None
+    resources: list["ResourceSummary"] = []
+    """Resources referenced by this entry."""
+    assets: list["EntryAssetRead"] = []
+    """Assets included in this entry with placement info."""
 
     model_config = ConfigDict(from_attributes=True)
 

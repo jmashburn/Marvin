@@ -45,40 +45,67 @@ class LongLiveToken(SqlAlchemyBase, BaseMixins):
     """
     SQLAlchemy model for long-lived API tokens (Personal Access Tokens).
 
-    These tokens allow users to authenticate with the API programmatically.
-    The `id` (PK), `created_at`, `updated_at` are inherited from `BaseMixins`.
+    Security model matches APIClients - tokens are hashed with bcrypt,
+    support rotation, soft deletion, and usage tracking.
+
+    The `id` (PK), `created_at`, `update_at` are inherited from `BaseMixins`.
     """
 
     __tablename__ = "long_live_tokens"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the token.")
-    name: Mapped[str] = mapped_column(String, nullable=False, doc="User-defined name for the token (e.g., 'My Script Token').")
-    token: Mapped[str] = mapped_column(
+    name: Mapped[str] = mapped_column(String, nullable=False, doc="User-defined name for the token (e.g., 'CI/CD Token').")
+    description: Mapped[str | None] = mapped_column(String, nullable=True, doc="Optional description of token purpose.")
+
+    # Token security (hashed storage - matches APIClients pattern)
+    token_hash: Mapped[str] = mapped_column(
         String,
         nullable=False,
         index=True,
         unique=True,
-        doc="The actual token string (should be stored hashed if sensitive, though current schema implies plaintext).",
-    )  # Added unique=True
+        doc="Bcrypt hash of the token. Plaintext token never stored.",
+    )
 
-    # Foreign key to the Users model
-    user_id: Mapped[GUID | None] = mapped_column(GUID, ForeignKey("users.id"), index=True, doc="ID of the user this token belongs to.")
+    # Lifecycle management
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        doc="Whether the token is currently active. Disabled tokens cannot authenticate.",
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        NaiveDateTime,
+        nullable=True,
+        doc="Timestamp of last successful authentication with this token.",
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        NaiveDateTime,
+        nullable=True,
+        doc="Timestamp when token was revoked (soft delete).",
+    )
+
+    # Audit trail
+    user_id: Mapped[GUID] = mapped_column(
+        GUID,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+        doc="ID of the user this token belongs to.",
+    )
+    created_by: Mapped[GUID] = mapped_column(
+        GUID,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=False,
+        doc="ID of the user who created this token (audit trail).",
+    )
+
     # Relationship to the User who owns this token
-    user: Mapped[Optional["Users"]] = orm.relationship("Users", back_populates="tokens")  # Added back_populates
+    user: Mapped[Optional["Users"]] = orm.relationship("Users", back_populates="tokens", foreign_keys=[user_id])
 
-    def __init__(self, name: str, token: str, user_id: GUID, **kwargs) -> None:
-        """
-        Initializes a LongLiveToken instance.
-
-        Args:
-            name (str): The name for the token.
-            token (str): The token string.
-            user_id (GUID): The ID of the user this token belongs to.
-            **kwargs: Additional keyword arguments for `BaseMixins`.
-        """
-        self.name = name
-        self.token = token
-        self.user_id = user_id
+    @auto_init()
+    def __init__(self, session: Session, **kwargs) -> None:
+        """Initialize via Marvin's auto-init model helper."""
+        pass
 
 
 class Users(SqlAlchemyBase, BaseMixins):
@@ -147,7 +174,12 @@ class Users(SqlAlchemyBase, BaseMixins):
     }
 
     # Relationship to LongLiveToken (one-to-many: one user can have many API tokens)
-    tokens: Mapped[list["LongLiveToken"]] = orm.relationship("LongLiveToken", **_token_relationship_args)
+    # Use foreign_keys to specify which FK to use (user_id, not created_by)
+    tokens: Mapped[list["LongLiveToken"]] = orm.relationship(
+        "LongLiveToken",
+        foreign_keys="LongLiveToken.user_id",
+        **_token_relationship_args
+    )
     # Relationship to PasswordResetModel (one-to-many: one user can have multiple password reset tokens over time)
     password_reset_tokens: Mapped[list["PasswordResetModel"]] = orm.relationship("PasswordResetModel", **_token_relationship_args)
 

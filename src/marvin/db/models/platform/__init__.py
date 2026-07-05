@@ -1,9 +1,23 @@
 """Platform models."""
 
-from .entry_types import EntryTypes
+from .api_clients import APIClients
+from .assets import Assets
+from .collections import Collections
 from .entries import Entries
+from .entry_assets import EntryAssets
+from .entry_collections import EntryCollections
+from .entry_resources import EntryResources
+from .entry_types import EntryTypes
+from .resources import Resources
 
 __all__ = [
-    "EntryTypes",
+    "APIClients",
+    "Assets",
+    "Collections",
     "Entries",
+    "EntryAssets",
+    "EntryCollections",
+    "EntryResources",
+    "EntryTypes",
+    "Resources",
 ]

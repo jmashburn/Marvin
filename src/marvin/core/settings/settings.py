@@ -208,6 +208,40 @@ class AppSettings(BaseSettings):
     SECURITY_USER_LOCKOUT_TIME: int = 24
     "time in hours"
 
+    # Token Security Settings
+    SECURITY_TOKEN_PREFIX_USER: str = "marvin_tk_"
+    """Prefix for user API tokens (Personal Access Tokens). Default: marvin_tk_"""
+
+    SECURITY_TOKEN_PREFIX_CLIENT: str = "marvin_sk_"
+    """Prefix for API client secret keys. Default: marvin_sk_"""
+
+    SECURITY_TOKEN_RANDOM_BYTES: int = 32
+    """Number of random bytes for token generation (32 bytes = 43 chars base64url). Default: 32"""
+
+    SECURITY_BCRYPT_ROUNDS: int = 12
+    """Bcrypt cost factor (work factor). Higher = more secure but slower. Range: 4-31. Default: 12"""
+
+    # ===============================================
+    # Authentication Configuration
+
+    AUTH_COOKIE_NAME: str = "marvin.access_token"
+    """Name of the authentication cookie. Default: marvin.access_token"""
+
+    # ===============================================
+    # Publishing API Configuration
+
+    PUBLISHING_DEFAULT_STATUS: str = "published"
+    """Default entry status filter for publishing API. Default: published"""
+
+    PUBLISHING_DEFAULT_PAGE_SIZE: int = 20
+    """Default number of entries per page in publishing API. Default: 20"""
+
+    PUBLISHING_MAX_PAGE_SIZE: int = 100
+    """Maximum number of entries per page in publishing API. Default: 100"""
+
+    PUBLISHING_UNKNOWN_ENTRY_TYPE: str = "unknown"
+    """Fallback value when entry type is missing. Default: unknown"""
+
     # ===============================================
     # Testing Config
 

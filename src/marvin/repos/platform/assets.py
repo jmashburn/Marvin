@@ -13,14 +13,14 @@ from marvin.schemas.platform import AssetCreate, AssetRead
 class AssetsRepository(GroupRepositoryGeneric):
     """Repository for managing assets."""
 
-    def __init__(self, session: Session, group_id: UUID4) -> None:
+    def __init__(self, session: Session, group_id: UUID4 | None) -> None:
         super().__init__(
             session=session,
             primary_key="id",
             sql_model=Assets,
             schema=AssetRead,
+            group_id=group_id,
         )
-        self._group_id = group_id
 
     @staticmethod
     def _map_metadata(data: Any, *, exclude_unset: bool = False) -> Any:

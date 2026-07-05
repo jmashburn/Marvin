@@ -46,9 +46,10 @@ def upgrade() -> None:
 
     # Step 3: Migrate data from TIME to DATETIME (preserving time, using current date in UTC)
     # This SQL will convert existing TIME values to DATETIME by combining with current date
+    # SQLite-compatible version (doesn't use PostgreSQL :: casting or AT TIME ZONE)
     op.execute("""
         UPDATE webhook_urls
-        SET scheduled_time_new = (CURRENT_DATE || ' ' || scheduled_time::text)::timestamp AT TIME ZONE 'UTC'
+        SET scheduled_time_new = datetime('now', scheduled_time)
         WHERE scheduled_time IS NOT NULL
     """)
 
@@ -70,9 +71,10 @@ def downgrade() -> None:
     op.add_column("webhook_urls", sa.Column("scheduled_time_old", sa.Time(), nullable=True))
 
     # Step 3: Migrate data from DATETIME back to TIME (extracting just the time component)
+    # SQLite-compatible version (uses strftime instead of PostgreSQL :: casting)
     op.execute("""
         UPDATE webhook_urls
-        SET scheduled_time_old = scheduled_time::time
+        SET scheduled_time_old = strftime('%H:%M:%S', scheduled_time)
         WHERE scheduled_time IS NOT NULL
     """)
 

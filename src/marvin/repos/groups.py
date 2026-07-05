@@ -186,7 +186,7 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel]):
         Returns:
             GroupRead | None: The group schema if found, otherwise None.
         """
-        if isinstance(slug_or_id, (PyUUID | UUID4)):  # Check if it's already a UUID object
+        if isinstance(slug_or_id, PyUUID):  # Check if it's already a UUID object
             return self.get_one(slug_or_id, key="id")  # Use 'id' as the key for lookup
         elif isinstance(slug_or_id, str):
             # Try to convert string to UUID first, in case an ID was passed as string

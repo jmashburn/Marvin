@@ -1,10 +1,17 @@
 """Entry-Assets junction table."""
 
+from typing import TYPE_CHECKING
+
 import sqlalchemy as sa
+import sqlalchemy.orm as orm
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .. import SqlAlchemyBase
 from .._model_utils.guid import GUID
+
+if TYPE_CHECKING:
+    from .assets import Assets
+    from .entries import Entries
 
 
 class EntryAssets(SqlAlchemyBase):
@@ -21,5 +28,17 @@ class EntryAssets(SqlAlchemyBase):
     focal_point: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     caption: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", sa.JSON, nullable=True)
+
+    # Relationships
+    entry: Mapped["Entries"] = orm.relationship(
+        "Entries",
+        foreign_keys=[entry_id],
+        overlaps="assets,entries,entry_assets",
+    )
+    asset: Mapped["Assets"] = orm.relationship(
+        "Assets",
+        foreign_keys=[asset_id],
+        overlaps="assets,entries",
+    )
 
     __table_args__ = (sa.UniqueConstraint("entry_id", "asset_id"),)

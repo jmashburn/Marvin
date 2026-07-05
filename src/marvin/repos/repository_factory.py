@@ -9,9 +9,13 @@ efficiently.
 """
 
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 from pydantic import UUID4
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from .users.long_live_tokens import LongLiveTokensRepository
 
 # Import all necessary DB models
 from marvin.db.models.events import EventNotifierOptionsModel
@@ -47,7 +51,14 @@ from ._utils import NOT_SET, NotSet  # Sentinel for optional group_id
 from .groups import RepositoryGroup  # Specialized group repository
 from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
 from .users import RepositoryUsers  # Specialized user repository
-from .platform import EntriesRepository, EntryTypesRepository
+from .platform import (
+    APIClientsRepository,
+    AssetsRepository,
+    CollectionsRepository,
+    EntriesRepository,
+    EntryTypesRepository,
+    ResourcesRepository,
+)
 
 # Constants for primary key / lookup key names used in repositories
 PK_ID = "id"  # Standard primary key
@@ -110,12 +121,18 @@ class AllRepositories:
         return RepositoryUsers(self.session, PK_ID, Users, PrivateUser, group_id=self.group_id)
 
     @cached_property
-    def api_tokens(self) -> GroupRepositoryGeneric[LongLiveTokenRead, LongLiveToken]:
+    def api_tokens(self) -> "LongLiveTokensRepository":
         """
-        Provides access to the repository for `LongLiveToken` entities (user API tokens).
-        Scoped by `group_id` if provided.
+        Provides access to the specialized repository for `LongLiveToken` entities (user API tokens).
+
+        Uses LongLiveTokensRepository which provides secure token management:
+        - Bcrypt-hashed token storage
+        - Token rotation support
+        - Soft deletion (revocation)
+        - Usage tracking
         """
-        return GroupRepositoryGeneric(self.session, PK_ID, LongLiveToken, LongLiveTokenRead, group_id=self.group_id)
+        from .users.long_live_tokens import LongLiveTokensRepository
+        return LongLiveTokensRepository(self.session, PK_ID, LongLiveToken, LongLiveTokenRead)
 
     @cached_property
     def tokens_pw_reset(self) -> GroupRepositoryGeneric[PrivatePasswordResetToken, PasswordResetModel]:
@@ -230,3 +247,23 @@ class AllRepositories:
     def entries(self) -> EntriesRepository:
         """Provides access to workspace-scoped entry records."""
         return EntriesRepository(self.session, self.group_id)
+
+    @cached_property
+    def collections(self) -> CollectionsRepository:
+        """Provides access to workspace-scoped collection records."""
+        return CollectionsRepository(self.session, self.group_id)
+
+    @cached_property
+    def api_clients(self) -> APIClientsRepository:
+        """Provides access to workspace-scoped API client records."""
+        return APIClientsRepository(self.session, self.group_id)
+
+    @cached_property
+    def resources(self) -> ResourcesRepository:
+        """Provides access to workspace-scoped resource records."""
+        return ResourcesRepository(self.session, self.group_id)
+
+    @cached_property
+    def assets(self) -> AssetsRepository:
+        """Provides access to workspace-scoped asset records."""
+        return AssetsRepository(self.session, self.group_id)
