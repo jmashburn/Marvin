@@ -79,16 +79,19 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
   ) : (
     <div class="members-list">
       {members.map((member) => {
-        const user = member.user;
+        const user = member?.user;
+        const fullName = user?.fullName || user?.full_name;
+        const username = user?.username;
+        const email = user?.email;
         return (
           <div class="member-card">
             <div class="member-info">
               <div class="member-avatar">
-                {user?.full_name?.charAt(0) || user?.username?.charAt(0) || '?'}
+                {fullName?.charAt(0) || username?.charAt(0) || '?'}
               </div>
               <div class="member-details">
-                <strong>{user?.full_name || user?.username}</strong>
-                <span class="member-email">{user?.email}</span>
+                <strong>{fullName || username || 'Unknown'}</strong>
+                <span class="member-email">{email || 'No email'}</span>
               </div>
             </div>
 
@@ -96,32 +99,32 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
               {canManage ? (
                 <select
                   class="role-select"
-                  data-member-id={member.id}
-                  data-user-id={member.userId}
-                  data-current-role={member.workspaceRole}
+                  data-member-id={member?.id}
+                  data-user-id={member?.userId}
+                  data-current-role={member?.workspaceRole}
                 >
                   {Object.entries(roleLabels).map(([role, label]) => (
-                    <option value={role} selected={member.workspaceRole === role}>
+                    <option value={role} selected={member?.workspaceRole === role}>
                       {label}
                     </option>
                   ))}
                 </select>
               ) : (
-                <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
-                  {roleLabels[member.workspaceRole]}
+                <span class={`role-badge role-${member?.workspaceRole?.toLowerCase()}`}>
+                  {roleLabels[member?.workspaceRole || 'VIEWER']}
                 </span>
               )}
               <span class="role-description">
-                {roleDescriptions[member.workspaceRole]}
+                {roleDescriptions[member?.workspaceRole || 'VIEWER']}
               </span>
             </div>
 
             {canManage && (
               <button
                 class="button secondary small remove-btn"
-                data-member-id={member.id}
-                data-user-id={member.userId}
-                data-username={user?.username}
+                data-member-id={member?.id}
+                data-user-id={member?.userId}
+                data-username={username}
               >
                 Remove
               </button>
