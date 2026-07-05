@@ -54,62 +54,47 @@ class WebhookCreate(_MarvinModel):
     The type of event or document this webhook is associated with.
     Influences payload or trigger conditions. Defaults to 'generic'.
     """
-    scheduled_time: datetime.time
+    scheduled_time: datetime.datetime
     """
-    The time (UTC) at which the webhook is scheduled to run, if it's a scheduled webhook.
+    The datetime (UTC) at which the webhook is scheduled to run, if it's a scheduled webhook.
     This field is processed by `validate_scheduled_time` to handle various input formats.
     """
 
     @field_validator("scheduled_time", mode="before")
     @classmethod
-    def validate_scheduled_time(cls, v: Any, info: ValidationInfo) -> datetime.time:  # Added info and correct v type
+    def validate_scheduled_time(cls, v: Any, info: ValidationInfo) -> datetime.datetime:
         """
         Validates and parses the `scheduled_time` field from various input types.
 
-        Accepts `datetime.time` objects directly.
-        Parses string inputs that represent either:
-        1. A full datetime string: It's converted to UTC, and then the time part is extracted.
-        2. A time string (parsable by `isodate.parse_time`): It's parsed directly.
-           Note: `isodate.parse_time` typically expects ISO 8601 time strings.
-                 The original `parse_time` might have been `datetime.time.fromisoformat`
-                 or a custom one. Using `isodate_parse_time` as per import.
+        Accepts `datetime.datetime` objects directly (converts to UTC if timezone-aware).
+        Parses string inputs representing datetime values using the custom datetime parser.
 
         Args:
             v (Any): The input value for `scheduled_time`.
             info (ValidationInfo): Pydantic validation info object.
 
         Returns:
-            datetime.time: The parsed time object (naive, representing UTC time).
+            datetime.datetime: The parsed datetime object in UTC.
 
         Raises:
-            ValueError: If the input value cannot be parsed into a valid `datetime.time`.
+            ValueError: If the input value cannot be parsed into a valid `datetime.datetime`.
         """
-        if isinstance(v, datetime.time):  # If already a time object, return as is
-            return v
+        if isinstance(v, datetime.datetime):
+            # If already a datetime, ensure it's UTC
+            if v.tzinfo is None:
+                # Assume naive datetime is UTC
+                return v.replace(tzinfo=datetime.UTC)
+            return v.astimezone(datetime.UTC)
 
-        # List of parser functions to try in order
-        # First, try parsing as a full datetime string, then convert to UTC time
-        # Second, try parsing as a time string using isodate's parse_time
-        parser_funcs = [
-            lambda x: marvin_parse_datetime(x).astimezone(datetime.UTC).time(),  # Custom datetime parser
-            isodate_parse_time,  # isodate for ISO 8601 time strings like "HH:MM:SS"
-        ]
+        # Try parsing as a datetime string
+        try:
+            parsed_dt = marvin_parse_datetime(v)
+            return parsed_dt.astimezone(datetime.UTC)
+        except (ValueError, TypeError, AttributeError):
+            pass
 
-        for parser_func in parser_funcs:
-            try:
-                # Attempt to parse the value using the current parser function
-                parsed_value = parser_func(v)
-                # Ensure the parsed value is indeed a datetime.time object
-                if isinstance(parsed_value, datetime.time):
-                    return parsed_value
-                # If parser_func returns a datetime object (e.g. marvin_parse_datetime)
-                # and we only need time part, this might need adjustment.
-                # However, the lambda already extracts .time().
-            except (ValueError, TypeError, AttributeError):  # Catch common parsing errors
-                continue  # Try next parser if current one fails
-
-        # If all parsers fail, raise a ValueError
-        raise ValueError(f"Invalid format for scheduled_time: '{v}'. Expected HH:MM:SS, ISO datetime, or existing time object.")
+        # If parsing fails, raise a descriptive error
+        raise ValueError(f"Invalid format for scheduled_time: '{v}'. Expected ISO datetime string or datetime object.")
 
 
 class WebhookSave(WebhookCreate):

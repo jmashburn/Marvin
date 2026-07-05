@@ -9,12 +9,18 @@ to external services or URLs. It includes:
 - `WebhookPublisher`: Publishes events to specified URLs via HTTP requests (e.g., POST, GET).
 """
 
+import time
+from datetime import UTC, datetime
 from typing import Any, Protocol  # For defining structural subtyping (interfaces)
 
 import apprise  # Library for sending notifications to many services
 import requests  # For making HTTP requests (used by WebhookPublisher)
 from fastapi.encoders import jsonable_encoder  # For encoding Pydantic models to JSON
 
+from marvin.core.root_logger import get_logger
+from marvin.db.db_setup import session_context
+from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+from marvin.db.models._model_utils.guid import GUID
 from marvin.services.event_bus_service.event_types import Event  # Core Event model
 
 # from marvin.db.models.groups import Method # Method enum was imported but not used directly by string comparison in WebhookPublisher.
@@ -22,6 +28,11 @@ from marvin.services.event_bus_service.event_types import Event  # Core Event mo
 
 # Default timeout for HTTP requests made by WebhookPublisher
 DEFAULT_WEBHOOK_TIMEOUT = 15  # seconds
+
+# Retry configuration
+MAX_RETRY_ATTEMPTS = 3
+RETRY_BACKOFF_BASE = 2  # Exponential: 2^attempt seconds
+RETRY_BACKOFF_MAX = 60  # Cap at 60 seconds
 
 
 class PublisherLike(Protocol):
@@ -116,12 +127,50 @@ class ApprisePublisher:
             )
 
 
+def _log_webhook_execution(
+    webhook_id: GUID | None,
+    group_id: GUID | None,
+    status: str,  # 'success', 'failed', 'retrying'
+    http_status_code: int | None = None,
+    error_message: str | None = None,
+    retry_attempt: int = 0,
+) -> None:
+    """Log webhook execution to database."""
+    if webhook_id is None or group_id is None:
+        # Cannot log without IDs
+        return
+
+    try:
+        with session_context() as session:
+            log = WebhookExecutionLogModel(
+                session=session,
+                webhook_id=webhook_id,
+                group_id=group_id,
+                executed_at=datetime.now(UTC),
+                status=status,
+                http_status_code=http_status_code,
+                error_message=error_message,
+                retry_attempt=retry_attempt,
+            )
+            session.add(log)
+            session.commit()
+    except Exception as e:
+        logger = get_logger()
+        logger.error(f"Failed to log webhook execution: {e}")
+
+
+def _calculate_retry_delay(attempt: int) -> float:
+    """Calculate exponential backoff: 2^attempt seconds, capped at 60."""
+    return min(RETRY_BACKOFF_BASE**attempt, RETRY_BACKOFF_MAX)
+
+
 class WebhookPublisher:
     """
     Publishes events to specified URLs via HTTP requests (webhooks).
 
     Supports different HTTP methods (GET, POST, PUT, DELETE). For methods that
     carry a body (POST, PUT), the event data is JSON-encoded and sent.
+    Includes retry logic with exponential backoff and execution logging.
     """
 
     def __init__(self, hard_fail: bool = False) -> None:
@@ -135,10 +184,15 @@ class WebhookPublisher:
         """
         self.hard_fail: bool = hard_fail
         """If True, raise an exception on HTTP error status codes."""
+        self.logger = get_logger()
 
-    def publish(self, event: Event, notification_urls: list[str], method: str = "POST", **_: Any) -> None:  # Added **_
+    def publish(
+        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, **_: Any
+    ) -> None:
         """
         Publishes event data to a list of notification URLs using the specified HTTP method.
+
+        Includes retry logic with exponential backoff and logs execution attempts to the database.
 
         The full `event` object is JSON-encoded and sent as the request body for
         POST and PUT requests. For GET and DELETE, no body is sent.
@@ -148,13 +202,15 @@ class WebhookPublisher:
             notification_urls (list[str]): A list of URLs to send the webhook request to.
             method (str, optional): The HTTP method to use (e.g., "POST", "GET", "PUT", "DELETE").
                                     Defaults to "POST".
+            webhook_id (GUID | None, optional): The ID of the webhook being executed (for logging).
+            group_id (GUID | None, optional): The ID of the group the webhook belongs to (for logging).
             **_ (Any): Catches any additional keyword arguments (ignored by this publisher).
 
 
         Raises:
             ValueError: If an unsupported HTTP method is provided.
             requests.exceptions.HTTPError: If `hard_fail` is True and the request
-                                           returns an HTTP error status code.
+                                           returns an HTTP error status code after retries.
         """
         if not notification_urls:
             return
@@ -165,40 +221,59 @@ class WebhookPublisher:
         http_method = method.upper()  # Ensure method is uppercase for comparison
 
         for url in notification_urls:
-            try:
-                response: requests.Response | None = None
-                if http_method == "GET":
-                    response = requests.get(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
-                elif http_method == "POST":
-                    response = requests.post(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
-                elif http_method == "PUT":
-                    response = requests.put(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
-                elif http_method == "DELETE":
-                    response = requests.delete(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
-                else:
-                    # Log or handle unsupported method if not raising immediately
-                    # For now, raising ValueError as per original logic.
-                    raise ValueError(f"Unsupported HTTP method for webhook: {method}")
+            # Retry loop for each URL
+            for attempt in range(MAX_RETRY_ATTEMPTS):
+                try:
+                    response: requests.Response | None = None
+                    if http_method == "GET":
+                        response = requests.get(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                    elif http_method == "POST":
+                        response = requests.post(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                    elif http_method == "PUT":
+                        response = requests.put(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                    elif http_method == "DELETE":
+                        response = requests.delete(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                    else:
+                        raise ValueError(f"Unsupported HTTP method for webhook: {method}")
 
-                if self.hard_fail and response is not None:
-                    response.raise_for_status()  # Raises HTTPError for 4xx/5xx responses
+                    # Check if the request was successful
+                    if response is not None:
+                        if response.ok:
+                            # Success! Log and break out of retry loop
+                            _log_webhook_execution(
+                                webhook_id=webhook_id,
+                                group_id=group_id,
+                                status="success",
+                                http_status_code=response.status_code,
+                                retry_attempt=attempt,
+                            )
+                            break  # Exit retry loop on success
+                        else:
+                            # Non-200 status code
+                            raise requests.exceptions.HTTPError(f"HTTP {response.status_code}", response=response)
 
-                # Optional: Log success/failure based on response status code here if not hard_fail
-                # e.g., if response and not response.ok: self.logger.error(...)
+                except (requests.exceptions.RequestException, ValueError) as e:
+                    is_last_attempt = attempt == MAX_RETRY_ATTEMPTS - 1
 
-            except requests.exceptions.RequestException:
-                # Handle network errors, timeouts, etc.
-                # Log this error. If hard_fail is True, this exception might be re-raised
-                # or a custom one raised. For now, it's caught and loop continues unless hard_fail was for status codes only.
-                # To make hard_fail apply to RequestException too, re-raise here.
-                # self.logger.error(f"Webhook request to {url} failed: {e}")
-                if self.hard_fail:
-                    raise  # Re-raise the requests exception if hard_fail is True
-            except ValueError:  # Catch the unsupported method error
-                # self.logger.error(str(e))
-                if self.hard_fail:
-                    raise
-                # If not hard_fail, this error for one URL won't stop others unless re-raised.
-                # Depending on desired behavior, might log and continue or propagate.
-                # For now, if hard_fail is False, it effectively skips this URL.
-                pass  # Or log and continue
+                    # Log the execution attempt
+                    _log_webhook_execution(
+                        webhook_id=webhook_id,
+                        group_id=group_id,
+                        status="failed" if is_last_attempt else "retrying",
+                        http_status_code=getattr(getattr(e, "response", None), "status_code", None),
+                        error_message=str(e),
+                        retry_attempt=attempt,
+                    )
+
+                    if is_last_attempt:
+                        # Final attempt failed
+                        self.logger.error(f"Webhook to {url} failed after {MAX_RETRY_ATTEMPTS} attempts: {e}")
+                        if self.hard_fail:
+                            raise
+                        # Don't retry further, move to next URL
+                        break
+                    else:
+                        # Calculate backoff delay and retry
+                        delay = _calculate_retry_delay(attempt)
+                        self.logger.warning(f"Webhook to {url} failed (attempt {attempt + 1}/{MAX_RETRY_ATTEMPTS}). Retrying in {delay}s: {e}")
+                        time.sleep(delay)

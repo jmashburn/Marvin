@@ -319,7 +319,7 @@ class UserAuthenticationController(BaseUserController):
             integration_id="internal_token_refresh",  # Identifier for the source of the event
             event_type=EventTypes.token_refreshed,  # Specific event type
             group_id=current_user.group_id,  # Associate with user's group
-            document_data=EventTokenRefreshData(username=current_user.username, token=new_access_token),
+            document_data=EventTokenRefreshData(username=current_user.username),
             message=f"Access token refreshed for user {current_user.username}",
         )
         self.logger.info(f"Access token refreshed for user: {current_user.username}")

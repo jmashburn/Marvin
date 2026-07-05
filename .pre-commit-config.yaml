@@ -3,7 +3,7 @@ repos:
     rev: v2.3.0
     hooks:
       - id: check-yaml
-        exclude: "mkdocs.yml"
+        exclude: "(mkdocs.yml|marvin-chart/templates/.*\\.yaml)"
       - id: check-json
         exclude: (.vscode|.devcontainer)
       - id: check-toml

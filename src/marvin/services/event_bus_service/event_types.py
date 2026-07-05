@@ -168,8 +168,6 @@ class EventTokenRefreshData(EventDocumentDataBase):
     operation: EventOperationBase = EventOperation.info  # Operation type is informational
     username: str
     """The username of the user whose token was refreshed."""
-    token: str  # This is the new token. Consider if sending tokens via event bus is secure.
-    """The new access token. Sensitive: ensure event bus and listeners handle this securely."""
 
 
 class EventUserSignupData(EventDocumentDataBase):

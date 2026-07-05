@@ -8,10 +8,10 @@ It includes:
 """
 
 import enum
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, ForeignKey, String, Time, orm
+from sqlalchemy import Boolean, ForeignKey, String, orm
 from sqlalchemy.orm import Mapped, Session, mapped_column  # Added Session for __init__
 from sqlalchemy.types import Enum as SqlAlchemyEnum  # Explicit import for sqlalchemy Enum type
 
@@ -19,6 +19,7 @@ from marvin.services.event_bus_service.event_types import EventDocumentType
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
+from .._model_utils.datetime import DateTime
 from .._model_utils.guid import GUID
 from .._model_utils.httpurl import HttpUrlType
 
@@ -69,10 +70,10 @@ class GroupWebhooksModel(SqlAlchemyBase, BaseMixins):
         default=EventDocumentType.generic,
         doc="Type of the webhook, influencing payload or trigger. Defaults to 'generic'.",
     )  # Used SqlAlchemyEnum and updated default
-    scheduled_time: Mapped[time | None] = mapped_column(
-        Time,
-        default=lambda: datetime.now(UTC).time(),
-        doc="Scheduled time (UTC) for the webhook to run, if it's a scheduled webhook. Defaults to current UTC time on creation.",
+    scheduled_time: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        doc="Scheduled datetime (UTC) for the webhook to run, if it's a scheduled webhook. Defaults to current UTC datetime on creation.",
     )
 
     @auto_init()

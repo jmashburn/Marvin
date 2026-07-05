@@ -10,7 +10,7 @@
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "mealie.app:app",
+        "marvin.app:app",
         "--port",
         "9000"
       ],

@@ -1,0 +1,78 @@
+# Production environment overrides
+# Usage: helm upgrade --install marvin ./marvin-chart -f values-production.yaml
+
+# Production requires multiple replicas for availability
+replicaCount: 2
+
+# Always pull in production to ensure correct version
+image:
+  pullPolicy: Always
+
+# Production configuration
+config:
+  production: true
+  allowSignup: false  # Restrict signups in production
+  logLevel: INFO  # Production logging level
+
+  # Tighter webhook timeouts for production
+  webhookTimeout: 20
+
+# Production route with real domain
+route:
+  host: marvin.yourdomain.com
+  tls:
+    enabled: true
+    termination: edge
+  annotations:
+    # Add any production-specific annotations
+    # haproxy.router.openshift.io/rate-limit-connections: "true"
+
+# Production storage requirements
+persistence:
+  size: 50Gi
+  # storageClass: "gp3"  # Use faster storage class if available
+
+# Production resource allocation
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+# Production secrets MUST come from sealed-secrets or external vault
+# NEVER put real secrets in this file
+secrets: {}
+
+# Production-grade health checks
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Pod disruption budget for high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Anti-affinity to spread pods across nodes
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - marvin
+          topologyKey: kubernetes.io/hostname

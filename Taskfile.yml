@@ -5,7 +5,7 @@ env:
   API_PORT: 8080
   API_DOCS: True
   TOKEN_TIME: 256 # hours
-  # mailplit SMTP config
+  # mailpit SMTP config
   # start dev:services to use mailpit
   SMTP_HOST: localhost
   SMTP_PORT: 1025
@@ -43,7 +43,7 @@ tasks:
       - uv run -m mkdocs serve
 
   setup:py:
-    desc: Stup python dependencies
+    desc: Setup python dependencies
     cmds:
       - uv sync --group dev --group postgres
       - uv run pre-commit install
@@ -63,9 +63,9 @@ tasks:
     vars:
       DEV_DATA: ""
     cmds:
-      - rm -r .src/dev/data/marvin*.db
-      - rm -r .src/dev/data/marvin.log
-      - rm -r .src/dev/data/.secret
+      - rm -rf src/dev/data/marvin*.db
+      - rm -rf src/dev/data/marvin.log
+      - rm -rf src/dev/data/.secret
 
   py:mypy:
     desc: Runs python type checking
@@ -100,8 +100,8 @@ tasks:
     cmds:
       - uv run pytest
       - uv run coverage report -m
-      - uv run coveragepy-lcov
-      - uv run coverate html
+      - uv run coverage lcov
+      - uv run coverage html
       - open htmlcov/index.html
 
   py:
