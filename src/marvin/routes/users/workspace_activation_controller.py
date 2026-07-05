@@ -10,6 +10,7 @@ from pydantic import UUID4
 from marvin.core.dependencies import get_current_user
 from marvin.db.models.users.roles import PlatformRole
 from marvin.routes._base.base_controllers import BaseUserController
+from marvin.routes._base.controller import controller
 from marvin.schemas.group.group import GroupRead
 from marvin.schemas.user.user import PrivateUser
 from marvin.schemas.workspace.workspace_activation import (
@@ -20,6 +21,7 @@ from marvin.schemas.workspace.workspace_activation import (
 router = APIRouter(prefix="/users/me/workspace", tags=["Workspace Activation"])
 
 
+@controller(router)
 class WorkspaceActivationController(BaseUserController):
     """Controller for workspace activation operations."""
 
@@ -32,7 +34,7 @@ class WorkspaceActivationController(BaseUserController):
             The active workspace details.
         """
         workspace_id = self.user.active_group_id or self.user.group_id
-        workspace = self.repos.groups.get_by_id(workspace_id)
+        workspace = self.repos.groups.get_one(workspace_id)
 
         if not workspace:
             raise HTTPException(
@@ -40,7 +42,7 @@ class WorkspaceActivationController(BaseUserController):
                 detail=f"Workspace {workspace_id} not found",
             )
 
-        return GroupRead.model_validate(workspace)
+        return workspace
 
     @router.put("/current", response_model=GroupRead)
     def set_active_workspace(self, request: WorkspaceActivationRequest) -> GroupRead:
@@ -61,7 +63,7 @@ class WorkspaceActivationController(BaseUserController):
             HTTPException: 404 if workspace doesn't exist.
         """
         # Verify workspace exists
-        workspace = self.repos.groups.get_by_id(request.workspace_id)
+        workspace = self.repos.groups.get_one(request.workspace_id)
         if not workspace:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -81,14 +83,20 @@ class WorkspaceActivationController(BaseUserController):
                 )
 
         # Update user's active workspace
-        user = self.repos.users.get_by_id(self.user.id)
-        if not user:
+        from marvin.db.models.users.users import Users
+        from sqlalchemy import select
+
+        user_model = self.repos.session.execute(
+            select(Users).where(Users.id == self.user.id)
+        ).scalar_one_or_none()
+
+        if not user_model:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found",
             )
 
-        user.active_group_id = request.workspace_id
+        user_model.active_group_id = request.workspace_id
         self.repos.session.commit()
 
         # Dispatch workspace.activated event
@@ -102,7 +110,7 @@ class WorkspaceActivationController(BaseUserController):
             message=f"User '{self.user.username}' activated workspace '{workspace.name}'",
         )
 
-        return GroupRead.model_validate(workspace)
+        return workspace
 
     @router.get("", response_model=list[WorkspaceWithMembership])
     def list_accessible_workspaces(self) -> list[WorkspaceWithMembership]:
@@ -119,12 +127,13 @@ class WorkspaceActivationController(BaseUserController):
 
         # SUPER_ADMIN sees all workspaces
         if self.user.platform_role == PlatformRole.SUPER_ADMIN:
+            from marvin.db.models.users.roles import WorkspaceRole
+
             all_workspaces = self.repos.groups.get_all()
             return [
                 WorkspaceWithMembership(
                     workspace=GroupRead.model_validate(ws),
-                    role=self.user.get_workspace_role(ws.id)
-                    or PlatformRole.SUPER_ADMIN,  # type: ignore
+                    role=self.user.get_workspace_role(ws.id) or WorkspaceRole.OWNER,
                     is_active=(ws.id == current_workspace_id),
                 )
                 for ws in all_workspaces
@@ -135,11 +144,11 @@ class WorkspaceActivationController(BaseUserController):
 
         result = []
         for membership in memberships:
-            workspace = self.repos.groups.get_by_id(membership.group_id)
+            workspace = self.repos.groups.get_one(membership.group_id)
             if workspace:
                 result.append(
                     WorkspaceWithMembership(
-                        workspace=GroupRead.model_validate(workspace),
+                        workspace=workspace,
                         role=membership.workspace_role,
                         is_active=(workspace.id == current_workspace_id),
                     )

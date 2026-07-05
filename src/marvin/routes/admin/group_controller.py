@@ -137,7 +137,12 @@ class AdminGroupManagementRoutes(BaseAdminController):
         group = GroupService.create_group(self.repos, data)
 
         # Get the underlying model instance for bootstrap
-        group_model = self.repos.groups.get_one_raw(group.id)
+        from marvin.db.models.groups import Groups
+        from sqlalchemy import select
+
+        group_model = self.repos.session.execute(
+            select(Groups).where(Groups.id == group.id)
+        ).scalar_one()
 
         # Bootstrap with default content and memberships
         WorkspaceBootstrapService.bootstrap(

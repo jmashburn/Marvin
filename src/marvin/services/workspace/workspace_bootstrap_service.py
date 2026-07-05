@@ -80,9 +80,9 @@ class WorkspaceBootstrapService:
             creator_id: The user ID of the workspace creator
         """
         # 1. Create default entry types
-        for entry_type_data in WorkspaceBootstrapService.DEFAULT_ENTRY_TYPES:
-            from marvin.db.models.entry_types import EntryTypes
+        from marvin.db.models.platform.entry_types import EntryTypes
 
+        for entry_type_data in WorkspaceBootstrapService.DEFAULT_ENTRY_TYPES:
             entry_type = EntryTypes(
                 session=repos.session,
                 group_id=workspace.id,
@@ -91,9 +91,9 @@ class WorkspaceBootstrapService:
             repos.session.add(entry_type)
 
         # 2. Create default collections
-        for collection_data in WorkspaceBootstrapService.DEFAULT_COLLECTIONS:
-            from marvin.db.models.collections.collections import Collections
+        from marvin.db.models.platform.collections import Collections
 
+        for collection_data in WorkspaceBootstrapService.DEFAULT_COLLECTIONS:
             collection = Collections(
                 session=repos.session,
                 group_id=workspace.id,
