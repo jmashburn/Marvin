@@ -1,4 +1,7 @@
 ---
+// Ensure this page is server-rendered (not prerendered)
+export const prerender = false;
+
 // Check if user is already logged in (has valid token cookie)
 const token = Astro.cookies.get('marvin.access_token');
 if (token) {
