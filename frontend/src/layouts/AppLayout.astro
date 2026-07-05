@@ -76,7 +76,12 @@ function isActive(itemPath: string, currentPath: string): boolean {
               <h1>{title}</h1>
             </div>
           </div>
-          <a class="button secondary" href="/entries">Review Queue</a>
+          <div class="topbar-actions">
+            <a class="button secondary" href="/entries">Review Queue</a>
+            <form method="POST" action="/api/auth/logout" style="display:inline;">
+              <button type="submit" class="button secondary">Logout</button>
+            </form>
+          </div>
         </header>
         <section class="content">
           <slot />

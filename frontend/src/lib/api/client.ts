@@ -51,6 +51,13 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}): Promise
     headers.set("Authorization", `Bearer ${SITE_CLIENT_TOKEN}`);
   }
 
+  // Include credentials to send cookies with requests
+  const fetchInit: RequestInit = {
+    ...init,
+    headers,
+    credentials: 'include', // Send cookies with cross-origin requests
+  };
+
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -59,10 +66,7 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}): Promise
         console.debug(`[API] ${init.method || 'GET'} ${path}`);
       }
 
-      const response = await fetch(url, {
-        ...init,
-        headers,
-      });
+      const response = await fetch(url, fetchInit);
 
       // Handle 401 Unauthorized - redirect to login
       if (response.status === 401) {
