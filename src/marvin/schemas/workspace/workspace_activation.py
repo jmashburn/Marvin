@@ -5,7 +5,7 @@ Schemas for workspace activation (switching between workspaces).
 from pydantic import UUID4
 
 from marvin.db.models.users.roles import WorkspaceRole
-from marvin.schemas._marvin_model import _MarvinModel
+from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas.group.group import GroupRead
 
 
