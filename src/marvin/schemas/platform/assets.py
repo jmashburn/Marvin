@@ -104,9 +104,23 @@ class AssetPlacement(_MarvinModel):
     """Optional caption for this placement."""
     placement_metadata: dict | None = Field(
         default=None,
-        validation_alias=AliasChoices("placement_metadata", "metadata", "metadata_"),
+        validation_alias=AliasChoices("placement_metadata", "metadata_"),
     )
     """Optional placement metadata."""
+
+    @field_validator('placement_metadata', mode='before')
+    @classmethod
+    def validate_placement_metadata(cls, value: Any) -> dict | None:
+        """Ensure placement_metadata is a dict, not SQLAlchemy MetaData."""
+        if value is None:
+            return None
+        # If it's a SQLAlchemy MetaData object, return None instead
+        if hasattr(value, '__class__') and value.__class__.__name__ == 'MetaData':
+            return None
+        # If it's not a dict, try to convert or return None
+        if not isinstance(value, dict):
+            return None
+        return value
 
     model_config = ConfigDict(from_attributes=True)
 
