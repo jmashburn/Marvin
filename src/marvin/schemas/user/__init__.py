@@ -21,6 +21,8 @@ from .user import (
     UserSummary,
     UserSummaryPagination,
     UserUpdate,
+    WorkspaceMembershipRead,
+    WorkspaceMembershipSummary,
 )
 
 __all__ = [
@@ -54,4 +56,6 @@ __all__ = [
     "UserSummary",
     "UserSummaryPagination",
     "UserUpdate",
+    "WorkspaceMembershipRead",
+    "WorkspaceMembershipSummary",
 ]

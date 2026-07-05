@@ -10,11 +10,13 @@ import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from jwt.exceptions import PyJWTError
+from pydantic import UUID4
 from sqlalchemy.orm.session import Session
 
 from marvin.core import root_logger
 from marvin.core.config import get_app_dirs, get_app_settings
 from marvin.db.db_setup import generate_session
+from marvin.db.models.users.roles import PlatformRole, WorkspaceRole
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group import GroupRead
 from marvin.schemas.user import PrivateUser, TokenData
@@ -255,12 +257,175 @@ async def get_current_superuser(current_user: PrivateUser = Depends(get_current_
     Returns:
         PrivateUser: The super admin user.
     """
-    if not current_user.is_superuser:
+    # Use platform_role for authorization (preferred), with fallback to deprecated is_superuser
+    if current_user.platform_role != PlatformRole.SUPER_ADMIN and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Super admin privileges required. This operation requires platform-level access.",
         )
     return current_user
+
+
+async def get_platform_admin(current_user: PrivateUser = Depends(get_current_user)) -> PrivateUser:
+    """
+    FastAPI dependency to ensure the current user is a platform administrator.
+
+    Alias for get_current_superuser using the new role-based terminology.
+
+    Args:
+        current_user (PrivateUser): The current authenticated user.
+
+    Raises:
+        HTTPException: If the user is not a platform admin (403 Forbidden).
+
+    Returns:
+        PrivateUser: The platform admin user.
+    """
+    return await get_current_superuser(current_user)
+
+
+def require_workspace_role(required_role: WorkspaceRole, allow_platform_admin: bool = True):
+    """
+    Factory function to create a FastAPI dependency that requires a specific workspace role.
+
+    Creates a dependency that checks if the current user has at least the required role
+    in the specified workspace. Platform admins can optionally bypass this check.
+
+    Usage:
+        @router.get("/workspace/{workspace_id}/settings")
+        async def get_settings(
+            workspace_id: UUID4,
+            user: PrivateUser = Depends(require_workspace_role(WorkspaceRole.ADMIN))
+        ):
+            ...
+
+    Args:
+        required_role (WorkspaceRole): The minimum role required (OWNER, ADMIN, EDITOR, AUTHOR, VIEWER).
+        allow_platform_admin (bool): If True, platform admins bypass role check. Defaults to True.
+
+    Returns:
+        Callable: A FastAPI dependency function.
+    """
+    async def check_workspace_role(
+        workspace_id: UUID4 = fastapi.Path(..., description="Workspace ID"),
+        current_user: PrivateUser = Depends(get_current_user),
+    ) -> PrivateUser:
+        """
+        Check if user has required role in workspace.
+
+        Args:
+            workspace_id: The workspace to check permissions for.
+            current_user: The authenticated user.
+
+        Raises:
+            HTTPException: 403 if user lacks required role.
+
+        Returns:
+            PrivateUser: The authenticated user with verified permissions.
+        """
+        # Platform admins have access to all workspaces (if allowed)
+        if allow_platform_admin and current_user.platform_role == PlatformRole.SUPER_ADMIN:
+            return current_user
+
+        # Check workspace role
+        if not current_user.has_workspace_role(workspace_id, required_role):
+            user_role = current_user.get_workspace_role(workspace_id)
+            if user_role is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied. You are not a member of this workspace.",
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied. Required role: {required_role.value}, your role: {user_role.value}",
+                )
+
+        return current_user
+
+    return check_workspace_role
+
+
+def require_workspace_member(allow_platform_admin: bool = True):
+    """
+    Factory function to create a FastAPI dependency that requires workspace membership.
+
+    Ensures the user is a member of the workspace (any role). Platform admins
+    can optionally bypass this check.
+
+    Usage:
+        @router.get("/workspace/{workspace_id}/content")
+        async def get_content(
+            workspace_id: UUID4,
+            user: PrivateUser = Depends(require_workspace_member())
+        ):
+            ...
+
+    Args:
+        allow_platform_admin (bool): If True, platform admins bypass check. Defaults to True.
+
+    Returns:
+        Callable: A FastAPI dependency function.
+    """
+    async def check_membership(
+        workspace_id: UUID4 = fastapi.Path(..., description="Workspace ID"),
+        current_user: PrivateUser = Depends(get_current_user),
+    ) -> PrivateUser:
+        """
+        Check if user is a member of the workspace.
+
+        Args:
+            workspace_id: The workspace to check membership for.
+            current_user: The authenticated user.
+
+        Raises:
+            HTTPException: 403 if user is not a member.
+
+        Returns:
+            PrivateUser: The authenticated user.
+        """
+        # Platform admins have access to all workspaces (if allowed)
+        if allow_platform_admin and current_user.platform_role == PlatformRole.SUPER_ADMIN:
+            return current_user
+
+        # Check if user has any role in the workspace
+        user_role = current_user.get_workspace_role(workspace_id)
+        if user_role is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You are not a member of this workspace.",
+            )
+
+        return current_user
+
+    return check_membership
+
+
+# Convenience dependencies for common workspace roles
+
+def require_workspace_owner(allow_platform_admin: bool = True):
+    """Require OWNER role in workspace. Platform admins can bypass if allowed."""
+    return require_workspace_role(WorkspaceRole.OWNER, allow_platform_admin)
+
+
+def require_workspace_admin(allow_platform_admin: bool = True):
+    """Require ADMIN role or higher in workspace. Platform admins can bypass if allowed."""
+    return require_workspace_role(WorkspaceRole.ADMIN, allow_platform_admin)
+
+
+def require_workspace_editor(allow_platform_admin: bool = True):
+    """Require EDITOR role or higher in workspace. Platform admins can bypass if allowed."""
+    return require_workspace_role(WorkspaceRole.EDITOR, allow_platform_admin)
+
+
+def require_workspace_author(allow_platform_admin: bool = True):
+    """Require AUTHOR role or higher in workspace. Platform admins can bypass if allowed."""
+    return require_workspace_role(WorkspaceRole.AUTHOR, allow_platform_admin)
+
+
+def require_workspace_viewer(allow_platform_admin: bool = True):
+    """Require VIEWER role or higher (any workspace member) in workspace. Platform admins can bypass if allowed."""
+    return require_workspace_role(WorkspaceRole.VIEWER, allow_platform_admin)
 
 
 def validate_long_live_token(session: Session, client_token: str, user_id: str) -> PrivateUser:

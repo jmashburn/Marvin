@@ -30,11 +30,15 @@ from sqlalchemy.orm.interfaces import LoaderOption
 # Marvin core and database model imports
 from marvin.core.config import get_app_settings
 from marvin.db.models.users import Users as UsersSQLModel  # SQLAlchemy User model, aliased
+from marvin.db.models.users.roles import PlatformRole, WorkspaceRole  # Role enums
 from marvin.db.models.users.users import (
     AuthMethod,
 )  # AuthMethod enum and Token model
 from marvin.db.models.users.users import (
     LongLiveToken as LongLiveTokenSQLModel,
+)
+from marvin.db.models.users.workspace_members import (
+    WorkspaceMembers as WorkspaceMembersSQLModel,
 )
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvin schemas
 from marvin.schemas.response.pagination import PaginationBase  # Base for pagination responses
@@ -180,6 +184,43 @@ class LongLiveTokenPagination(PaginationBase):
     """The list of groups for the current page, serialized as `LongLiveTokenSummary`."""
 
 
+class WorkspaceMembershipRead(_MarvinModel):
+    """
+    Schema for reading a user's workspace membership with role.
+    Represents the relationship between a user and a workspace.
+    """
+
+    id: UUID4
+    """Unique identifier for the membership."""
+    user_id: UUID4
+    """ID of the user."""
+    group_id: UUID4
+    """ID of the workspace (group)."""
+    workspace_role: WorkspaceRole
+    """The role this user has within this workspace."""
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        """
+        Provides SQLAlchemy loader options for optimizing workspace membership queries.
+        """
+        return []
+
+
+class WorkspaceMembershipSummary(_MarvinModel):
+    """
+    Schema for summarized workspace membership information.
+    Used in user profiles to show which workspaces they belong to.
+    """
+
+    group_id: UUID4
+    """ID of the workspace (group)."""
+    workspace_role: WorkspaceRole
+    """The role this user has within this workspace."""
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TokenCreate(LongLiveTokenCreate):
     """
     DEPRECATED: Internal schema for creating a token record.
@@ -237,10 +278,12 @@ class UserCreate(_MarvinModel):
     """The user's email address. Will be converted to lowercase and stripped of whitespace."""
     auth_method: AuthMethod = AuthMethod.MARVIN
     """The authentication method for the user. Defaults to `MARVIN` (standard password)."""
+    platform_role: PlatformRole = PlatformRole.NONE
+    """Platform-level role. Defaults to NONE (standard user)."""
     admin: bool = False
-    """Whether the user has administrative privileges. Defaults to False."""
+    """DEPRECATED: Use workspace roles instead. Whether the user has administrative privileges. Defaults to False."""
     is_superuser: bool = False
-    """Whether the user is a platform-level super administrator with access to all workspaces. Defaults to False."""
+    """DEPRECATED: Use platform_role instead. Whether the user is a platform-level super administrator. Defaults to False."""
     group: str | None = None  # Represents group name or ID for assignment. Validator handles object-to-name conversion.
     """
     Name or identifier of the group to assign the user to.
@@ -325,12 +368,16 @@ class UserRead(UserCreate):  # UserRead inheriting UserCreate (which has passwor
 
     id: UUID4
     """The unique identifier of the user."""
+    platform_role: PlatformRole
+    """Platform-level role (NONE or SUPER_ADMIN)."""
     group: str  # In UserCreate this was `str | None`. Here it's `str`. Might imply group is always resolved.
     """The name of the group the user belongs to."""
     group_id: UUID4
     """The unique identifier of the group the user belongs to."""
     group_slug: str  # Added based on original properties, likely from ORM.
     """The slug of the group the user belongs to."""
+    workspace_memberships: list[WorkspaceMembershipSummary] = []
+    """List of workspaces this user is a member of with their roles."""
     # tokens: list[LongLiveTokenRead] | None = None # Commented out in original, might be populated conditionally.
     cache_key: str | None  # Made optional as per UserSQLModel default
     """A cache key associated with the user, potentially for ETag or client-side caching."""
@@ -346,15 +393,54 @@ class UserRead(UserCreate):  # UserRead inheriting UserCreate (which has passwor
         # Compares user's email (normalized) with the default email from settings (normalized).
         return self.email.strip().lower() == settings._DEFAULT_EMAIL.strip().lower()
 
+    @property
+    def is_platform_admin(self) -> bool:
+        """Check if user has platform admin privileges (SUPER_ADMIN role)."""
+        return self.platform_role == PlatformRole.SUPER_ADMIN
+
+    def get_workspace_role(self, group_id: UUID4) -> WorkspaceRole | None:
+        """
+        Get the user's role in a specific workspace.
+
+        Args:
+            group_id: UUID of the workspace to check.
+
+        Returns:
+            WorkspaceRole if user is a member of the workspace, None otherwise.
+        """
+        for membership in self.workspace_memberships:
+            if membership.group_id == group_id:
+                return membership.workspace_role
+        return None
+
+    def has_workspace_role(self, group_id: UUID4, required_role: WorkspaceRole) -> bool:
+        """
+        Check if user has at least the required role in a workspace.
+
+        Args:
+            group_id: UUID of the workspace to check.
+            required_role: Minimum role required.
+
+        Returns:
+            True if user has the required role or higher, False otherwise.
+        """
+        from marvin.db.models.users.roles import workspace_role_has_higher_or_equal_privilege
+
+        user_role = self.get_workspace_role(group_id)
+        if user_role is None:
+            return False
+        return workspace_role_has_higher_or_equal_privilege(user_role, required_role)
+
     @classmethod
     def loader_options(cls) -> list[LoaderOption]:
         """
         Provides SQLAlchemy loader options for optimizing `UserRead` queries.
-        Eagerly loads the user's `group` and `tokens` relationships.
+        Eagerly loads the user's `group`, `tokens`, and `workspace_memberships` relationships.
         """
         return [
             joinedload(UsersSQLModel.group),  # Eager load user's group
             joinedload(UsersSQLModel.tokens),  # Eager load user's API tokens
+            joinedload(UsersSQLModel.workspace_memberships),  # Eager load workspace memberships
         ]
 
 
@@ -460,11 +546,12 @@ class PrivateUser(UserRead):  # Extends UserRead, so includes fields like passwo
     def loader_options(cls) -> list[LoaderOption]:
         """
         Provides SQLAlchemy loader options for optimizing `PrivateUser` queries.
-        Eagerly loads the user's `group` and `tokens` relationships.
+        Eagerly loads the user's `group`, `tokens`, and `workspace_memberships` relationships.
         """
         return [
             joinedload(UsersSQLModel.group),  # Eager load user's group
             joinedload(UsersSQLModel.tokens),  # Eager load user's API tokens
+            joinedload(UsersSQLModel.workspace_memberships),  # Eager load workspace memberships
         ]
 
 
