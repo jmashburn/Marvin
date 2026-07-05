@@ -881,6 +881,7 @@ def upsert_project_resources(session, workspace: Groups, entry: Entries, project
 
         if not resource:
             resource = Resources(
+                session=session,
                 id=uuid4().hex,
                 group_id=workspace.id,
                 slug=resource_slug,
@@ -956,6 +957,7 @@ def upsert_project_assets(session, workspace: Groups, entry: Entries, project_da
 
         if not asset:
             asset = Assets(
+                session=session,
                 id=uuid4().hex,
                 group_id=workspace.id,
                 slug=asset_slug,
