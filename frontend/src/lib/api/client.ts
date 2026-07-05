@@ -81,6 +81,9 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
     try {
       if (DEV_MODE && attempt === 0) {
         console.debug(`[API] ${init.method || 'GET'} ${path}`);
+        if (authToken) {
+          console.debug(`[API] Using auth token: ${authToken.substring(0, 20)}...`);
+        }
       }
 
       const response = await fetch(url, fetchInit);

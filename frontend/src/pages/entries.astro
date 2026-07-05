@@ -3,6 +3,9 @@ import EntryCard from "@/components/EntryCard.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { listEntries } from "@/lib/api/entries";
 import { listEntryTypes } from "@/lib/api/entryTypes";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
 
 let entries = [];
 let entryTypes = [];
@@ -10,8 +13,8 @@ let error: string | null = null;
 
 try {
   [entries, entryTypes] = await Promise.all([
-    listEntries(),
-    listEntryTypes(),
+    listEntries(authToken),
+    listEntryTypes(authToken),
   ]);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);

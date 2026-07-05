@@ -10,6 +10,7 @@ import { getAuthToken } from "@/lib/api/client";
 
 // Get auth token from cookies for SSR API calls
 const authToken = getAuthToken(Astro.cookies);
+console.log('[Dashboard] Auth token:', authToken ? `${authToken.substring(0, 20)}...` : 'MISSING');
 
 let entries = [];
 let assets = [];

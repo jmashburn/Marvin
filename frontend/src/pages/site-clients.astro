@@ -1,12 +1,15 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getSiteClients } from "@/lib/api/platform";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
 
 let siteClients = [];
 let error: string | null = null;
 
 try {
-  siteClients = await getSiteClients();
+  siteClients = await getSiteClients(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
   console.error('[SiteClients] Failed to load:', error);

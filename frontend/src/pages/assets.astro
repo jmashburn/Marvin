@@ -1,12 +1,15 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAssets } from "@/lib/api/platform";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
 
 let assets = [];
 let error: string | null = null;
 
 try {
-  assets = await getAssets();
+  assets = await getAssets(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
   console.error('[Assets] Failed to load:', error);
