@@ -9,6 +9,7 @@ from . import (
     entries_controller,
     entry_types_controller,
     resources_controller,
+    workspace_members_controller,
 )
 
 router = UserAPIRouter()
@@ -19,3 +20,4 @@ router.include_router(collections_controller.router, tags=["Platform: Collection
 router.include_router(api_clients_controller.router, tags=["Platform: API Clients"])
 router.include_router(resources_controller.router, tags=["Platform: Resources"])
 router.include_router(assets_controller.router, tags=["Platform: Assets"])
+router.include_router(workspace_members_controller.router, tags=["Platform: Workspace Members"])

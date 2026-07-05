@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 
-from marvin.db import generate_session
+from marvin.db.db_setup import generate_session
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import APIClientCreate, APIClientRead, APIClientUpdate, APIClientWithToken
 from marvin.schemas.publishing import SiteConfiguration, WorkspaceInfo, WorkspaceSiteInfo

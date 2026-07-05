@@ -9,7 +9,7 @@ let error: string | null = null;
 let success = Astro.url.searchParams.get('success');
 
 try {
-  user = await fetchApi<UserSummary>('/api/users/self', {}, authToken);
+  user = await fetchApi<UserSummary>('/api/self', {}, authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
 }
