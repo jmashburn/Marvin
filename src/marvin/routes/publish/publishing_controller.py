@@ -22,7 +22,9 @@ from marvin.schemas.publishing import (
     PublishedEntryListItem,
     PublishedEntryRead,
     PublishedResourceRead,
+    SiteConfiguration,
     WorkspaceInfo,
+    WorkspaceSiteInfo,
 )
 
 settings = get_app_settings()
@@ -46,6 +48,64 @@ async def get_workspace_info(
     return WorkspaceInfo(
         slug=group.slug,
         name=group.name,
+    )
+
+
+@router.get("/{workspace_slug}/site", response_model=WorkspaceSiteInfo, summary="Get Site Configuration")
+async def get_site_configuration(
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+) -> WorkspaceSiteInfo:
+    """
+    Get workspace and site configuration.
+
+    Returns complete site identity and settings for external sites (Astro, etc.).
+    This replaces hardcoded site.ts files - all site configuration lives in Marvin.
+
+    **Response includes:**
+    - Workspace identity (name, slug)
+    - Site settings (title, tagline, description, URLs)
+    - Contact information
+    - Social media links
+    - Localization settings
+    - Custom metadata
+
+    **Use case**: Astro site initialization, meta tags, social links, contact forms.
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+    """
+    api_client, group = context
+
+    # Get group preferences (includes site configuration)
+    from marvin.db.models.groups import GroupPreferencesModel
+
+    prefs = (
+        session.query(GroupPreferencesModel)
+        .filter(GroupPreferencesModel.group_id == group.id)
+        .first()
+    )
+
+    # Build site configuration from preferences (with sensible defaults)
+    site_config = SiteConfiguration(
+        title=prefs.site_title if prefs and prefs.site_title else group.name,
+        tagline=prefs.site_tagline if prefs else None,
+        description=prefs.site_description if prefs else None,
+        canonical_url=prefs.site_canonical_url if prefs else None,
+        logo=prefs.site_logo if prefs else None,
+        favicon=prefs.site_favicon if prefs else None,
+        locale=prefs.site_locale if prefs and prefs.site_locale else "en-US",
+        timezone=prefs.site_timezone if prefs and prefs.site_timezone else "America/New_York",
+        contact_email=prefs.site_contact_email if prefs else None,
+        social=prefs.site_social_json if prefs else None,
+        metadata=prefs.site_metadata_json if prefs else None,
+    )
+
+    return WorkspaceSiteInfo(
+        workspace=WorkspaceInfo(
+            slug=group.slug,
+            name=group.name,
+        ),
+        site=site_config,
     )
 
 

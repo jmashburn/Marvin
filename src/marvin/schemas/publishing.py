@@ -234,3 +234,63 @@ class WorkspaceInfo(_MarvinModel):
     """Workspace name."""
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SiteConfiguration(_MarvinModel):
+    """
+    Site configuration for publishing API.
+
+    Provides the public identity and settings for a workspace's published site.
+    This replaces hardcoded site.ts files in Astro projects.
+    """
+
+    title: str | None = None
+    """The public title of the site."""
+
+    tagline: str | None = None
+    """A short tagline or slogan."""
+
+    description: str | None = None
+    """Site description."""
+
+    canonical_url: str | None = None
+    """The canonical URL where this site is published."""
+
+    logo: str | None = None
+    """Path or URL to the site logo."""
+
+    favicon: str | None = None
+    """Path or URL to the site favicon."""
+
+    locale: str = "en-US"
+    """Site locale (e.g., en-US, en-GB)."""
+
+    timezone: str = "America/New_York"
+    """Site timezone (e.g., America/New_York)."""
+
+    contact_email: str | None = None
+    """Primary contact email."""
+
+    social: dict | None = None
+    """Social media links (e.g., {instagram: 'url', facebook: 'url'})."""
+
+    metadata: dict | None = None
+    """Framework-specific or custom site metadata."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkspaceSiteInfo(_MarvinModel):
+    """
+    Combined workspace and site configuration response.
+
+    Returns everything an external site needs to initialize itself.
+    """
+
+    workspace: WorkspaceInfo
+    """Workspace identification."""
+
+    site: SiteConfiguration
+    """Site configuration and identity."""
+
+    model_config = ConfigDict(from_attributes=True)

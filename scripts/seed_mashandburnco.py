@@ -569,6 +569,65 @@ def upsert_workspace(session, admin_user_id: str) -> Groups:
     return workspace
 
 
+def upsert_site_configuration(session, workspace: Groups) -> None:
+    """
+    Configure site settings for the workspace.
+
+    Replaces hardcoded site.ts with database-backed configuration.
+    Values match the Mash & Burn Co. site.ts file.
+    """
+    from marvin.db.models.groups import GroupPreferencesModel
+
+    # Get or create preferences for this workspace
+    prefs = session.query(GroupPreferencesModel).filter(
+        GroupPreferencesModel.group_id == workspace.id
+    ).first()
+
+    if not prefs:
+        prefs = GroupPreferencesModel(
+            id=uuid4().hex,
+            group_id=workspace.id,
+            session=session,
+        )
+        session.add(prefs)
+        session.flush()
+
+    # Site identity (from site.ts)
+    prefs.site_title = "Mash & Burn Co."
+    prefs.site_tagline = "Unnecessarily well-made"
+    prefs.site_description = "Well-made projects, bench notes, and field-tested clothing."
+    prefs.site_contact_email = "hello@mashandburnco.com"
+
+    # Social media links (from site.ts social object)
+    prefs.site_social_json = {
+        "instagram": "https://www.instagram.com/mashandburnco/",
+        "facebook": "https://www.facebook.com/jaredmashburn",
+        "pinterest": "https://www.pinterest.com/mashandburnco/",
+        "youtube": "https://www.youtube.com/@mashandburnco",
+    }
+
+    # Additional metadata (from site.ts inquiry, brandAssets paths, etc.)
+    prefs.site_metadata_json = {
+        "imprint": "An iWobble Labs Project",
+        "inquiry": {
+            "label": "Project inquiries",
+            "href": "/contact",
+            "subject": "Project inquiry",
+        },
+        "brandAssets": {
+            "monogram": "/assets/brand/monogram/mb-monogram.svg",
+            "favicon": "/assets/brand/favicon/mb-favicon.svg",
+        },
+    }
+
+    # Localization
+    prefs.site_locale = "en-US"
+    prefs.site_timezone = "America/New_York"
+
+    session.commit()
+    logger.info("  ✓ Configured site settings")
+
+
 def upsert_entry_types(session, workspace: Groups) -> dict:
     """Create or update entry types. Returns dict of slug -> model."""
     entry_types_data = [
@@ -1063,6 +1122,7 @@ def seed_mashandburnco():
         # 1. Upsert workspace
         logger.info("1. Setting up workspace...")
         workspace = upsert_workspace(session, admin_user_id)
+        upsert_site_configuration(session, workspace)
         logger.info("")
 
         # 2. Upsert entry types
@@ -1120,6 +1180,7 @@ def seed_mashandburnco():
         logger.info("")
         logger.info("📚 Example Queries:")
         logger.info(f"   - Workspace info: GET /api/publish/{workspace.slug}")
+        logger.info(f"   - Site configuration: GET /api/publish/{workspace.slug}/site")
         logger.info(f"   - All entries: GET /api/publish/{workspace.slug}/entries")
         logger.info(f"   - Specific project: GET /api/publish/{workspace.slug}/entries/foundry-jacket")
         logger.info(f"   - Collections: GET /api/publish/{workspace.slug}/collections")
