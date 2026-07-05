@@ -132,6 +132,12 @@ class Users(SqlAlchemyBase, BaseMixins):
         default=False,
         doc="Indicates if the user has administrative privileges system-wide. Defaults to False.",
     )
+    is_superuser: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        doc="Platform-level administrator with access to all workspaces. Super admins can create/manage workspaces and have unrestricted access. Defaults to False.",
+    )
     advanced: Mapped[bool | None] = mapped_column(
         Boolean, default=False, doc="Indicates if the user has access to advanced features. Defaults to False."
     )
@@ -189,6 +195,7 @@ class Users(SqlAlchemyBase, BaseMixins):
         exclude={
             "password",  # Never serialize password hashes.
             "admin",  # Admin status might be exposed via other means if needed.
+            "is_superuser",  # Superuser status should be controlled via specific schemas.
             "can_manage",  # Permissions might be part of a dedicated permissions endpoint.
             "can_invite",
             "group",  # Group details might be fetched separately or via a nested schema.
@@ -321,6 +328,7 @@ class Users(SqlAlchemyBase, BaseMixins):
     def _set_permissions(
         self,
         admin: bool | None = None,
+        is_superuser: bool = False,
         can_manage: bool = False,
         can_invite: bool = False,
         can_organize: bool = False,
@@ -338,12 +346,16 @@ class Users(SqlAlchemyBase, BaseMixins):
 
         Args:
             admin (bool | None, optional): System-wide admin status. If None, existing status is maintained unless other flags imply changes.
+            is_superuser (bool, optional): Platform-level super admin status. Super admins can access all workspaces. Defaults to False.
             can_manage (bool, optional): Permission to manage the group. Defaults to False.
             can_invite (bool, optional): Permission to invite users to the group. Defaults to False.
             can_organize (bool, optional): Placeholder for organizational permissions. Not a DB field. Defaults to False.
         """
         if admin is not None:
             self.admin = admin
+
+        # Set is_superuser - this must be explicitly passed, not derived from admin
+        self.is_superuser = is_superuser
 
         if self.admin:  # If user is admin, grant all other managed permissions
             self.can_manage = True

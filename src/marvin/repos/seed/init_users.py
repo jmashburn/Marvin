@@ -87,6 +87,7 @@ def default_user_init(db: AllRepositories) -> None:
         "password": hash_password(settings._DEFAULT_PASSWORD),
         "group": settings._DEFAULT_GROUP,  # Assign to the default group
         "admin": True,  # This user is an administrator
+        "is_superuser": True,  # This is a platform-level super administrator
     }
 
     logger.info("Generating Default User")

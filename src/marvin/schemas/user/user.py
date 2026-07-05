@@ -239,6 +239,8 @@ class UserCreate(_MarvinModel):
     """The authentication method for the user. Defaults to `MARVIN` (standard password)."""
     admin: bool = False
     """Whether the user has administrative privileges. Defaults to False."""
+    is_superuser: bool = False
+    """Whether the user is a platform-level super administrator with access to all workspaces. Defaults to False."""
     group: str | None = None  # Represents group name or ID for assignment. Validator handles object-to-name conversion.
     """
     Name or identifier of the group to assign the user to.

@@ -233,6 +233,36 @@ async def get_admin_user(current_user: PrivateUser = Depends(get_current_user)) 
     return current_user
 
 
+async def get_current_superuser(current_user: PrivateUser = Depends(get_current_user)) -> PrivateUser:
+    """
+    FastAPI dependency to ensure the current user is a super admin (platform administrator).
+
+    Super admins have platform-level privileges:
+    - Can view and manage all workspaces (not scoped to group_id)
+    - Can create/edit/delete workspaces
+    - Can manage workspace settings for any workspace
+    - Can perform platform-level operations
+
+    Regular admins (admin=True, is_superuser=False) are workspace-level admins
+    scoped to their own group_id.
+
+    Args:
+        current_user (PrivateUser): The current authenticated user.
+
+    Raises:
+        HTTPException: If the user is not a super admin (403 Forbidden).
+
+    Returns:
+        PrivateUser: The super admin user.
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin privileges required. This operation requires platform-level access.",
+        )
+    return current_user
+
+
 def validate_long_live_token(session: Session, client_token: str, user_id: str) -> PrivateUser:
     """
     Validates a long-lived API token using bcrypt hash verification.
