@@ -22,6 +22,7 @@ from .preferences import GroupPreferencesModel
 
 if TYPE_CHECKING:
     from ..users import Users
+    from ..users.workspace_members import WorkspaceMembers
     from .events import GroupEventNotifierModel
     from .invite_tokens import GroupInviteToken
     from .reports import ReportModel
@@ -43,7 +44,16 @@ class Groups(SqlAlchemyBase, BaseMixins):
     slug: Mapped[str | None] = mapped_column(sa.String, index=True, unique=True, doc="URL-friendly slug for the group, must be unique if set.")
 
     # Relationship to Users model (one-to-many: one group has many users)
+    # DEPRECATED: Use `members` relationship instead for role-based access
     users: Mapped[list["Users"]] = orm.relationship("Users", back_populates="group")
+
+    # Relationship to WorkspaceMembers (one-to-many: one workspace has many members)
+    members: Mapped[list["WorkspaceMembers"]] = orm.relationship(
+        "WorkspaceMembers",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        doc="Members of this workspace with their roles.",
+    )
 
     # Relationship to GroupPreferencesModel (one-to-one: one group has one preferences object)
     preferences: Mapped["GroupPreferencesModel"] = orm.relationship(

@@ -25,10 +25,12 @@ from marvin.db.models._model_utils.datetime import NaiveDateTime
 from marvin.db.models._model_utils.guid import GUID
 
 from .. import BaseMixins, SqlAlchemyBase
+from .roles import PlatformRole
 
 if TYPE_CHECKING:
     from ..groups import Groups
     from .password_reset import PasswordResetModel
+    from .workspace_members import WorkspaceMembers
 
 
 class AuthMethod(enum.Enum):
@@ -136,10 +138,16 @@ class Users(SqlAlchemyBase, BaseMixins):
         Boolean,
         default=False,
         nullable=False,
-        doc="Platform-level administrator with access to all workspaces. Super admins can create/manage workspaces and have unrestricted access. Defaults to False.",
+        doc="DEPRECATED: Use platform_role instead. Platform-level administrator with access to all workspaces. Kept for backward compatibility.",
+    )
+    platform_role: Mapped[PlatformRole] = mapped_column(
+        SqlAlchemyEnum(PlatformRole),
+        nullable=False,
+        default=PlatformRole.NONE,
+        doc="Platform-level role. Determines platform-wide permissions. SUPER_ADMIN has unrestricted access.",
     )
     advanced: Mapped[bool | None] = mapped_column(
-        Boolean, default=False, doc="Indicates if the user has access to advanced features. Defaults to False."
+        Boolean, default=False, doc="DEPRECATED: Legacy field. Indicates if the user has access to advanced features. Defaults to False."
     )
 
     # Foreign key to the Groups model
@@ -189,6 +197,13 @@ class Users(SqlAlchemyBase, BaseMixins):
     # Relationship to PasswordResetModel (one-to-many: one user can have multiple password reset tokens over time)
     password_reset_tokens: Mapped[list["PasswordResetModel"]] = orm.relationship("PasswordResetModel", **_token_relationship_args)
 
+    # Relationship to WorkspaceMembers (one-to-many: one user can be a member of many workspaces)
+    workspace_memberships: Mapped[list["WorkspaceMembers"]] = orm.relationship(
+        "WorkspaceMembers",
+        back_populates="user",
+        cascade="all, delete, delete-orphan",
+    )
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         # Fields to exclude from Pydantic model serialization by default for security or verbosity.
@@ -212,8 +227,48 @@ class Users(SqlAlchemyBase, BaseMixins):
         """
         Returns the slug of the group this user belongs to.
         Returns None if the group or group slug is not set.
+
+        DEPRECATED: This uses the legacy single group_id.
+        For multi-workspace support, iterate workspace_memberships instead.
         """
         return self.group.slug if self.group else None
+
+    def is_platform_admin(self) -> bool:
+        """Check if user is a platform administrator (SUPER_ADMIN)."""
+        return self.platform_role == PlatformRole.SUPER_ADMIN
+
+    def get_workspace_role(self, group_id: str) -> "WorkspaceRole | None":
+        """
+        Get the user's role in a specific workspace.
+
+        Args:
+            group_id: The workspace/group ID to check.
+
+        Returns:
+            WorkspaceRole if user is a member, None otherwise.
+        """
+        from .roles import WorkspaceRole
+        for membership in self.workspace_memberships:
+            if str(membership.group_id) == str(group_id):
+                return membership.workspace_role
+        return None
+
+    def has_workspace_role(self, group_id: str, required_role: "WorkspaceRole") -> bool:
+        """
+        Check if user has a specific role (or higher) in a workspace.
+
+        Args:
+            group_id: The workspace/group ID to check.
+            required_role: The minimum required role.
+
+        Returns:
+            True if user has the required role or higher privilege.
+        """
+        from .roles import workspace_role_has_higher_or_equal_privilege
+        user_role = self.get_workspace_role(group_id)
+        if user_role is None:
+            return False
+        return workspace_role_has_higher_or_equal_privilege(user_role, required_role)
 
     @auto_init()
     def __init__(self, session: Session, full_name: str, password: str, group: str | None = None, **kwargs) -> None:
