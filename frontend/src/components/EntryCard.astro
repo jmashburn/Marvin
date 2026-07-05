@@ -1,15 +1,12 @@
 ---
-import type { MarvinEntry } from "@/lib/api/types";
+import type { EntryRead } from "@/lib/api/types";
 
 interface Props {
-  entry: MarvinEntry;
+  entry: EntryRead;
 }
 
 const { entry } = Astro.props;
 const asset = entry.assets?.find((item) => item.role === "featured" || item.role === "hero") ?? entry.assets?.[0];
-const frontmatter = entry.frontmatter ?? {};
-const material = typeof frontmatter.material === "string" ? frontmatter.material : undefined;
-const schema = typeof frontmatter.schema === "string" ? frontmatter.schema : undefined;
 ---
 
 <article class="card">
@@ -17,13 +14,15 @@ const schema = typeof frontmatter.schema === "string" ? frontmatter.schema : und
     {asset?.url ? <img src={asset.url} alt={asset.alt_text ?? entry.title} style={`object-position: ${asset.focal_point ?? "50% 50%"}`} /> : null}
   </div>
   <div class="card-body">
-    <h2>{entry.title}</h2>
+    <a href={`/entries/${entry.id}`} class="card-title-link">
+      <h2>{entry.title}</h2>
+    </a>
     <p>{entry.summary}</p>
     <div class="meta">
       <span class={`pill ${entry.status}`}>{entry.status}</span>
-      <span class="pill">{entry.entry_type}</span>
-      {material && <span class="pill">{material}</span>}
-      {schema && <span class="pill">{schema}</span>}
+      {entry.resources && entry.resources.length > 0 && (
+        <span class="pill">{entry.resources.length} resource{entry.resources.length === 1 ? '' : 's'}</span>
+      )}
     </div>
   </div>
 </article>

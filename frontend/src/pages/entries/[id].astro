@@ -1,0 +1,324 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getEntry } from "@/lib/api/entries";
+import { listEntryTypes } from "@/lib/api/entryTypes";
+import { listCollections } from "@/lib/api/collections";
+import { getEntryCollections } from "@/lib/api/entries";
+
+const { id } = Astro.params;
+
+let entry = null;
+let entryTypes = [];
+let collections = [];
+let entryCollections = [];
+let error: string | null = null;
+
+if (!id) {
+  error = "Entry ID is required";
+} else {
+  try {
+    [entry, entryTypes, collections, entryCollections] = await Promise.all([
+      getEntry(id),
+      listEntryTypes(),
+      listCollections(),
+      getEntryCollections(id),
+    ]);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Entry] Failed to load:', error);
+  }
+}
+
+const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
+const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order);
+const entryCollectionIds = new Set(entryCollections.map(c => c.id));
+---
+
+<AppLayout title={entry ? entry.title : "Edit Entry"}>
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading entry:</strong> {error}</p>
+      <a href="/entries" class="button secondary">Back to Entries</a>
+    </div>
+  ) : entry ? (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Edit Entry</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Update entry details and content</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <form method="POST" action={`/api/entries/${id}/delete`} style="display:inline;">
+            <button type="submit" class="button secondary" onclick="return confirm('Delete this entry?')">
+              Delete
+            </button>
+          </form>
+          <a class="button secondary" href="/entries">Back</a>
+        </div>
+      </div>
+
+      <div class="editor-layout">
+        <section class="main-editor">
+          <form method="POST" action={`/api/entries/${id}/update`} id="entry-form" class="form">
+            <div class="form-group">
+              <label for="title">Title *</label>
+              <input
+                type="text"
+                id="title"
+                name="title"
+                required
+                value={entry.title}
+                class="title-input"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="content_markdown">Content (Markdown)</label>
+              <textarea
+                id="content_markdown"
+                name="content_markdown"
+                rows="20"
+                placeholder="Write your content in Markdown..."
+              >{entry.content_markdown || ""}</textarea>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" name="status" value="draft" class="button secondary">
+                Save Draft
+              </button>
+              <button type="submit" name="status" value="published" class="button">
+                Publish
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="sidebar-editor">
+          <div class="sidebar-section">
+            <h3>Entry Details</h3>
+
+            <div class="form-group">
+              <label for="entry_type_id">Entry Type</label>
+              <select id="entry_type_id" name="entry_type_id" form="entry-form">
+                {sortedTypes.map((type) => (
+                  <option value={type.id} selected={type.id === entry.entry_type_id}>
+                    {type.icon && `${type.icon} `}{type.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="slug">Slug</label>
+              <input
+                type="text"
+                id="slug"
+                name="slug"
+                value={entry.slug}
+                pattern="[a-z0-9-]+"
+                form="entry-form"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="status">Status</label>
+              <select id="status" name="status" form="entry-form">
+                <option value="inbox" selected={entry.status === "inbox"}>Inbox</option>
+                <option value="draft" selected={entry.status === "draft"}>Draft</option>
+                <option value="needs_review" selected={entry.status === "needs_review"}>Needs Review</option>
+                <option value="approved" selected={entry.status === "approved"}>Approved</option>
+                <option value="published" selected={entry.status === "published"}>Published</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="summary">Summary</label>
+              <textarea
+                id="summary"
+                name="summary"
+                rows="3"
+                form="entry-form"
+              >{entry.summary || ""}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="description">Description</label>
+              <textarea
+                id="description"
+                name="description"
+                rows="3"
+                form="entry-form"
+              >{entry.description || ""}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="published_at">Published Date</label>
+              <input
+                type="datetime-local"
+                id="published_at"
+                name="published_at"
+                value={entry.published_at ? new Date(entry.published_at).toISOString().slice(0, 16) : ""}
+                form="entry-form"
+              />
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <h3>Collections</h3>
+            <div class="collections-list">
+              {sortedCollections.map((collection) => (
+                <label class="collection-checkbox">
+                  <input
+                    type="checkbox"
+                    name="collection_ids"
+                    value={collection.id}
+                    checked={entryCollectionIds.has(collection.id)}
+                    form="entry-form"
+                  />
+                  <span>
+                    {collection.icon && `${collection.icon} `}{collection.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </>
+  ) : null}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .editor-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: 1.5rem;
+  }
+
+  .main-editor {
+    min-width: 0;
+  }
+
+  .form {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  .title-input {
+    font-size: 1.5rem;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+  }
+
+  select {
+    cursor: pointer;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    line-height: 1.6;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .sidebar-editor {
+    display: grid;
+    gap: 1.5rem;
+    align-content: start;
+  }
+
+  .sidebar-section {
+    padding: 1.5rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .sidebar-section h3 {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .collections-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .collection-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .collection-checkbox:hover {
+    background: var(--panel-2);
+  }
+
+  .collection-checkbox input {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  @media (max-width: 1024px) {
+    .editor-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .sidebar-editor {
+      order: -1;
+    }
+  }
+</style>

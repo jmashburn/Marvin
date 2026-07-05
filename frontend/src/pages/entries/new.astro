@@ -1,8 +1,190 @@
 ---
-import FormShell from "@/components/FormShell.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
+import { listEntryTypes } from "@/lib/api/entryTypes";
+
+let entryTypes = [];
+let error: string | null = null;
+
+try {
+  entryTypes = await listEntryTypes();
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[NewEntry] Failed to load entry types:', error);
+}
+
+const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
 ---
 
 <AppLayout title="New Entry" eyebrow="Entries">
-  <FormShell title="Entry draft" description="Create a publishable object for projects, bench notes, reference pages, or future content types." />
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading entry types:</strong> {error}</p>
+      <a href="/entries" class="button secondary">Back to Entries</a>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Create Entry</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Create a new entry in your workspace.</p>
+        </div>
+        <a class="button secondary" href="/entries">Cancel</a>
+      </div>
+
+      <section class="form-section">
+        <form method="POST" action="/api/entries/create" class="form">
+          <div class="form-group">
+            <label for="entry_type_id">Entry Type *</label>
+            <select id="entry_type_id" name="entry_type_id" required>
+              <option value="">Select an entry type...</option>
+              {sortedTypes.map((type) => (
+                <option value={type.id}>
+                  {type.icon && `${type.icon} `}{type.name}
+                </option>
+              ))}
+            </select>
+            <p class="form-help">Choose the type of content you're creating</p>
+          </div>
+
+          <div class="form-group">
+            <label for="title">Title *</label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              required
+              placeholder="e.g., My First Project"
+            />
+            <p class="form-help">The main heading for this entry</p>
+          </div>
+
+          <div class="form-group">
+            <label for="slug">Slug *</label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              required
+              placeholder="e.g., my-first-project"
+              pattern="[a-z0-9-]+"
+            />
+            <p class="form-help">URL-friendly identifier (lowercase, hyphens only)</p>
+          </div>
+
+          <div class="form-group">
+            <label for="summary">Summary</label>
+            <textarea
+              id="summary"
+              name="summary"
+              rows="2"
+              placeholder="Brief description or excerpt"
+            ></textarea>
+            <p class="form-help">Short summary shown in lists and previews</p>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea
+              id="description"
+              name="description"
+              rows="3"
+              placeholder="Longer description or metadata"
+            ></textarea>
+            <p class="form-help">Additional details about this entry</p>
+          </div>
+
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <option value="inbox">Inbox</option>
+              <option value="draft" selected>Draft</option>
+              <option value="needs_review">Needs Review</option>
+              <option value="approved">Approved</option>
+              <option value="published">Published</option>
+            </select>
+            <p class="form-help">Publication status</p>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="button">Create Entry</button>
+            <a href="/entries" class="button secondary">Cancel</a>
+          </div>
+        </form>
+      </section>
+    </>
+  )}
 </AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  select,
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  select {
+    cursor: pointer;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+</style>

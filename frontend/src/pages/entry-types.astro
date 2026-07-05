@@ -1,0 +1,183 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { listEntryTypes } from "@/lib/api/entryTypes";
+
+let entryTypes = [];
+let error: string | null = null;
+
+try {
+  entryTypes = await listEntryTypes();
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[EntryTypes] Failed to load:', error);
+}
+
+// Sort by sort_order
+const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
+const systemTypes = sortedTypes.filter(t => t.is_system);
+const customTypes = sortedTypes.filter(t => !t.is_system);
+---
+
+<AppLayout title="Entry Types">
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading entry types:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Entry Types</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Define content types for your workspace.</p>
+        </div>
+        <a class="button" href="/entry-types/new">Create Entry Type</a>
+      </div>
+
+      {systemTypes.length > 0 && (
+        <section>
+          <h3 style="margin:0 0 1rem;font-size:1rem;color:var(--muted);">System Types</h3>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Icon</th>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Description</th>
+                <th>Sort Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              {systemTypes.map((type) => (
+                <tr>
+                  <td>
+                    {type.icon && (
+                      <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
+                        {type.icon}
+                      </span>
+                    )}
+                  </td>
+                  <td><strong>{type.name}</strong></td>
+                  <td><code>{type.slug}</code></td>
+                  <td>{type.description || '—'}</td>
+                  <td>{type.sort_order}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {customTypes.length === 0 ? (
+        <div class="empty-state">
+          <p class="empty-title">No custom entry types yet</p>
+          <p class="empty-description">
+            Create custom entry types to organize your content beyond the default system types.
+          </p>
+          <a href="/entry-types/new" class="button">Create Entry Type</a>
+        </div>
+      ) : (
+        <section>
+          <h3 style="margin:2rem 0 1rem;font-size:1rem;color:var(--muted);">Custom Types</h3>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Icon</th>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Description</th>
+                <th>Sort Order</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customTypes.map((type) => (
+                <tr>
+                  <td>
+                    {type.icon && (
+                      <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
+                        {type.icon}
+                      </span>
+                    )}
+                  </td>
+                  <td><strong>{type.name}</strong></td>
+                  <td><code>{type.slug}</code></td>
+                  <td>{type.description || '—'}</td>
+                  <td>{type.sort_order}</td>
+                  <td>
+                    <div class="actions">
+                      <a href={`/entry-types/${type.id}`} class="button secondary small">Edit</a>
+                      <form method="POST" action={`/api/entry-types/${type.id}/delete`} style="display:inline;">
+                        <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this entry type?')">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </>
+  )}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .empty-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0;
+    color: var(--muted);
+    max-width: 32rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .button.small {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+
+  .button.danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg);
+  }
+</style>

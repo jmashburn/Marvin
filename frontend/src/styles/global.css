@@ -12,6 +12,19 @@
   --good: #357a55;
   --warn: #a9632f;
   --radius: 8px;
+
+  /* Semantic color tokens for components */
+  --color-surface: var(--panel);
+  --color-surface-hover: var(--panel-2);
+  --color-border: var(--line);
+  --color-border-hover: var(--muted);
+  --color-text: var(--ink);
+  --color-text-muted: var(--muted);
+  --color-primary: var(--accent);
+  --color-primary-bg: rgb(169 77 63 / 0.1);
+  --color-error: var(--warn);
+  --color-error-bg: rgb(169 99 47 / 0.1);
+
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -92,6 +105,22 @@ select {
   color: #fffaf0;
 }
 
+.nav-divider {
+  margin: 18px 0;
+  border-top: 1px solid rgb(255 255 255 / 14%);
+}
+
+.nav-section {
+  margin-top: 18px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgb(255 250 240 / 50%);
+}
+
 .main {
   min-width: 0;
 }
@@ -109,6 +138,16 @@ select {
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.topbar-title {
+  display: grid;
 }
 
 .topbar h1 {
@@ -338,6 +377,31 @@ select {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+}
+
+/* Code and inline elements */
+code {
+  padding: 2px 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+  font-size: 0.875em;
+}
+
+/* Card title links */
+.card-title-link {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.2s;
+}
+
+.card-title-link:hover {
+  color: var(--accent);
+}
+
+.card-title-link h2 {
+  margin: 0;
 }
 
 @media (max-width: 920px) {

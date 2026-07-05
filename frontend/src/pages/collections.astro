@@ -1,0 +1,148 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { listCollections } from "@/lib/api/collections";
+
+let collections = [];
+let error: string | null = null;
+
+try {
+  collections = await listCollections();
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[Collections] Failed to load:', error);
+}
+
+// Sort by sort_order
+const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order);
+---
+
+<AppLayout title="Collections">
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading collections:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Collections</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Curated groupings of related entries.</p>
+        </div>
+        <a class="button" href="/collections/new">Create Collection</a>
+      </div>
+
+      {sortedCollections.length === 0 ? (
+        <div class="empty-state">
+          <p class="empty-title">No collections yet</p>
+          <p class="empty-description">
+            Collections help you organize and group related entries together.
+          </p>
+          <a href="/collections/new" class="button">Create Collection</a>
+        </div>
+      ) : (
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Icon</th>
+              <th>Name</th>
+              <th>Slug</th>
+              <th>Description</th>
+              <th>Type</th>
+              <th>Sort Order</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedCollections.map((collection) => (
+              <tr>
+                <td>
+                  {collection.icon && (
+                    <span style={`font-size:1.5rem;${collection.color ? `color:${collection.color}` : ''}`}>
+                      {collection.icon}
+                    </span>
+                  )}
+                </td>
+                <td><strong>{collection.name}</strong></td>
+                <td><code>{collection.slug}</code></td>
+                <td>{collection.description || '—'}</td>
+                <td>
+                  <span class="pill">{collection.is_smart ? 'Smart' : 'Manual'}</span>
+                </td>
+                <td>{collection.sort_order}</td>
+                <td>
+                  <div class="actions">
+                    <a href={`/collections/${collection.id}`} class="button secondary small">Edit</a>
+                    <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
+                      <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .empty-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0;
+    color: var(--muted);
+    max-width: 32rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .button.small {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+
+  .button.danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg);
+  }
+</style>

@@ -1,50 +1,131 @@
 ---
 import EntryCard from "@/components/EntryCard.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAssets, getEntries, getSiteClients } from "@/lib/api/platform";
+import { getAssets, getSiteClients } from "@/lib/api/platform";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listEntries } from "@/lib/api/entries";
+import { listCollections } from "@/lib/api/collections";
+import { listEntryTypes } from "@/lib/api/entryTypes";
 
-const [entries, assets, siteClients] = await Promise.all([getEntries(), getAssets(), getSiteClients()]);
-const published = entries.filter((entry) => entry.status === "published");
-const review = entries.filter((entry) => entry.status === "review");
-const featured = entries.find((entry) => entry.frontmatter?.featured === true) ?? entries[0];
+let entries = [];
+let assets = [];
+let siteClients = [];
+let collections = [];
+let entryTypes = [];
+let currentWorkspace = null;
+let error: string | null = null;
+
+try {
+  [currentWorkspace, entries, assets, siteClients, collections, entryTypes] = await Promise.all([
+    getCurrentWorkspace(),
+    listEntries(),
+    getAssets(),
+    getSiteClients(),
+    listCollections(),
+    listEntryTypes(),
+  ]);
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[Dashboard] Failed to load data:', error);
+}
+
+// Calculate stats from real data
+const stats = {
+  totalEntries: entries.length,
+  publishedEntries: entries.filter(e => e.status === 'published').length,
+  draftEntries: entries.filter(e => e.status === 'draft').length,
+  inboxEntries: entries.filter(e => e.status === 'inbox').length,
+  collectionsCount: collections.length,
+  assetsCount: assets.length,
+};
+
+// Get recent entries (sorted by update_at)
+const recentEntries = entries
+  .sort((a, b) => {
+    const dateA = a.update_at ? new Date(a.update_at).getTime() : 0;
+    const dateB = b.update_at ? new Date(b.update_at).getTime() : 0;
+    return dateB - dateA;
+  })
+  .slice(0, 1); // Just show the most recent for the featured card
+
+const featured = recentEntries[0];
 ---
 
 <AppLayout title="Dashboard">
-  <section class="stats" aria-label="Platform stats">
-    <div class="stat"><span>Total entries</span><strong>{entries.length}</strong></div>
-    <div class="stat"><span>Published</span><strong>{published.length}</strong></div>
-    <div class="stat"><span>In review</span><strong>{review.length}</strong></div>
-    <div class="stat"><span>Assets</span><strong>{assets.length}</strong></div>
-  </section>
-
-  <section class="toolbar">
-    <div>
-      <h2 style="margin:0;font-size:20px;">Workspace pulse</h2>
-      <p style="margin:4px 0 0;color:var(--muted);">Entries, media, and publishing clients in one place.</p>
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading dashboard:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
     </div>
-    <a class="button" href="/entries">Open Entries</a>
-  </section>
+  ) : (
+    <>
+      <section class="stats" aria-label="Platform stats">
+        <div class="stat"><span>Total entries</span><strong>{stats.totalEntries}</strong></div>
+        <div class="stat"><span>Published</span><strong>{stats.publishedEntries}</strong></div>
+        <div class="stat"><span>Inbox</span><strong>{stats.inboxEntries}</strong></div>
+        <div class="stat"><span>Assets</span><strong>{stats.assetsCount}</strong></div>
+      </section>
 
-  <section class="grid">
-    {featured && <EntryCard entry={featured} />}
-    <article class="card">
-      <div class="card-body">
-        <h3>Publishing clients</h3>
-        <p>{siteClients.length} site client{siteClients.length === 1 ? "" : "s"} configured for external publishing.</p>
-        <div class="meta">
-          {siteClients.map((client) => <span class={`pill ${client.is_active ? "published" : "draft"}`}>{client.slug}</span>)}
+      <section class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Workspace pulse</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">
+            {currentWorkspace ? `${currentWorkspace.name} workspace` : 'Workspace'} - entries, media, and publishing clients in one place.
+          </p>
         </div>
-      </div>
-    </article>
-    <article class="card">
-      <div class="card-body">
-        <h3>Media model</h3>
-        <p>Featured media, support images, and file details ready for publishing.</p>
-        <div class="meta">
-          <span class="pill">asset metadata</span>
-          <span class="pill">placement metadata</span>
-        </div>
-      </div>
-    </article>
-  </section>
+        <a class="button" href="/entries">Open Entries</a>
+      </section>
+
+      <section class="grid">
+        {featured ? (
+          <EntryCard entry={featured} />
+        ) : (
+          <article class="card">
+            <div class="card-body">
+              <h3>No entries yet</h3>
+              <p>Create your first entry to get started.</p>
+              <a class="button" href="/entries/new">Create Entry</a>
+            </div>
+          </article>
+        )}
+        <article class="card">
+          <div class="card-body">
+            <h3>Publishing clients</h3>
+            <p>{siteClients.length} site client{siteClients.length === 1 ? "" : "s"} configured for external publishing.</p>
+            <div class="meta">
+              {siteClients.map((client) => <span class={`pill ${client.is_active ? "published" : "draft"}`}>{client.slug}</span>)}
+            </div>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-body">
+            <h3>Collections & Types</h3>
+            <p>{collections.length} collections and {entryTypes.length} entry types defined.</p>
+            <div class="meta">
+              <a href="/collections" class="pill">Collections</a>
+              <a href="/entry-types" class="pill">Entry Types</a>
+            </div>
+          </div>
+        </article>
+      </section>
+    </>
+  )}
 </AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+</style>

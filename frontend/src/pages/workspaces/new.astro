@@ -1,0 +1,53 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Create Workspace">
+  <div class="toolbar">
+    <h2 style="margin:0;font-size:20px;">New Workspace</h2>
+    <a class="button secondary" href="/workspaces">Cancel</a>
+  </div>
+
+  <section style="max-width:42rem;">
+    <form method="POST" action="/api/workspaces/create" class="form">
+      <div class="form-group">
+        <label for="name">Workspace Name *</label>
+        <input type="text" id="name" name="name" required placeholder="My Workspace" />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="button">Create Workspace</button>
+        <a href="/workspaces" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </section>
+</AppLayout>
+
+<style>
+  .form {
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+  }
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+</style>

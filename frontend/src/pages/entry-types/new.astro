@@ -1,0 +1,160 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Create Entry Type">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0;font-size:20px;">New Entry Type</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Define a new content type for your workspace.</p>
+    </div>
+    <a class="button secondary" href="/entry-types">Cancel</a>
+  </div>
+
+  <section class="form-section">
+    <form method="POST" action="/api/entry-types/create" class="form">
+      <div class="form-group">
+        <label for="name">Name *</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          required
+          placeholder="e.g., Tutorial, Case Study, Blog Post"
+        />
+        <p class="form-help">Human-readable name for this entry type</p>
+      </div>
+
+      <div class="form-group">
+        <label for="slug">Slug *</label>
+        <input
+          type="text"
+          id="slug"
+          name="slug"
+          required
+          placeholder="e.g., tutorial, case-study, blog-post"
+          pattern="[a-z0-9-]+"
+        />
+        <p class="form-help">URL-friendly identifier (lowercase, hyphens only)</p>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="icon">Icon</label>
+          <input
+            type="text"
+            id="icon"
+            name="icon"
+            placeholder="e.g., 📚, ✨, 🎨"
+            maxlength="4"
+          />
+          <p class="form-help">Emoji or symbol</p>
+        </div>
+
+        <div class="form-group">
+          <label for="color">Color</label>
+          <input
+            type="color"
+            id="color"
+            name="color"
+            value="#a94d3f"
+          />
+          <p class="form-help">Theme color</p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows="3"
+          placeholder="Optional description of this entry type"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="sort_order">Sort Order</label>
+        <input
+          type="number"
+          id="sort_order"
+          name="sort_order"
+          value="0"
+          min="0"
+        />
+        <p class="form-help">Lower numbers appear first</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Entry Type</button>
+        <a href="/entry-types" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </section>
+</AppLayout>
+
+<style>
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="color"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  input[type="color"] {
+    height: 40px;
+    cursor: pointer;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+</style>

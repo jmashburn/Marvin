@@ -2,35 +2,100 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAssets } from "@/lib/api/platform";
 
-const assets = await getAssets();
+let assets = [];
+let error: string | null = null;
+
+try {
+  assets = await getAssets();
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[Assets] Failed to load:', error);
+}
 ---
 
 <AppLayout title="Assets">
-  <div class="toolbar">
-    <div>
-      <h2 style="margin:0;font-size:20px;">Media library</h2>
-      <p style="margin:4px 0 0;color:var(--muted);">{assets.length} reusable uploads available to entries.</p>
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading assets:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
     </div>
-    <a class="button" href="/assets/new">Upload Asset</a>
-  </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Media library</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">{assets.length} reusable uploads available to entries.</p>
+        </div>
+        <a class="button" href="/assets/new">Upload Asset</a>
+      </div>
 
-  <section class="grid" aria-label="Assets">
-    {assets.map((asset) => (
-      <article class="card">
-        <div class="media">
-          {asset.url && <img src={asset.url} alt={asset.alt_text ?? asset.name} style={`object-position: ${asset.focal_point ?? "50% 50%"}`} />}
+      {assets.length === 0 ? (
+        <div class="empty-state">
+          <p class="empty-title">No assets yet</p>
+          <p class="empty-description">
+            Upload your first asset to use in entries.
+          </p>
+          <a href="/assets/new" class="button">Upload Asset</a>
         </div>
-        <div class="card-body">
-          <h2>{asset.name}</h2>
-          <p>{asset.alt_text}</p>
-          <div class="meta">
-            <span class="pill">{asset.mime_type}</span>
-            {asset.role && <span class="pill">{asset.role}</span>}
-            {asset.usage && <span class="pill">{asset.usage}</span>}
-            {asset.focal_point && <span class="pill">{asset.focal_point}</span>}
-          </div>
-        </div>
-      </article>
-    ))}
-  </section>
+      ) : (
+        <section class="grid" aria-label="Assets">
+          {assets.map((asset) => (
+            <article class="card">
+              <div class="media">
+                {asset.url && <img src={asset.url} alt={asset.alt_text ?? asset.name} style={`object-position: ${asset.focal_point ?? "50% 50%"}`} />}
+              </div>
+              <div class="card-body">
+                <h2>{asset.name}</h2>
+                <p>{asset.alt_text}</p>
+                <div class="meta">
+                  <span class="pill">{asset.mime_type}</span>
+                  {asset.role && <span class="pill">{asset.role}</span>}
+                  {asset.usage && <span class="pill">{asset.usage}</span>}
+                  {asset.focal_point && <span class="pill">{asset.focal_point}</span>}
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+    </>
+  )}
 </AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .empty-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0;
+    color: var(--muted);
+    max-width: 32rem;
+  }
+</style>
