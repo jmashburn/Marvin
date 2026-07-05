@@ -130,6 +130,8 @@ node_modules/
 *.db
 *.sqlite
 
+# Development data
+src/dev/data/scheduler_state.json
 
 .run/
 .task/*

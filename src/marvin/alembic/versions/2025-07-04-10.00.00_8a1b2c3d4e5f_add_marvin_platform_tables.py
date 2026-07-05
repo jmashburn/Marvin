@@ -47,6 +47,7 @@ def upgrade() -> None:
         sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
         sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=False),
         sa.Column("entry_type_id", marvin.db.migration_types.GUID(), nullable=False),
+        sa.Column("created_by", marvin.db.migration_types.GUID(), nullable=True),
         sa.Column("title", sa.String(), nullable=False),
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("summary", sa.String(), nullable=True),
@@ -56,11 +57,13 @@ def upgrade() -> None:
         sa.Column("status", sa.String(), server_default="inbox", nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=True),
         sa.Column("published_at", sa.DateTime(), nullable=True),
+        sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["entry_type_id"], ["entry_types.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["group_id"], ["groups.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("group_id", "slug"),
     )
+    op.create_index(op.f("ix_entries_created_by"), "entries", ["created_by"], unique=False)
     op.create_index(op.f("ix_entries_entry_type_id"), "entries", ["entry_type_id"], unique=False)
     op.create_index(op.f("ix_entries_group_id"), "entries", ["group_id"], unique=False)
     op.create_index("ix_entries_group_status", "entries", ["group_id", "status"], unique=False)
@@ -70,6 +73,7 @@ def downgrade() -> None:
     op.drop_index("ix_entries_group_status", table_name="entries")
     op.drop_index(op.f("ix_entries_group_id"), table_name="entries")
     op.drop_index(op.f("ix_entries_entry_type_id"), table_name="entries")
+    op.drop_index(op.f("ix_entries_created_by"), table_name="entries")
     op.drop_table("entries")
 
     op.drop_index(op.f("ix_entry_types_group_id"), table_name="entry_types")

@@ -28,6 +28,8 @@ def upgrade() -> None:
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('resource_type', sa.String(), nullable=False),
     sa.Column('description', sa.String(), nullable=True),
+    sa.Column('url', sa.String(), nullable=True),
+    sa.Column('external_id', sa.String(), nullable=True),
     sa.Column('metadata', sa.JSON(), nullable=True),
     sa.Column('created_by', marvin.db.migration_types.GUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
