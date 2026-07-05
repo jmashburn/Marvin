@@ -31,12 +31,12 @@ class EntryResources(SqlAlchemyBase):
     entry: Mapped["Entries"] = orm.relationship(
         "Entries",
         foreign_keys=[entry_id],
-        overlaps="entries,resources",
+        overlaps="entries,resources,entry_resources",
     )
     resource: Mapped["Resources"] = orm.relationship(
         "Resources",
         foreign_keys=[resource_id],
-        overlaps="entries,resources",
+        overlaps="entries,resources,entry_resources",
     )
 
     __table_args__ = (
