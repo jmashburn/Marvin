@@ -1,8 +1,8 @@
 """Asset schemas."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints
+from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_serializer, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -28,7 +28,7 @@ class AssetCreate(_MarvinModel):
     """Alt text for accessibility."""
     description: str | None = None
     """Optional description of the asset."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
     """Optional asset metadata."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -62,12 +62,31 @@ class AssetRead(AssetSummary):
     """Height in pixels."""
     description: str | None = None
     """Optional description."""
-    metadata_: dict | None = Field(default=None, serialization_alias="metadata")
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata_"))
     """Optional asset metadata."""
     uploaded_by: UUID4
     """ID of user who uploaded the asset."""
 
-    model_config = ConfigDict(from_attributes=True)
+    @field_validator('metadata_', mode='before')
+    @classmethod
+    def validate_metadata(cls, value: Any) -> dict | None:
+        """Ensure metadata is a dict, not SQLAlchemy MetaData."""
+        if value is None:
+            return None
+        # If it's a SQLAlchemy MetaData object, return None instead
+        if hasattr(value, '__class__') and value.__class__.__name__ == 'MetaData':
+            return None
+        # If it's not a dict, try to convert or return None
+        if not isinstance(value, dict):
+            return None
+        return value
+
+    @field_serializer('metadata_')
+    def serialize_metadata(self, value: dict | None, _info) -> dict | None:
+        """Ensure metadata is serialized as dict."""
+        return value if isinstance(value, dict) else None
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class AssetPlacement(_MarvinModel):
