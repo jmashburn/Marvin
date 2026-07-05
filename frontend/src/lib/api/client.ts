@@ -104,10 +104,24 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
       // Handle other errors
       if (!response.ok) {
         let errorBody;
+        const contentType = response.headers.get('content-type');
+
         try {
-          errorBody = await response.json();
-        } catch {
-          errorBody = await response.text();
+          // Clone response to allow reading body multiple times if needed
+          const responseClone = response.clone();
+
+          if (contentType?.includes('application/json')) {
+            errorBody = await response.json();
+          } else {
+            errorBody = await response.text();
+          }
+        } catch (parseError) {
+          // If parsing fails, try to get text from the clone
+          try {
+            errorBody = await response.text();
+          } catch {
+            errorBody = `Failed to parse error response (${response.status})`;
+          }
         }
 
         const errorMessage = typeof errorBody === 'object' && errorBody !== null && 'detail' in errorBody

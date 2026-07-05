@@ -66,7 +66,16 @@ __all__ = [
     "ResourceRead",
     "ResourceSummary",
     "ResourceUpdate",
+    # Legacy aliases for backward compatibility
+    "SiteClientCreate",
+    "SiteClientRead",
+    "SiteClientUpdate",
 ]
+
+# Legacy aliases for backward compatibility with frontend
+SiteClientCreate = APIClientCreate
+SiteClientRead = APIClientRead
+SiteClientUpdate = APIClientUpdate
 
 # Rebuild models to resolve forward references after all schemas are imported
 EntryRead.model_rebuild()
