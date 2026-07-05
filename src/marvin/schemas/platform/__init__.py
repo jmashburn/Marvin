@@ -67,3 +67,7 @@ __all__ = [
     "ResourceSummary",
     "ResourceUpdate",
 ]
+
+# Rebuild models to resolve forward references after all schemas are imported
+EntryRead.model_rebuild()
+EntrySummary.model_rebuild()

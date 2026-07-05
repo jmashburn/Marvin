@@ -71,6 +71,9 @@ def upgrade() -> None:
     sa.Column('role', sa.String(), nullable=True),
     sa.Column('quantity', sa.String(), nullable=True),
     sa.Column('unit', sa.String(), nullable=True),
+    sa.Column('position', sa.Integer(), nullable=False, server_default='0'),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('update_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['entry_id'], ['entries.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['resource_id'], ['resources.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
@@ -78,6 +81,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_entry_resources_entry_id'), 'entry_resources', ['entry_id'], unique=False)
     op.create_index(op.f('ix_entry_resources_resource_id'), 'entry_resources', ['resource_id'], unique=False)
+    op.create_index('ix_entry_resources_entry_id_position', 'entry_resources', ['entry_id', 'position'], unique=False)
 
     # Create entry_assets junction table
     op.create_table('entry_assets',
@@ -90,6 +94,8 @@ def upgrade() -> None:
     sa.Column('focal_point', sa.String(), nullable=True),
     sa.Column('caption', sa.String(), nullable=True),
     sa.Column('metadata', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('update_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['entry_id'], ['entries.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['asset_id'], ['assets.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
@@ -105,6 +111,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_entry_assets_asset_id'), table_name='entry_assets')
     op.drop_index(op.f('ix_entry_assets_entry_id'), table_name='entry_assets')
     op.drop_table('entry_assets')
+    op.drop_index('ix_entry_resources_entry_id_position', table_name='entry_resources')
     op.drop_index(op.f('ix_entry_resources_resource_id'), table_name='entry_resources')
     op.drop_index(op.f('ix_entry_resources_entry_id'), table_name='entry_resources')
     op.drop_table('entry_resources')

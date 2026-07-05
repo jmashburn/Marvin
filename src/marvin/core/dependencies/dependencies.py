@@ -8,7 +8,7 @@ from uuid import uuid4
 import fastapi
 import jwt
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from jwt.exceptions import PyJWTError
 from sqlalchemy.orm.session import Session
 
@@ -21,6 +21,10 @@ from marvin.schemas.user import PrivateUser, TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 oauth2_scheme_soft_fail = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
+publishing_bearer_scheme = HTTPBearer(
+    scheme_name="PublishingAPIToken",
+    description="API client token (marvin_sk_ prefix) for Publishing API access",
+)
 ALGORITHM = "HS256"
 app_dirs = get_app_dirs()
 settings = get_app_settings()
@@ -378,7 +382,7 @@ def temporary_file(ext: str = "") -> Callable[[], Generator[tempfile._TemporaryF
 
 async def get_publishing_context(
     workspace_slug: str,
-    authorization: str | None = fastapi.Header(None),
+    credentials: fastapi.security.HTTPAuthorizationCredentials = Depends(publishing_bearer_scheme),
     session: Session = Depends(generate_session),
 ) -> tuple:
     """
@@ -393,7 +397,7 @@ async def get_publishing_context(
 
     Args:
         workspace_slug: The workspace slug from URL path
-        authorization: The Authorization header value (Bearer token)
+        credentials: HTTPBearer credentials from Authorization header
         session: Database session
 
     Returns:
@@ -403,15 +407,7 @@ async def get_publishing_context(
         HTTPException 401: Missing, invalid, or expired token
         HTTPException 403: Workspace mismatch or insufficient permissions
     """
-    # Validate authorization header
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = authorization[7:]  # Remove "Bearer " prefix
+    token = credentials.credentials
 
     # Check token prefix to ensure it's an API client token
     if not token.startswith(settings.SECURITY_TOKEN_PREFIX_CLIENT):
