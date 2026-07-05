@@ -67,12 +67,12 @@ class GroupPreferencesCreate(_MarvinModel):
 class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow partial updates.
     """
     Schema for updating existing group preferences.
-    Requires the `id` of the preferences record to update.
-    All other fields are optional for partial updates.
+    All fields are optional for partial updates.
+    The id and group_id are set by the controller based on the URL path.
     """
 
-    id: UUID4
-    """The unique identifier of the group preferences record to update."""
+    id: UUID4 | None = None
+    """The unique identifier of the group preferences record to update (set by controller)."""
 
     group_id: UUID4 | None = None  # Group ID is usually not updatable for existing preferences.
     """The group ID. Typically not changed during an update."""

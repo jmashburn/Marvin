@@ -74,15 +74,16 @@ class GroupPreferencesController(BaseUserController):
             )
 
         # Get the preferences for this group
-        preferences = self.repo.get_one(group_id=group_id)
+        # Query by group_id using filter
+        preferences = self.repos.groups.get_one(group_id)
 
         if not preferences:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Preferences not found for workspace {group_id}",
+                detail=f"Workspace not found: {group_id}",
             )
 
-        return preferences
+        return preferences.preferences
 
     @router.patch("", response_model=GroupPreferencesRead, summary="Update Workspace Preferences")
     def update_preferences(self, group_id: UUID4, data: GroupPreferencesUpdate) -> GroupPreferencesRead:
@@ -110,21 +111,37 @@ class GroupPreferencesController(BaseUserController):
                 detail="You must be a workspace ADMIN or OWNER to update preferences.",
             )
 
-        # Get existing preferences
-        preferences = self.repo.get_one(group_id=group_id)
+        # Get existing workspace
+        workspace = self.repos.groups.get_one(group_id)
 
-        if not preferences:
+        if not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workspace not found: {group_id}",
+            )
+
+        # Get or create preferences model from database
+        from marvin.db.models.groups.preferences import GroupPreferencesModel
+        preferences_model = self.session.query(GroupPreferencesModel).filter_by(group_id=group_id).first()
+
+        if not preferences_model:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Preferences not found for workspace {group_id}",
             )
 
-        # Update the preferences ID in the update schema
-        data.id = preferences.id
-        data.group_id = group_id
+        # Update fields from data
+        for field, value in data.model_dump(exclude_unset=True).items():
+            if hasattr(preferences_model, field) and field not in ['id', 'group_id']:
+                setattr(preferences_model, field, value)
 
-        # Update and return
-        return self.repo.update(data.id, data)
+        # Commit changes
+        self.session.commit()
+        self.session.refresh(preferences_model)
+
+        # Convert model to schema and return
+        from marvin.schemas.group.preferences import GroupPreferencesRead
+        return GroupPreferencesRead.model_validate(preferences_model)
 
     def _user_has_workspace_access(self, group_id: UUID4) -> bool:
         """
@@ -141,7 +158,7 @@ class GroupPreferencesController(BaseUserController):
             bool: True if user has access, False otherwise
         """
         # SUPER_ADMIN has access to all workspaces
-        if self.user.is_super_admin:
+        if self.user.admin:
             return True
 
         # Check if user is a member of this workspace
@@ -164,7 +181,7 @@ class GroupPreferencesController(BaseUserController):
             bool: True if user has admin access, False otherwise
         """
         # SUPER_ADMIN has access to all workspaces
-        if self.user.is_super_admin:
+        if self.user.admin:
             return True
 
         # Check if user is an ADMIN or OWNER of this workspace
