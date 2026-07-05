@@ -51,6 +51,7 @@ from ._utils import NOT_SET, NotSet  # Sentinel for optional group_id
 from .groups import RepositoryGroup  # Specialized group repository
 from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
 from .users import RepositoryUsers  # Specialized user repository
+from .workspace_members import RepositoryWorkspaceMembers  # Workspace member management
 from .platform import (
     APIClientsRepository,
     AssetsRepository,
@@ -267,3 +268,22 @@ class AllRepositories:
     def assets(self) -> AssetsRepository:
         """Provides access to workspace-scoped asset records."""
         return AssetsRepository(self.session, self.group_id)
+
+    @cached_property
+    def workspace_members(self) -> RepositoryWorkspaceMembers:
+        """
+        Provides access to the repository for workspace member management.
+
+        Note: This repository is NOT group-scoped as it manages memberships
+        across all workspaces. Individual methods handle workspace-specific
+        filtering via workspace_id parameters.
+        """
+        from marvin.db.models.users.workspace_members import WorkspaceMembers as WorkspaceMembersModel
+        from marvin.schemas.user.user import WorkspaceMembershipRead
+
+        return RepositoryWorkspaceMembers(
+            self.session,
+            PK_ID,
+            WorkspaceMembersModel,
+            WorkspaceMembershipRead,
+        )

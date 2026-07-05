@@ -7,6 +7,7 @@ from . import (
     group_controller,
     maintenance_controller,
     user_controller,
+    workspace_members_controller,
 )
 
 router = AdminAPIRouter(prefix="/admin")
@@ -17,3 +18,4 @@ router.include_router(email_controller.router, tags=["Admin: Email"])
 router.include_router(user_controller.router, tags=["Admin: Users"])
 router.include_router(group_controller.router, tags=["Admin: Groups"])
 router.include_router(maintenance_controller.router, tags=["Admin: Maintenance"])
+router.include_router(workspace_members_controller.router)

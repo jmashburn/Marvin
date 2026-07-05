@@ -1123,6 +1123,29 @@ def seed_mashandburnco():
         logger.info("1. Setting up workspace...")
         workspace = upsert_workspace(session, admin_user_id)
         upsert_site_configuration(session, workspace)
+
+        # Add admin as workspace OWNER
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+        from marvin.db.models.users.roles import WorkspaceRole
+
+        existing_membership = session.query(WorkspaceMembers).filter(
+            WorkspaceMembers.user_id == admin_user_id,
+            WorkspaceMembers.group_id == workspace.id
+        ).first()
+
+        if not existing_membership:
+            admin_membership = WorkspaceMembers(
+                session=session,
+                user_id=admin_user_id,
+                group_id=workspace.id,
+                workspace_role=WorkspaceRole.OWNER
+            )
+            session.add(admin_membership)
+            session.commit()
+            logger.info("  ✓ Added admin as workspace OWNER")
+        else:
+            logger.info("  ✓ Admin already a workspace member")
+
         logger.info("")
 
         # 2. Upsert entry types
