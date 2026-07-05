@@ -115,7 +115,8 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
 
         if not CredentialsProvider.verify_password(self.data.password, user.password):
             user.login_attemps += 1
-            db.users.update(user.id, user)
+            # Only update the specific field, not the entire user object (which includes relationships)
+            db.users.update(user.id, {"login_attemps": user.login_attemps})
 
             if user.login_attemps >= self.settings.SECURITY_MAX_LOGIN_ATTEMPTS:
                 user_service = UserService(db)
@@ -123,8 +124,9 @@ class CredentialsProvider(AuthProvider[CredentialsRequest]):
 
             return None
 
-        user.login_attemps = 0
-        user = db.users.update(user.id, user)
+        # Reset login attempts on successful authentication
+        # Only update the specific field, not the entire user object (which includes relationships)
+        user = db.users.update(user.id, {"login_attemps": 0})
         return self.get_access_token(user, self.data.remember_me)  # type: ignore
 
     def verify_fake_password(self):
