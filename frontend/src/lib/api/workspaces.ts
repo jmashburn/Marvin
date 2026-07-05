@@ -30,13 +30,13 @@ export async function listWorkspaces(authToken?: string): Promise<WorkspaceWithM
 /**
  * Activate a workspace (make it the current active workspace)
  */
-export async function activateWorkspace(workspaceId: string): Promise<GroupRead> {
+export async function activateWorkspace(workspaceId: string, authToken?: string): Promise<GroupRead> {
   const body: WorkspaceActivationRequest = { workspace_id: workspaceId };
   return fetchApi<GroupRead>('/api/users/me/workspace/current', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  }, authToken);
 }
 
 /**
