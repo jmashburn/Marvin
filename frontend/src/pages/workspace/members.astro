@@ -1,0 +1,548 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import type { WorkspaceMembershipRead, WorkspaceRole } from "@/lib/api/types";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let members: WorkspaceMembershipRead[] = [];
+let error: string | null = null;
+let currentUserRole: WorkspaceRole | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+
+  if (workspace) {
+    members = await listWorkspaceMembers(workspace.workspace.id, authToken);
+    currentUserRole = workspace.role;
+  }
+} catch (e) {
+  console.error('[members] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// Role display names
+const roleLabels: Record<WorkspaceRole, string> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  EDITOR: "Editor",
+  AUTHOR: "Author",
+  VIEWER: "Viewer",
+  CONTRIBUTOR: "Contributor", // Legacy
+};
+
+// Role descriptions
+const roleDescriptions: Record<WorkspaceRole, string> = {
+  OWNER: "Full control, can delete workspace",
+  ADMIN: "Manage settings, members, and publishing",
+  EDITOR: "Create and edit all content",
+  AUTHOR: "Create and edit own content",
+  VIEWER: "Read-only access",
+  CONTRIBUTOR: "Legacy role",
+};
+
+// Check if current user can manage members
+const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
+---
+
+<AppLayout title="Workspace Members" eyebrow="Workspace">
+  <div class="toolbar">
+    <div>
+      <h2>Workspace Members</h2>
+      <p>Manage who has access to {workspace?.workspace.name || 'this workspace'}</p>
+    </div>
+    {canManage && (
+      <button class="button" id="add-member-btn">Add Member</button>
+    )}
+  </div>
+
+  {error ? (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  ) : members.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">👥</div>
+      <p class="empty-title">No members found</p>
+      <p class="empty-description">Add members to collaborate on this workspace</p>
+      {canManage && (
+        <button class="button" id="add-member-empty">Add Member</button>
+      )}
+    </div>
+  ) : (
+    <div class="members-list">
+      {members.map((member) => {
+        const user = member.user;
+        return (
+          <div class="member-card">
+            <div class="member-info">
+              <div class="member-avatar">
+                {user?.full_name?.charAt(0) || user?.username?.charAt(0) || '?'}
+              </div>
+              <div class="member-details">
+                <strong>{user?.full_name || user?.username}</strong>
+                <span class="member-email">{user?.email}</span>
+              </div>
+            </div>
+
+            <div class="member-role-section">
+              {canManage ? (
+                <select
+                  class="role-select"
+                  data-member-id={member.id}
+                  data-user-id={member.user_id}
+                  data-current-role={member.workspace_role}
+                >
+                  {Object.entries(roleLabels).map(([role, label]) => (
+                    <option value={role} selected={member.workspace_role === role}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span class={`role-badge role-${member.workspace_role.toLowerCase()}`}>
+                  {roleLabels[member.workspace_role]}
+                </span>
+              )}
+              <span class="role-description">
+                {roleDescriptions[member.workspace_role]}
+              </span>
+            </div>
+
+            {canManage && (
+              <button
+                class="button secondary small remove-btn"
+                data-member-id={member.id}
+                data-user-id={member.user_id}
+                data-username={user?.username}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+
+  <!-- Add Member Modal -->
+  <dialog id="add-member-modal" class="modal">
+    <div class="modal-content">
+      <h3>Add Workspace Member</h3>
+      <p class="modal-subtitle">Invite a user to collaborate on this workspace</p>
+      <form id="add-member-form">
+        <label>
+          <span>User ID</span>
+          <input type="text" name="user_id" required placeholder="User UUID" />
+          <small>Enter the user's ID to add them to the workspace</small>
+        </label>
+        <label>
+          <span>Role</span>
+          <select name="workspace_role" required>
+            {Object.entries(roleLabels).map(([role, label]) => (
+              <option value={role}>{label} - {roleDescriptions[role as WorkspaceRole]}</option>
+            ))}
+          </select>
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="button">Add Member</button>
+          <button type="button" class="button secondary" id="cancel-add">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Confirm Remove Modal -->
+  <dialog id="confirm-remove-modal" class="modal">
+    <div class="modal-content">
+      <h3>Remove Member?</h3>
+      <p id="remove-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="button" id="confirm-remove">Remove</button>
+        <button type="button" class="button secondary" id="cancel-remove">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+</AppLayout>
+
+<script define:vars={{ workspaceId: workspace?.workspace.id, canManage }}>
+  // Add member modal
+  const addMemberBtn = document.getElementById('add-member-btn');
+  const addMemberEmpty = document.getElementById('add-member-empty');
+  const addMemberModal = document.getElementById('add-member-modal');
+  const addMemberForm = document.getElementById('add-member-form');
+  const cancelAdd = document.getElementById('cancel-add');
+
+  [addMemberBtn, addMemberEmpty].forEach(btn => {
+    btn?.addEventListener('click', () => addMemberModal?.showModal());
+  });
+
+  cancelAdd?.addEventListener('click', () => addMemberModal?.close());
+
+  addMemberForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          user_id: formData.get('user_id'),
+          workspace_role: formData.get('workspace_role'),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to add member');
+      }
+
+      window.location.reload();
+    } catch (error) {
+      console.error('Add member error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to add member');
+    }
+  });
+
+  // Role change
+  if (canManage) {
+    document.querySelectorAll('.role-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const target = e.target as HTMLSelectElement;
+        const userId = target.dataset.userId;
+        const currentRole = target.dataset.currentRole;
+        const newRole = target.value;
+
+        if (!userId || newRole === currentRole) return;
+
+        try {
+          const response = await fetch(`/api/workspaces/${workspaceId}/members/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ workspace_role: newRole }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to update role');
+          }
+
+          window.location.reload();
+        } catch (error) {
+          console.error('Update role error:', error);
+          alert(error instanceof Error ? error.message : 'Failed to update role');
+          target.value = currentRole || ''; // Revert on error
+        }
+      });
+    });
+  }
+
+  // Remove member
+  const removeButtons = document.querySelectorAll('.remove-btn');
+  const confirmRemoveModal = document.getElementById('confirm-remove-modal');
+  const removeMessage = document.getElementById('remove-message');
+  const confirmRemoveBtn = document.getElementById('confirm-remove');
+  const cancelRemoveBtn = document.getElementById('cancel-remove');
+  let userToRemove: string | null = null;
+
+  removeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn as HTMLButtonElement;
+      userToRemove = target.dataset.userId || null;
+      const username = target.dataset.username || 'this user';
+
+      if (removeMessage) {
+        removeMessage.textContent = `Remove ${username} from this workspace? They will lose all access immediately.`;
+      }
+
+      confirmRemoveModal?.showModal();
+    });
+  });
+
+  cancelRemoveBtn?.addEventListener('click', () => {
+    confirmRemoveModal?.close();
+    userToRemove = null;
+  });
+
+  confirmRemoveBtn?.addEventListener('click', async () => {
+    if (!userToRemove) return;
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/members/${userToRemove}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to remove member');
+      }
+
+      window.location.reload();
+    } catch (error) {
+      console.error('Remove member error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to remove member');
+      confirmRemoveModal?.close();
+    }
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 64px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+  }
+
+  .members-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .member-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .member-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .member-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .member-details {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .member-details strong {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .member-email {
+    font-size: 12px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .member-role-section {
+    display: grid;
+    gap: 4px;
+    min-width: 200px;
+  }
+
+  .role-select {
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .role-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .role-badge {
+    display: inline-flex;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .role-owner {
+    background: rgb(169 77 63 / 0.15);
+    color: var(--accent);
+  }
+
+  .role-admin {
+    background: rgb(47 111 115 / 0.15);
+    color: var(--accent-2);
+  }
+
+  .role-editor {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+  }
+
+  .role-author {
+    background: rgb(189 145 64 / 0.15);
+    color: var(--gold);
+  }
+
+  .role-viewer {
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+
+  .role-description {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .remove-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  /* Modal Styles */
+  .modal {
+    border: none;
+    border-radius: var(--radius);
+    padding: 0;
+    max-width: 500px;
+    width: 90vw;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.15);
+  }
+
+  .modal::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .modal-content {
+    padding: 24px;
+    background: var(--panel);
+  }
+
+  .modal h3 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .modal-subtitle {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .modal form {
+    display: grid;
+    gap: 16px;
+  }
+
+  .modal label {
+    display: grid;
+    gap: 6px;
+  }
+
+  .modal label > span {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .modal input,
+  .modal select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 14px;
+  }
+
+  .modal input:focus,
+  .modal select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .modal small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+</style>

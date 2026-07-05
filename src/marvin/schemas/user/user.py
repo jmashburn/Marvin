@@ -188,6 +188,7 @@ class WorkspaceMembershipRead(_MarvinModel):
     """
     Schema for reading a user's workspace membership with role.
     Represents the relationship between a user and a workspace.
+    Includes user details when loaded with joinedload.
     """
 
     id: UUID4
@@ -198,6 +199,8 @@ class WorkspaceMembershipRead(_MarvinModel):
     """ID of the workspace (group)."""
     workspace_role: WorkspaceRole
     """The role this user has within this workspace."""
+    user: "UserSummary | None" = None
+    """User details (populated when joined)."""
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod

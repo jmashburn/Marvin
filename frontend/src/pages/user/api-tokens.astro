@@ -1,0 +1,216 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+let tokens = [];
+let error: string | null = null;
+const newToken = Astro.url.searchParams.get('token');
+const newTokenName = Astro.url.searchParams.get('token_name');
+
+try {
+  tokens = await fetchApi<any[]>('/api/api-tokens', {}, authToken);
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+}
+
+function formatDate(date: string | null | undefined): string {
+  if (!date) return 'Never';
+  const d = new Date(date);
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return 'Today';
+  if (diff < 7) return `${diff}d ago`;
+  return d.toLocaleDateString();
+}
+---
+
+<AppLayout title="API Tokens" eyebrow="User Settings">
+  <div class="toolbar">
+    <div>
+      <h2>Personal API Tokens</h2>
+      <p>Tokens for scripts and integrations (marvin_tk_*)</p>
+    </div>
+    <button class="button" id="create-token-btn">Create Token</button>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : tokens.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">🔑</div>
+      <p class="empty-title">No API tokens</p>
+      <p class="empty-description">Create a token to access Marvin from scripts</p>
+      <button class="button" id="create-token-empty">Create Token</button>
+    </div>
+  ) : (
+    <div class="tokens-list">
+      {tokens.map((token) => (
+        <div class="token-card">
+          <div class="token-info">
+            <strong>{token.name}</strong>
+            {token.description && <span class="token-desc">{token.description}</span>}
+            <span class="token-meta">
+              Last used: {formatDate(token.last_used_at)} • Created: {formatDate(token.created_at)}
+              {!token.enabled && <span class="token-revoked"> • Revoked</span>}
+            </span>
+          </div>
+          <div class="token-actions">
+            <button class="button secondary small" data-action="rotate" data-id={token.id} data-name={token.name}>Rotate</button>
+            <button class="button secondary small" data-action="delete" data-id={token.id} data-name={token.name}>Delete</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <!-- Token Modal -->
+  <dialog id="token-modal" class="modal">
+    <div class="modal-content">
+      <h3>API Token</h3>
+      <p class="warning">⚠️ Copy this token now. It won't be shown again.</p>
+      <div class="token-display-wrapper">
+        <code class="token-display" id="token-value"></code>
+        <button class="copy-button" id="copy-token">📋</button>
+      </div>
+      <div class="modal-actions">
+        <button class="button" id="close-token">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Create Token Modal -->
+  <dialog id="create-token-modal" class="modal">
+    <div class="modal-content">
+      <h3>Create API Token</h3>
+      <form id="create-token-form">
+        <label>
+          <span>Name</span>
+          <input type="text" name="name" required placeholder="Production script" />
+        </label>
+        <label>
+          <span>Description (optional)</span>
+          <textarea name="description" rows="2" placeholder="What this token is used for"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="button">Create</button>
+          <button type="button" class="button secondary" id="cancel-create">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+</AppLayout>
+
+<script define:vars={{ newToken, newTokenName }}>
+  if (newToken && newTokenName) {
+    const modal = document.getElementById('token-modal');
+    document.getElementById('token-value').textContent = newToken;
+    modal?.showModal();
+  }
+
+  document.getElementById('copy-token')?.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(document.getElementById('token-value')?.textContent || '');
+    const btn = document.getElementById('copy-token');
+    if (btn) {
+      btn.textContent = '✓';
+      setTimeout(() => btn.textContent = '📋', 2000);
+    }
+  });
+
+  document.getElementById('close-token')?.addEventListener('click', () => {
+    document.getElementById('token-modal')?.close();
+    window.history.replaceState({}, '', '/user/api-tokens');
+  });
+
+  const createModal = document.getElementById('create-token-modal');
+  [document.getElementById('create-token-btn'), document.getElementById('create-token-empty')].forEach(btn => {
+    btn?.addEventListener('click', () => createModal?.showModal());
+  });
+
+  document.getElementById('cancel-create')?.addEventListener('click', () => createModal?.close());
+
+  document.getElementById('create-token-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+      const res = await fetch('/api/api-tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: formData.get('name'),
+          description: formData.get('description'),
+        }),
+      });
+      const result = await res.json();
+      window.location.href = `/user/api-tokens?token=${encodeURIComponent(result.token)}&token_name=${encodeURIComponent(result.name)}`;
+    } catch (error) {
+      alert('Failed to create token');
+    }
+  });
+
+  document.querySelectorAll('[data-action="rotate"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`Rotate token "${btn.dataset.name}"? The old token will stop working immediately.`)) return;
+      try {
+        const res = await fetch(`/api/api-tokens/${btn.dataset.id}/rotate`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        const result = await res.json();
+        window.location.href = `/user/api-tokens?token=${encodeURIComponent(result.token)}&token_name=${encodeURIComponent(result.name)}`;
+      } catch (error) {
+        alert('Failed to rotate token');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`Delete token "${btn.dataset.name}"? This cannot be undone.`)) return;
+      try {
+        await fetch(`/api/api-tokens/${btn.dataset.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        window.location.reload();
+      } catch (error) {
+        alert('Failed to delete token');
+      }
+    });
+  });
+</script>
+
+<style>
+  .toolbar { display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .toolbar h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .toolbar p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+  .alert { padding: 16px; margin-bottom: 24px; border-radius: var(--radius); }
+  .alert-error { background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); }
+  .empty-state { padding: 64px 24px; text-align: center; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-description { margin: 0 0 24px; color: var(--muted); }
+  .tokens-list { display: grid; gap: 12px; }
+  .token-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .token-info { display: grid; gap: 4px; flex: 1; min-width: 0; }
+  .token-info strong { font-size: 14px; font-weight: 500; }
+  .token-desc { font-size: 13px; color: var(--muted); }
+  .token-meta { font-size: 12px; color: var(--muted); }
+  .token-revoked { color: var(--warn); font-weight: 500; }
+  .token-actions { display: flex; gap: 8px; }
+  .button.small { padding: 6px 12px; font-size: 13px; }
+  .modal { border: none; border-radius: var(--radius); padding: 0; max-width: 500px; box-shadow: 0 8px 32px rgb(0 0 0 / 0.15); }
+  .modal::backdrop { background: rgb(0 0 0 / 0.5); }
+  .modal-content { padding: 24px; background: var(--panel); }
+  .modal h3 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .warning { margin: 8px 0 16px; padding: 12px; background: rgb(169 99 47 / 0.1); border-left: 3px solid var(--warn); color: var(--warn); font-size: 14px; }
+  .token-display-wrapper { position: relative; margin-bottom: 20px; }
+  .token-display { display: block; padding: 16px 50px 16px 16px; background: var(--ink); color: var(--good); font-family: monospace; font-size: 13px; border-radius: var(--radius); word-break: break-all; user-select: all; }
+  .copy-button { position: absolute; top: 8px; right: 8px; padding: 8px 12px; background: rgb(255 255 255 / 0.1); border: 1px solid rgb(255 255 255 / 0.2); border-radius: 4px; cursor: pointer; font-size: 18px; }
+  .modal form { display: grid; gap: 16px; }
+  .modal label { display: grid; gap: 6px; }
+  .modal label > span { font-size: 14px; font-weight: 500; }
+  .modal input, .modal textarea { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
+  .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px; }
+</style>

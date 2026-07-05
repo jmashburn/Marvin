@@ -1,0 +1,73 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import type { UserSummary } from "@/lib/api/types";
+
+const authToken = getAuthToken(Astro.cookies);
+let user: UserSummary | null = null;
+let error: string | null = null;
+let success = Astro.url.searchParams.get('success');
+
+try {
+  user = await fetchApi<UserSummary>('/api/users/self', {}, authToken);
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title="Profile" eyebrow="User Settings">
+  <div class="toolbar">
+    <div>
+      <h2>Your Profile</h2>
+      <p>Manage your account information</p>
+    </div>
+  </div>
+
+  {success && <div class="alert alert-success">Profile updated successfully</div>}
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : user && (
+    <form method="POST" action="/api/user/profile/update" class="profile-form">
+      <input type="hidden" name="user_id" value={user.id} />
+      <section class="form-section">
+        <h3>Account Details</h3>
+        <div class="form-grid">
+          <label class="span-2">
+            <span>Full Name</span>
+            <input type="text" name="full_name" value={user.full_name || ""} />
+          </label>
+          <label class="span-2">
+            <span>Email</span>
+            <input type="email" name="email" value={user.email} required />
+          </label>
+          <label class="span-2">
+            <span>Username</span>
+            <input type="text" name="username" value={user.username} required />
+          </label>
+        </div>
+      </section>
+      <div class="form-actions">
+        <button type="submit" class="button">Save Changes</button>
+        <a href="/user/api-tokens" class="button secondary">Manage API Tokens</a>
+      </div>
+    </form>
+  )}
+</AppLayout>
+
+<style>
+  .toolbar { display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .toolbar h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .toolbar p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+  .alert { padding: 16px; margin-bottom: 24px; border-radius: var(--radius); }
+  .alert-success { background: rgb(53 122 85 / 0.1); color: var(--good); border: 1px solid var(--good); }
+  .alert-error { background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); }
+  .profile-form { max-width: 700px; }
+  .form-section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; }
+  .form-section h3 { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
+  .form-grid { display: grid; gap: 16px; }
+  .form-grid label { display: grid; gap: 6px; }
+  .form-grid label.span-2 { grid-column: 1 / -1; }
+  .form-grid label > span { font-size: 14px; font-weight: 500; }
+  .form-grid input { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
+  .form-actions { display: flex; gap: 12px; }
+</style>

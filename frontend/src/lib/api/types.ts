@@ -313,3 +313,41 @@ export interface WorkspaceSiteInfo {
   workspace: WorkspaceInfo;
   site: SiteConfiguration;
 }
+
+// ===== Workspace Members Types =====
+
+export interface WorkspaceMembershipRead {
+  id: string;
+  user_id: string;
+  group_id: string;
+  workspace_role: WorkspaceRole;
+  user?: UserSummary; // Populated by backend when listing members
+}
+
+export interface WorkspaceMemberCreate {
+  user_id: string;
+  workspace_role: WorkspaceRole;
+}
+
+export interface WorkspaceMemberUpdate {
+  workspace_role: WorkspaceRole;
+}
+
+// ===== Invite Token Types =====
+
+export interface InviteTokenCreate {
+  uses_left?: number;
+}
+
+export interface InviteTokenRead {
+  id: string;
+  token: string;
+  uses_left: number;
+  group_id: string;
+  created_at?: string;
+}
+
+export interface EmailInvitation {
+  email: string;
+  token: string;
+}

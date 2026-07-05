@@ -1,0 +1,201 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listInviteTokens } from "@/lib/api/invites";
+import type { InviteTokenRead } from "@/lib/api/types";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let invites: InviteTokenRead[] = [];
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+  invites = await listInviteTokens(authToken);
+} catch (e) {
+  console.error('[invites] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const baseUrl = Astro.url.origin;
+---
+
+<AppLayout title="Workspace Invites" eyebrow="Workspace">
+  <div class="toolbar">
+    <div>
+      <h2>Workspace Invites</h2>
+      <p>Create invitation links to add members to {workspace?.workspace.name || 'this workspace'}</p>
+    </div>
+    <button class="button" id="create-invite-btn">Create Invite</button>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : invites.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">✉️</div>
+      <p class="empty-title">No invite tokens</p>
+      <p class="empty-description">Create an invite link to onboard new members</p>
+      <button class="button" id="create-invite-empty">Create Invite</button>
+    </div>
+  ) : (
+    <div class="invites-list">
+      {invites.map((invite) => (
+        <div class="invite-card">
+          <div class="invite-info">
+            <code class="invite-token">{invite.token}</code>
+            <span class="invite-meta">
+              {invite.uses_left === -1 ? 'Unlimited uses' : `${invite.uses_left} uses left`}
+              {invite.created_at && ` • Created ${new Date(invite.created_at).toLocaleDateString()}`}
+            </span>
+          </div>
+          <div class="invite-actions">
+            <button class="button secondary small copy-btn" data-token={invite.token}>
+              Copy Link
+            </button>
+            <button class="button secondary small email-btn" data-token={invite.token}>
+              Email
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <!-- Create Invite Modal -->
+  <dialog id="create-invite-modal" class="modal">
+    <div class="modal-content">
+      <h3>Create Invite Token</h3>
+      <form id="create-invite-form">
+        <label>
+          <span>Number of Uses</span>
+          <input type="number" name="uses_left" value="10" min="-1" />
+          <small>-1 for unlimited uses</small>
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="button">Create</button>
+          <button type="button" class="button secondary" id="cancel-create">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Email Modal -->
+  <dialog id="email-modal" class="modal">
+    <div class="modal-content">
+      <h3>Send Email Invitation</h3>
+      <form id="email-form">
+        <input type="hidden" name="token" id="email-token" />
+        <label>
+          <span>Email Address</span>
+          <input type="email" name="email" required placeholder="user@example.com" />
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="button">Send</button>
+          <button type="button" class="button secondary" id="cancel-email">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+</AppLayout>
+
+<script define:vars={{ baseUrl }}>
+  const createInviteModal = document.getElementById('create-invite-modal');
+  const createInviteForm = document.getElementById('create-invite-form');
+
+  [document.getElementById('create-invite-btn'), document.getElementById('create-invite-empty')].forEach(btn => {
+    btn?.addEventListener('click', () => createInviteModal?.showModal());
+  });
+
+  document.getElementById('cancel-create')?.addEventListener('click', () => createInviteModal?.close());
+
+  createInviteForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+      await fetch('/api/groups/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ uses_left: parseInt(formData.get('uses_left')) }),
+      });
+      window.location.reload();
+    } catch (error) {
+      alert('Failed to create invite');
+    }
+  });
+
+  // Copy invite link
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const token = btn.dataset.token;
+      const link = `${baseUrl}/register?invite=${token}`;
+      await navigator.clipboard.writeText(link);
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy Link', 2000);
+    });
+  });
+
+  // Email invite
+  const emailModal = document.getElementById('email-modal');
+  const emailForm = document.getElementById('email-form');
+  document.querySelectorAll('.email-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('email-token').value = btn.dataset.token;
+      emailModal?.showModal();
+    });
+  });
+
+  document.getElementById('cancel-email')?.addEventListener('click', () => emailModal?.close());
+
+  emailForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+      await fetch('/api/groups/invitations/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: formData.get('email'),
+          token: formData.get('token'),
+        }),
+      });
+      alert('Invitation sent!');
+      emailModal?.close();
+    } catch (error) {
+      alert('Failed to send email');
+    }
+  });
+</script>
+
+<style>
+  .toolbar { display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .toolbar h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .toolbar p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+  .alert { padding: 16px; margin-bottom: 24px; border-radius: var(--radius); }
+  .alert-error { background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); }
+  .empty-state { padding: 64px 24px; text-align: center; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-description { margin: 0 0 24px; color: var(--muted); }
+  .invites-list { display: grid; gap: 12px; }
+  .invite-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .invite-info { display: grid; gap: 4px; flex: 1; min-width: 0; }
+  .invite-token { font-family: monospace; font-size: 14px; font-weight: 500; }
+  .invite-meta { font-size: 12px; color: var(--muted); }
+  .invite-actions { display: flex; gap: 8px; }
+  .button.small { padding: 6px 12px; font-size: 13px; }
+  .modal { border: none; border-radius: var(--radius); padding: 0; max-width: 500px; box-shadow: 0 8px 32px rgb(0 0 0 / 0.15); }
+  .modal::backdrop { background: rgb(0 0 0 / 0.5); }
+  .modal-content { padding: 24px; background: var(--panel); }
+  .modal h3 { margin: 0 0 20px; font-size: 20px; font-weight: 600; }
+  .modal form { display: grid; gap: 16px; }
+  .modal label { display: grid; gap: 6px; }
+  .modal label > span { font-size: 14px; font-weight: 500; }
+  .modal input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
+  .modal small { font-size: 12px; color: var(--muted); }
+  .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px; }
+</style>
