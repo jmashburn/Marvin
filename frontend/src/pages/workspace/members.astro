@@ -1,9 +1,9 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken } from "@/lib/api/client";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
-import type { WorkspaceMembershipRead, WorkspaceRole } from "@/lib/api/types";
+import type { WorkspaceMembershipRead, WorkspaceRole, UserSummary } from "@/lib/api/types";
 
 const authToken = getAuthToken(Astro.cookies);
 
@@ -16,8 +16,14 @@ try {
   workspace = await getCurrentWorkspace(authToken);
 
   if (workspace) {
-    members = await listWorkspaceMembers(workspace.workspace.id, authToken);
-    currentUserRole = workspace.role;
+    members = await listWorkspaceMembers(workspace.id, authToken);
+
+    // Get current user info to find their role
+    const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+    if (currentUser) {
+      const currentMembership = members.find(m => m.user_id === currentUser.id || m.userId === currentUser.id);
+      currentUserRole = currentMembership?.workspace_role || currentMembership?.workspaceRole || null;
+    }
   }
 } catch (e) {
   console.error('[members] Error loading:', e);
