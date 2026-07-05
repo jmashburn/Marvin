@@ -21,14 +21,29 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # ### Phase 7 Tech Debt Fixes ###
 
-    # 1. created_by already exists in entries table (from Mealie schema)
-    #    Just ensure it has the foreign key and index
-    # Note: Foreign key may already exist, wrapped in try/except in production
-    op.create_index(op.f('ix_entries_created_by'), 'entries', ['created_by'], unique=False)
+    # 1. Add created_by column to entries if it doesn't exist
+    #    (In Mealie fork this already existed, but for fresh installs it needs to be added)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('entries')]
 
-    # 2. Add position to entry_resources table
-    op.add_column('entry_resources', sa.Column('position', sa.Integer(), nullable=False, server_default='0'))
-    op.create_index(op.f('ix_entry_resources_entry_id_position'), 'entry_resources', ['entry_id', 'position'], unique=False)
+    if 'created_by' not in columns:
+        op.add_column('entries', sa.Column('created_by', marvin.db.migration_types.GUID(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True))
+
+    # Create index on created_by if it doesn't exist
+    existing_entries_indexes = [idx['name'] for idx in inspector.get_indexes('entries')]
+    if 'ix_entries_created_by' not in existing_entries_indexes:
+        op.create_index(op.f('ix_entries_created_by'), 'entries', ['created_by'], unique=False)
+
+    # 2. Add position to entry_resources table (may already exist from earlier migration)
+    entry_resources_columns = [col['name'] for col in inspector.get_columns('entry_resources')]
+    if 'position' not in entry_resources_columns:
+        op.add_column('entry_resources', sa.Column('position', sa.Integer(), nullable=False, server_default='0'))
+
+    # Create composite index if it doesn't exist (check existing indexes)
+    existing_indexes = [idx['name'] for idx in inspector.get_indexes('entry_resources')]
+    if 'ix_entry_resources_entry_id_position' not in existing_indexes:
+        op.create_index('ix_entry_resources_entry_id_position', 'entry_resources', ['entry_id', 'position'], unique=False)
 
     # 3. Add url and external_id to resources table
     op.add_column('resources', sa.Column('url', sa.String(), nullable=True))
