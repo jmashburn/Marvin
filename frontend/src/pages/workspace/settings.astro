@@ -18,8 +18,8 @@ try {
     const members = await listWorkspaceMembers(workspace.id, authToken);
     const currentUser = await fetchApi<any>('/api/self', {}, authToken);
     if (currentUser) {
-      const currentMembership = members.find(m => m.user_id === currentUser.id || m.userId === currentUser.id);
-      currentUserRole = currentMembership?.workspace_role || currentMembership?.workspaceRole || null;
+      const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+      currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
     }
   }
 } catch (e) {

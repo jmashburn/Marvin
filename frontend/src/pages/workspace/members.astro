@@ -21,8 +21,8 @@ try {
     // Get current user info to find their role
     const currentUser = await fetchApi<any>('/api/self', {}, authToken);
     if (currentUser) {
-      const currentMembership = members.find(m => m.user_id === currentUser.id || m.userId === currentUser.id);
-      currentUserRole = currentMembership?.workspace_role || currentMembership?.workspaceRole || null;
+      const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+      currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
     }
   }
 } catch (e) {
@@ -56,7 +56,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
   <div class="toolbar">
     <div>
       <h2>Workspace Members</h2>
-      <p>Manage who has access to {workspace?.workspace.name || 'this workspace'}</p>
+      <p>Manage who has access to {workspace?.name || 'this workspace'}</p>
     </div>
     {canManage && (
       <button class="button" id="add-member-btn">Add Member</button>
@@ -97,22 +97,22 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
                 <select
                   class="role-select"
                   data-member-id={member.id}
-                  data-user-id={member.user_id}
-                  data-current-role={member.workspace_role}
+                  data-user-id={member.userId}
+                  data-current-role={member.workspaceRole}
                 >
                   {Object.entries(roleLabels).map(([role, label]) => (
-                    <option value={role} selected={member.workspace_role === role}>
+                    <option value={role} selected={member.workspaceRole === role}>
                       {label}
                     </option>
                   ))}
                 </select>
               ) : (
-                <span class={`role-badge role-${member.workspace_role.toLowerCase()}`}>
-                  {roleLabels[member.workspace_role]}
+                <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
+                  {roleLabels[member.workspaceRole]}
                 </span>
               )}
               <span class="role-description">
-                {roleDescriptions[member.workspace_role]}
+                {roleDescriptions[member.workspaceRole]}
               </span>
             </div>
 
@@ -120,7 +120,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
               <button
                 class="button secondary small remove-btn"
                 data-member-id={member.id}
-                data-user-id={member.user_id}
+                data-user-id={member.userId}
                 data-username={user?.username}
               >
                 Remove
