@@ -1,12 +1,15 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
 
 let workspace = null;
 let error: string | null = null;
 
 try {
-  workspace = await getCurrentWorkspace();
+  workspace = await getCurrentWorkspace(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
 }

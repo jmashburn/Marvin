@@ -1,12 +1,15 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { listCollections } from "@/lib/api/collections";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
 
 let collections = [];
 let error: string | null = null;
 
 try {
-  collections = await listCollections();
+  collections = await listCollections(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
   console.error('[Collections] Failed to load:', error);

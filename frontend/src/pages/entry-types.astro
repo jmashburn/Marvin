@@ -1,12 +1,15 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { listEntryTypes } from "@/lib/api/entryTypes";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
 
 let entryTypes = [];
 let error: string | null = null;
 
 try {
-  entryTypes = await listEntryTypes();
+  entryTypes = await listEntryTypes(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
   console.error('[EntryTypes] Failed to load:', error);
