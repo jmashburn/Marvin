@@ -45,7 +45,12 @@ class Groups(SqlAlchemyBase, BaseMixins):
 
     # Relationship to Users model (one-to-many: one group has many users)
     # DEPRECATED: Use `members` relationship instead for role-based access
-    users: Mapped[list["Users"]] = orm.relationship("Users", back_populates="group")
+    users: Mapped[list["Users"]] = orm.relationship(
+        "Users",
+        back_populates="group",
+        foreign_keys="Users.group_id",
+        doc="Users who have this as their primary group.",
+    )
 
     # Relationship to WorkspaceMembers (one-to-many: one workspace has many members)
     members: Mapped[list["WorkspaceMembers"]] = orm.relationship(
