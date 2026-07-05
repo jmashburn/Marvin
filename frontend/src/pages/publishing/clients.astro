@@ -92,9 +92,11 @@ function formatLastUsed(timestamp: string | null | undefined): string {
           {client.permissions && Object.keys(client.permissions).length > 0 && (
             <div class="client-permissions">
               <span class="permissions-label">Permissions:</span>
-              {Object.entries(client.permissions).map(([key, value]) => (
-                value && <span class="permission-badge">{key}</span>
-              ))}
+              {Object.entries(client.permissions).map(([key, value]) => {
+                // Normalize permission format: convert underscores to colons
+                const normalizedKey = key.replace(/_/g, ':');
+                return value && <span class="permission-badge">{normalizedKey}</span>;
+              })}
             </div>
           )}
 

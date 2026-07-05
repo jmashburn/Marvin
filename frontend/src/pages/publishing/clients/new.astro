@@ -11,7 +11,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
     <a class="button secondary" href="/publishing/clients">Back to Clients</a>
   </div>
 
-  <form method="POST" action="/api/publishing/clients/create" class="create-form">
+  <form method="POST" action="/api/api-clients" class="create-form" id="create-client-form">
     <section class="form-section">
       <h3>Client Details</h3>
       <div class="form-grid">
@@ -54,7 +54,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
       <p class="section-description">What this client can access</p>
       <div class="permissions-grid">
         <label class="checkbox-label">
-          <input type="checkbox" name="read_published_entries" checked />
+          <input type="checkbox" name="read:published_entries" checked />
           <div>
             <strong>Read Published Entries</strong>
             <small>Access all published entries</small>
@@ -62,7 +62,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
         </label>
 
         <label class="checkbox-label">
-          <input type="checkbox" name="read_collections" checked />
+          <input type="checkbox" name="read:collections" checked />
           <div>
             <strong>Read Collections</strong>
             <small>Access collection metadata and entry lists</small>
@@ -70,7 +70,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
         </label>
 
         <label class="checkbox-label">
-          <input type="checkbox" name="read_assets" checked />
+          <input type="checkbox" name="read:assets" checked />
           <div>
             <strong>Read Assets</strong>
             <small>Access uploaded media files</small>
@@ -78,7 +78,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
         </label>
 
         <label class="checkbox-label">
-          <input type="checkbox" name="read_resources" />
+          <input type="checkbox" name="read:resources" />
           <div>
             <strong>Read Resources</strong>
             <small>Access resource metadata</small>
@@ -98,6 +98,53 @@ import AppLayout from "@/layouts/AppLayout.astro";
     </div>
   </form>
 </AppLayout>
+
+<script>
+  const form = document.getElementById('create-client-form') as HTMLFormElement;
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const data: Record<string, any> = {
+        name: formData.get('name'),
+        slug: formData.get('slug') || undefined,
+        description: formData.get('description') || undefined,
+        permissions: {}
+      };
+
+      // Convert checkboxes to permissions object with colon format
+      const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach((checkbox: any) => {
+        if (checkbox.checked && checkbox.name) {
+          data.permissions[checkbox.name] = true;
+        }
+      });
+
+      try {
+        const response = await fetch('/api/api-clients', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          // Redirect to clients page with token info
+          window.location.href = `/publishing/clients?token=${result.token}&client_name=${encodeURIComponent(result.name)}`;
+        } else {
+          const error = await response.json();
+          alert('Error: ' + (error.detail || 'Failed to create client'));
+        }
+      } catch (err) {
+        alert('Network error: ' + err);
+      }
+    });
+  }
+</script>
 
 <style>
   .toolbar {
