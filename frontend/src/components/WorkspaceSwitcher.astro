@@ -1,13 +1,16 @@
 ---
 import { getCurrentWorkspace, listWorkspaces } from '@/lib/api/workspaces';
+import { getAuthToken } from '@/lib/api/client';
+
+const authToken = getAuthToken(Astro.cookies);
 
 let currentWorkspace;
 let workspaces;
 let error: string | null = null;
 
 try {
-  currentWorkspace = await getCurrentWorkspace();
-  workspaces = await listWorkspaces();
+  currentWorkspace = await getCurrentWorkspace(authToken);
+  workspaces = await listWorkspaces(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
   console.error('[WorkspaceSwitcher] Failed to load workspaces:', error);

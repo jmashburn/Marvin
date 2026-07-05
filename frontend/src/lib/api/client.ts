@@ -36,9 +36,23 @@ function isRetryable(error: unknown): boolean {
 }
 
 /**
- * Main API client function with retry logic and improved error handling
+ * Get authentication token from Astro cookies (for SSR)
+ * This should be called from Astro pages and passed to fetchApi
  */
-export async function fetchApi<T>(path: string, init: RequestInit = {}): Promise<T> {
+export function getAuthToken(cookies?: { get: (name: string) => { value?: string } | undefined }): string | undefined {
+  if (!cookies) return undefined;
+  const cookie = cookies.get('marvin.access_token');
+  return cookie?.value;
+}
+
+/**
+ * Main API client function with retry logic and improved error handling
+ *
+ * @param path - API endpoint path
+ * @param init - Fetch options
+ * @param authToken - Optional authentication token (from Astro.cookies)
+ */
+export async function fetchApi<T>(path: string, init: RequestInit = {}, authToken?: string): Promise<T> {
   if (!hasApiBackend()) {
     throw new Error("MARVIN_API_URL is not configured.");
   }
@@ -47,7 +61,10 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}): Promise
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
 
-  if (SITE_CLIENT_TOKEN && !headers.has("Authorization")) {
+  // Use authToken if provided (SSR context), otherwise check for SITE_CLIENT_TOKEN
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`);
+  } else if (SITE_CLIENT_TOKEN && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${SITE_CLIENT_TOKEN}`);
   }
 

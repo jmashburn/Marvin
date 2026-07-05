@@ -12,8 +12,8 @@ import type {
 /**
  * List all collections in the current workspace
  */
-export async function listCollections(): Promise<CollectionRead[]> {
-  return fetchApi<CollectionRead[]>('/api/collections');
+export async function listCollections(authToken?: string): Promise<CollectionRead[]> {
+  return fetchApi<CollectionRead[]>('/api/collections', {}, authToken);
 }
 
 /**

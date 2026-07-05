@@ -6,6 +6,10 @@ import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listEntries } from "@/lib/api/entries";
 import { listCollections } from "@/lib/api/collections";
 import { listEntryTypes } from "@/lib/api/entryTypes";
+import { getAuthToken } from "@/lib/api/client";
+
+// Get auth token from cookies for SSR API calls
+const authToken = getAuthToken(Astro.cookies);
 
 let entries = [];
 let assets = [];
@@ -17,12 +21,12 @@ let error: string | null = null;
 
 try {
   [currentWorkspace, entries, assets, siteClients, collections, entryTypes] = await Promise.all([
-    getCurrentWorkspace(),
-    listEntries(),
-    getAssets(),
-    getSiteClients(),
-    listCollections(),
-    listEntryTypes(),
+    getCurrentWorkspace(authToken),
+    listEntries(authToken),
+    getAssets(authToken),
+    getSiteClients(authToken),
+    listCollections(authToken),
+    listEntryTypes(authToken),
   ]);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);

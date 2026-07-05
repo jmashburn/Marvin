@@ -12,8 +12,8 @@ import type {
 /**
  * List all entry types in the current workspace
  */
-export async function listEntryTypes(): Promise<EntryTypeRead[]> {
-  return fetchApi<EntryTypeRead[]>('/api/entry-types');
+export async function listEntryTypes(authToken?: string): Promise<EntryTypeRead[]> {
+  return fetchApi<EntryTypeRead[]>('/api/entry-types', {}, authToken);
 }
 
 /**

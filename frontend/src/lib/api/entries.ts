@@ -13,8 +13,8 @@ import type {
 /**
  * List all entries in the current workspace
  */
-export async function listEntries(): Promise<EntryRead[]> {
-  return fetchApi<EntryRead[]>('/api/entries');
+export async function listEntries(authToken?: string): Promise<EntryRead[]> {
+  return fetchApi<EntryRead[]>('/api/entries', {}, authToken);
 }
 
 /**

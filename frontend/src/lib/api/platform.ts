@@ -13,13 +13,13 @@ function unwrapList<T>(response: ApiListResponse<T> | T[]): T[] {
 /**
  * Get all assets in the current workspace
  */
-export async function getAssets(): Promise<MarvinAsset[]> {
-  return unwrapList(await fetchApi<ApiListResponse<MarvinAsset> | MarvinAsset[]>('/api/assets'));
+export async function getAssets(authToken?: string): Promise<MarvinAsset[]> {
+  return unwrapList(await fetchApi<ApiListResponse<MarvinAsset> | MarvinAsset[]>('/api/assets', {}, authToken));
 }
 
 /**
  * Get all site clients (publishing destinations)
  */
-export async function getSiteClients(): Promise<SiteClient[]> {
-  return fetchApi<SiteClient[]>('/api/admin/platform/site-clients');
+export async function getSiteClients(authToken?: string): Promise<SiteClient[]> {
+  return fetchApi<SiteClient[]>('/api/admin/platform/site-clients', {}, authToken);
 }

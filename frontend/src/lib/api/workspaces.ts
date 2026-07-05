@@ -14,8 +14,8 @@ import type {
 /**
  * Get the user's currently active workspace
  */
-export async function getCurrentWorkspace(): Promise<GroupRead> {
-  return fetchApi<GroupRead>('/api/users/me/workspace/current');
+export async function getCurrentWorkspace(authToken?: string): Promise<GroupRead> {
+  return fetchApi<GroupRead>('/api/users/me/workspace/current', {}, authToken);
 }
 
 /**
@@ -23,8 +23,8 @@ export async function getCurrentWorkspace(): Promise<GroupRead> {
  * For SUPER_ADMIN: Returns all workspaces
  * For regular users: Returns only workspaces they're members of
  */
-export async function listWorkspaces(): Promise<WorkspaceWithMembership[]> {
-  return fetchApi<WorkspaceWithMembership[]>('/api/users/me/workspace');
+export async function listWorkspaces(authToken?: string): Promise<WorkspaceWithMembership[]> {
+  return fetchApi<WorkspaceWithMembership[]>('/api/users/me/workspace', {}, authToken);
 }
 
 /**
