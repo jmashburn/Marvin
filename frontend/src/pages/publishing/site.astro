@@ -26,7 +26,7 @@ try {
   if (workspace) {
     // Get preferences for this workspace
     preferences = await fetchApi<GroupPreferencesRead>(
-      `/api/groups/${workspace.workspace.id}/preferences`,
+      `/api/groups/${workspace.id}/preferences`,
       {},
       authToken
     );
@@ -70,7 +70,7 @@ try {
               type="text"
               name="site_title"
               value={preferences.site_title || ""}
-              placeholder={workspace.workspace.name}
+              placeholder={workspace.name}
             />
             <small>Defaults to workspace name if not set</small>
           </label>
