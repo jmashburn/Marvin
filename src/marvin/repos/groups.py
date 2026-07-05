@@ -203,3 +203,13 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel]):
             return self.get_one(slug_or_id, key="slug")
 
         return None  # Should not be reached if type hints are correct
+
+    def get_all(self) -> list[GroupsModel]:
+        """
+        Get all groups in the system.
+
+        Returns:
+            List of all group model instances.
+        """
+        stmt = select(self.model).order_by(self.model.name)
+        return list(self.session.execute(stmt).scalars().all())

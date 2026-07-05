@@ -88,6 +88,16 @@ class EventTypes(EventTypeBase):
     token_refreshed = auto()  # Added from auth_controller example
     """Event dispatched when a user's access token is refreshed."""
 
+    # Workspace lifecycle events
+    workspace_created = auto()
+    """Event dispatched when a new workspace is created."""
+    workspace_updated = auto()
+    """Event dispatched when a workspace is updated."""
+    workspace_deleted = auto()
+    """Event dispatched when a workspace is deleted."""
+    workspace_activated = auto()
+    """Event dispatched when a user switches to a different workspace."""
+
 
 class EventDocumentTypeBase(Enum):
     """
@@ -181,6 +191,21 @@ class EventUserSignupData(EventDocumentDataBase):
     """The username of the newly signed-up user."""
     email: str
     """The email address of the newly signed-up user."""
+
+
+class EventWorkspaceCreatedData(EventDocumentDataBase):
+    """
+    Data payload for an event indicating a workspace has been created.
+    """
+
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
+    operation: EventOperationBase = EventOperation.create
+    workspace_id: UUID4
+    """The unique identifier of the created workspace."""
+    workspace_name: str
+    """The name of the created workspace."""
+    creator_id: UUID4
+    """The user ID of the workspace creator."""
 
 
 class EventWebhookData(EventDocumentDataBase):

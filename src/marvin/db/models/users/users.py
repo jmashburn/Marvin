@@ -153,7 +153,21 @@ class Users(SqlAlchemyBase, BaseMixins):
     # Foreign key to the Groups model
     group_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("groups.id"), nullable=False, index=True, doc="ID of the group this user belongs to.")
     # Relationship to the Group the user belongs to
-    group: Mapped["Groups"] = orm.relationship("Groups", back_populates="users")
+    group: Mapped["Groups"] = orm.relationship("Groups", back_populates="users", foreign_keys=[group_id])
+
+    # Active workspace tracking (multi-workspace support)
+    active_group_id: Mapped[GUID | None] = mapped_column(
+        GUID,
+        ForeignKey("groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="The workspace the user is currently working in. Falls back to group_id if NULL.",
+    )
+    active_workspace: Mapped["Groups | None"] = orm.relationship(
+        "Groups",
+        foreign_keys=[active_group_id],
+        doc="Active workspace relationship",
+    )
 
     # Security and state fields
     cache_key: Mapped[str | None] = mapped_column(
@@ -236,6 +250,15 @@ class Users(SqlAlchemyBase, BaseMixins):
     def is_platform_admin(self) -> bool:
         """Check if user is a platform administrator (SUPER_ADMIN)."""
         return self.platform_role == PlatformRole.SUPER_ADMIN
+
+    def get_effective_workspace_id(self) -> GUID:
+        """
+        Returns active workspace if set, otherwise falls back to primary group_id.
+
+        Returns:
+            GUID: The workspace ID to use for scoping operations.
+        """
+        return self.active_group_id or self.group_id
 
     def get_workspace_role(self, group_id: str) -> "WorkspaceRole | None":
         """

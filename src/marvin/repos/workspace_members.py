@@ -203,3 +203,44 @@ class RepositoryWorkspaceMembers(RepositoryGeneric[WorkspaceMembershipRead, Work
 
         result = self.session.execute(stmt).scalars().all()
         return len(result)
+
+    def user_is_member(self, user_id: UUID4, group_id: UUID4) -> bool:
+        """
+        Check if a user is a member of a workspace.
+
+        Args:
+            user_id: The user ID to check
+            group_id: The workspace (group) ID to check
+
+        Returns:
+            True if user is a member, False otherwise
+        """
+        stmt = (
+            select(WorkspaceMembersModel)
+            .where(
+                WorkspaceMembersModel.user_id == user_id,
+                WorkspaceMembersModel.group_id == group_id
+            )
+        )
+
+        result = self.session.execute(stmt).scalar_one_or_none()
+        return result is not None
+
+    def get_user_memberships(self, user_id: UUID4) -> list[WorkspaceMembersModel]:
+        """
+        Get all workspace memberships for a user (returns models, not schemas).
+
+        Args:
+            user_id: The user ID
+
+        Returns:
+            List of WorkspaceMembers model instances
+        """
+        stmt = (
+            select(WorkspaceMembersModel)
+            .where(WorkspaceMembersModel.user_id == user_id)
+            .options(joinedload(WorkspaceMembersModel.workspace))
+            .order_by(WorkspaceMembersModel.created_at)
+        )
+
+        return list(self.session.execute(stmt).scalars().all())

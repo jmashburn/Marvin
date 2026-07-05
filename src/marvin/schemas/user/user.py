@@ -376,6 +376,8 @@ class UserRead(UserCreate):  # UserRead inheriting UserCreate (which has passwor
     """The unique identifier of the group the user belongs to."""
     group_slug: str  # Added based on original properties, likely from ORM.
     """The slug of the group the user belongs to."""
+    active_group_id: UUID4 | None = None
+    """The workspace currently active for this user (or None to use group_id)."""
     workspace_memberships: list[WorkspaceMembershipSummary] = []
     """List of workspaces this user is a member of with their roles."""
     # tokens: list[LongLiveTokenRead] | None = None # Commented out in original, might be populated conditionally.
@@ -523,6 +525,11 @@ class PrivateUser(UserRead):  # Extends UserRead, so includes fields like passwo
 
         # Compare with current UTC time
         return lockout_expires_at > datetime.now(UTC)
+
+    @property
+    def effective_workspace_id(self) -> UUID4:
+        """Returns active workspace if set, otherwise falls back to group_id."""
+        return self.active_group_id or self.group_id
 
     def directory(self) -> Path:  # This method seems to imply a static method was intended or user-specific dir logic
         """

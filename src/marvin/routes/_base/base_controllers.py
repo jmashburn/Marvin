@@ -166,14 +166,17 @@ class BaseUserController(BaseController):
     @property
     def group_id(self) -> UUID4:
         """
-        The group ID of the currently authenticated user.
-        This will scope repository operations within `self.repos` to the user's group.
+        The active workspace ID for the current user.
+        Uses active_group_id if set, otherwise falls back to group_id.
+        This will scope repository operations within `self.repos` to the user's active workspace.
         """
-        if self.user and self.user.group_id:  # Ensure user and group_id are available
-            return self.user.group_id
+        if self.user:
+            workspace_id = self.user.active_group_id or self.user.group_id
+            if workspace_id:
+                return workspace_id
         # This case should ideally not be reached if get_current_user ensures user has a group.
         # Handling it defensively:
-        raise HTTPException(status_code=403, detail="User is not associated with a group.")
+        raise HTTPException(status_code=403, detail="User is not associated with a workspace.")
 
     @property
     def group(self) -> GroupRead:

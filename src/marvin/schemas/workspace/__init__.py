@@ -1,5 +1,9 @@
 """Workspace-related schemas."""
 
+from .workspace_activation import (
+    WorkspaceActivationRequest,
+    WorkspaceWithMembership,
+)
 from .workspace_members import (
     WorkspaceMemberCreate,
     WorkspaceMemberUpdate,
@@ -7,6 +11,8 @@ from .workspace_members import (
 )
 
 __all__ = [
+    "WorkspaceActivationRequest",
+    "WorkspaceWithMembership",
     "WorkspaceMemberCreate",
     "WorkspaceMemberUpdate",
     "WorkspaceMemberWithUser",
