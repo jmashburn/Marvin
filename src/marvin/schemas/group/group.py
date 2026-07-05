@@ -7,7 +7,7 @@ API request validation, response serialization, and potentially for internal
 data transfer.
 """
 
-from typing import Annotated  # For adding metadata to type hints (e.g., StringConstraints)
+from typing import TYPE_CHECKING, Annotated  # For adding metadata to type hints (e.g., StringConstraints)
 
 from pydantic import UUID4, ConfigDict, StringConstraints  # Core Pydantic components and constraints
 
@@ -84,7 +84,10 @@ class GroupRead(GroupUpdate):  # Extends GroupUpdate, which might be unusual if 
     id: UUID4
     """The unique identifier of the group."""
     users: list[UserSummary] | None = None
-    """Optional list of user summaries for members of this group."""
+    """
+    DEPRECATED: Legacy users with group_id = this workspace.
+    For workspace members with roles, use GET /api/admin/workspaces/{id}/members
+    """
     preferences: GroupPreferencesRead | None = None
     """Optional group preference settings."""
     webhooks: list[WebhookRead] = []  # Overrides webhooks to use WebhookRead for output
@@ -111,8 +114,8 @@ class GroupRead(GroupUpdate):  # Extends GroupUpdate, which might be unusual if 
         return [
             joinedload(Groups.webhooks),  # Eager load associated webhooks
             joinedload(Groups.preferences),  # Eager load associated preferences
-            selectinload(Groups.users).joinedload(Users.group),  # Eager load users, and their group (back-ref)
-            selectinload(Groups.users).joinedload(Users.tokens),  # Eager load users, and their API tokens
+            selectinload(Groups.users).joinedload(Users.group),  # Eager load users (legacy), and their group (back-ref)
+            selectinload(Groups.users).joinedload(Users.tokens),  # Eager load users (legacy), and their API tokens
         ]
 
 
