@@ -1,10 +1,13 @@
 """API client routes."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import UUID4
+from sqlalchemy.orm import Session
 
+from marvin.db import generate_session
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import APIClientCreate, APIClientRead, APIClientUpdate, APIClientWithToken
+from marvin.schemas.publishing import SiteConfiguration, WorkspaceInfo, WorkspaceSiteInfo
 
 router = APIRouter(prefix="/api-clients")
 
@@ -79,3 +82,83 @@ class APIClientsController(BaseUserController):
         The new token is returned ONCE. Store it securely.
         """
         return self.repos.api_clients.rotate_token(item_id)
+
+    @router.get(
+        "/{item_id}/preview",
+        response_model=WorkspaceSiteInfo,
+        summary="Preview Publishing API Payload"
+    )
+    def preview_publish_payload(
+        self,
+        item_id: UUID4,
+        session: Session = Depends(generate_session)
+    ) -> WorkspaceSiteInfo:
+        """
+        Preview what external consumer would receive from publishing API.
+
+        Returns the same payload as /api/publish/{workspace_slug}/site but uses
+        admin session authentication instead of requiring a site client token.
+
+        This allows logged-in admins to verify what external sites will receive
+        without needing to copy tokens.
+
+        Args:
+            item_id: The UUID of the API client
+            session: Database session (injected)
+
+        Returns:
+            WorkspaceSiteInfo: Combined workspace and site configuration
+
+        Raises:
+            HTTPException: 404 if API client not found
+        """
+        # Get the API client to verify it exists and get its workspace
+        api_client = self.repos.api_clients.get_one(item_id)
+        if not api_client:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="API client not found."
+            )
+
+        # Get the workspace for this API client
+        from marvin.db.models.groups import Groups, GroupPreferencesModel
+
+        group = session.query(Groups).filter(Groups.id == api_client.group_id).first()
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found for this API client."
+            )
+
+        # Get group preferences (includes site configuration)
+        prefs = (
+            session.query(GroupPreferencesModel)
+            .filter(GroupPreferencesModel.group_id == group.id)
+            .first()
+        )
+
+        # Build site configuration from preferences (with sensible defaults)
+        site_config = SiteConfiguration(
+            title=prefs.site_title if prefs and prefs.site_title else group.name,
+            tagline=prefs.site_tagline if prefs else None,
+            description=prefs.site_description if prefs else None,
+            canonical_url=prefs.site_canonical_url if prefs else None,
+            logo=prefs.site_logo if prefs else None,
+            favicon=prefs.site_favicon if prefs else None,
+            locale=prefs.site_locale if prefs and prefs.site_locale else "en-US",
+            timezone=prefs.site_timezone if prefs and prefs.site_timezone else "America/New_York",
+            contact_email=prefs.site_contact_email if prefs else None,
+            social=prefs.site_social_json if prefs else None,
+            metadata=prefs.site_metadata_json if prefs else None,
+        )
+
+        # Build workspace info
+        workspace_info = WorkspaceInfo(
+            slug=group.slug,
+            name=group.name,
+        )
+
+        return WorkspaceSiteInfo(
+            workspace=workspace_info,
+            site=site_config,
+        )

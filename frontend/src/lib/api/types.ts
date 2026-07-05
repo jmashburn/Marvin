@@ -71,6 +71,19 @@ export interface GroupPreferencesRead {
   recipe_landscape_view: boolean;
   recipe_disable_comments: boolean;
   recipe_disable_amount: boolean;
+
+  // Site/Workspace Configuration
+  site_title?: string | null;
+  site_tagline?: string | null;
+  site_description?: string | null;
+  site_canonical_url?: string | null;
+  site_logo?: string | null;
+  site_favicon?: string | null;
+  site_locale?: string | null;
+  site_timezone?: string | null;
+  site_contact_email?: string | null;
+  site_social_json?: Record<string, string> | null;
+  site_metadata_json?: Record<string, unknown> | null;
 }
 
 export interface GroupPreferencesUpdate extends Partial<GroupPreferencesRead> {}
@@ -239,4 +252,64 @@ export interface MarvinEntry extends EntryRead {
   entry_type: string;
   frontmatter?: Record<string, unknown> | null;
   collections?: string[];
+}
+
+// ===== API Client Types (Site Clients) =====
+
+export interface APIClientCreate {
+  name: string;
+  slug?: string | null;
+  description?: string | null;
+  permissions?: Record<string, boolean> | null;
+}
+
+export interface APIClientUpdate {
+  name?: string | null;
+  description?: string | null;
+  permissions?: Record<string, boolean> | null;
+  enabled?: boolean | null;
+}
+
+export interface APIClientRead {
+  id: string;
+  group_id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  permissions: Record<string, boolean>;
+  enabled: boolean;
+  last_used_at?: string | null;
+  created_at?: string | null;
+  update_at?: string | null;
+  revoked_at?: string | null;
+}
+
+export interface APIClientWithToken extends Omit<APIClientRead, 'update_at' | 'revoked_at'> {
+  token: string; // Plaintext token shown ONCE after creation/rotation
+}
+
+// ===== Publishing API Types =====
+
+export interface SiteConfiguration {
+  title?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  canonical_url?: string | null;
+  logo?: string | null;
+  favicon?: string | null;
+  locale: string;
+  timezone: string;
+  contact_email?: string | null;
+  social?: Record<string, string> | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface WorkspaceInfo {
+  slug: string;
+  name: string;
+}
+
+export interface WorkspaceSiteInfo {
+  workspace: WorkspaceInfo;
+  site: SiteConfiguration;
 }

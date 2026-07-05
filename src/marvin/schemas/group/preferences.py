@@ -37,6 +37,30 @@ class GroupPreferencesCreate(_MarvinModel):
     Defaults to 0 (Sunday).
     """
 
+    # Site/Workspace Configuration
+    site_title: str | None = None
+    """The public title of the site/workspace."""
+    site_tagline: str | None = None
+    """A short tagline or slogan for the site."""
+    site_description: str | None = None
+    """A description of the site/workspace."""
+    site_canonical_url: str | None = None
+    """The canonical URL where this site is published."""
+    site_logo: str | None = None
+    """Path or URL to the site logo."""
+    site_favicon: str | None = None
+    """Path or URL to the site favicon."""
+    site_locale: str | None = "en-US"
+    """The locale for the site (e.g., en-US, en-GB)."""
+    site_timezone: str | None = "America/New_York"
+    """The timezone for the site (e.g., America/New_York)."""
+    site_contact_email: str | None = None
+    """Primary contact email for the site."""
+    site_social_json: dict | None = None
+    """Social media links and handles (e.g., {instagram: 'url', facebook: 'url'})."""
+    site_metadata_json: dict | None = None
+    """Flexible metadata for framework-specific or custom site settings."""
+
     model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
 
 
@@ -58,6 +82,30 @@ class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow p
 
     first_day_of_week: int | None = None
     """Optional: New value for the first day of the week setting."""
+
+    # Site/Workspace Configuration (all optional for partial updates)
+    site_title: str | None = None
+    """Optional: The public title of the site/workspace."""
+    site_tagline: str | None = None
+    """Optional: A short tagline or slogan for the site."""
+    site_description: str | None = None
+    """Optional: A description of the site/workspace."""
+    site_canonical_url: str | None = None
+    """Optional: The canonical URL where this site is published."""
+    site_logo: str | None = None
+    """Optional: Path or URL to the site logo."""
+    site_favicon: str | None = None
+    """Optional: Path or URL to the site favicon."""
+    site_locale: str | None = None
+    """Optional: The locale for the site (e.g., en-US, en-GB)."""
+    site_timezone: str | None = None
+    """Optional: The timezone for the site (e.g., America/New_York)."""
+    site_contact_email: str | None = None
+    """Optional: Primary contact email for the site."""
+    site_social_json: dict | None = None
+    """Optional: Social media links and handles."""
+    site_metadata_json: dict | None = None
+    """Optional: Flexible metadata for framework-specific or custom site settings."""
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -105,13 +105,17 @@ select {
   color: #fffaf0;
 }
 
-.nav-divider {
-  margin: 18px 0;
-  border-top: 1px solid rgb(255 255 255 / 14%);
+.nav-group {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
 }
 
-.nav-section {
-  margin-top: 18px;
+.nav-group:first-of-type {
+  margin-top: 0;
+}
+
+.nav-group-label {
   margin-bottom: 8px;
   padding: 0 10px;
   font-size: 11px;
@@ -119,6 +123,10 @@ select {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: rgb(255 250 240 / 50%);
+}
+
+.nav-group .nav {
+  margin-top: 0;
 }
 
 .main {

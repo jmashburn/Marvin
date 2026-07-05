@@ -1,5 +1,4 @@
 ---
-import EntryCard from "@/components/EntryCard.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAssets, getSiteClients } from "@/lib/api/platform";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
@@ -7,16 +6,15 @@ import { listEntries } from "@/lib/api/entries";
 import { listCollections } from "@/lib/api/collections";
 import { listEntryTypes } from "@/lib/api/entryTypes";
 import { getAuthToken } from "@/lib/api/client";
+import type { EntryRead, APIClientRead, EntryTypeRead, CollectionRead } from "@/lib/api/types";
 
-// Get auth token from cookies for SSR API calls
 const authToken = getAuthToken(Astro.cookies);
-console.log('[Dashboard] Auth token:', authToken ? `${authToken.substring(0, 20)}...` : 'MISSING');
 
-let entries = [];
+let entries: EntryRead[] = [];
 let assets = [];
-let siteClients = [];
-let collections = [];
-let entryTypes = [];
+let siteClients: APIClientRead[] = [];
+let collections: CollectionRead[] = [];
+let entryTypes: EntryTypeRead[] = [];
 let currentWorkspace = null;
 let error: string | null = null;
 
@@ -34,26 +32,76 @@ try {
   console.error('[Dashboard] Failed to load data:', error);
 }
 
-// Calculate stats from real data
-const stats = {
-  totalEntries: entries.length,
-  publishedEntries: entries.filter(e => e.status === 'published').length,
-  draftEntries: entries.filter(e => e.status === 'draft').length,
-  inboxEntries: entries.filter(e => e.status === 'inbox').length,
-  collectionsCount: collections.length,
-  assetsCount: assets.length,
+// Publishing Overview Stats
+const publishingStats = {
+  published: entries.filter(e => e.status === 'published').length,
+  draft: entries.filter(e => e.status === 'draft').length,
+  activeClients: siteClients.filter(c => c.enabled).length,
+  totalClients: siteClients.length,
 };
 
-// Get recent entries (sorted by update_at)
-const recentEntries = entries
+// Needs Attention - items requiring action
+const needsAttention = {
+  staleDrafts: entries.filter(e => {
+    if (e.status !== 'draft') return false;
+    const updated = e.update_at ? new Date(e.update_at) : null;
+    if (!updated) return true;
+    const daysSinceUpdate = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
+    return daysSinceUpdate > 7;
+  }),
+  emptyEntryTypes: entryTypes.filter(et => {
+    return !entries.some(e => e.entry_type_id === et.id);
+  }),
+  emptyCollections: collections.filter(c => {
+    return !c.is_smart && !entries.some(e => e.collections?.includes(c.id));
+  }),
+  unusedClients: siteClients.filter(c => !c.last_used_at && c.enabled),
+};
+
+// Recent Work - last 5 updated entries
+const recentWork = entries
   .sort((a, b) => {
     const dateA = a.update_at ? new Date(a.update_at).getTime() : 0;
     const dateB = b.update_at ? new Date(b.update_at).getTime() : 0;
     return dateB - dateA;
   })
-  .slice(0, 1); // Just show the most recent for the featured card
+  .slice(0, 5);
 
-const featured = recentEntries[0];
+// Publishing Activity
+const lastPublishedEntry = entries
+  .filter(e => e.published_at)
+  .sort((a, b) => {
+    const dateA = a.published_at ? new Date(a.published_at).getTime() : 0;
+    const dateB = b.published_at ? new Date(b.published_at).getTime() : 0;
+    return dateB - dateA;
+  })[0];
+
+// Helper to format relative time
+function formatRelativeTime(timestamp: string | null | undefined): string {
+  if (!timestamp) return "Never";
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+  return `${Math.floor(diffDays / 365)} years ago`;
+}
+
+// Get status badge class
+function getStatusClass(status: string): string {
+  switch (status) {
+    case 'published': return 'status-published';
+    case 'draft': return 'status-draft';
+    case 'needs_review': return 'status-review';
+    case 'approved': return 'status-approved';
+    default: return 'status-inbox';
+  }
+}
 ---
 
 <AppLayout title="Dashboard">
@@ -63,57 +111,174 @@ const featured = recentEntries[0];
       <button onclick="location.reload()" class="button secondary">Retry</button>
     </div>
   ) : (
-    <>
-      <section class="stats" aria-label="Platform stats">
-        <div class="stat"><span>Total entries</span><strong>{stats.totalEntries}</strong></div>
-        <div class="stat"><span>Published</span><strong>{stats.publishedEntries}</strong></div>
-        <div class="stat"><span>Inbox</span><strong>{stats.inboxEntries}</strong></div>
-        <div class="stat"><span>Assets</span><strong>{stats.assetsCount}</strong></div>
-      </section>
+    <div class="dashboard">
+      <!-- Needs Attention -->
+      {(needsAttention.staleDrafts.length > 0 ||
+        needsAttention.emptyEntryTypes.length > 0 ||
+        needsAttention.emptyCollections.length > 0 ||
+        needsAttention.unusedClients.length > 0) && (
+        <section class="dashboard-section">
+          <h2 class="section-title">Needs Attention</h2>
+          <div class="attention-grid">
+            {needsAttention.staleDrafts.length > 0 && (
+              <a href="/entries?status=draft" class="attention-card">
+                <div class="attention-icon">📝</div>
+                <div class="attention-content">
+                  <strong>{needsAttention.staleDrafts.length} stale draft{needsAttention.staleDrafts.length === 1 ? '' : 's'}</strong>
+                  <span>No updates in 7+ days</span>
+                </div>
+              </a>
+            )}
+            {needsAttention.emptyEntryTypes.length > 0 && (
+              <a href="/entry-types" class="attention-card">
+                <div class="attention-icon">◈</div>
+                <div class="attention-content">
+                  <strong>{needsAttention.emptyEntryTypes.length} empty entry type{needsAttention.emptyEntryTypes.length === 1 ? '' : 's'}</strong>
+                  <span>No entries yet</span>
+                </div>
+              </a>
+            )}
+            {needsAttention.emptyCollections.length > 0 && (
+              <a href="/collections" class="attention-card">
+                <div class="attention-icon">☰</div>
+                <div class="attention-content">
+                  <strong>{needsAttention.emptyCollections.length} empty collection{needsAttention.emptyCollections.length === 1 ? '' : 's'}</strong>
+                  <span>Needs entries</span>
+                </div>
+              </a>
+            )}
+            {needsAttention.unusedClients.length > 0 && (
+              <a href="/publishing/clients" class="attention-card">
+                <div class="attention-icon">⚡</div>
+                <div class="attention-content">
+                  <strong>{needsAttention.unusedClients.length} unused client{needsAttention.unusedClients.length === 1 ? '' : 's'}</strong>
+                  <span>Never accessed</span>
+                </div>
+              </a>
+            )}
+          </div>
+        </section>
+      )}
 
-      <section class="toolbar">
-        <div>
-          <h2 style="margin:0;font-size:20px;">Workspace pulse</h2>
-          <p style="margin:4px 0 0;color:var(--muted);">
-            {currentWorkspace ? `${currentWorkspace.name} workspace` : 'Workspace'} - entries, media, and publishing clients in one place.
-          </p>
+      <!-- Quick Create -->
+      <section class="dashboard-section">
+        <h2 class="section-title">Quick Create</h2>
+        <div class="quick-create-grid">
+          {entryTypes.length > 0 ? (
+            entryTypes.slice(0, 6).map((type) => (
+              <a href={`/entries/new?type=${type.id}`} class="quick-create-card">
+                <span class="quick-create-icon" style={type.color ? `color: ${type.color}` : undefined}>
+                  {type.icon || '▤'}
+                </span>
+                <span class="quick-create-label">{type.name}</span>
+              </a>
+            ))
+          ) : (
+            <a href="/entry-types" class="quick-create-card">
+              <span class="quick-create-icon">◈</span>
+              <span class="quick-create-label">Create Entry Type</span>
+            </a>
+          )}
+          <a href="/collections/new" class="quick-create-card">
+            <span class="quick-create-icon">☰</span>
+            <span class="quick-create-label">New Collection</span>
+          </a>
         </div>
-        <a class="button" href="/entries">Open Entries</a>
       </section>
 
-      <section class="grid">
-        {featured ? (
-          <EntryCard entry={featured} />
-        ) : (
-          <article class="card">
-            <div class="card-body">
-              <h3>No entries yet</h3>
-              <p>Create your first entry to get started.</p>
-              <a class="button" href="/entries/new">Create Entry</a>
+      <div class="dashboard-columns">
+        <!-- Recent Work -->
+        <section class="dashboard-section">
+          <h2 class="section-title">Recent Work</h2>
+          {recentWork.length > 0 ? (
+            <div class="recent-work-list">
+              {recentWork.map((entry) => {
+                const entryType = entryTypes.find(t => t.id === entry.entry_type_id);
+                return (
+                  <a href={`/entries/${entry.id}`} class="recent-work-item">
+                    <div class="recent-work-content">
+                      <strong>{entry.title}</strong>
+                      <div class="recent-work-meta">
+                        {entryType && (
+                          <span class="entry-type-badge" style={entryType.color ? `background: ${entryType.color}20; color: ${entryType.color}` : undefined}>
+                            {entryType.icon && <span>{entryType.icon}</span>}
+                            {entryType.name}
+                          </span>
+                        )}
+                        <span class={`status-badge ${getStatusClass(entry.status)}`}>
+                          {entry.status}
+                        </span>
+                      </div>
+                    </div>
+                    <span class="recent-work-time">{formatRelativeTime(entry.update_at)}</span>
+                  </a>
+                );
+              })}
             </div>
-          </article>
-        )}
-        <article class="card">
-          <div class="card-body">
-            <h3>Publishing clients</h3>
-            <p>{siteClients.length} site client{siteClients.length === 1 ? "" : "s"} configured for external publishing.</p>
-            <div class="meta">
-              {siteClients.map((client) => <span class={`pill ${client.is_active ? "published" : "draft"}`}>{client.slug}</span>)}
+          ) : (
+            <div class="empty-state-small">
+              <p>No entries yet</p>
+              <a href="/entries/new" class="button small">Create Entry</a>
+            </div>
+          )}
+        </section>
+
+        <!-- Publishing Overview & Activity -->
+        <section class="dashboard-section">
+          <h2 class="section-title">Publishing</h2>
+          <div class="publishing-stats">
+            <div class="pub-stat">
+              <strong>{publishingStats.published}</strong>
+              <span>Published</span>
+            </div>
+            <div class="pub-stat">
+              <strong>{publishingStats.draft}</strong>
+              <span>Drafts</span>
+            </div>
+            <div class="pub-stat">
+              <strong>{publishingStats.activeClients}</strong>
+              <span>Active Clients</span>
             </div>
           </div>
-        </article>
-        <article class="card">
-          <div class="card-body">
-            <h3>Collections & Types</h3>
-            <p>{collections.length} collections and {entryTypes.length} entry types defined.</p>
-            <div class="meta">
-              <a href="/collections" class="pill">Collections</a>
-              <a href="/entry-types" class="pill">Entry Types</a>
-            </div>
+
+          <div class="publishing-activity">
+            <h3>Activity</h3>
+            {lastPublishedEntry ? (
+              <div class="activity-item">
+                <div class="activity-icon">✓</div>
+                <div class="activity-content">
+                  <strong>Last Published</strong>
+                  <a href={`/entries/${lastPublishedEntry.id}`}>{lastPublishedEntry.title}</a>
+                  <span class="activity-time">{formatRelativeTime(lastPublishedEntry.published_at)}</span>
+                </div>
+              </div>
+            ) : (
+              <p class="muted-text">No published entries yet</p>
+            )}
+
+            {siteClients.length > 0 ? (
+              <div class="activity-item">
+                <div class="activity-icon">⚡</div>
+                <div class="activity-content">
+                  <strong>Site Clients</strong>
+                  <span>{publishingStats.activeClients} of {publishingStats.totalClients} active</span>
+                  <a href="/publishing/clients" class="activity-link">Manage clients →</a>
+                </div>
+              </div>
+            ) : (
+              <div class="activity-item">
+                <div class="activity-icon">⚡</div>
+                <div class="activity-content">
+                  <strong>No Site Clients</strong>
+                  <span>Create a client to publish externally</span>
+                  <a href="/publishing/clients/new" class="activity-link">Create client →</a>
+                </div>
+              </div>
+            )}
           </div>
-        </article>
-      </section>
-    </>
+        </section>
+      </div>
+    </div>
   )}
 </AppLayout>
 
@@ -132,5 +297,332 @@ const featured = recentEntries[0];
   .error-banner p {
     margin: 0;
     color: var(--color-error);
+  }
+
+  .dashboard {
+    display: grid;
+    gap: 32px;
+  }
+
+  .dashboard-section {
+    display: grid;
+    gap: 16px;
+  }
+
+  .section-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* Needs Attention */
+  .attention-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .attention-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition: all 0.2s;
+  }
+
+  .attention-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.05);
+  }
+
+  .attention-icon {
+    font-size: 24px;
+  }
+
+  .attention-content {
+    display: grid;
+    gap: 2px;
+  }
+
+  .attention-content strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .attention-content span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Quick Create */
+  .quick-create-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .quick-create-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .quick-create-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.05);
+  }
+
+  .quick-create-icon {
+    font-size: 28px;
+    color: var(--accent);
+  }
+
+  .quick-create-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* Two Column Layout */
+  .dashboard-columns {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 32px;
+  }
+
+  @media (max-width: 1200px) {
+    .dashboard-columns {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Recent Work */
+  .recent-work-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .recent-work-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition: all 0.2s;
+  }
+
+  .recent-work-item:hover {
+    border-color: var(--accent);
+  }
+
+  .recent-work-content {
+    display: grid;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .recent-work-content strong {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recent-work-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .entry-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+
+  .status-badge {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .status-published {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+  }
+
+  .status-draft {
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+
+  .status-review {
+    background: rgb(169 99 47 / 0.15);
+    color: var(--warn);
+  }
+
+  .status-approved {
+    background: rgb(47 111 115 / 0.15);
+    color: var(--accent-2);
+  }
+
+  .status-inbox {
+    background: rgb(169 77 63 / 0.15);
+    color: var(--accent);
+  }
+
+  .recent-work-time {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* Publishing */
+  .publishing-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .pub-stat {
+    display: grid;
+    gap: 4px;
+    text-align: center;
+  }
+
+  .pub-stat strong {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .pub-stat span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .publishing-activity {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .publishing-activity h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .activity-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .activity-item:first-of-type {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .activity-icon {
+    font-size: 20px;
+  }
+
+  .activity-content {
+    display: grid;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .activity-content strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .activity-content span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .activity-content a {
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .activity-content a:hover {
+    color: var(--accent);
+  }
+
+  .activity-link {
+    font-size: 12px !important;
+    color: var(--accent) !important;
+  }
+
+  .activity-time {
+    font-size: 11px !important;
+    color: var(--muted) !important;
+  }
+
+  .muted-text {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .empty-state-small {
+    padding: 32px 16px;
+    text-align: center;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .empty-state-small p {
+    margin: 0 0 12px;
+    color: var(--muted);
+  }
+
+  .button.small {
+    padding: 6px 12px;
+    font-size: 13px;
   }
 </style>
