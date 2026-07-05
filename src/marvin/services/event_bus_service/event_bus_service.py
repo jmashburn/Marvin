@@ -51,7 +51,7 @@ class EventSource:
     event_type: str
     """A string identifying the type of event (e.g., "item_created", "user_login")."""
     item_type: str
-    """A string identifying the type of item related to the event (e.g., "recipe", "user_profile")."""
+    """A string identifying the type of item related to the event (e.g., "user_profile")."""
     item_id: UUID4 | int  # Assuming item_id can also be an integer
     """The unique identifier of the item related to the event."""
     kwargs: dict[str, Any]

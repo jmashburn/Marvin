@@ -12,11 +12,17 @@ These functions typically interact with the event bus system to dispatch
 `webhook_task` events, which are then handled by the `WebhookEventListener`.
 """
 
+import json
+import logging
 from datetime import UTC, datetime  # For datetime operations
+from pathlib import Path
 
 from pydantic import UUID4  # For UUID type hinting
 
+logger = logging.getLogger(__name__)
+
 # Marvin core components and utilities
+from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context  # Context manager for DB sessions
 from marvin.repos.all_repositories import get_repositories  # Factory for AllRepositories
 from marvin.schemas.group.webhook import WebhookRead  # Pydantic schema for webhook data
@@ -32,40 +38,69 @@ from marvin.services.event_bus_service.event_types import (  # Core event system
     EventTypes,
     EventWebhookData,
 )
+from marvin.core.config import get_app_dirs
 
-# Global variable to store the timestamp of the last run of `post_group_webhooks`.
-# This helps determine the time window for subsequent runs to find webhooks
-# that became due since the last execution.
-last_ran: datetime = datetime.now(UTC)
+
+def _get_state_file_path() -> Path:
+    """Get path to scheduler state file in data directory."""
+    return get_app_dirs().DATA_DIR / "scheduler_state.json"
+
+
+def _load_last_ran() -> datetime:
+    """Load last_ran timestamp from state file, or current time if missing."""
+    state_file = _get_state_file_path()
+    if not state_file.exists():
+        return datetime.now(UTC)
+
+    try:
+        with open(state_file, "r") as f:
+            state = json.load(f)
+        return datetime.fromisoformat(state["last_ran"])
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        logger = get_logger()
+        logger.warning(f"Failed to load scheduler state: {e}. Using current time.")
+        return datetime.now(UTC)
+
+
+def _save_last_ran(timestamp: datetime) -> None:
+    """Save last_ran timestamp to state file atomically."""
+    state_file = _get_state_file_path()
+    state = {"last_ran": timestamp.isoformat(), "updated_at": datetime.now(UTC).isoformat()}
+
+    # Ensure directory exists
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Atomic write via temp file
+    temp_file = state_file.with_suffix(".tmp")
+    with open(temp_file, "w") as f:
+        json.dump(state, f, indent=2)
+    temp_file.replace(state_file)
 
 
 def post_group_webhooks(start_dt: datetime | None = None, group_id: UUID4 | None = None) -> None:  # Renamed group_id to group_id_filter
     """
     Posts webhook_task events to the event bus for a specific group or all groups.
 
-    This function determines a time window (from `start_dt` or the global `last_ran`
+    This function determines a time window (from `start_dt` or the persisted `last_ran`
     timestamp to the current UTC time) and dispatches a `webhook_task` event
     for each relevant group. The `WebhookEventListener` will then pick up this
     event and process webhooks scheduled within that time window for the group.
 
     Args:
         start_dt (datetime | None, optional): The start datetime of the window for
-            finding scheduled webhooks. If None, uses the global `last_ran`
-            timestamp. Defaults to None.
+            finding scheduled webhooks. If None, uses the persisted `last_ran`
+            timestamp from the state file. Defaults to None.
         group_id_filter (UUID4 | None, optional): If provided, only processes webhooks
             for this specific group ID. If None, processes for all groups.
             Defaults to None.
     """
-    global last_ran  # Indicate that we are modifying the global `last_ran` variable
-
     # Determine the start of the time window for webhook processing.
-    # If `start_dt` is not provided, use the `last_ran` global variable.
+    # If `start_dt` is not provided, load the last_ran timestamp from the state file.
     # This ensures that overlapping runs or missed schedules can be accounted for.
-    effective_start_dt = start_dt or last_ran
+    effective_start_dt = start_dt or _load_last_ran()
 
     # The end of the time window is the current UTC time.
-    # Update `last_ran` for the next invocation.
-    current_run_time = last_ran = datetime.now(UTC)
+    current_run_time = datetime.now(UTC)
 
     target_group_ids: list[UUID4]
     if group_id is None:
@@ -102,6 +137,9 @@ def post_group_webhooks(start_dt: datetime | None = None, group_id: UUID4 | None
             document_data=event_document,
             message=f"Scheduled webhook processing for group {current_group_id}",  # Descriptive message
         )
+
+    # Persist the current run time after successful dispatch to all groups
+    _save_last_ran(current_run_time)
 
 
 def post_single_webhook(webhook_config: WebhookRead, message: str = "Test Webhook Event") -> None:  # Renamed webhook, message

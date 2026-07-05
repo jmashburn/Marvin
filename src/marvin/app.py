@@ -148,7 +148,6 @@ async def start_scheduler() -> None:
         # scheduler_tasks.purge_group_registration,
         # scheduler_tasks.purge_password_reset_tokens,
         # scheduler_tasks.purge_group_data_exports,
-        # scheduler_tasks.create_mealplan_timeline_events,
         # scheduler_tasks.delete_old_checked_list_items,
     )
 

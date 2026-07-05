@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "marvin.fullname" . }}
+  labels:
+    {{- include "marvin.labels" . | nindent 4 }}
+  annotations:
+    # Create ConfigMap before migration job
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-8"
+data:
+  production: {{ .Values.config.production | quote }}
+  allowSignup: {{ .Values.config.allowSignup | quote }}
+  logLevel: {{ .Values.config.logLevel | quote }}
+  dbEngine: {{ .Values.config.dbEngine | quote }}
+  dataDir: {{ .Values.config.dataDir | quote }}
+  apiPort: {{ .Values.config.apiPort | quote }}
+  apiHost: {{ .Values.config.apiHost | quote }}
+  schedulerInterval: {{ .Values.config.schedulerInterval | quote }}
+  webhookRetryAttempts: {{ .Values.config.webhookRetryAttempts | quote }}
+  webhookRetryDelay: {{ .Values.config.webhookRetryDelay | quote }}
+  webhookTimeout: {{ .Values.config.webhookTimeout | quote }}

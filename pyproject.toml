@@ -25,6 +25,7 @@ dependencies = [
     "pyhumps>=3.8.0",
     "pyjwt>=2.10.1",
     "python-dateutil>=2.9.0.post0",
+    "python-ldap>=3.4.5",
     "python-slugify>=8.0.4",
     "rich>=14.0.0",
     "ruff>=0.11.7",

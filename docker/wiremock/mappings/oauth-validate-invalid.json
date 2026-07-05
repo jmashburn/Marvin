@@ -1,0 +1,25 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/as/validate/AppIdClaimsTrust",
+        "headers": {
+            "Authorization": {
+                "matches": "Bearer invalid.*"
+            }
+        }
+    },
+    "response": {
+        "status": 401,
+        "headers": {
+            "Content-Type": "application/json",
+            "X-Correlation-Id": "{{ randomValue type='UUID'}}"
+        },
+        "jsonBody": {
+            "active": false,
+            "error": "invalid_token",
+            "error_descrioption": "The access token provided is invalid"
+        },
+        "transformers": ["response-template"]
+    },
+    "priority": 1
+}

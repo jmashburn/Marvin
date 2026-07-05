@@ -1,0 +1,23 @@
+apiVersion: v2
+name: marvin
+description: Marvin event bus application with webhooks and scheduler
+type: application
+version: 1.1.0
+appVersion: "2026.06.05"
+
+keywords:
+  - marvin
+  - event-bus
+  - webhooks
+  - scheduler
+
+maintainers:
+  - name: Jared Mash
+    email: jared@example.com
+
+home: https://github.com/yourusername/marvin
+sources:
+  - https://github.com/yourusername/marvin
+
+# Minimum Helm version required
+kubeVersion: ">=1.19.0-0"

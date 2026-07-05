@@ -1,0 +1,24 @@
+{
+  "features": {
+    "ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv:1": {
+      "version": "1.0.6",
+      "resolved": "ghcr.io/devcontainer-community/devcontainer-features/astral.sh-uv@sha256:36f95b90080248a05aba7b1b3cecf8018bb6d7222f6274f03f050b502abd4fe7",
+      "integrity": "sha256:36f95b90080248a05aba7b1b3cecf8018bb6d7222f6274f03f050b502abd4fe7"
+    },
+    "ghcr.io/devcontainers-extra/features/claude-code:1": {
+      "version": "1.0.0",
+      "resolved": "ghcr.io/devcontainers-extra/features/claude-code@sha256:cce04f0fb8313336f679c243f032338434d9386d4857c3d38e1253b1e3d62a00",
+      "integrity": "sha256:cce04f0fb8313336f679c243f032338434d9386d4857c3d38e1253b1e3d62a00"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "2.17.0",
+      "resolved": "ghcr.io/devcontainers/features/docker-in-docker@sha256:25b9f05705ffba7dbe503230ac76081419306f8c8bc88e0ce78c4ecd99a0c78c",
+      "integrity": "sha256:25b9f05705ffba7dbe503230ac76081419306f8c8bc88e0ce78c4ecd99a0c78c"
+    },
+    "ghcr.io/eitsupi/devcontainer-features/go-task:1": {
+      "version": "1.0.4",
+      "resolved": "ghcr.io/eitsupi/devcontainer-features/go-task@sha256:8a6c4b4f9d7559f32400da0c11d1bb11e59732f47f7db5defca68e7712544d13",
+      "integrity": "sha256:8a6c4b4f9d7559f32400da0c11d1bb11e59732f47f7db5defca68e7712544d13"
+    }
+  }
+}

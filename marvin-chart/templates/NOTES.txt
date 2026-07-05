@@ -1,0 +1,90 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart version: {{ .Chart.Version }}
+App version: {{ .Chart.AppVersion }}
+
+{{- if .Values.route.enabled }}
+{{- if .Capabilities.APIVersions.Has "route.openshift.io/v1" }}
+
+🌐 Your application will be accessible at:
+{{- if .Values.route.host }}
+   https://{{ .Values.route.host }}
+{{- else }}
+   Route will be auto-assigned. Get the URL with:
+   oc get route {{ include "marvin.fullname" . }} -o jsonpath='{.spec.host}'
+{{- end }}
+
+To get the route URL:
+   export ROUTE=$(oc get route {{ include "marvin.fullname" . }} -o jsonpath='{.spec.host}')
+   echo "Application URL: https://$ROUTE"
+{{- end }}
+{{- end }}
+
+📊 To check the status of your deployment:
+{{- if .Capabilities.APIVersions.Has "apps.openshift.io/v1" }}
+   oc rollout status dc/{{ include "marvin.fullname" . }}
+{{- else }}
+   kubectl rollout status deployment/{{ include "marvin.fullname" . }}
+{{- end }}
+
+📝 To view application logs:
+{{- if .Capabilities.APIVersions.Has "apps.openshift.io/v1" }}
+   oc logs -f dc/{{ include "marvin.fullname" . }}
+{{- else }}
+   kubectl logs -f deployment/{{ include "marvin.fullname" . }}
+{{- end }}
+
+🔍 To verify the migration status:
+   POD=$(oc get pods -l app.kubernetes.io/name={{ include "marvin.name" . }} -o jsonpath='{.items[0].metadata.name}')
+   oc exec $POD -- bash -c 'cd /app/src/marvin && uv run alembic current'
+
+✅ Post-deployment verification checklist:
+   1. Check pod status:
+      oc get pods -l app.kubernetes.io/name={{ include "marvin.name" . }}
+
+   2. Verify health endpoint:
+{{- if .Values.route.enabled }}
+      curl -v https://$ROUTE/api/health
+{{- else }}
+      oc port-forward svc/{{ include "marvin.fullname" . }} 8080:{{ .Values.service.port }}
+      curl -v http://localhost:8080/api/health
+{{- end }}
+
+   3. Check scheduler state file:
+      oc exec $POD -- cat {{ .Values.config.dataDir }}/scheduler_state.json
+
+   4. Verify no tokens in logs:
+      oc logs $POD | grep -i "token.*:" | head -20
+      (Should NOT show plaintext JWTs)
+
+   5. Check migration job logs:
+      MIGRATION_JOB=$(oc get jobs -l job-type=migration --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+      oc logs job/$MIGRATION_JOB
+
+{{- if .Values.persistence.enabled }}
+
+💾 Persistent storage:
+   PVC: {{ include "marvin.pvcName" . }}
+   Size: {{ .Values.persistence.size }}
+
+   To check storage usage:
+   oc exec $POD -- df -h {{ .Values.config.dataDir }}
+{{- end }}
+
+📚 For more information:
+   - Helm release info: helm status {{ .Release.Name }}
+   - Helm release history: helm history {{ .Release.Name }}
+   - Chart README: https://github.com/yourusername/marvin/tree/main/marvin-chart
+
+⚠️  Important notes:
+{{- if not .Values.config.production }}
+   - This deployment is in DEVELOPMENT mode
+   - Secrets are using default/example values
+   - For production, use values-production.yaml with sealed-secrets
+{{- end }}
+{{- if eq (int .Values.replicaCount) 1 }}
+   - Running with 1 replica (no high availability)
+   - For production, set replicaCount >= 2 in values-production.yaml
+{{- end }}
