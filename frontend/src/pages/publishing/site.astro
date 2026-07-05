@@ -59,7 +59,7 @@ try {
   )}
 
   {workspace && preferences ? (
-    <form method="POST" action="/api/publishing/site/update" class="site-form">
+    <form method="POST" data-workspace-id={workspace.id} class="site-form" id="site-form">
       <section class="form-section">
         <h3>Identity</h3>
         <p class="section-description">How your site identifies itself to the world</p>
@@ -208,6 +208,58 @@ try {
     </div>
   )}
 </AppLayout>
+
+<script>
+  const form = document.getElementById('site-form') as HTMLFormElement;
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const workspaceId = form.dataset.workspaceId;
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      const formData = new FormData(form);
+      const data: Record<string, any> = {};
+
+      // Convert form data to object, handling JSON fields
+      formData.forEach((value, key) => {
+        if (key === 'site_social_json' || key === 'site_metadata_json') {
+          try {
+            data[key] = value ? JSON.parse(value as string) : null;
+          } catch {
+            data[key] = null;
+          }
+        } else {
+          data[key] = value || null;
+        }
+      });
+
+      try {
+        const url = `/api/groups/${workspaceId}/preferences`;
+        const response = await fetch(url, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Include cookies for auth
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          window.location.href = '/publishing/site?success=1';
+        } else {
+          const error = await response.json();
+          window.location.href = '/publishing/site?error=' + encodeURIComponent(error.detail || 'Failed to save');
+        }
+      } catch (err) {
+        window.location.href = '/publishing/site?error=Network error';
+      }
+    });
+  }
+</script>
 
 <style>
   .toolbar {
