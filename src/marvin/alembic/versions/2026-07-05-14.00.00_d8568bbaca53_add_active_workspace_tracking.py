@@ -22,24 +22,23 @@ def upgrade() -> None:
     # Add active_group_id column to users table
     # This tracks which workspace the user is currently working in
     # Falls back to group_id if NULL (backward compatibility)
-    op.add_column('users',
-        sa.Column('active_group_id', marvin.db.migration_types.GUID(), nullable=True)
-    )
-
-    # Add foreign key constraint with SET NULL on delete
-    # If a workspace is deleted, user's active workspace resets to NULL
-    op.create_foreign_key(
-        'fk_users_active_group_id',
-        'users', 'groups',
-        ['active_group_id'], ['id'],
-        ondelete='SET NULL'
-    )
-
-    # Add index for performance
-    op.create_index('ix_users_active_group_id', 'users', ['active_group_id'], unique=False)
+    # Use batch mode for SQLite compatibility
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.add_column(
+            sa.Column('active_group_id', marvin.db.migration_types.GUID(), nullable=True)
+        )
+        batch_op.create_foreign_key(
+            'fk_users_active_group_id',
+            'groups',
+            ['active_group_id'], ['id'],
+            ondelete='SET NULL'
+        )
+        batch_op.create_index('ix_users_active_group_id', ['active_group_id'], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index('ix_users_active_group_id', table_name='users')
-    op.drop_constraint('fk_users_active_group_id', 'users', type_='foreignkey')
-    op.drop_column('users', 'active_group_id')
+    # Use batch mode for SQLite compatibility
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.drop_index('ix_users_active_group_id')
+        batch_op.drop_constraint('fk_users_active_group_id', type_='foreignkey')
+        batch_op.drop_column('active_group_id')
