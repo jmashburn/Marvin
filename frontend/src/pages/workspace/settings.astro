@@ -1,0 +1,308 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+let workspace = null;
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+} catch (e) {
+  console.error('[settings] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const canManage = workspace && (workspace.role === 'OWNER' || workspace.role === 'ADMIN');
+---
+
+<AppLayout title="Workspace Settings" eyebrow="Workspace">
+  <div class="toolbar">
+    <div>
+      <h2>Workspace Settings</h2>
+      <p>Manage your workspace configuration and preferences</p>
+    </div>
+  </div>
+
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error:</strong> {error}</p>
+    </div>
+  ) : workspace ? (
+    <div class="settings-container">
+      {!canManage ? (
+        <div class="alert alert-info">
+          You need OWNER or ADMIN role to manage workspace settings.
+        </div>
+      ) : null}
+
+      <section class="settings-section">
+        <h3>General Settings</h3>
+        <form method="POST" action="/api/groups/{workspace.workspace.id}/preferences" class="settings-form">
+          <div class="form-grid">
+            <label>
+              <span>Workspace Name</span>
+              <input
+                type="text"
+                name="name"
+                value={workspace.workspace.name}
+                disabled={!canManage}
+              />
+            </label>
+
+            <label>
+              <span>Slug</span>
+              <input
+                type="text"
+                name="slug"
+                value={workspace.workspace.slug || ""}
+                disabled={!canManage}
+              />
+              <small>Used in URLs and API endpoints</small>
+            </label>
+          </div>
+
+          {canManage && (
+            <div class="form-actions">
+              <button type="submit" class="button">Save Changes</button>
+              <button type="reset" class="button secondary">Reset</button>
+            </div>
+          )}
+        </form>
+      </section>
+
+      <section class="settings-section">
+        <h3>Workspace Information</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Workspace ID</span>
+            <code class="info-value">{workspace.workspace.id}</code>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Your Role</span>
+            <span class="info-value role-badge">{workspace.role}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Active Status</span>
+            <span class="info-value">{workspace.is_active ? "Active" : "Inactive"}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section danger-zone">
+        <h3>Danger Zone</h3>
+        <p>Irreversible and destructive actions.</p>
+
+        {canManage && workspace.role === 'OWNER' ? (
+          <div class="danger-actions">
+            <button type="button" class="button danger" disabled>
+              Delete Workspace
+            </button>
+            <small>Workspace deletion is not yet implemented</small>
+          </div>
+        ) : (
+          <p class="muted">Only workspace owners can perform destructive actions.</p>
+        )}
+      </section>
+    </div>
+  ) : (
+    <div class="empty-state">
+      <p>No workspace selected</p>
+    </div>
+  )}
+</AppLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .settings-container {
+    max-width: 800px;
+  }
+
+  .settings-section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .settings-section h3 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .settings-section > p {
+    margin: 0 0 16px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-grid {
+    display: grid;
+    gap: 20px;
+  }
+
+  .form-grid label {
+    display: grid;
+    gap: 8px;
+  }
+
+  .form-grid label > span {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .form-grid small {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: -4px;
+  }
+
+  .form-grid input {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .form-grid input:disabled {
+    background: var(--panel-2);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .info-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .info-item {
+    display: grid;
+    gap: 6px;
+  }
+
+  .info-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .info-value {
+    font-size: 14px;
+  }
+
+  .info-value code {
+    font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    background: var(--panel-2);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  .role-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--color-primary-bg);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .danger-zone {
+    border-color: var(--warn);
+  }
+
+  .danger-zone h3 {
+    color: var(--warn);
+  }
+
+  .danger-actions {
+    display: grid;
+    gap: 8px;
+  }
+
+  .danger-actions small {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .button.danger {
+    background: var(--warn);
+    color: white;
+    border: none;
+  }
+
+  .button.danger:hover:not(:disabled) {
+    background: var(--accent);
+  }
+
+  .button.danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-info {
+    background: rgb(47 111 115 / 0.1);
+    color: var(--accent-2);
+    border: 1px solid var(--accent-2);
+  }
+
+  .error-banner {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .muted {
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
