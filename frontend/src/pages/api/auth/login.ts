@@ -15,8 +15,12 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       return redirect('/login?error=missing', 303);
     }
 
+    const backendUrl = `${API_BASE_URL}/api/auth/token`;
+    console.log('[auth/login] Attempting login to:', backendUrl);
+    console.log('[auth/login] API_BASE_URL:', API_BASE_URL);
+
     // Call backend /api/auth/token endpoint
-    const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
+    const response = await fetch(backendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

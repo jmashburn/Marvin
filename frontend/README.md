@@ -23,9 +23,14 @@ Modern content management interface for the Marvin platform, built with Astro 5.
 Create a `.env` file in the `frontend` directory:
 
 ```bash
-MARVIN_API_URL=http://localhost:8080
-MARVIN_SITE_CLIENT_TOKEN=your_token_here  # Optional, for site client auth
+# Backend API URL (PUBLIC_ prefix makes it accessible from both server and client)
+PUBLIC_MARVIN_API_URL=http://localhost:8080
+
+# Site client token (optional, for publishing API)
+MARVIN_SITE_CLIENT_TOKEN=your_token_here
 ```
+
+**Note:** The `PUBLIC_` prefix is required for Astro to make the variable available in both server-side and client-side code.
 
 ### Development
 

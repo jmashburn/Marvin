@@ -1,4 +1,23 @@
-export const API_BASE_URL = import.meta.env.MARVIN_API_URL?.replace(/\/$/, "") ?? "";
+/**
+ * Get API base URL from environment
+ * Supports both PUBLIC_ prefixed vars (client-side) and server-side env vars
+ */
+function getApiBaseUrl(): string {
+  // Try PUBLIC_ prefixed version first (client-side accessible)
+  if (import.meta.env.PUBLIC_MARVIN_API_URL) {
+    return import.meta.env.PUBLIC_MARVIN_API_URL.replace(/\/$/, "");
+  }
+
+  // Try unprefixed version (SSR only)
+  if (import.meta.env.MARVIN_API_URL) {
+    return import.meta.env.MARVIN_API_URL.replace(/\/$/, "");
+  }
+
+  // Fallback to localhost for development
+  return "http://localhost:8080";
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 export const SITE_CLIENT_TOKEN = import.meta.env.MARVIN_SITE_CLIENT_TOKEN ?? "";
 
 /**
