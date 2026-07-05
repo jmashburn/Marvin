@@ -22,7 +22,7 @@ class ResourceCreate(_MarvinModel):
     """External URL (supplier site, GitHub repo, API docs, etc)."""
     external_id: str | None = None
     """External identifier (supplier SKU, ISBN, repo path, etc)."""
-    metadata: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
     """Optional metadata as JSON."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -59,7 +59,7 @@ class ResourceSummary(_MarvinModel):
 class ResourceRead(ResourceSummary):
     """Full schema for reading a resource."""
 
-    metadata: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_: dict | None = Field(default=None, serialization_alias="metadata")
     """Optional metadata."""
     created_by: UUID4
     """ID of user who created the resource."""

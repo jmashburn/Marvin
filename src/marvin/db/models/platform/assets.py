@@ -4,9 +4,10 @@ from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
+from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
@@ -45,3 +46,8 @@ class Assets(SqlAlchemyBase, BaseMixins):
     )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)
+
+    @auto_init()
+    def __init__(self, session: Session, **kwargs) -> None:
+        """Initialize via Marvin's auto-init model helper."""
+        pass

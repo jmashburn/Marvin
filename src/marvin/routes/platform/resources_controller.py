@@ -19,9 +19,10 @@ class ResourcesController(BaseUserController):
 
     @router.post("", response_model=ResourceRead, status_code=status.HTTP_201_CREATED, summary="Create Resource")
     def create_resource(self, data: ResourceCreate) -> ResourceRead:
-        # Inject created_by from authenticated user
+        # Inject created_by and group_id from authenticated user
         data_dict = data.model_dump()
         data_dict["created_by"] = self.user.id
+        data_dict["group_id"] = self.group_id
         return self.repos.resources.create(data_dict)
 
     @router.get("/{item_id}", response_model=ResourceRead, summary="Get Resource")

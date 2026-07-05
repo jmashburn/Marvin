@@ -26,9 +26,10 @@ class AssetsController(BaseUserController):
         (multipart form-data) is planned for Phase 7. For testing, provide a file_path
         that points to an existing file or use a placeholder path.
         """
-        # Inject uploaded_by from authenticated user
+        # Inject uploaded_by and group_id from authenticated user
         data_dict = data.model_dump()
         data_dict["uploaded_by"] = self.user.id
+        data_dict["group_id"] = self.group_id
         return self.repos.assets.create(data_dict)
 
     @router.get("/{item_id}", response_model=AssetRead, summary="Get Asset")

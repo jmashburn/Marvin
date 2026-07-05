@@ -28,7 +28,7 @@ class AssetCreate(_MarvinModel):
     """Alt text for accessibility."""
     description: str | None = None
     """Optional description of the asset."""
-    metadata: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
     """Optional asset metadata."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -62,7 +62,7 @@ class AssetRead(AssetSummary):
     """Height in pixels."""
     description: str | None = None
     """Optional description."""
-    metadata: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_: dict | None = Field(default=None, serialization_alias="metadata")
     """Optional asset metadata."""
     uploaded_by: UUID4
     """ID of user who uploaded the asset."""
