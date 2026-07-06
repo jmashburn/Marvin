@@ -1,0 +1,206 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { listResources } from "@/lib/api/resources";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let resources = [];
+let error: string | null = null;
+
+try {
+  resources = await listResources(authToken);
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[Resources] Failed to load:', error);
+}
+
+// Get filter from query params
+const filter = Astro.url.searchParams.get("filter") ?? "all";
+
+// Get unique types
+const allTypes = Array.from(new Set(resources.map((r: any) => r.resourceType))).sort();
+
+// Filter resources
+let filteredResources = resources;
+if (filter !== "all") {
+  filteredResources = resources.filter((r: any) => r.resourceType === filter);
+}
+---
+
+<AppLayout title="Resources" eyebrow="Content">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0;font-size:20px;">Resources</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">External references, suppliers, tools, and materials</p>
+    </div>
+    <a href="/resources/new" class="button">Add Resource</a>
+  </div>
+
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading resources:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
+    </div>
+  ) : resources.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">🔗</div>
+      <h3>No resources yet</h3>
+      <p>Resources are external references like suppliers, tools, fabrics, or documentation.</p>
+      <a href="/resources/new" class="button">Add Your First Resource</a>
+    </div>
+  ) : (
+    <>
+      <div class="filter-bar">
+        <nav class="segmented" aria-label="Resource type filter">
+          <a href="/resources?filter=all" aria-current={filter === "all" ? "page" : undefined}>
+            All ({resources.length})
+          </a>
+          {allTypes.map((type: string) => {
+            const count = resources.filter((r: any) => r.resourceType === type).length;
+            return (
+              <a href={`/resources?filter=${type}`} aria-current={filter === type ? "page" : undefined}>
+                {type} ({count})
+              </a>
+            );
+          })}
+        </nav>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>External ID</th>
+            <th>URL</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredResources.map((resource: any) => (
+            <tr>
+              <td><strong>{resource.name}</strong></td>
+              <td><span class="type-badge">{resource.resourceType}</span></td>
+              <td class="description-cell">{resource.description || '—'}</td>
+              <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
+              <td>
+                {resource.url ? (
+                  <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
+                    {new URL(resource.url).hostname} ↗
+                  </a>
+                ) : '—'}
+              </td>
+              <td>
+                <div class="actions">
+                  <a href={`/resources/${resource.id}`} class="button secondary small">Edit</a>
+                  <form method="POST" action={`/api/resources/${resource.id}/delete`} style="display:inline;">
+                    <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this resource?')">
+                      Delete
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.5rem;
+  }
+
+  .empty-state p {
+    margin: 0 0 1.5rem;
+    color: var(--muted);
+    max-width: 32rem;
+  }
+
+  .filter-bar {
+    margin-bottom: 1.5rem;
+  }
+
+  .type-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--panel-2);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .description-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .external-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.875rem;
+  }
+
+  .external-link:hover {
+    text-decoration: underline;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .button.small {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+
+  .button.danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg);
+  }
+</style>
