@@ -11,12 +11,14 @@ interface Props {
 const { title, eyebrow = "Marvin Platform" } = Astro.props;
 const path = Astro.url.pathname;
 
-// Check if user is admin
+// Check if user is admin and get platform role
 const authToken = getAuthToken(Astro.cookies);
 let isAdmin = false;
+let isSuperAdmin = false;
 try {
   const currentUser = await fetchApi<any>('/api/self', {}, authToken);
   isAdmin = currentUser?.admin === true;
+  isSuperAdmin = currentUser?.platform_role === 'SUPER_ADMIN';
 } catch (e) {
   // Not logged in or error
 }
@@ -60,7 +62,7 @@ const navGroups = [
 ];
 
 // Platform section for super admins only
-if (isAdmin) {
+if (isSuperAdmin) {
   navGroups.push({
     label: "Platform",
     items: [
@@ -70,7 +72,7 @@ if (isAdmin) {
     ]
   });
 
-  // Admin settings link
+  // Admin settings link - only for super admins
   navGroups.push({
     label: null,
     items: [
