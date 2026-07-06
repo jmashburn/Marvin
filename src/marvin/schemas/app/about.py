@@ -62,17 +62,55 @@ class AppTheme(_MarvinModel):
     dark_error: str = "#EF5350"  # Error color for dark theme.
 
 
+class FeatureStatus(_MarvinModel):
+    """Schema for feature status with enabled flag and optional description."""
+
+    enabled: bool
+    description: str | None = None
+
+
 class AppStartupInfo(_MarvinModel):
     """
     Schema for information relevant to the application's startup state.
 
-    NOTE: This model is currently defined as a placeholder (`...`).
-    It might be intended for future use to convey specific startup details,
-    or its definition might exist elsewhere (e.g., `marvin.schemas.admin.about.AppStartupInfo`
-    has fields `is_first_login` and `is_demo`).
+    Includes feature flags and configuration status for various integrations.
     """
 
-    ...  # Ellipsis indicates a placeholder, no fields defined here.
+    # SMTP / Email
+    smtp_enabled: bool
+    """Whether SMTP email is configured and enabled."""
+    smtp_feature: FeatureStatus | None = None
+    """Detailed SMTP feature status."""
+
+    # Apprise Notifications
+    apprise_enabled: bool = False
+    """Whether Apprise notifications are configured and enabled."""
+    apprise_feature: FeatureStatus | None = None
+    """Detailed Apprise feature status."""
+
+    # LDAP Authentication
+    ldap_enabled: bool = False
+    """Whether LDAP authentication is configured and enabled."""
+    ldap_feature: FeatureStatus | None = None
+    """Detailed LDAP feature status."""
+
+    # OIDC Authentication
+    oidc_enabled: bool = False
+    """Whether OIDC authentication is configured and enabled."""
+    oidc_feature: FeatureStatus | None = None
+    """Detailed OIDC feature status."""
+
+    # OpenAI Integration
+    openai_enabled: bool = False
+    """Whether OpenAI integration is configured and enabled."""
+    openai_feature: FeatureStatus | None = None
+    """Detailed OpenAI feature status."""
+
+    # Plugin System
+    plugin_enabled: bool = False
+    """Whether the plugin system is enabled."""
+    plugin_feature: FeatureStatus | None = None
+    """Detailed plugin feature status."""
 
 
 class AdminAboutInfo(AppInfo):  # Note: This extends the AppInfo defined *in this file*.

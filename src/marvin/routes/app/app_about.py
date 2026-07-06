@@ -11,7 +11,7 @@ from fastapi import Response  # APIRouter needed for router instantiation
 from marvin.core.config import get_app_settings
 from marvin.core.settings.static import APP_VERSION  # Current application version
 from marvin.routes._base import UserAPIRouter  # Base router for authenticated user endpoints
-from marvin.schemas.app import AppInfo, AppStartupInfo, AppTheme  # Pydantic response models
+from marvin.schemas.app import AppInfo, AppTheme  # Pydantic response models
 
 # APIRouter for "about" section, prefixed with /about and using UserAPIRouter for auth
 # All routes in this controller will be under /app/about due to UserAPIRouter in main app and this prefix.
@@ -37,24 +37,45 @@ def get_app_info() -> AppInfo:
     )
 
 
-@router.get("/startup-info", response_model=AppStartupInfo, summary="Get Application Startup Information")
-def get_startup_info() -> AppStartupInfo:
+@router.get("/startup-info", summary="Get Application Startup Information")
+def get_startup_info():
     """
-    Retrieves application startup information.
+    Retrieves application startup information including all feature availability.
 
-    NOTE: The `AppStartupInfo` schema is currently empty in the provided context.
-    This endpoint will return an empty object unless `AppStartupInfo` is defined
-    to include specific startup-related settings or data.
+    Returns the full settings object with all feature flags and configuration status.
+    Excludes sensitive fields like SECRET and ENV_SECRETS.
     Accessible to any authenticated user.
 
     Returns:
-        AppStartupInfo: A Pydantic model (currently empty) intended for startup information.
+        dict: Settings dictionary with all feature flags and configuration (camelCase).
     """
-    # settings = get_app_settings()  # Access application settings (though not used in current AppStartupInfo)
+    from humps import camelize
 
-    # Assuming AppStartupInfo might be populated with settings in the future.
-    # For now, it will return an empty AppStartupInfo object if the schema has no fields.
-    return AppStartupInfo()
+    settings = get_app_settings()
+
+    # Get settings as dict, excluding sensitive fields
+    data = settings.model_dump(
+        exclude={"theme", "SECRET", "ENV_SECRETS", "_logger"},
+        exclude_none=True,
+    )
+
+    # Add computed @property fields that aren't in model_dump
+    # FeatureDetails is a NamedTuple, convert to dict with _asdict()
+    data["SMTP_ENABLED"] = settings.SMTP_ENABLED
+    data["SMTP_FEATURE"] = settings.SMTP_FEATURE._asdict() if settings.SMTP_FEATURE else None
+    data["LDAP_ENABLED"] = settings.LDAP_ENABLED
+    data["LDAP_FEATURE"] = settings.LDAP_FEATURE._asdict() if settings.LDAP_FEATURE else None
+    data["OIDC_READY"] = settings.OIDC_READY
+    data["OIDC_FEATURE"] = settings.OIDC_FEATURE._asdict() if settings.OIDC_FEATURE else None
+    data["OPENAI_ENABLED"] = settings.OPENAI_ENABLED
+    data["OPENAI_FEATURE"] = settings.OPENAI_FEATURE._asdict() if settings.OPENAI_FEATURE else None
+    data["APPRISE_READY"] = settings.APPRISE_READY
+    data["APPRISE_FEATURE"] = settings.APPRISE_FEATURE._asdict() if settings.APPRISE_FEATURE else None
+    data["PLUGIN_ENABLED"] = settings.PLUGIN_ENABLED
+    data["PLUGIN_FEATURE"] = settings.PLUGIN_FEATURE._asdict() if settings.PLUGIN_FEATURE else None
+
+    # Convert keys to camelCase (lowercase first since env vars are SCREAMING_SNAKE_CASE)
+    return {camelize(key.lower()): value for key, value in data.items()}
 
 
 @router.get("/theme", response_model=AppTheme, summary="Get Application Theme Settings")

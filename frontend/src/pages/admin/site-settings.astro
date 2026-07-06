@@ -3,14 +3,62 @@ import AdminLayout from "@/layouts/AdminLayout.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
+let settings: any = null;
 
 try {
   const currentUser = await fetchApi<any>('/api/self', {}, authToken);
   if (currentUser?.admin !== true) {
     return Astro.redirect('/');
   }
+
+  // Fetch all settings
+  try {
+    settings = await fetchApi<any>('/api/app/about/startup-info', {}, authToken);
+  } catch (e) {
+    console.error('Could not fetch settings:', e);
+  }
 } catch (e) {
   return Astro.redirect('/');
+}
+
+// Group settings by prefix
+const settingsGroups: Record<string, any> = {};
+const featureSettings: any[] = [];
+
+if (settings) {
+  Object.entries(settings).forEach(([key, value]) => {
+    // Extract features (enabled/feature pairs)
+    if (key.endsWith('Enabled') || key.endsWith('Ready')) {
+      const baseName = key.replace(/Enabled$|Ready$/, '');
+      const featureKey = baseName + 'Feature';
+      featureSettings.push({
+        name: baseName,
+        enabled: value,
+        feature: settings[featureKey]
+      });
+      return;
+    }
+    if (key.endsWith('Feature')) {
+      return; // Skip, handled above
+    }
+
+    // Group by prefix (first word before capital letter)
+    const match = key.match(/^([a-z]+)/);
+    const prefix = match ? match[1] : 'general';
+
+    if (!settingsGroups[prefix]) {
+      settingsGroups[prefix] = [];
+    }
+    settingsGroups[prefix].push({ key, value });
+  });
+}
+
+// Convert camelCase to Title Case
+function toTitleCase(str: string) {
+  return str
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (s) => s.toUpperCase())
+    .trim();
 }
 ---
 
@@ -23,14 +71,50 @@ try {
   </div>
 
   <div class="page-container">
-    <section class="settings-section">
-      <h3>Platform Configuration</h3>
-      <p class="section-description">Global settings for the Marvin platform</p>
-      <div class="coming-soon">
-        <p>🚧 Site settings configuration coming soon</p>
-        <p class="hint">This will allow configuration of platform name, branding, authentication methods, and more.</p>
-      </div>
-    </section>
+    <div class="settings-grid">
+      <!-- Feature Status -->
+      {featureSettings.length > 0 && (
+        <section class="card">
+          <h3>Features Status</h3>
+          <p class="card-description">Enabled integrations and features</p>
+          <div class="features-list">
+            {featureSettings.map(({name, enabled, feature}) => (
+              <div class="feature-item">
+                <div class="feature-info">
+                  <span class="feature-name">{toTitleCase(name)}</span>
+                  {!enabled && feature?.description && (
+                    <span class="feature-note">{feature.description}</span>
+                  )}
+                </div>
+                <span class={`feature-badge ${enabled ? 'enabled' : 'disabled'}`}>
+                  {enabled ? '● Enabled' : '○ Disabled'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- Dynamic Settings Groups -->
+      {Object.entries(settingsGroups).map(([prefix, items]) => (
+        <section class="card">
+          <h3>{toTitleCase(prefix)} Settings</h3>
+          <p class="card-description">Configuration for {prefix}</p>
+          <div class="settings-display">
+            {items.map(({key, value}) => (
+              <div class="setting-item">
+                <span class="setting-label">{toTitleCase(key)}</span>
+                <span class="setting-value">
+                  {typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
+                   typeof value === 'object' && value !== null ? JSON.stringify(value) :
+                   value?.toString() || '(not set)'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   </div>
 </AdminLayout>
 
@@ -57,44 +141,110 @@ try {
   }
 
   .page-container {
-    max-width: 900px;
+    max-width: 1200px;
   }
 
-  .settings-section {
+  .settings-grid {
+    display: grid;
+    gap: 24px;
+  }
+
+  .card {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     padding: 24px;
   }
 
-  .settings-section h3 {
+  .card h3 {
     margin: 0 0 4px;
     font-size: 18px;
     font-weight: 600;
   }
 
-  .section-description {
+  .card-description {
     margin: 0 0 20px;
     font-size: 14px;
     color: var(--muted);
   }
 
-  .coming-soon {
-    padding: 40px 24px;
-    text-align: center;
+  .settings-display {
+    display: grid;
+    gap: 12px;
+  }
+
+  .setting-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 14px;
     background: var(--panel-2);
     border-radius: var(--radius);
   }
 
-  .coming-soon p {
-    margin: 0 0 8px;
-    font-size: 16px;
+  .setting-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
   }
 
-  .coming-soon .hint {
+  .setting-value {
     font-size: 14px;
+    font-family: ui-monospace, monospace;
+    color: var(--text);
+  }
+
+  .features-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .feature-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .feature-name {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .feature-note {
+    font-size: 12px;
     color: var(--muted);
-    max-width: 400px;
-    margin: 0 auto;
+    font-style: italic;
+  }
+
+  .feature-badge {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .feature-badge.enabled {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .feature-badge.disabled {
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--line);
   }
 </style>
