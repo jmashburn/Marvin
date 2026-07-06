@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import HTTPException, status
 from pydantic import UUID4
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
@@ -22,6 +22,15 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             sql_model=Entries,
             schema=EntryRead,
             group_id=group_id,
+        )
+
+    def _get_base_query(self):
+        """Override to eagerly load collections, assets, and resources relationships."""
+        query = super()._get_base_query()
+        return query.options(
+            joinedload(Entries.collections),
+            joinedload(Entries.assets),
+            joinedload(Entries.resources)
         )
 
     def _entry_type_exists(self, entry_type_id: UUID4) -> bool:
