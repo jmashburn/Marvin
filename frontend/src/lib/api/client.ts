@@ -80,13 +80,22 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       if (DEV_MODE && attempt === 0) {
-        console.debug(`[API] ${init.method || 'GET'} ${path}`);
+        const context = typeof window === 'undefined' ? 'SSR' : 'Client';
+        console.log(`[${context}] ➡️  ${init.method || 'GET'} ${path}`);
         if (authToken) {
-          console.debug(`[API] Using auth token: ${authToken.substring(0, 20)}...`);
+          console.log(`[${context}]    Auth: ${authToken.substring(0, 20)}...`);
         }
       }
 
+      const startTime = DEV_MODE ? Date.now() : 0;
       const response = await fetch(url, fetchInit);
+
+      if (DEV_MODE && attempt === 0) {
+        const duration = Date.now() - startTime;
+        const context = typeof window === 'undefined' ? 'SSR' : 'Client';
+        const statusEmoji = response.ok ? '✅' : '❌';
+        console.log(`[${context}] ${statusEmoji} ${init.method || 'GET'} ${path} → ${response.status} (${duration}ms)`);
+      }
 
       // Handle 401 Unauthorized - redirect to login
       if (response.status === 401) {
@@ -148,11 +157,6 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
       }
 
       const data = await response.json() as T;
-
-      if (DEV_MODE) {
-        console.debug(`[API] ${init.method || 'GET'} ${path} -> OK`);
-      }
-
       return data;
 
     } catch (error) {

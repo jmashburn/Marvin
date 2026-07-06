@@ -130,6 +130,34 @@ if not settings.PRODUCTION:
 else:
     logger.info("CORS middleware not enabled in production environment (or using different production CORS config).")
 
+# Add request logging middleware for development
+if not settings.PRODUCTION:
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request
+    import time
+
+    class RequestLoggingMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            start_time = time.time()
+
+            # Log incoming request
+            logger.info(f"➡️  {request.method} {request.url.path}")
+            if request.query_params:
+                logger.debug(f"   Query: {dict(request.query_params)}")
+
+            # Process request
+            response = await call_next(request)
+
+            # Log response
+            duration = (time.time() - start_time) * 1000  # Convert to milliseconds
+            status_emoji = "✅" if response.status_code < 400 else "❌"
+            logger.info(f"{status_emoji} {request.method} {request.url.path} → {response.status_code} ({duration:.0f}ms)")
+
+            return response
+
+    app.add_middleware(RequestLoggingMiddleware)
+    logger.info("Request logging middleware enabled for development.")
+
 
 async def start_scheduler() -> None:
     """
