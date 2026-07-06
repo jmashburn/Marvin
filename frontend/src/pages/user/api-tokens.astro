@@ -83,6 +83,9 @@ function formatDate(date: string | null | undefined): string {
 
 <script>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
+
+  const authToken = getAuthToken();
 
   // Copy token button
   const copyBtn = document.getElementById('copy-token-btn');
@@ -106,7 +109,7 @@ function formatDate(date: string | null | undefined): string {
       try {
         const data = await fetchApi(`/api/api-tokens/${id}/rotate`, {
           method: 'POST',
-        });
+        }, authToken);
 
         window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(name)}`;
       } catch (error) {
@@ -126,7 +129,7 @@ function formatDate(date: string | null | undefined): string {
       try {
         await fetchApi(`/api/api-tokens/${id}`, {
           method: 'DELETE',
-        });
+        }, authToken);
 
         window.location.reload();
       } catch (error) {

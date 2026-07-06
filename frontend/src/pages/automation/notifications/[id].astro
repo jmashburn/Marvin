@@ -91,7 +91,9 @@ try {
 
 <script define:vars={{ id }}>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
 
+  const authToken = getAuthToken();
   const form = document.getElementById('update-notification-form');
   const deleteBtn = document.getElementById('delete-btn');
 
@@ -111,7 +113,7 @@ try {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      }, authToken);
 
       window.location.href = '/automation/notifications?updated=true';
     } catch (error) {
@@ -126,7 +128,7 @@ try {
     try {
       await fetchApi(`/api/group/notifications/${id}`, {
         method: 'DELETE',
-      });
+      }, authToken);
 
       window.location.href = '/automation/notifications?deleted=true';
     } catch (error) {

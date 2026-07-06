@@ -138,6 +138,9 @@ try {
 
 <script>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
+
+  const authToken = getAuthToken();
 
   // Helper to run cleanup tasks
   async function runCleanupTask(event: Event, endpoint: string, confirmMessage: string, successMessage: string) {
@@ -152,7 +155,7 @@ try {
 
       const result = await fetchApi<{ message?: string }>(`/api/admin/maintenance/${endpoint}`, {
         method: 'POST',
-      });
+      }, authToken);
 
       alert(result.message || successMessage);
       window.location.reload();

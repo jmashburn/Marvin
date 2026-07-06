@@ -279,6 +279,9 @@ const authMethods = [
 
 <script define:vars={{ userId: user?.id }}>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
+
+  const authToken = getAuthToken();
 
   // Update user form
   const updateForm = document.getElementById('update-user-form');
@@ -300,7 +303,7 @@ const authMethods = [
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
-      });
+      }, authToken);
 
       window.location.href = '/admin/users';
     } catch (error) {
@@ -327,7 +330,7 @@ const authMethods = [
     try {
       await fetchApi(`/api/admin/users/${userId}`, {
         method: 'DELETE',
-      });
+      }, authToken);
 
       window.location.href = '/admin/users';
     } catch (error) {
@@ -359,7 +362,7 @@ const authMethods = [
           user_id: userId,
           workspace_role: role,
         }),
-      });
+      }, authToken);
 
       window.location.reload();
     } catch (error) {
@@ -383,7 +386,7 @@ const authMethods = [
       try {
         await fetchApi(`/api/admin/workspaces/${workspaceId}/members/${userId}`, {
           method: 'DELETE',
-        });
+        }, authToken);
 
         window.location.reload();
       } catch (error) {

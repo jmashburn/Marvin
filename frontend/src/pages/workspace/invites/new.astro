@@ -65,11 +65,14 @@ try {
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
+      const { getAuthToken } = await import('@/lib/client-auth');
+      const authToken = getAuthToken();
+
       await fetchApi('/api/groups/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uses_left: usesLeft }),
-      });
+      }, authToken);
 
       window.location.href = '/workspace/invites?created=true';
     } catch (error) {

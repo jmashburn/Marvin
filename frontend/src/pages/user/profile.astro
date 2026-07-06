@@ -80,11 +80,14 @@ try {
 
       try {
         const { fetchApi } = await import('@/lib/api/client');
+        const { getAuthToken } = await import('@/lib/client-auth');
+        const authToken = getAuthToken();
+
         await fetchApi(`/api/users/${userId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
-        });
+        }, authToken);
 
         window.location.href = '/user/profile?success=1';
       } catch (err) {

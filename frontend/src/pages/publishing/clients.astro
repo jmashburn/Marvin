@@ -189,6 +189,9 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 
 <script>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
+
+  const authToken = getAuthToken();
 
   // Copy token to clipboard
   document.getElementById('copy-token')?.addEventListener('click', async () => {
@@ -226,7 +229,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       }
 
       try {
-        const data = await fetchApi(`/api/api-clients/${clientSlug}/preview`);
+        const data = await fetchApi(`/api/api-clients/${clientSlug}/preview`, {}, authToken);
         const modal = document.getElementById('preview-modal') as HTMLDialogElement;
         const subtitle = document.getElementById('preview-subtitle');
         const content = document.getElementById('preview-content');
@@ -278,7 +281,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
         try {
           const result = await fetchApi(`/api/api-clients/${clientSlug}/rotate-token`, {
             method: 'POST',
-          });
+          }, authToken);
 
           // Redirect with token in query (will be shown in modal)
           window.location.href = `/publishing/clients?token=${encodeURIComponent(result.token)}&client_name=${encodeURIComponent(clientName)}`;
@@ -304,7 +307,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: !currentEnabled })
-        });
+        }, authToken);
 
         // Reload page
         window.location.reload();

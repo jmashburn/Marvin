@@ -234,11 +234,14 @@ const defaultEvents = [
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
+      const { getAuthToken } = await import('@/lib/client-auth');
+      const authToken = getAuthToken();
+
       await fetchApi('/api/group/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      }, authToken);
 
       window.location.href = '/automation/notifications?created=true';
     } catch (error) {

@@ -110,6 +110,9 @@ function formatScheduledTime(time: string | null | undefined): string {
 
 <script>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
+
+  const authToken = getAuthToken();
 
   // Toggle webhook enabled/disabled
   document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
@@ -122,7 +125,7 @@ function formatScheduledTime(time: string | null | undefined): string {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: !currentlyEnabled }),
-        });
+        }, authToken);
 
         window.location.reload();
       } catch (error) {
@@ -142,7 +145,7 @@ function formatScheduledTime(time: string | null | undefined): string {
       try {
         await fetchApi(`/api/groups/webhooks/${id}`, {
           method: 'DELETE',
-        });
+        }, authToken);
 
         window.location.reload();
       } catch (error) {

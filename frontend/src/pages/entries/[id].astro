@@ -886,11 +886,14 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
       // Submit via fetch
       try {
         const { fetchApi } = await import('@/lib/api/client');
+        const { getAuthToken } = await import('@/lib/client-auth');
+        const authToken = getAuthToken();
+
         await fetchApi(entryForm.action, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
-        });
+        }, authToken);
 
         // Reload page to show updated data
         window.location.reload();

@@ -167,11 +167,14 @@ const metadataStr = resource?.metadata ? JSON.stringify(resource.metadata, null,
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
+      const { getAuthToken } = await import('@/lib/client-auth');
+      const authToken = getAuthToken();
+
       await fetchApi(`/api/resources/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      }, authToken);
 
       window.location.href = '/workspace/resources?updated=true';
     } catch (error) {
@@ -185,9 +188,12 @@ const metadataStr = resource?.metadata ? JSON.stringify(resource.metadata, null,
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
+      const { getAuthToken } = await import('@/lib/client-auth');
+      const authToken = getAuthToken();
+
       await fetchApi(`/api/resources/${id}`, {
         method: 'DELETE',
-      });
+      }, authToken);
 
       window.location.href = '/workspace/resources?deleted=true';
     } catch (error) {

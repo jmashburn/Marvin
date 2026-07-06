@@ -256,13 +256,16 @@ try {
 
       try {
         const { fetchApi } = await import('@/lib/api/client');
+        const { getAuthToken } = await import('@/lib/client-auth');
+        const authToken = getAuthToken();
+
         await fetchApi(`/api/groups/${workspaceId}/preferences`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(data),
-        });
+        }, authToken);
 
         window.location.href = '/publishing/site?success=1';
       } catch (err) {

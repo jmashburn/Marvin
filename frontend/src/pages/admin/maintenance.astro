@@ -144,6 +144,9 @@ try {
 
 <script>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
+
+  const authToken = getAuthToken();
 
   // Cleanup tokens
   document.getElementById('cleanup-tokens')?.addEventListener('click', async () => {
@@ -152,7 +155,7 @@ try {
     try {
       const result = await fetchApi<{ message?: string }>('/api/admin/maintenance/cleanup-tokens', {
         method: 'POST',
-      });
+      }, authToken);
       alert(result.message || 'Cleanup completed successfully');
       window.location.reload();
     } catch (error) {

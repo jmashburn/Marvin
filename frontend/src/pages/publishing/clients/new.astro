@@ -111,13 +111,16 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
       try {
         const { fetchApi } = await import('@/lib/api/client');
+        const { getAuthToken } = await import('@/lib/client-auth');
+        const authToken = getAuthToken();
+
         const result = await fetchApi('/api/api-clients', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(data),
-        });
+        }, authToken);
 
         console.log('API Client created:', result);
         console.log('Token:', result.token);

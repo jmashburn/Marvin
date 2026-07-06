@@ -82,6 +82,9 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
 <script>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
+
+  const authToken = getAuthToken();
 
   // Set default scheduled time to now
   const now = new Date();
@@ -108,7 +111,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      }, authToken);
 
       window.location.href = '/automation/webhooks?created=true';
     } catch (error) {

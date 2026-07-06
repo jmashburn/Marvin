@@ -145,7 +145,9 @@ const success = urlParams.get('success') === '1';
 
 <script>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
 
+  const authToken = getAuthToken();
   const form = document.getElementById('workspace-settings-form') as HTMLFormElement;
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
   const deleteBtn = document.getElementById('delete-workspace-btn') as HTMLButtonElement;
@@ -174,7 +176,7 @@ const success = urlParams.get('success') === '1';
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
-        });
+        }, authToken);
 
         window.location.href = '/workspace/settings?success=1';
       } catch (err) {
@@ -225,7 +227,7 @@ const success = urlParams.get('success') === '1';
       try {
         await fetchApi(`/api/admin/groups/${workspaceId}?force=true`, {
           method: 'DELETE',
-        });
+        }, authToken);
 
         alert('Workspace deleted successfully. Redirecting...');
         window.location.href = '/';

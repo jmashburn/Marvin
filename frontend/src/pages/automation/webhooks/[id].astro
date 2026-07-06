@@ -111,7 +111,9 @@ if (webhook?.scheduled_time) {
 
 <script define:vars={{ id }}>
   import { fetchApi } from '@/lib/api/client';
+  import { getAuthToken } from '@/lib/client-auth';
 
+  const authToken = getAuthToken();
   const form = document.getElementById('update-webhook-form');
   const deleteBtn = document.getElementById('delete-btn');
 
@@ -134,7 +136,7 @@ if (webhook?.scheduled_time) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      });
+      }, authToken);
 
       window.location.href = '/automation/webhooks?updated=true';
     } catch (error) {
@@ -149,7 +151,7 @@ if (webhook?.scheduled_time) {
     try {
       await fetchApi(`/api/groups/webhooks/${id}`, {
         method: 'DELETE',
-      });
+      }, authToken);
 
       window.location.href = '/automation/webhooks?deleted=true';
     } catch (error) {
