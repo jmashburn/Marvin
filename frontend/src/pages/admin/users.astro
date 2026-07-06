@@ -4,6 +4,7 @@ import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 let users: any[] = [];
+let groups: any[] = [];
 let error: string | null = null;
 
 try {
@@ -12,12 +13,20 @@ try {
     return Astro.redirect('/');
   }
 
-  const response = await fetchApi<any>('/api/admin/users', {}, authToken);
-  users = response.items || [];
+  const [usersResponse, groupsResponse] = await Promise.all([
+    fetchApi<any>('/api/admin/users', {}, authToken),
+    fetchApi<any>('/api/admin/groups', {}, authToken),
+  ]);
+
+  users = usersResponse.items || [];
+  groups = groupsResponse.items || [];
 } catch (e) {
   console.error('[admin/users] Error loading:', e);
   error = e instanceof Error ? e.message : String(e);
 }
+
+// Create a map of group IDs to names
+const groupMap = new Map(groups.map((g: any) => [g.id, g.name]));
 ---
 
 <AdminLayout title="Users">
@@ -47,13 +56,67 @@ try {
           <div class="user-card">
             <div class="user-info">
               <div class="user-header">
-                <strong>{user.full_name || user.username}</strong>
+                <strong>{user.fullName || user.username}</strong>
                 {user.admin && <span class="admin-badge">Admin</span>}
+                {user.platformRole === 'SUPER_ADMIN' && <span class="super-admin-badge">Super Admin</span>}
               </div>
               <p class="user-email">{user.email}</p>
               <div class="user-meta">
                 <span>Username: {user.username}</span>
-                {user.group && <span>• Workspace: {user.group.name || user.group_id}</span>}
+              </div>
+              <div class="workspace-info">
+                {(() => {
+                  // Combine default workspace with additional memberships
+                  const allWorkspaces = [];
+
+                  // Add default workspace first
+                  if (user.group) {
+                    allWorkspaces.push({
+                      name: user.group,
+                      role: 'MEMBER', // Default workspace doesn't have explicit role
+                      isDefault: true
+                    });
+                  }
+
+                  // Add additional workspace memberships
+                  if (user.workspaceMemberships && user.workspaceMemberships.length > 0) {
+                    user.workspaceMemberships.forEach((membership: any) => {
+                      // Only add if it's not the same as default workspace
+                      if (membership.groupId !== user.groupId) {
+                        allWorkspaces.push({
+                          name: groupMap.get(membership.groupId) || membership.groupId,
+                          role: membership.workspaceRole,
+                          isDefault: false
+                        });
+                      } else {
+                        // Update default workspace with actual role
+                        const defaultWs = allWorkspaces.find((w: any) => w.isDefault);
+                        if (defaultWs) {
+                          defaultWs.role = membership.workspaceRole;
+                        }
+                      }
+                    });
+                  }
+
+                  return allWorkspaces.length > 0 && (
+                    <div class="workspace-item">
+                      <span class="workspace-label">Workspace Access ({allWorkspaces.length}):</span>
+                      <div class="workspaces-grid">
+                        {allWorkspaces.map((ws: any) => (
+                          <div class="workspace-entry">
+                            <span class="workspace-entry-name">
+                              {ws.name}
+                              {ws.isDefault && <span class="default-indicator">(Default)</span>}
+                            </span>
+                            <span class={`membership-badge role-${ws.role.toLowerCase()}`}>
+                              {ws.role}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div class="user-actions">
@@ -190,5 +253,118 @@ try {
   .button.small {
     padding: 6px 14px;
     font-size: 13px;
+  }
+
+  .super-admin-badge {
+    padding: 2px 8px;
+    background: rgb(220 38 38 / 0.1);
+    color: #dc2626;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .workspace-info {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 10px;
+  }
+
+  .workspace-item {
+    display: grid;
+    gap: 6px;
+  }
+
+  .workspace-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .workspace-name {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .workspaces-grid {
+    display: grid;
+    gap: 8px;
+  }
+
+  .workspace-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+
+  .workspace-entry-name {
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .default-indicator {
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .memberships-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .membership-badge {
+    padding: 4px 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .membership-badge.role-owner {
+    background: rgb(169 77 63 / 0.15);
+    color: var(--accent);
+    border-color: rgb(169 77 63 / 0.3);
+  }
+
+  .membership-badge.role-admin {
+    background: rgb(47 111 115 / 0.15);
+    color: var(--accent-2);
+    border-color: rgb(47 111 115 / 0.3);
+  }
+
+  .membership-badge.role-editor {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+    border-color: rgb(53 122 85 / 0.3);
+  }
+
+  .membership-badge.role-author {
+    background: rgb(189 145 64 / 0.15);
+    color: var(--gold);
+    border-color: rgb(189 145 64 / 0.3);
+  }
+
+  .membership-badge.role-viewer {
+    background: var(--panel-2);
+    color: var(--muted);
   }
 </style>

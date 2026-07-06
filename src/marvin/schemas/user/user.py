@@ -461,7 +461,9 @@ class UserSummary(_MarvinModel):
     """The unique identifier of the group the user belongs to."""
     username: str
     """The user's username."""
-    full_name: str | None  # Made optional to match UserSQLModel
+    email: str | None = None
+    """The user's email address."""
+    full_name: str | None = None  # Made optional to match UserSQLModel
     """The user's full name."""
     model_config = ConfigDict(from_attributes=True)
 
