@@ -36,69 +36,42 @@ try {
       </div>
 
       <div class="quick-links">
+        <a href="/workspace/settings" class="quick-link-card">
+          <div class="card-icon">⚙</div>
+          <h3>Workspace Settings</h3>
+          <p>Configure workspace name and preferences</p>
+        </a>
+
         <a href="/workspace/members" class="quick-link-card">
           <div class="card-icon">👥</div>
           <h3>Members</h3>
           <p>Manage team members and permissions</p>
-          {stats?.members_count && <div class="card-stat">{stats.members_count} members</div>}
         </a>
 
         <a href="/workspace/invites" class="quick-link-card">
           <div class="card-icon">✉️</div>
           <h3>Invitations</h3>
           <p>Create and manage invitation links</p>
-          {stats?.invites_count && <div class="card-stat">{stats.invites_count} active</div>}
         </a>
 
         <a href="/workspace/resources" class="quick-link-card">
           <div class="card-icon">📦</div>
           <h3>Resources</h3>
           <p>Track materials, tools, and suppliers</p>
-          {stats?.resources_count && <div class="card-stat">{stats.resources_count} resources</div>}
         </a>
 
         <a href="/workspace/notifications" class="quick-link-card">
           <div class="card-icon">🔔</div>
           <h3>Notifications</h3>
           <p>Configure event notifications</p>
-          {stats?.notifications_count && <div class="card-stat">{stats.notifications_count} configured</div>}
         </a>
 
         <a href="/workspace/webhooks" class="quick-link-card">
           <div class="card-icon">🔗</div>
           <h3>Webhooks</h3>
           <p>Integrate with external services</p>
-          {stats?.webhooks_count && <div class="card-stat">{stats.webhooks_count} active</div>}
-        </a>
-
-        <a href="/workspace/settings" class="quick-link-card">
-          <div class="card-icon">⚙</div>
-          <h3>Workspace Settings</h3>
-          <p>Configure workspace details and preferences</p>
         </a>
       </div>
-
-      {workspace?.workspace.slug && (
-        <div class="workspace-info">
-          <h3>Workspace Information</h3>
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">Workspace Name</span>
-              <span class="info-value">{workspace.workspace.name}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Workspace Slug</span>
-              <code class="info-value">{workspace.workspace.slug}</code>
-            </div>
-            {workspace.workspace.id && (
-              <div class="info-item">
-                <span class="info-label">Workspace ID</span>
-                <code class="info-value">{workspace.workspace.id}</code>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )}
 </AppLayout>
