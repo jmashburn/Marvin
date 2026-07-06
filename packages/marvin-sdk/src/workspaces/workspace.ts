@@ -47,11 +47,17 @@ export class Workspace {
    * Load site configuration
    */
   async loadSite(): Promise<MarvinSite> {
-    // TODO: Implement this endpoint in Marvin backend
-    // Expected: GET /api/publish/{workspaceSlug}/site
     const endpoint = `/api/publish/${this._slug}/site`;
     this._site = await this.http.fetch<MarvinSite>(endpoint);
     return this._site;
+  }
+
+  /**
+   * Get workspace info (name and slug only)
+   */
+  async getInfo(): Promise<{ slug: string; name: string }> {
+    const endpoint = `/api/publish/${this._slug}`;
+    return this.http.fetch<{ slug: string; name: string }>(endpoint);
   }
 
   /**

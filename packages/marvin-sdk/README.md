@@ -421,6 +421,18 @@ Initialize the SDK and preload workspace data.
 
 Get the workspace object.
 
+#### `marvin.getWorkspaceInfo()`
+
+Get basic workspace information (name and slug only).
+
+**Returns:**
+```ts
+{
+  slug: string;
+  name: string;
+}
+```
+
 #### `marvin.entry(slug)`
 
 Get a single entry by slug (returns `Entry` object).
@@ -443,9 +455,21 @@ Get all projects.
 
 ### Workspace
 
+#### `workspace.slug`
+
+The workspace slug (string).
+
 #### `workspace.site`
 
 Site configuration (cached after `initialize()`).
+
+#### `workspace.getInfo()`
+
+Get workspace info (name and slug).
+
+#### `workspace.loadSite()`
+
+Load/reload site configuration from the API.
 
 #### `workspace.entries`
 
@@ -589,6 +613,7 @@ The SDK uses these Marvin publishing API endpoints:
 
 | Endpoint | Method | Purpose | Status |
 |----------|--------|---------|--------|
+| `/api/publish/{workspace}` | GET | Workspace info (name, slug) | ✅ Implemented |
 | `/api/publish/{workspace}/site` | GET | Site configuration | ✅ Implemented |
 | `/api/publish/{workspace}/entries` | GET | List entries | ✅ Implemented |
 | `/api/publish/{workspace}/entries/{slug}` | GET | Get entry | ✅ Implemented |

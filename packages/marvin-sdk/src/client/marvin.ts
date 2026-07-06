@@ -71,6 +71,13 @@ export class MarvinClient {
   }
 
   /**
+   * Get workspace info (name and slug)
+   */
+  async getWorkspaceInfo(): Promise<{ slug: string; name: string }> {
+    return this.workspace.getInfo();
+  }
+
+  /**
    * Get entries module
    */
   get entries() {
