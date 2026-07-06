@@ -97,6 +97,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
   import { slugify } from '@/lib/utils';
 
   const form = document.getElementById('create-resource-form');
@@ -133,14 +134,12 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
-      const { getAuthToken } = await import('@/lib/client-auth');
-      const authToken = getAuthToken();
 
       await fetchApi('/api/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }, authToken);
+      });
 
       window.location.href = '/workspace/resources?created=true';
     } catch (error) {

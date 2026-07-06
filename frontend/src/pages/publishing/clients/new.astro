@@ -89,6 +89,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
   const form = document.getElementById('create-client-form') as HTMLFormElement;
   if (form) {
     form.addEventListener('submit', async (e) => {
@@ -111,8 +112,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
       try {
         const { fetchApi } = await import('@/lib/api/client');
-        const { getAuthToken } = await import('@/lib/client-auth');
-        const authToken = getAuthToken();
 
         const result = await fetchApi('/api/api-clients', {
           method: 'POST',
@@ -120,7 +119,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(data),
-        }, authToken);
+        });
 
         console.log('API Client created:', result);
         console.log('Token:', result.token);

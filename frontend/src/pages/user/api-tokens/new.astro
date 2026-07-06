@@ -53,6 +53,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
   const form = document.getElementById('create-token-form');
 
   form?.addEventListener('submit', async (e) => {
@@ -66,14 +67,12 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
-      const { getAuthToken } = await import('@/lib/client-auth');
-      const authToken = getAuthToken();
 
       const data = await fetchApi('/api/api-tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }, authToken);
+      });
 
       // Redirect to list page with token and name in query params
       window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(payload.name as string)}`;

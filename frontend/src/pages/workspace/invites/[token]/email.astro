@@ -66,6 +66,7 @@ const registerUrl = `${Astro.url.origin}/register?invite=${token}`;
 </AppLayout>
 
 <script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
   const form = document.getElementById('email-form');
 
   form?.addEventListener('submit', async (e) => {
@@ -79,14 +80,12 @@ const registerUrl = `${Astro.url.origin}/register?invite=${token}`;
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
-      const { getAuthToken } = await import('@/lib/client-auth');
-      const authToken = getAuthToken();
 
       await fetchApi('/api/groups/invitations/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }, authToken);
+      });
 
       window.location.href = '/workspace/invites?sent=true';
     } catch (error) {

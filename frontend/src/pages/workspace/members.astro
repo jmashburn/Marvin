@@ -149,10 +149,8 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
 </AppLayout>
 
 <script define:vars={{ workspaceId: workspace?.workspace?.id, canManage }}>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
   import { fetchApi } from '@/lib/api/client';
-  import { getAuthToken } from '@/lib/client-auth';
-
-  const authToken = getAuthToken();
 
   // Role change
   if (canManage) {
@@ -170,7 +168,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ workspace_role: newRole }),
-          }, authToken);
+          });
 
           window.location.reload();
         } catch (error) {
@@ -215,7 +213,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
     try {
       await fetchApi(`/api/workspaces/${workspaceId}/members/${userToRemove}`, {
         method: 'DELETE',
-      }, authToken);
+      });
 
       window.location.reload();
     } catch (error) {

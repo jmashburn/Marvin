@@ -86,6 +86,7 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 </AppLayout>
 
 <script define:vars={{ workspaceId: workspace?.workspace?.id }}>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
   const form = document.getElementById('add-member-form');
 
   form?.addEventListener('submit', async (e) => {
@@ -94,8 +95,6 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
-      const { getAuthToken } = await import('@/lib/client-auth');
-      const authToken = getAuthToken();
 
       await fetchApi(`/api/workspaces/${workspaceId}/members`, {
         method: 'POST',
@@ -104,7 +103,7 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
           user_id: formData.get('user_id'),
           workspace_role: formData.get('workspace_role'),
         }),
-      }, authToken);
+      });
 
       window.location.href = '/workspace/members?added=true';
     } catch (error) {
