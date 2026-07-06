@@ -15,10 +15,23 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
+// Get filter from query params
+const filter = Astro.url.searchParams.get("filter") ?? "top";
+
 // Get top enabled events (most important ones)
 const topEvents = eventOptions
   .filter(e => e.enabled)
   .slice(0, 12);
+
+// Filter events based on selection
+let filteredEvents = eventOptions;
+if (filter === "top") {
+  filteredEvents = topEvents;
+} else if (filter === "enabled") {
+  filteredEvents = eventOptions.filter(e => e.enabled);
+} else if (filter === "disabled") {
+  filteredEvents = eventOptions.filter(e => !e.enabled);
+}
 
 const totalEvents = eventOptions.length;
 const enabledEvents = eventOptions.filter(e => e.enabled).length;
@@ -69,55 +82,37 @@ const enabledEvents = eventOptions.filter(e => e.enabled).length;
 
       <section class="events-section">
         <div class="section-header">
-          <div>
-            <h3>Available Event Types</h3>
-            <p class="section-description">
-              {enabledEvents} enabled out of {totalEvents} total event types
-            </p>
-          </div>
-          <button id="toggle-all-events" class="button secondary small">
-            View All {totalEvents} Events
-          </button>
+          <h3>Available Event Types</h3>
+          <nav class="segmented" aria-label="Event filter">
+            <a href="/automation/events?filter=top" aria-current={filter === "top" ? "page" : undefined}>
+              top
+            </a>
+            <a href="/automation/events?filter=enabled" aria-current={filter === "enabled" ? "page" : undefined}>
+              enabled ({enabledEvents})
+            </a>
+            <a href="/automation/events?filter=disabled" aria-current={filter === "disabled" ? "page" : undefined}>
+              disabled ({totalEvents - enabledEvents})
+            </a>
+            <a href="/automation/events?filter=all" aria-current={filter === "all" ? "page" : undefined}>
+              all ({totalEvents})
+            </a>
+          </nav>
         </div>
 
-        <div id="top-events" class="event-types-grid">
-          {topEvents.map(event => (
-            <div class="event-type">
-              <strong>{event.name}</strong>
-              <p>{event.description}</p>
+        <div class="event-types-grid">
+          {filteredEvents.map(event => (
+            <div class={`event-type ${event.enabled ? 'enabled' : 'disabled'}`}>
+              <div class="event-header">
+                <span class={`event-status ${event.enabled ? 'status-enabled' : 'status-disabled'}`}>
+                  {event.enabled ? '●' : '○'}
+                </span>
+                <strong>{event.name}</strong>
+              </div>
+              {event.description && (
+                <p>{event.description}</p>
+              )}
             </div>
           ))}
-        </div>
-
-        <div id="all-events" class="all-events-container" style="display: none;">
-          <div class="search-container">
-            <input
-              type="text"
-              id="event-search"
-              placeholder="Search events..."
-              class="search-input"
-            />
-          </div>
-
-          <div class="event-types-list">
-            {eventOptions.map(event => (
-              <div
-                class={`event-list-item ${event.enabled ? 'enabled' : 'disabled'}`}
-                data-event-name={event.name.toLowerCase()}
-                data-event-description={event.description?.toLowerCase() || ''}
-              >
-                <div class="event-list-header">
-                  <span class={`event-status ${event.enabled ? 'status-enabled' : 'status-disabled'}`}>
-                    {event.enabled ? '●' : '○'}
-                  </span>
-                  <strong>{event.name}</strong>
-                </div>
-                {event.description && (
-                  <p class="event-list-description">{event.description}</p>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -146,57 +141,6 @@ const enabledEvents = eventOptions.filter(e => e.enabled).length;
     </div>
   )}
 </AppLayout>
-
-<script>
-  const toggleButton = document.getElementById('toggle-all-events');
-  const topEvents = document.getElementById('top-events');
-  const allEvents = document.getElementById('all-events');
-  const searchInput = document.getElementById('event-search') as HTMLInputElement;
-
-  let showingAll = false;
-
-  toggleButton?.addEventListener('click', () => {
-    showingAll = !showingAll;
-
-    if (showingAll) {
-      topEvents!.style.display = 'none';
-      allEvents!.style.display = 'block';
-      toggleButton.textContent = 'Show Less';
-    } else {
-      topEvents!.style.display = 'grid';
-      allEvents!.style.display = 'none';
-      toggleButton.textContent = `View All ${toggleButton.getAttribute('data-total')} Events`;
-      searchInput.value = '';
-      filterEvents();
-    }
-  });
-
-  // Store total count
-  if (toggleButton) {
-    const totalText = toggleButton.textContent || '';
-    const total = totalText.match(/\d+/)?.[0] || '0';
-    toggleButton.setAttribute('data-total', total);
-  }
-
-  // Search functionality
-  function filterEvents() {
-    const searchTerm = searchInput?.value.toLowerCase() || '';
-    const eventItems = document.querySelectorAll('.event-list-item');
-
-    eventItems.forEach(item => {
-      const name = item.getAttribute('data-event-name') || '';
-      const description = item.getAttribute('data-event-description') || '';
-
-      if (searchTerm === '' || name.includes(searchTerm) || description.includes(searchTerm)) {
-        (item as HTMLElement).style.display = 'block';
-      } else {
-        (item as HTMLElement).style.display = 'none';
-      }
-    });
-  }
-
-  searchInput?.addEventListener('input', filterEvents);
-</script>
 
 <style>
   .toolbar {
@@ -267,7 +211,7 @@ const enabledEvents = eventOptions.filter(e => e.enabled).length;
   .section-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 16px;
     margin-bottom: 20px;
   }
@@ -276,10 +220,6 @@ const enabledEvents = eventOptions.filter(e => e.enabled).length;
     margin: 0 0 20px;
     font-size: 14px;
     color: var(--muted);
-  }
-
-  .section-header .section-description {
-    margin-bottom: 0;
   }
 
   .event-flow {
@@ -336,74 +276,24 @@ const enabledEvents = eventOptions.filter(e => e.enabled).length;
     padding: 16px;
     background: var(--panel-2);
     border-radius: var(--radius);
-  }
-
-  .event-type strong {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .event-type p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .all-events-container {
-    margin-top: 20px;
-  }
-
-  .search-container {
-    margin-bottom: 20px;
-  }
-
-  .search-input {
-    width: 100%;
-    padding: 10px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    font-size: 14px;
-    background: var(--panel-2);
-  }
-
-  .search-input:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .event-types-list {
-    display: grid;
-    gap: 8px;
-    max-height: 600px;
-    overflow-y: auto;
-    padding: 12px;
-    background: var(--panel-2);
-    border-radius: var(--radius);
-  }
-
-  .event-list-item {
-    padding: 12px 16px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
     border-left: 3px solid var(--muted);
   }
 
-  .event-list-item.enabled {
+  .event-type.enabled {
     border-left-color: var(--accent);
   }
 
-  .event-list-header {
+  .event-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
 
   .event-status {
     font-size: 10px;
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
   .status-enabled {
@@ -414,12 +304,13 @@ const enabledEvents = eventOptions.filter(e => e.enabled).length;
     color: var(--muted);
   }
 
-  .event-list-header strong {
+  .event-type strong {
     font-size: 14px;
     font-weight: 600;
+    line-height: 1.3;
   }
 
-  .event-list-description {
+  .event-type p {
     margin: 0 0 0 18px;
     font-size: 13px;
     color: var(--muted);
@@ -491,10 +382,5 @@ const enabledEvents = eventOptions.filter(e => e.enabled).length;
     color: var(--muted);
     max-width: 500px;
     margin: 0 auto;
-  }
-
-  .button.small {
-    padding: 8px 16px;
-    font-size: 13px;
   }
 </style>
