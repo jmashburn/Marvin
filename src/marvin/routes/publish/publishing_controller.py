@@ -478,6 +478,68 @@ async def get_published_collection(
 
 
 @router.get(
+    "/{workspace_slug}/assets",
+    response_model=list[PublishedAssetRead],
+    summary="List Assets",
+)
+async def list_published_assets(
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+    type: str | None = Query(None, description="Filter by MIME type prefix (image, video, audio, application)"),
+    limit: int = Query(
+        settings.PUBLISHING_DEFAULT_PAGE_SIZE,
+        ge=1,
+        le=settings.PUBLISHING_MAX_PAGE_SIZE,
+        description="Max results"
+    ),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+) -> list[PublishedAssetRead]:
+    """
+    List all assets in the workspace.
+
+    Returns asset metadata for external sites to reference.
+
+    **Filters:**
+    - `type`: Filter by MIME type prefix (image, video, audio, application)
+    - Scoped to the workspace associated with the API client
+
+    **Use cases:**
+    - `?type=image` - Get all images
+    - `?type=video` - Get all videos
+    - Build asset galleries, media libraries
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+    """
+    api_client, group = context
+
+    # Build query for assets
+    query = session.query(Assets).filter(
+        Assets.group_id == group.id,
+    )
+
+    # Filter by MIME type prefix if specified
+    if type:
+        query = query.filter(Assets.mime_type.like(f"{type}/%"))
+
+    # Apply pagination
+    assets = query.order_by(Assets.name).offset(offset).limit(limit).all()
+
+    # Convert to response schema
+    return [
+        PublishedAssetRead(
+            slug=asset.slug,
+            name=asset.name,
+            mime_type=asset.mime_type,
+            width=asset.width,
+            height=asset.height,
+            alt_text=asset.alt_text,
+            file_url=f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+        )
+        for asset in assets
+    ]
+
+
+@router.get(
     "/{workspace_slug}/assets/{asset_slug}",
     response_model=PublishedAssetRead,
     summary="Get Published Asset Metadata",

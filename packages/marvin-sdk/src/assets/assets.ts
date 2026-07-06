@@ -21,8 +21,6 @@ export class AssetsModule {
    * Get all published assets
    */
   async list(options: GetAssetsOptions = {}): Promise<MarvinAsset[]> {
-    // TODO: Implement this endpoint in Marvin backend
-    // Expected: GET /api/publish/{workspaceSlug}/assets
     const queryString = this.http.buildQueryString({
       type: options.type,
       limit: options.limit,

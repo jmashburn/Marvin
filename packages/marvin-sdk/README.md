@@ -583,22 +583,29 @@ Methods:
 - `resource.entries()` - Get entries that reference this resource
 - `resource.toJSON()` - Get raw resource data
 
-## Expected Backend Endpoints
+## Backend API Endpoints
 
-The SDK expects these endpoints (marked with TODO in code):
+The SDK uses these Marvin publishing API endpoints:
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/publish/{workspace}/site` | GET | Site configuration |
-| `/api/publish/{workspace}/entries` | GET | List entries |
-| `/api/publish/{workspace}/entries/{slug}` | GET | Get entry |
-| `/api/publish/{workspace}/collections` | GET | List collections |
-| `/api/publish/{workspace}/collections/{slug}` | GET | Get collection |
-| `/api/publish/{workspace}/collections/{slug}/entries` | GET | Collection entries |
-| `/api/publish/{workspace}/assets` | GET | List assets |
-| `/api/publish/{workspace}/resources` | GET | List resources |
-| `/api/publish/{workspace}/resources/{slug}` | GET | Get resource |
-| `/api/publish/{workspace}/resources/{slug}/entries` | GET | Resource entries |
+| Endpoint | Method | Purpose | Status |
+|----------|--------|---------|--------|
+| `/api/publish/{workspace}/site` | GET | Site configuration | ✅ Implemented |
+| `/api/publish/{workspace}/entries` | GET | List entries | ✅ Implemented |
+| `/api/publish/{workspace}/entries/{slug}` | GET | Get entry | ✅ Implemented |
+| `/api/publish/{workspace}/collections` | GET | List collections | ✅ Implemented |
+| `/api/publish/{workspace}/collections/{slug}` | GET | Get collection | ✅ Implemented |
+| `/api/publish/{workspace}/collections/{slug}/entries` | GET | Collection entries | ✅ Implemented |
+| `/api/publish/{workspace}/assets` | GET | List assets | ✅ Implemented |
+| `/api/publish/{workspace}/assets/{slug}` | GET | Get asset metadata | ✅ Implemented |
+| `/api/publish/{workspace}/resources` | GET | List resources | ✅ Implemented |
+| `/api/publish/{workspace}/resources/{slug}` | GET | Get resource | ✅ Implemented |
+| `/api/publish/{workspace}/resources/{slug}/entries` | GET | Resource entries | ✅ Implemented |
+
+**Query Parameters:**
+
+- **Entries**: `entry_type`, `collection`, `slug`, `updated_since`, `page`, `limit`
+- **Assets**: `type` (MIME type prefix), `limit`, `offset`
+- **Resources**: `resource_type`, `limit`, `offset`
 
 ## Security
 
