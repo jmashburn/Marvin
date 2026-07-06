@@ -12,7 +12,10 @@ function displayValue(value: unknown): string | number | boolean {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.length === 0 ? "" : value.map((v) => String(v)).join(", ");
   if (typeof value === "object") return JSON.stringify(value);
-  return value;
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value;
+  if (typeof value === "boolean") return value;
+  return String(value);
 }
 
 function projectedRows<T>(rows: T[], columns: ColumnSpec<T>): Record<string, string | number | boolean>[] {
