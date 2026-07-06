@@ -25,7 +25,7 @@ export class MarvinHttpClient {
         );
       }
 
-      return await response.json();
+      return (await response.json()) as T;
     } catch (error) {
       if (error instanceof Error) {
         // Don't leak the token in error messages
