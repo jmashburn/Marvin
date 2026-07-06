@@ -1,0 +1,279 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const { id } = Astro.params;
+
+let webhook: any = null;
+let error: string | null = null;
+
+try {
+  webhook = await fetchApi<any>(`/api/groups/webhooks/${id}`, {}, authToken);
+} catch (e) {
+  console.error('[webhooks/edit] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// Convert UTC time to local for input
+let localDateTime = '';
+if (webhook?.scheduled_time) {
+  const date = new Date(webhook.scheduled_time);
+  localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+---
+
+<AppLayout title="Edit Webhook" eyebrow="Automation">
+  <div class="page-header">
+    <div>
+      <h2>Edit Webhook</h2>
+      <p>Update HTTP callback configuration</p>
+    </div>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : webhook ? (
+    <div class="form-container">
+      <form id="update-webhook-form" class="form">
+        <input type="hidden" name="id" value={webhook.id} />
+
+        <div class="form-section">
+          <h3>Webhook Details</h3>
+
+          <label class="form-field">
+            <span class="label">Name *</span>
+            <input
+              type="text"
+              name="name"
+              required
+              value={webhook.name}
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">URL *</span>
+            <input
+              type="url"
+              name="url"
+              required
+              value={webhook.url}
+              class="input"
+            />
+          </label>
+
+          <div class="form-row">
+            <label class="form-field">
+              <span class="label">Method</span>
+              <select name="method" class="input">
+                <option value="POST" selected={webhook.method === 'POST'}>POST</option>
+                <option value="GET" selected={webhook.method === 'GET'}>GET</option>
+              </select>
+            </label>
+
+            <label class="form-field">
+              <span class="label">Type</span>
+              <select name="webhook_type" class="input">
+                <option value="generic" selected={webhook.webhook_type === 'generic'}>Generic</option>
+                <option value="user" selected={webhook.webhook_type === 'user'}>User</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="form-field">
+            <span class="label">Scheduled Time (UTC) *</span>
+            <input
+              type="datetime-local"
+              name="scheduled_time"
+              required
+              value={localDateTime}
+              class="input"
+            />
+            <small class="hint">When should this webhook be triggered?</small>
+          </label>
+
+          <label class="checkbox-field">
+            <input type="checkbox" name="enabled" checked={webhook.enabled !== false} />
+            <span>Enabled</span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button">Save Changes</button>
+          <button type="button" id="delete-btn" class="button danger">Delete</button>
+          <a href="/automation/webhooks" class="button secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  ) : null}
+</AppLayout>
+
+<script define:vars={{ id }}>
+  const form = document.getElementById('update-webhook-form');
+  const deleteBtn = document.getElementById('delete-btn');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+
+    const payload = {
+      id: formData.get('id'),
+      name: formData.get('name'),
+      url: formData.get('url'),
+      method: formData.get('method'),
+      webhook_type: formData.get('webhook_type'),
+      scheduled_time: formData.get('scheduled_time'),
+      enabled: formData.get('enabled') === 'on',
+    };
+
+    try {
+      const response = await fetch(`/api/groups/webhooks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        window.location.href = '/automation/webhooks?updated=true';
+      } else {
+        const error = await response.text();
+        alert(`Failed to update webhook: ${error}`);
+      }
+    } catch (error) {
+      alert('Failed to update webhook. Please try again.');
+      console.error('Error updating webhook:', error);
+    }
+  });
+
+  deleteBtn?.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to delete this webhook?')) return;
+
+    try {
+      const response = await fetch(`/api/groups/webhooks/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        window.location.href = '/automation/webhooks?deleted=true';
+      } else {
+        alert('Failed to delete webhook');
+      }
+    } catch (error) {
+      alert('Failed to delete webhook. Please try again.');
+      console.error('Error deleting webhook:', error);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 700px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: auto;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .button.danger {
+    background: var(--color-error);
+    color: white;
+  }
+
+  .button.danger:hover {
+    background: var(--color-error);
+    opacity: 0.9;
+  }
+</style>

@@ -38,7 +38,7 @@ function formatScheduledTime(time: string | null | undefined): string {
       <h2>Webhooks</h2>
       <p>Configure HTTP callbacks for workspace events</p>
     </div>
-    <button class="button" id="create-webhook-btn">New Webhook</button>
+    <a href="/automation/webhooks/new" class="button">New Webhook</a>
   </div>
 
   <div class="page-container">
@@ -53,7 +53,7 @@ function formatScheduledTime(time: string | null | undefined): string {
         <p class="empty-description">
           Webhooks allow you to receive HTTP notifications when events occur in your workspace
         </p>
-        <button class="button" id="create-webhook-empty">New Webhook</button>
+        <a href="/automation/webhooks/new" class="button">New Webhook</a>
       </div>
     ) : (
       <div class="webhooks-grid">
@@ -83,12 +83,10 @@ function formatScheduledTime(time: string | null | undefined): string {
               </div>
             </div>
             <div class="webhook-actions">
-              <button
+              <a
+                href={`/automation/webhooks/${webhook.id}`}
                 class="button secondary small"
-                data-action="edit"
-                data-id={webhook.id}
-                data-webhook={JSON.stringify(webhook)}
-              >Edit</button>
+              >Edit</a>
               <button
                 class="button secondary small"
                 data-action="toggle"
@@ -108,167 +106,27 @@ function formatScheduledTime(time: string | null | undefined): string {
     )}
   </div>
 
-  <!-- Create/Edit Webhook Modal -->
-  <dialog id="webhook-modal" class="modal">
-    <div class="modal-content">
-      <h3 id="modal-title">New Webhook</h3>
-      <form id="webhook-form">
-        <input type="hidden" id="webhook-id" name="id" />
-
-        <label>
-          <span>Name <span class="required">*</span></span>
-          <input type="text" name="name" required placeholder="Production deployment notification" />
-        </label>
-
-        <label>
-          <span>URL <span class="required">*</span></span>
-          <input type="url" name="url" required placeholder="https://api.example.com/webhook" />
-        </label>
-
-        <div class="form-row">
-          <label>
-            <span>Method</span>
-            <select name="method">
-              <option value="POST">POST</option>
-              <option value="GET">GET</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Type</span>
-            <select name="webhook_type">
-              <option value="generic">Generic</option>
-              <option value="user">User</option>
-            </select>
-          </label>
-        </div>
-
-        <label>
-          <span>Scheduled Time (UTC) <span class="required">*</span></span>
-          <input type="datetime-local" name="scheduled_time" required />
-          <small>When should this webhook be triggered?</small>
-        </label>
-
-        <label class="checkbox-label">
-          <input type="checkbox" name="enabled" checked />
-          <span>Enabled</span>
-        </label>
-
-        <div class="modal-actions">
-          <button type="submit" class="button" id="save-webhook">Save Webhook</button>
-          <button type="button" class="button secondary" id="cancel-webhook">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
 </AppLayout>
 
 <script>
-  const createModal = document.getElementById('webhook-modal') as HTMLDialogElement;
-  const webhookForm = document.getElementById('webhook-form') as HTMLFormElement;
-  const modalTitle = document.getElementById('modal-title') as HTMLHeadingElement;
-  const webhookIdInput = document.getElementById('webhook-id') as HTMLInputElement;
-
-  // Open create modal
-  [document.getElementById('create-webhook-btn'), document.getElementById('create-webhook-empty')].forEach(btn => {
-    btn?.addEventListener('click', () => {
-      modalTitle.textContent = 'New Webhook';
-      webhookForm.reset();
-      webhookIdInput.value = '';
-      // Set default scheduled time to now
-      const now = new Date();
-      const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-      (webhookForm.querySelector('[name="scheduled_time"]') as HTMLInputElement).value = localDateTime;
-      createModal?.showModal();
-    });
-  });
-
-  // Open edit modal
-  document.querySelectorAll('[data-action="edit"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const webhook = JSON.parse(btn.getAttribute('data-webhook') || '{}');
-      modalTitle.textContent = 'Edit Webhook';
-      webhookIdInput.value = webhook.id;
-
-      (webhookForm.querySelector('[name="name"]') as HTMLInputElement).value = webhook.name;
-      (webhookForm.querySelector('[name="url"]') as HTMLInputElement).value = webhook.url;
-      (webhookForm.querySelector('[name="method"]') as HTMLSelectElement).value = webhook.method || 'POST';
-      (webhookForm.querySelector('[name="webhook_type"]') as HTMLSelectElement).value = webhook.webhook_type || 'generic';
-      (webhookForm.querySelector('[name="enabled"]') as HTMLInputElement).checked = webhook.enabled !== false;
-
-      // Convert UTC time to local for input
-      if (webhook.scheduled_time) {
-        const date = new Date(webhook.scheduled_time);
-        const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        (webhookForm.querySelector('[name="scheduled_time"]') as HTMLInputElement).value = localDateTime;
-      }
-
-      createModal?.showModal();
-    });
-  });
-
-  // Cancel button
-  document.getElementById('cancel-webhook')?.addEventListener('click', () => createModal?.close());
-
-  // Submit form
-  webhookForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(webhookForm);
-    const id = webhookIdInput.value;
-
-    // Convert local datetime to UTC ISO string
-    const localTime = formData.get('scheduled_time') as string;
-    const utcTime = new Date(localTime).toISOString();
-
-    const data = {
-      name: formData.get('name'),
-      url: formData.get('url'),
-      method: formData.get('method'),
-      webhook_type: formData.get('webhook_type'),
-      enabled: formData.get('enabled') === 'on',
-      scheduled_time: utcTime,
-    };
-
-    try {
-      const url = id ? `/api/groups/webhooks/${id}` : '/api/groups/webhooks';
-      const method = id ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      });
-
-      if (response.ok) {
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        alert('Error: ' + (error.detail || 'Failed to save webhook'));
-      }
-    } catch (error) {
-      alert('Network error: Failed to save webhook');
-    }
-  });
-
-  // Toggle webhook
+  // Toggle webhook enabled/disabled
   document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-id');
-      const enabled = btn.getAttribute('data-enabled') === 'true';
-
+      const currentlyEnabled = btn.getAttribute('data-enabled') === 'true';
+      
       try {
         const response = await fetch(`/api/groups/webhooks/${id}`, {
-          method: 'PUT',
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ enabled: !enabled }),
+          body: JSON.stringify({ enabled: !currentlyEnabled }),
         });
 
         if (response.ok) {
           window.location.reload();
         } else {
-          alert('Failed to toggle webhook');
+          alert('Failed to update webhook');
         }
       } catch (error) {
         alert('Network error');
@@ -282,7 +140,7 @@ function formatScheduledTime(time: string | null | undefined): string {
       const id = btn.getAttribute('data-id');
       const name = btn.getAttribute('data-name');
 
-      if (!confirm(`Delete webhook "${name}"? This cannot be undone.`)) return;
+      if (!confirm(`Are you sure you want to delete the webhook "${name}"?`)) return;
 
       try {
         const response = await fetch(`/api/groups/webhooks/${id}`, {
@@ -305,7 +163,6 @@ function formatScheduledTime(time: string | null | undefined): string {
 <style>
   .toolbar {
     display: flex;
-    align-items: flex-start;
     justify-content: space-between;
     margin-bottom: 32px;
     padding-bottom: 20px;
@@ -325,14 +182,13 @@ function formatScheduledTime(time: string | null | undefined): string {
   }
 
   .page-container {
-    max-width: 900px;
+    max-width: 1200px;
   }
 
   .alert {
     padding: 16px;
     margin-bottom: 24px;
     border-radius: var(--radius);
-    font-size: 14px;
   }
 
   .alert-error {
@@ -353,19 +209,15 @@ function formatScheduledTime(time: string | null | undefined): string {
   }
 
   .empty-title {
+    margin: 0 0 8px;
     font-size: 18px;
     font-weight: 600;
-    margin: 0 0 8px;
-    color: var(--ink);
   }
 
   .empty-description {
-    font-size: 14px;
-    color: var(--muted);
     margin: 0 0 24px;
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
+    color: var(--muted);
+    font-size: 14px;
   }
 
   .webhooks-grid {
@@ -374,29 +226,30 @@ function formatScheduledTime(time: string | null | undefined): string {
   }
 
   .webhook-card {
+    padding: 20px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 20px;
   }
 
   .webhook-header {
     display: flex;
-    align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 16px;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 12px;
   }
 
   .webhook-header h3 {
-    margin: 0 0 4px;
+    margin: 0 0 6px;
     font-size: 16px;
     font-weight: 600;
   }
 
   .webhook-url {
+    font-family: ui-monospace, monospace;
     font-size: 13px;
     color: var(--muted);
-    font-family: ui-monospace, monospace;
     word-break: break-all;
   }
 
@@ -404,17 +257,17 @@ function formatScheduledTime(time: string | null | undefined): string {
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 12px;
-    font-weight: 500;
-    flex-shrink: 0;
+    font-weight: 600;
+    text-transform: uppercase;
   }
 
   .status-badge.active {
-    background: rgb(53 122 85 / 0.1);
-    color: var(--good);
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
   }
 
   .status-badge.inactive {
-    background: rgb(117 117 117 / 0.1);
+    background: rgba(128, 128, 128, 0.1);
     color: var(--muted);
   }
 
@@ -422,8 +275,7 @@ function formatScheduledTime(time: string | null | undefined): string {
     display: flex;
     gap: 24px;
     margin-bottom: 16px;
-    padding: 12px 0;
-    border-top: 1px solid var(--line);
+    padding-bottom: 16px;
     border-bottom: 1px solid var(--line);
   }
 
@@ -435,15 +287,14 @@ function formatScheduledTime(time: string | null | undefined): string {
 
   .meta-label {
     font-size: 11px;
-    font-weight: 500;
-    color: var(--muted);
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    color: var(--muted);
   }
 
   .meta-value {
     font-size: 14px;
-    font-weight: 500;
   }
 
   .webhook-actions {
@@ -456,106 +307,11 @@ function formatScheduledTime(time: string | null | undefined): string {
     font-size: 13px;
   }
 
-  .button.danger:not(:disabled) {
-    color: var(--warn);
+  .button.danger {
+    color: var(--color-error);
   }
 
-  .button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .modal {
-    border: none;
-    border-radius: var(--radius);
-    padding: 0;
-    max-width: 550px;
-    box-shadow: 0 8px 32px rgb(0 0 0 / 0.15);
-  }
-
-  .modal::backdrop {
-    background: rgb(0 0 0 / 0.5);
-  }
-
-  .modal-content {
-    padding: 24px;
-    background: var(--panel);
-  }
-
-  .modal h3 {
-    margin: 0 0 20px;
-    font-size: 20px;
-    font-weight: 600;
-  }
-
-  .modal form {
-    display: grid;
-    gap: 16px;
-  }
-
-  .modal label {
-    display: grid;
-    gap: 6px;
-  }
-
-  .modal label > span {
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .required {
-    color: var(--warn);
-  }
-
-  .modal input[type="text"],
-  .modal input[type="url"],
-  .modal input[type="datetime-local"],
-  .modal select,
-  .modal textarea {
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--panel);
-    font-size: 14px;
-    font-family: inherit;
-  }
-
-  .modal input:focus,
-  .modal select:focus,
-  .modal textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .modal small {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: -2px;
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-  }
-
-  .checkbox-label input[type="checkbox"] {
-    cursor: pointer;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 8px;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
+  .button.danger:hover {
+    background: var(--color-error-bg);
   }
 </style>
