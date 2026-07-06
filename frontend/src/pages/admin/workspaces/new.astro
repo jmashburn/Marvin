@@ -1,11 +1,11 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
+import AdminLayout from "@/layouts/AdminLayout.astro";
 ---
 
-<AppLayout title="Create Workspace">
+<AdminLayout title="Create Workspace">
   <div class="toolbar">
     <h2 style="margin:0;font-size:20px;">New Workspace</h2>
-    <a class="button secondary" href="/workspaces">Cancel</a>
+    <a class="button secondary" href="/admin/workspaces">Cancel</a>
   </div>
 
   <section style="max-width:42rem;">
@@ -16,11 +16,11 @@ import AppLayout from "@/layouts/AppLayout.astro";
       </div>
       <div class="form-actions">
         <button type="submit" class="button">Create Workspace</button>
-        <a href="/workspaces" class="button secondary">Cancel</a>
+        <a href="/admin/workspaces" class="button secondary">Cancel</a>
       </div>
     </form>
   </section>
-</AppLayout>
+</AdminLayout>
 
 <style>
   .form {
