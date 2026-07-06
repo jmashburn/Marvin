@@ -5,27 +5,42 @@ export type MarvinClientConfig = {
 };
 
 export type MarvinEntry = {
-  id?: string;
-  title: string;
+  // Publishing API returns these fields
   slug: string;
+  title: string;
+  entryType: string; // Entry type slug (e.g., "page", "project")
   summary?: string | null;
-  description?: string | null;
   contentMarkdown?: string | null;
+  publishedAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+  collections?: string[]; // Array of collection slugs
+  resources?: unknown[];
+  assets?: unknown[];
+
+  // Legacy/admin fields
+  id?: string;
   status?: string;
+  description?: string | null;
   updatedAt?: string | null;
   updateAt?: string | null;
-  publishedAt?: string | null;
   metadataJson?: Record<string, unknown> | null;
-  entryType?: unknown;
-  collections?: unknown[];
-  assets?: unknown[];
 };
 
 export type MarvinCollection = {
-  id?: string;
-  name: string;
+  // Publishing API returns these fields
   slug: string;
+  name: string;
   description?: string | null;
+  entryCount?: number;
+  sortOrder?: number;
+  icon?: string | null;
+  color?: string | null;
+
+  // When fetching single collection with entries
+  entries?: MarvinEntry[];
+
+  // Legacy/admin fields
+  id?: string;
   collectionType?: string;
   type?: string;
   visibility?: string;
@@ -34,24 +49,38 @@ export type MarvinCollection = {
 };
 
 export type MarvinResource = {
-  id?: string;
-  name: string;
+  // Publishing API returns these fields
   slug: string;
-  resourceType?: string | null;
+  name: string;
+  resourceType: string; // e.g., "fabric", "tool", "supplier"
   description?: string | null;
+  url?: string | null;
+  externalId?: string | null;
+  metadata?: Record<string, unknown> | null;
+
+  // Legacy/admin fields
+  id?: string;
   metadataJson?: Record<string, unknown> | null;
   updatedAt?: string | null;
   updateAt?: string | null;
 };
 
 export type MarvinAsset = {
+  // Publishing API returns these fields
+  slug: string;
+  name: string;
+  mimeType: string;
+  width?: number | null;
+  height?: number | null;
+  altText?: string | null;
+  fileUrl: string;
+
+  // Legacy/admin fields
   id?: string;
   filename?: string;
   originalFilename?: string;
-  slug?: string;
   contentType?: string;
   publicUrl?: string;
-  altText?: string | null;
 };
 
 function required(value: string | undefined, name: string): string {

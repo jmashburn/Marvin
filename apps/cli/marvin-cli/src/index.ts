@@ -61,37 +61,43 @@ async function run(action: () => Promise<unknown>, render?: (data: unknown) => v
 }
 
 const entryColumns = {
-  Title: (entry: MarvinEntry) => entry.title,
-  Slug: (entry: MarvinEntry) => entry.slug,
-  Type: (entry: MarvinEntry) =>
-    typeof entry.entryType === "object" && entry.entryType && "slug" in entry.entryType
-      ? String((entry.entryType as { slug?: string }).slug ?? "")
-      : "",
-  Status: (entry: MarvinEntry) => entry.status,
-  Updated: (entry: MarvinEntry) => entry.updatedAt ?? entry.updateAt,
+  Title: (entry: MarvinEntry) => entry.title || "",
+  Slug: (entry: MarvinEntry) => entry.slug || "",
+  Type: (entry: MarvinEntry) => {
+    // entryType is a string (slug) from the publishing API
+    if (typeof entry.entryType === "string") return entry.entryType;
+    // Fallback for object format from admin API
+    if (typeof entry.entryType === "object" && entry.entryType && "slug" in entry.entryType) {
+      return String((entry.entryType as { slug?: string }).slug ?? "");
+    }
+    return "";
+  },
+  Status: (entry: MarvinEntry) => entry.status || "",
+  Published: (entry: MarvinEntry) => entry.publishedAt ? new Date(entry.publishedAt).toISOString().split('T')[0] : "",
 };
 
 const collectionColumns = {
-  Name: (collection: MarvinCollection) => collection.name,
-  Slug: (collection: MarvinCollection) => collection.slug,
-  Type: (collection: MarvinCollection) => collection.collectionType ?? collection.type,
-  Visibility: (collection: MarvinCollection) => collection.visibility,
-  Updated: (collection: MarvinCollection) => collection.updatedAt ?? collection.updateAt,
+  Name: (collection: MarvinCollection) => collection.name || "",
+  Slug: (collection: MarvinCollection) => collection.slug || "",
+  Description: (collection: MarvinCollection) => (collection.description || "").substring(0, 50),
+  Entries: (collection: MarvinCollection) => collection.entryCount ?? "",
 };
 
 const resourceColumns = {
-  Name: (resource: MarvinResource) => resource.name,
-  Slug: (resource: MarvinResource) => resource.slug,
-  Type: (resource: MarvinResource) => resource.resourceType,
-  Description: (resource: MarvinResource) => resource.description,
-  Updated: (resource: MarvinResource) => resource.updatedAt ?? resource.updateAt,
+  Name: (resource: MarvinResource) => resource.name || "",
+  Slug: (resource: MarvinResource) => resource.slug || "",
+  Type: (resource: MarvinResource) => resource.resourceType || "",
+  Description: (resource: MarvinResource) => (resource.description || "").substring(0, 50),
+  URL: (resource: MarvinResource) => resource.url || "",
 };
 
 const assetColumns = {
-  File: (asset: MarvinAsset) => asset.originalFilename ?? asset.filename ?? asset.slug,
-  Type: (asset: MarvinAsset) => asset.contentType,
-  URL: (asset: MarvinAsset) => asset.publicUrl,
-  Alt: (asset: MarvinAsset) => asset.altText,
+  Name: (asset: MarvinAsset) => asset.name || asset.slug || "",
+  Slug: (asset: MarvinAsset) => asset.slug || "",
+  Type: (asset: MarvinAsset) => asset.mimeType || "",
+  Dimensions: (asset: MarvinAsset) =>
+    asset.width && asset.height ? `${asset.width}x${asset.height}` : "",
+  Alt: (asset: MarvinAsset) => (asset.altText || "").substring(0, 40),
 };
 
 program.command("site").description("Fetch workspace site configuration").action(() => run(() => client().getSite()));
@@ -109,7 +115,15 @@ program
     ),
   );
 
-program.command("entry <slug>").description("Fetch one entry by slug").action((slug) => run(() => client().getEntry(slug)));
+program
+  .command("entry <slug>")
+  .description("Fetch one entry by slug")
+  .action((slug) =>
+    run(
+      () => client().getEntry(slug),
+      (data) => renderList([data] as MarvinEntry[], entryColumns, outputMode()),
+    ),
+  );
 
 program
   .command("collections")
@@ -121,7 +135,15 @@ program
     ),
   );
 
-program.command("collection <slug>").description("Fetch one collection by slug").action((slug) => run(() => client().getCollection(slug)));
+program
+  .command("collection <slug>")
+  .description("Fetch one collection by slug")
+  .action((slug) =>
+    run(
+      () => client().getCollection(slug),
+      (data) => renderList([data] as MarvinCollection[], collectionColumns, outputMode()),
+    ),
+  );
 
 program
   .command("collection-entries <slug>")
@@ -155,7 +177,15 @@ program
     ),
   );
 
-program.command("resource <slug>").description("Fetch one resource by slug").action((slug) => run(() => client().getResource(slug)));
+program
+  .command("resource <slug>")
+  .description("Fetch one resource by slug")
+  .action((slug) =>
+    run(
+      () => client().getResource(slug),
+      (data) => renderList([data] as MarvinResource[], resourceColumns, outputMode()),
+    ),
+  );
 
 program
   .command("resource-entries <slug>")
