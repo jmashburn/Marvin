@@ -69,6 +69,14 @@ if (isAdmin) {
       { href: "/platform/system", label: "System", icon: "🛠" },
     ]
   });
+
+  // Admin settings link
+  navGroups.push({
+    label: null,
+    items: [
+      { href: "/admin", label: "Admin Settings", icon: "⚙" },
+    ]
+  });
 }
 
 // Helper to check if path is active (exact or starts with for nested routes)
