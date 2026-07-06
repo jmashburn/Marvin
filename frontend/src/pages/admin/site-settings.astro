@@ -13,7 +13,7 @@ try {
 
   // Fetch all settings
   try {
-    settings = await fetchApi<any>('/api/app/about/startup-info', {}, authToken);
+    settings = await fetchApi<any>('/api/admin/about/startup-info', {}, authToken);
   } catch (e) {
     console.error('Could not fetch settings:', e);
   }

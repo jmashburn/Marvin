@@ -11,11 +11,26 @@ from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvi
 
 class AppStatistics(_MarvinModel):
     """
-    Schema for basic application statistics.
+    Schema for comprehensive application statistics.
     """
 
+    # User & Group stats
     total_users: int  # The total number of registered users in the system.
-    total_groups: int  # The total number of groups in the system.
+    total_groups: int  # The total number of groups/workspaces in the system.
+
+    # Content stats
+    total_entries: int  # The total number of content entries.
+    total_collections: int  # The total number of collections.
+    total_entry_types: int  # The total number of entry type definitions.
+
+    # Asset & Resource stats
+    total_assets: int  # The total number of uploaded assets/files.
+    total_resources: int  # The total number of resources.
+
+    # API & Integration stats
+    total_api_tokens: int  # The total number of user API tokens.
+    total_api_clients: int  # The total number of API clients.
+    total_webhooks: int  # The total number of configured webhooks.
 
 
 class AppInfo(_MarvinModel):

@@ -13,7 +13,7 @@ let settings: any = null;
 
 // Fetch all settings including SMTP configuration
 try {
-  settings = await fetchApi<any>('/api/app/about/startup-info', {}, authToken);
+  settings = await fetchApi<any>('/api/admin/about/startup-info', {}, authToken);
   smtpEnabled = settings?.smtpEnabled || false;
   smtpFeature = settings?.smtpFeature || null;
 } catch (e) {

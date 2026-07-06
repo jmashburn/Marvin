@@ -69,9 +69,10 @@ class AdminAboutController(BaseAdminController):
     @router.get("/statistics", response_model=AppStatistics, summary="Get Application Statistics")
     def get_app_statistics(self) -> AppStatistics:
         """
-        Retrieves basic statistics for the application.
+        Retrieves comprehensive statistics for the application.
 
-        Currently includes the total number of users and groups.
+        Includes counts for users, groups, content (entries, collections, entry types),
+        assets, resources, and API/integration resources (tokens, clients, webhooks).
         Accessible only by administrators.
 
         Returns:
@@ -79,9 +80,64 @@ class AdminAboutController(BaseAdminController):
         """
         # Utilize repositories to fetch counts
         return AppStatistics(
-            total_users=self.repos.users.count_all(),  # Total users in the system
-            total_groups=self.repos.groups.count_all(),  # Total groups in the system
+            # User & Group stats
+            total_users=self.repos.users.count_all(),
+            total_groups=self.repos.groups.count_all(),
+
+            # Content stats
+            total_entries=self.repos.entries.count_all(),
+            total_collections=self.repos.collections.count_all(),
+            total_entry_types=self.repos.entry_types.count_all(),
+
+            # Asset & Resource stats
+            total_assets=self.repos.assets.count_all(),
+            total_resources=self.repos.resources.count_all(),
+
+            # API & Integration stats
+            total_api_tokens=self.repos.api_tokens.count_all(),
+            total_api_clients=self.repos.api_clients.count_all(),
+            total_webhooks=self.repos.webhooks.count_all(),
         )
+
+    @router.get("/startup-info", summary="Get Application Startup Information (Admin)")
+    def get_startup_info(self):
+        """
+        Retrieves application startup information including all feature availability.
+
+        Returns the full settings object with all feature flags and configuration status.
+        Excludes sensitive fields like SECRET and ENV_SECRETS.
+        Accessible only by administrators.
+
+        Returns:
+            dict: Settings dictionary with all feature flags and configuration (camelCase).
+        """
+        from humps import camelize
+
+        settings = self.settings
+
+        # Get settings as dict, excluding sensitive fields
+        data = settings.model_dump(
+            exclude={"theme", "SECRET", "ENV_SECRETS", "_logger"},
+            exclude_none=True,
+        )
+
+        # Add computed @property fields that aren't in model_dump
+        # FeatureDetails is a NamedTuple, convert to dict with _asdict()
+        data["SMTP_ENABLED"] = settings.SMTP_ENABLED
+        data["SMTP_FEATURE"] = settings.SMTP_FEATURE._asdict() if settings.SMTP_FEATURE else None
+        data["LDAP_ENABLED"] = settings.LDAP_ENABLED
+        data["LDAP_FEATURE"] = settings.LDAP_FEATURE._asdict() if settings.LDAP_FEATURE else None
+        data["OIDC_READY"] = settings.OIDC_READY
+        data["OIDC_FEATURE"] = settings.OIDC_FEATURE._asdict() if settings.OIDC_FEATURE else None
+        data["OPENAI_ENABLED"] = settings.OPENAI_ENABLED
+        data["OPENAI_FEATURE"] = settings.OPENAI_FEATURE._asdict() if settings.OPENAI_FEATURE else None
+        data["APPRISE_READY"] = settings.APPRISE_READY
+        data["APPRISE_FEATURE"] = settings.APPRISE_FEATURE._asdict() if settings.APPRISE_FEATURE else None
+        data["PLUGIN_ENABLED"] = settings.PLUGIN_ENABLED
+        data["PLUGIN_FEATURE"] = settings.PLUGIN_FEATURE._asdict() if settings.PLUGIN_FEATURE else None
+
+        # Convert keys to camelCase (lowercase first since env vars are SCREAMING_SNAKE_CASE)
+        return {camelize(key.lower()): value for key, value in data.items()}
 
     @router.get("/check", response_model=CheckAppConfig, summary="Check Application Configuration Status")
     def check_app_config(self) -> CheckAppConfig:
