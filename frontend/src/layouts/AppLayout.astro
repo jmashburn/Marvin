@@ -19,6 +19,15 @@ try {
   const currentUser = await fetchApi<any>('/api/self', {}, authToken);
   isAdmin = currentUser?.admin === true;
   isSuperAdmin = currentUser?.platform_role === 'SUPER_ADMIN';
+
+  // Debug logging
+  if (import.meta.env.DEV) {
+    console.log('[AppLayout] User role check:', {
+      admin: isAdmin,
+      superAdmin: isSuperAdmin,
+      platform_role: currentUser?.platform_role,
+    });
+  }
 } catch (e) {
   // Not logged in or error
 }
