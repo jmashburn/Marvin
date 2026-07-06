@@ -33,15 +33,18 @@ export type {
   MarvinEntryType,
   MarvinCollection,
   MarvinAsset,
+  MarvinResource,
   MarvinPublishResponse,
   GetEntriesOptions,
   GetAssetsOptions,
+  GetResourcesOptions,
 } from './types';
 
 // Workspace & Modules
 export { Workspace } from './workspaces/workspace';
 export { Entry } from './entries/entry';
 export { Collection } from './collections/collection';
+export { Resource } from './resources/resource';
 
 /**
  * Create a Marvin client instance from environment variables

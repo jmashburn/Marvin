@@ -11,8 +11,9 @@ Real-world examples for using the Marvin publishing client in an Astro site.
 5. [Project Portfolio](#project-portfolio)
 6. [Dynamic Routes](#dynamic-routes)
 7. [Collections](#collections)
-8. [Assets & Images](#assets--images)
-9. [Metadata & SEO](#metadata--seo)
+8. [Resources](#resources)
+9. [Assets & Images](#assets--images)
+10. [Metadata & SEO](#metadata--seo)
 
 ---
 
@@ -515,6 +516,241 @@ const entries = await marvin.getCollectionEntries(collection.slug);
       </article>
     ))}
   </div>
+</BaseLayout>
+```
+
+---
+
+## Resources
+
+Resources are reusable structured objects that entries can reference (fabrics, tools, suppliers, etc.).
+
+### List Resources by Type
+
+```astro
+// src/pages/materials/fabrics.astro
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { marvin } from '@/lib/marvin';
+
+const fabrics = await marvin.getResources({ resourceType: 'fabric' });
+---
+
+<BaseLayout title="Fabrics">
+  <h1>Our Fabrics</h1>
+  
+  <div class="resources-grid">
+    {fabrics.map((fabric) => (
+      <article class="resource-card">
+        <h2>
+          <a href={`/materials/fabrics/${fabric.slug}`}>{fabric.name}</a>
+        </h2>
+        
+        {fabric.description && <p>{fabric.description}</p>}
+        
+        {fabric.metadataJson?.weight && (
+          <span class="meta">Weight: {fabric.metadataJson.weight}</span>
+        )}
+        
+        {fabric.metadataJson?.composition && (
+          <span class="meta">Composition: {fabric.metadataJson.composition}</span>
+        )}
+        
+        {fabric.url && (
+          <a href={fabric.url} target="_blank" rel="noopener">
+            View supplier →
+          </a>
+        )}
+      </article>
+    ))}
+  </div>
+</BaseLayout>
+```
+
+### Resource Detail Page with Related Entries
+
+```astro
+// src/pages/materials/fabrics/[slug].astro
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { marvin } from '@/lib/marvin';
+
+export async function getStaticPaths() {
+  const fabrics = await marvin.getResources({ resourceType: 'fabric' });
+  
+  return fabrics.map((fabric) => ({
+    params: { slug: fabric.slug },
+    props: { fabric },
+  }));
+}
+
+const { fabric } = Astro.props;
+
+// Get entries that use this fabric
+const relatedEntries = await marvin.getResourceEntries(fabric.slug);
+const metadata = fabric.metadataJson || {};
+---
+
+<BaseLayout title={fabric.name}>
+  <article class="resource-detail">
+    <header>
+      <h1>{fabric.name}</h1>
+      {fabric.resourceType && (
+        <span class="type">{fabric.resourceType}</span>
+      )}
+    </header>
+    
+    {fabric.description && (
+      <p class="description">{fabric.description}</p>
+    )}
+    
+    <dl class="metadata">
+      {fabric.externalId && (
+        <>
+          <dt>ID</dt>
+          <dd>{fabric.externalId}</dd>
+        </>
+      )}
+      
+      {metadata.weight && (
+        <>
+          <dt>Weight</dt>
+          <dd>{metadata.weight}</dd>
+        </>
+      )}
+      
+      {metadata.composition && (
+        <>
+          <dt>Composition</dt>
+          <dd>{metadata.composition}</dd>
+        </>
+      )}
+      
+      {metadata.color && (
+        <>
+          <dt>Color</dt>
+          <dd>{metadata.color}</dd>
+        </>
+      )}
+      
+      {fabric.url && (
+        <>
+          <dt>Supplier</dt>
+          <dd><a href={fabric.url} target="_blank" rel="noopener">{fabric.url}</a></dd>
+        </>
+      )}
+    </dl>
+    
+    {relatedEntries.length > 0 && (
+      <section class="related-entries">
+        <h2>Used In</h2>
+        <div class="entries">
+          {relatedEntries.map((entry) => (
+            <article>
+              <h3>
+                <a href={`/${entry.entryType?.slug}/${entry.slug}`}>
+                  {entry.title}
+                </a>
+              </h3>
+              {entry.summary && <p>{entry.summary}</p>}
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
+  </article>
+</BaseLayout>
+```
+
+### Display Resources in Entry Pages
+
+```astro
+// src/pages/projects/[slug].astro
+---
+import { marked } from 'marked';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { marvin } from '@/lib/marvin';
+
+export async function getStaticPaths() {
+  const projects = await marvin.getEntries({ entryType: 'project' });
+  
+  return projects.map((project) => ({
+    params: { slug: project.slug },
+    props: { project },
+  }));
+}
+
+const { project } = Astro.props;
+const contentHtml = marked.parse(project.contentMarkdown ?? '');
+---
+
+<BaseLayout title={project.title}>
+  <article class="project">
+    <h1>{project.title}</h1>
+    <div class="content" set:html={contentHtml} />
+    
+    {/* Display linked resources */}
+    {project.resources && project.resources.length > 0 && (
+      <section class="materials">
+        <h2>Materials Used</h2>
+        <div class="resources">
+          {project.resources.map((resource) => (
+            <a href={`/materials/${resource.resourceType}/${resource.slug}`} class="resource-tag">
+              {resource.name}
+              {resource.metadataJson?.weight && (
+                <span class="meta">({resource.metadataJson.weight})</span>
+              )}
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+  </article>
+</BaseLayout>
+```
+
+### Resource Categories Index
+
+```astro
+// src/pages/materials/index.astro
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { marvin } from '@/lib/marvin';
+
+const resources = await marvin.getResources();
+
+// Group resources by type
+const byType = resources.reduce((acc, resource) => {
+  const type = resource.resourceType || 'other';
+  if (!acc[type]) acc[type] = [];
+  acc[type].push(resource);
+  return acc;
+}, {} as Record<string, typeof resources>);
+
+const types = Object.keys(byType).sort();
+---
+
+<BaseLayout title="Materials & Resources">
+  <h1>Materials & Resources</h1>
+  
+  {types.map((type) => (
+    <section class="resource-category">
+      <h2>{type.charAt(0).toUpperCase() + type.slice(1)}</h2>
+      
+      <ul class="resource-list">
+        {byType[type].map((resource) => (
+          <li>
+            <a href={`/materials/${type}/${resource.slug}`}>
+              {resource.name}
+            </a>
+            {resource.description && (
+              <span class="description">{resource.description}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
 </BaseLayout>
 ```
 

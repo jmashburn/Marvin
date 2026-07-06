@@ -91,6 +91,13 @@ export class MarvinClient {
     return this.workspace.assets;
   }
 
+  /**
+   * Get resources module
+   */
+  get resources() {
+    return this.workspace.resources;
+  }
+
   // ======================
   // Convenience Methods
   // ======================
@@ -128,6 +135,13 @@ export class MarvinClient {
    */
   async projects(options?: GetEntriesOptions) {
     return this.workspace.entries.projects(options);
+  }
+
+  /**
+   * Get a single resource by slug
+   */
+  async resource(slug: string) {
+    return this.workspace.resources.get(slug);
   }
 
   // ======================
@@ -190,5 +204,30 @@ export class MarvinClient {
    */
   async getAssets(options?: GetAssetsOptions): Promise<MarvinAsset[]> {
     return this.workspace.assets.list(options);
+  }
+
+  /**
+   * @deprecated Use workspace.resources.list() instead
+   * Get all published resources
+   */
+  async getResources(options?: import('../types').GetResourcesOptions): Promise<import('../types').MarvinResource[]> {
+    return this.workspace.resources.list(options);
+  }
+
+  /**
+   * @deprecated Use workspace.resources.get() instead
+   * Get a single resource by slug
+   */
+  async getResource(slug: string): Promise<import('../types').MarvinResource> {
+    const resource = await this.workspace.resources.get(slug);
+    return resource.toJSON();
+  }
+
+  /**
+   * @deprecated Use workspace.resources.entries() instead
+   * Get entries that reference a resource
+   */
+  async getResourceEntries(slug: string): Promise<MarvinEntry[]> {
+    return this.workspace.resources.entries(slug);
   }
 }

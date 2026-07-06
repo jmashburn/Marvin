@@ -61,6 +61,19 @@ export interface MarvinCollection {
   updatedAt: string;
 }
 
+export interface MarvinResource {
+  id: string;
+  name: string;
+  slug: string;
+  resourceType?: string;
+  description?: string;
+  externalId?: string;
+  url?: string;
+  metadataJson?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MarvinEntry {
   id: string;
   title: string;
@@ -79,6 +92,7 @@ export interface MarvinEntry {
   entryType?: MarvinEntryType;
   collections?: MarvinCollection[];
   assets?: MarvinAsset[];
+  resources?: MarvinResource[];
 }
 
 export interface MarvinPublishResponse<T> {
@@ -106,6 +120,12 @@ export interface GetEntriesOptions {
 
 export interface GetAssetsOptions {
   type?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetResourcesOptions {
+  resourceType?: string;
   limit?: number;
   offset?: number;
 }

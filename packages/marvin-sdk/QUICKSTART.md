@@ -93,6 +93,11 @@ const entries = await workspace.entries.list();
 // Get a collection
 const collection = await workspace.collections.get('projects');
 const projectEntries = await collection.entries();
+
+// Get resources
+const resources = await workspace.resources.list();
+const fabric = await workspace.resources.get('kuroki-s022');
+const entriesUsingFabric = await fabric.entries();
 ```
 
 ### Convenience API
@@ -109,6 +114,9 @@ const articles = await marvin.getEntries({ entryType: 'article' });
 
 // Get a collection
 const featured = await marvin.collection('featured');
+
+// Get resources
+const fabric = await marvin.resource('kuroki-s022');
 ```
 
 ### Backwards-Compatible API
