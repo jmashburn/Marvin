@@ -111,7 +111,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
           <WorkspaceSwitcher />
         </div>
         {finalNavGroups.map((group, groupIndex) => (
-          <div class="nav-group">
+          <div class:list={["nav-group", { "nav-group-admin": group.label === "Administration" }]}>
             {group.label && (
               <div class="nav-group-label">{group.label}</div>
             )}
