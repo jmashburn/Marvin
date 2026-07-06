@@ -4,14 +4,14 @@ This module defines the FastAPI controller for managing user-specific API tokens
 
 Upgraded to use secure hashed token storage matching API Clients security model.
 
-Endpoints:
-- GET /api-tokens - List user's tokens
-- POST /api-tokens - Create new token (returns plaintext token ONCE)
-- GET /api-tokens/{id} - Get specific token
-- PATCH /api-tokens/{id} - Update token metadata
-- DELETE /api-tokens/{id} - Delete token
-- POST /api-tokens/{id}/rotate - Rotate token (returns new plaintext token ONCE)
-- POST /api-tokens/{id}/revoke - Revoke token (soft delete)
+Endpoints (all under /self/api-tokens for authenticated user):
+- GET /self/api-tokens - List user's tokens
+- POST /self/api-tokens - Create new token (returns plaintext token ONCE)
+- GET /self/api-tokens/{id} - Get specific token
+- PATCH /self/api-tokens/{id} - Update token metadata
+- DELETE /self/api-tokens/{id} - Delete token
+- POST /self/api-tokens/{id}/rotate - Rotate token (returns new plaintext token ONCE)
+- POST /self/api-tokens/{id}/revoke - Revoke token (soft delete)
 """
 
 from fastapi import HTTPException, status
