@@ -117,16 +117,12 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)  # Compress responses larg
 
 # Configure CORS (Cross-Origin Resource Sharing) middleware for non-production environments
 if not settings.PRODUCTION:
-    # Define allowed origins for CORS (typically frontend development server)
-    allowed_origins = [
-        "http://localhost:3000",  # Example: React frontend
-        "http://localhost:4321",  # Astro frontend development server
-        "http://localhost:8080",  # If API is also served/tested on a different port locally
-    ]
-    logger.info(f"CORS enabled for development. Allowed origins: {allowed_origins}")
+    # In development, allow all localhost origins to support flexible frontend ports
+    # This regex pattern matches http://localhost:* and http://127.0.0.1:*
+    logger.info("CORS enabled for development. Allowing all localhost origins.")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,  # List of allowed origins
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",  # Match any localhost port
         allow_credentials=True,  # Allow cookies to be included in cross-origin requests
         allow_methods=["*"],  # Allow all standard HTTP methods
         allow_headers=["*"],  # Allow all headers
