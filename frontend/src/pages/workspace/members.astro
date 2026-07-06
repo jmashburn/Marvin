@@ -149,6 +149,8 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
 </AppLayout>
 
 <script define:vars={{ workspaceId: workspace?.workspace?.id, canManage }}>
+  import { fetchApi } from '@/lib/api/client';
+
   // Role change
   if (canManage) {
     document.querySelectorAll('.role-select').forEach(select => {
@@ -161,17 +163,11 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
         if (!userId || newRole === currentRole) return;
 
         try {
-          const response = await fetch(`/api/workspaces/${workspaceId}/members/${userId}`, {
+          await fetchApi(`/api/workspaces/${workspaceId}/members/${userId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({ workspace_role: newRole }),
           });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to update role');
-          }
 
           window.location.reload();
         } catch (error) {
@@ -214,15 +210,9 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
     if (!userToRemove) return;
 
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/members/${userToRemove}`, {
+      await fetchApi(`/api/workspaces/${workspaceId}/members/${userToRemove}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to remove member');
-      }
 
       window.location.reload();
     } catch (error) {

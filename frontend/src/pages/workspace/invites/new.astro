@@ -64,19 +64,14 @@ try {
     const usesLeft = parseInt(formData.get('uses_left') as string);
 
     try {
-      const response = await fetch('/api/groups/invitations', {
+      const { fetchApi } = await import('@/lib/api/client');
+      await fetchApi('/api/groups/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ uses_left: usesLeft }),
       });
 
-      if (response.ok) {
-        window.location.href = '/workspace/invites?created=true';
-      } else {
-        const error = await response.text();
-        alert(`Failed to create invite: ${error}`);
-      }
+      window.location.href = '/workspace/invites?created=true';
     } catch (error) {
       alert('Failed to create invite. Please try again.');
       console.error('Error creating invite:', error);

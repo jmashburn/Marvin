@@ -90,6 +90,8 @@ try {
 </AppLayout>
 
 <script define:vars={{ id }}>
+  import { fetchApi } from '@/lib/api/client';
+
   const form = document.getElementById('update-notification-form');
   const deleteBtn = document.getElementById('delete-btn');
 
@@ -105,19 +107,13 @@ try {
     };
 
     try {
-      const response = await fetch(`/api/group/notifications/${id}`, {
+      await fetchApi(`/api/group/notifications/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        window.location.href = '/automation/notifications?updated=true';
-      } else {
-        const error = await response.text();
-        alert(`Failed to update notification: ${error}`);
-      }
+      window.location.href = '/automation/notifications?updated=true';
     } catch (error) {
       alert('Failed to update notification. Please try again.');
       console.error('Error updating notification:', error);
@@ -128,16 +124,11 @@ try {
     if (!confirm('Are you sure you want to delete this notification?')) return;
 
     try {
-      const response = await fetch(`/api/group/notifications/${id}`, {
+      await fetchApi(`/api/group/notifications/${id}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
 
-      if (response.ok) {
-        window.location.href = '/automation/notifications?deleted=true';
-      } else {
-        alert('Failed to delete notification');
-      }
+      window.location.href = '/automation/notifications?deleted=true';
     } catch (error) {
       alert('Failed to delete notification. Please try again.');
       console.error('Error deleting notification:', error);

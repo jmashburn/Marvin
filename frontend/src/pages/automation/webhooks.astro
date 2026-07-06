@@ -109,27 +109,24 @@ function formatScheduledTime(time: string | null | undefined): string {
 </AppLayout>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
+
   // Toggle webhook enabled/disabled
   document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-id');
       const currentlyEnabled = btn.getAttribute('data-enabled') === 'true';
-      
+
       try {
-        const response = await fetch(`/api/groups/webhooks/${id}`, {
+        await fetchApi(`/api/groups/webhooks/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ enabled: !currentlyEnabled }),
         });
 
-        if (response.ok) {
-          window.location.reload();
-        } else {
-          alert('Failed to update webhook');
-        }
+        window.location.reload();
       } catch (error) {
-        alert('Network error');
+        alert('Failed to update webhook');
       }
     });
   });
@@ -143,18 +140,13 @@ function formatScheduledTime(time: string | null | undefined): string {
       if (!confirm(`Are you sure you want to delete the webhook "${name}"?`)) return;
 
       try {
-        const response = await fetch(`/api/groups/webhooks/${id}`, {
+        await fetchApi(`/api/groups/webhooks/${id}`, {
           method: 'DELETE',
-          credentials: 'include',
         });
 
-        if (response.ok) {
-          window.location.reload();
-        } else {
-          alert('Failed to delete webhook');
-        }
+        window.location.reload();
       } catch (error) {
-        alert('Network error');
+        alert('Failed to delete webhook');
       }
     });
   });

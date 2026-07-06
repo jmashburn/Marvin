@@ -143,24 +143,20 @@ try {
 </AdminLayout>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
+
   // Cleanup tokens
   document.getElementById('cleanup-tokens')?.addEventListener('click', async () => {
     if (!confirm('Clean up expired tokens? This will remove all expired API tokens and sessions.')) return;
 
     try {
-      const response = await fetch('/api/admin/maintenance/cleanup-tokens', {
+      const result = await fetchApi<{ message?: string }>('/api/admin/maintenance/cleanup-tokens', {
         method: 'POST',
-        credentials: 'include',
       });
-
-      if (response.ok) {
-        alert('Cleanup completed successfully');
-        window.location.reload();
-      } else {
-        alert('Cleanup failed - endpoint may not be implemented yet');
-      }
+      alert(result.message || 'Cleanup completed successfully');
+      window.location.reload();
     } catch (error) {
-      alert('Network error');
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
 

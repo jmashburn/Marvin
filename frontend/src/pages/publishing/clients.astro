@@ -188,6 +188,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 </script>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
 
   // Copy token to clipboard
   document.getElementById('copy-token')?.addEventListener('click', async () => {
@@ -225,16 +226,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       }
 
       try {
-        const response = await fetch(`/api/api-clients/${clientSlug}/preview`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to load preview: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
+        const data = await fetchApi(`/api/api-clients/${clientSlug}/preview`);
         const modal = document.getElementById('preview-modal') as HTMLDialogElement;
         const subtitle = document.getElementById('preview-subtitle');
         const content = document.getElementById('preview-content');
@@ -246,7 +238,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
         }
       } catch (error) {
         console.error('Preview error:', error);
-        alert('Failed to load preview: ' + error.message);
+        alert('Failed to load preview: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
     });
   });
@@ -284,23 +276,15 @@ function formatLastUsed(timestamp: string | null | undefined): string {
         confirmModal.close();
 
         try {
-          const response = await fetch(`/api/api-clients/${clientSlug}/rotate-token`, {
+          const result = await fetchApi(`/api/api-clients/${clientSlug}/rotate-token`, {
             method: 'POST',
-            credentials: 'include'
           });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Failed to rotate token: ${response.status} - ${errorText}`);
-          }
-
-          const result = await response.json();
 
           // Redirect with token in query (will be shown in modal)
           window.location.href = `/publishing/clients?token=${encodeURIComponent(result.token)}&client_name=${encodeURIComponent(clientName)}`;
         } catch (error) {
           console.error('Rotate error:', error);
-          alert('Failed to rotate token: ' + error.message);
+          alert('Failed to rotate token: ' + (error instanceof Error ? error.message : 'Unknown error'));
         }
       };
     });
@@ -316,23 +300,17 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       if (!clientSlug) return;
 
       try {
-        const response = await fetch(`/api/api-clients/${clientSlug}`, {
+        await fetchApi(`/api/api-clients/${clientSlug}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ enabled: !currentEnabled })
         });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to update client: ${response.status} - ${errorText}`);
-        }
 
         // Reload page
         window.location.reload();
       } catch (error) {
         console.error('Toggle error:', error);
-        alert('Failed to update client: ' + error.message);
+        alert('Failed to update client: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
     });
   });

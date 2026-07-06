@@ -278,6 +278,8 @@ const authMethods = [
 </AdminLayout>
 
 <script define:vars={{ userId: user?.id }}>
+  import { fetchApi } from '@/lib/api/client';
+
   // Update user form
   const updateForm = document.getElementById('update-user-form');
   updateForm?.addEventListener('submit', async (e) => {
@@ -294,17 +296,11 @@ const authMethods = [
     };
 
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      await fetchApi(`/api/admin/users/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(data),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to update user');
-      }
 
       window.location.href = '/admin/users';
     } catch (error) {
@@ -329,15 +325,9 @@ const authMethods = [
 
   confirmDeleteBtn?.addEventListener('click', async () => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      await fetchApi(`/api/admin/users/${userId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to delete user');
-      }
 
       window.location.href = '/admin/users';
     } catch (error) {
@@ -362,20 +352,14 @@ const authMethods = [
     }
 
     try {
-      const response = await fetch(`/api/admin/workspaces/${workspaceId}/members`, {
+      await fetchApi(`/api/admin/workspaces/${workspaceId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           user_id: userId,
           workspace_role: role,
         }),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to add workspace membership');
-      }
 
       window.location.reload();
     } catch (error) {
@@ -397,15 +381,9 @@ const authMethods = [
       }
 
       try {
-        const response = await fetch(`/api/admin/workspaces/${workspaceId}/members/${userId}`, {
+        await fetchApi(`/api/admin/workspaces/${workspaceId}/members/${userId}`, {
           method: 'DELETE',
-          credentials: 'include',
         });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to remove workspace membership');
-        }
 
         window.location.reload();
       } catch (error) {

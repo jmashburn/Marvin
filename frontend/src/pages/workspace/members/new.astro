@@ -93,20 +93,15 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     const formData = new FormData(e.target as HTMLFormElement);
 
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/members`, {
+      const { fetchApi } = await import('@/lib/api/client');
+      await fetchApi(`/api/workspaces/${workspaceId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           user_id: formData.get('user_id'),
           workspace_role: formData.get('workspace_role'),
         }),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to add member');
-      }
 
       window.location.href = '/workspace/members?added=true';
     } catch (error) {

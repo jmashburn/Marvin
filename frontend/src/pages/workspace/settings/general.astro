@@ -144,6 +144,8 @@ const success = urlParams.get('success') === '1';
 </AppLayout>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
+
   const form = document.getElementById('workspace-settings-form') as HTMLFormElement;
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
   const deleteBtn = document.getElementById('delete-workspace-btn') as HTMLButtonElement;
@@ -168,23 +170,15 @@ const success = urlParams.get('success') === '1';
           name: formData.get('name') as string,
         };
 
-        const response = await fetch(`/api/groups/${workspaceId}/preferences`, {
+        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(data),
         });
 
-        if (response.ok) {
-          window.location.href = '/workspace/settings?success=1';
-        } else {
-          const error = await response.json();
-          alert('Error: ' + (error.detail || 'Failed to update workspace settings'));
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Save Changes';
-        }
+        window.location.href = '/workspace/settings?success=1';
       } catch (err) {
-        alert('Error: Network error. Please try again.');
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to update workspace settings'));
         submitBtn.disabled = false;
         submitBtn.textContent = 'Save Changes';
       }
@@ -229,23 +223,15 @@ const success = urlParams.get('success') === '1';
       deleteBtn.textContent = 'Deleting...';
 
       try {
-        const response = await fetch(`/api/admin/groups/${workspaceId}?force=true`, {
+        await fetchApi(`/api/admin/groups/${workspaceId}?force=true`, {
           method: 'DELETE',
-          credentials: 'include',
         });
 
-        if (response.ok || response.status === 204) {
-          alert('Workspace deleted successfully. Redirecting...');
-          window.location.href = '/';
-        } else {
-          const error = await response.json();
-          alert('Error: ' + (error.detail || 'Failed to delete workspace'));
-          deleteBtn.disabled = false;
-          deleteBtn.textContent = 'Delete Workspace';
-        }
+        alert('Workspace deleted successfully. Redirecting...');
+        window.location.href = '/';
       } catch (err) {
         console.error('Delete error:', err);
-        alert('Error: Network error. Please try again.');
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to delete workspace'));
         deleteBtn.disabled = false;
         deleteBtn.textContent = 'Delete Workspace';
       }

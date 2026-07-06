@@ -166,19 +166,14 @@ const metadataStr = resource?.metadata ? JSON.stringify(resource.metadata, null,
     };
 
     try {
-      const response = await fetch(`/api/resources/${id}`, {
+      const { fetchApi } = await import('@/lib/api/client');
+      await fetchApi(`/api/resources/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        window.location.href = '/workspace/resources?updated=true';
-      } else {
-        const error = await response.text();
-        alert(`Failed to update resource: ${error}`);
-      }
+      window.location.href = '/workspace/resources?updated=true';
     } catch (error) {
       alert('Failed to update resource. Please try again.');
       console.error('Error updating resource:', error);
@@ -189,16 +184,12 @@ const metadataStr = resource?.metadata ? JSON.stringify(resource.metadata, null,
     if (!confirm('Are you sure you want to delete this resource?')) return;
 
     try {
-      const response = await fetch(`/api/resources/${id}`, {
+      const { fetchApi } = await import('@/lib/api/client');
+      await fetchApi(`/api/resources/${id}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
 
-      if (response.ok) {
-        window.location.href = '/workspace/resources?deleted=true';
-      } else {
-        alert('Failed to delete resource');
-      }
+      window.location.href = '/workspace/resources?deleted=true';
     } catch (error) {
       alert('Failed to delete resource. Please try again.');
       console.error('Error deleting resource:', error);

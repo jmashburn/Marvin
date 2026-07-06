@@ -79,24 +79,17 @@ try {
       };
 
       try {
-        const response = await fetch(`/api/users/${userId}`, {
+        const { fetchApi } = await import('@/lib/api/client');
+        await fetchApi(`/api/users/${userId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(data),
         });
 
-        if (response.ok) {
-          window.location.href = '/user/profile?success=1';
-        } else {
-          const error = await response.json();
-          alert('Error: ' + (error.detail || 'Failed to update profile'));
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Save Changes';
-        }
+        window.location.href = '/user/profile?success=1';
       } catch (err) {
         console.error('Profile update error:', err);
-        alert('Error: Network error. Please try again.');
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to update profile'));
         submitBtn.disabled = false;
         submitBtn.textContent = 'Save Changes';
       }

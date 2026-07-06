@@ -65,21 +65,15 @@ import AppLayout from "@/layouts/AppLayout.astro";
     };
 
     try {
-      const response = await fetch('/api/api-tokens', {
+      const { fetchApi } = await import('@/lib/api/client');
+      const data = await fetchApi('/api/api-tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        // Redirect to list page with token and name in query params
-        window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(payload.name as string)}`;
-      } else {
-        const error = await response.text();
-        alert(`Failed to create token: ${error}`);
-      }
+      // Redirect to list page with token and name in query params
+      window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(payload.name as string)}`;
     } catch (error) {
       alert('Failed to create token. Please try again.');
       console.error('Error creating token:', error);

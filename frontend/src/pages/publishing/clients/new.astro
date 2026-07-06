@@ -110,36 +110,30 @@ import AppLayout from "@/layouts/AppLayout.astro";
       });
 
       try {
-        const response = await fetch('/api/api-clients', {
+        const { fetchApi } = await import('@/lib/api/client');
+        const result = await fetchApi('/api/api-clients', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify(data),
         });
 
-        if (response.ok) {
-          const result = await response.json();
-          console.log('API Client created:', result);
-          console.log('Token:', result.token);
-          console.log('Name:', result.name);
+        console.log('API Client created:', result);
+        console.log('Token:', result.token);
+        console.log('Name:', result.name);
 
-          if (!result.token) {
-            console.error('No token in response!', result);
-            alert('Warning: Client created but no token was returned. Please rotate the token to get a new one.');
-            window.location.href = '/publishing/clients';
-            return;
-          }
-
-          // Redirect to clients page with token info
-          window.location.href = `/publishing/clients?token=${result.token}&client_name=${encodeURIComponent(result.name)}`;
-        } else {
-          const error = await response.json();
-          alert('Error: ' + (error.detail || 'Failed to create client'));
+        if (!result.token) {
+          console.error('No token in response!', result);
+          alert('Warning: Client created but no token was returned. Please rotate the token to get a new one.');
+          window.location.href = '/publishing/clients';
+          return;
         }
+
+        // Redirect to clients page with token info
+        window.location.href = `/publishing/clients?token=${result.token}&client_name=${encodeURIComponent(result.name)}`;
       } catch (err) {
-        alert('Network error: ' + err);
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to create client'));
       }
     });
   }

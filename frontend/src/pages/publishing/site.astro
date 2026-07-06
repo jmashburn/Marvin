@@ -255,24 +255,19 @@ try {
       });
 
       try {
-        const url = `/api/groups/${workspaceId}/preferences`;
-        const response = await fetch(url, {
+        const { fetchApi } = await import('@/lib/api/client');
+        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include', // Include cookies for auth
           body: JSON.stringify(data),
         });
 
-        if (response.ok) {
-          window.location.href = '/publishing/site?success=1';
-        } else {
-          const error = await response.json();
-          window.location.href = '/publishing/site?error=' + encodeURIComponent(error.detail || 'Failed to save');
-        }
+        window.location.href = '/publishing/site?success=1';
       } catch (err) {
-        window.location.href = '/publishing/site?error=Network error';
+        const errorMessage = err instanceof Error ? err.message : 'Failed to save';
+        window.location.href = '/publishing/site?error=' + encodeURIComponent(errorMessage);
       }
     });
   }

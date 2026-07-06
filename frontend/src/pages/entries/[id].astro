@@ -885,17 +885,12 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 
       // Submit via fetch
       try {
-        const response = await fetch(entryForm.action, {
+        const { fetchApi } = await import('@/lib/api/client');
+        await fetchApi(entryForm.action, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(data),
         });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to update entry');
-        }
 
         // Reload page to show updated data
         window.location.reload();

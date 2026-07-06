@@ -82,6 +82,8 @@ function formatDate(date: string | null | undefined): string {
 </AppLayout>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
+
   // Copy token button
   const copyBtn = document.getElementById('copy-token-btn');
   copyBtn?.addEventListener('click', () => {
@@ -102,19 +104,13 @@ function formatDate(date: string | null | undefined): string {
       if (!confirm(`Rotate the token "${name}"? The old token will stop working.`)) return;
 
       try {
-        const response = await fetch(`/api/api-tokens/${id}/rotate`, {
+        const data = await fetchApi(`/api/api-tokens/${id}/rotate`, {
           method: 'POST',
-          credentials: 'include',
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(name)}`;
-        } else {
-          alert('Failed to rotate token');
-        }
+        window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(name)}`;
       } catch (error) {
-        alert('Network error');
+        alert('Failed to rotate token');
       }
     });
   });
@@ -128,18 +124,13 @@ function formatDate(date: string | null | undefined): string {
       if (!confirm(`Delete the token "${name}"? This cannot be undone.`)) return;
 
       try {
-        const response = await fetch(`/api/api-tokens/${id}`, {
+        await fetchApi(`/api/api-tokens/${id}`, {
           method: 'DELETE',
-          credentials: 'include',
         });
 
-        if (response.ok) {
-          window.location.reload();
-        } else {
-          alert('Failed to delete token');
-        }
+        window.location.reload();
       } catch (error) {
-        alert('Network error');
+        alert('Failed to delete token');
       }
     });
   });
