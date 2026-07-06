@@ -20,7 +20,7 @@ export class Resource {
   get description() { return this.data.description; }
   get externalId() { return this.data.externalId; }
   get url() { return this.data.url; }
-  get metadataJson() { return this.data.metadataJson; }
+  get metadata() { return this.data.metadata; }
   get createdAt() { return this.data.createdAt; }
   get updatedAt() { return this.data.updatedAt; }
 

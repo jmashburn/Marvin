@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from marvin.core.config import get_app_settings
 from marvin.core.dependencies import get_publishing_context
 from marvin.db.db_setup import generate_session
-from marvin.db.models.platform import APIClients, Assets, Collections, Entries
+from marvin.db.models.platform import APIClients, Assets, Collections, Entries, Resources
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group import GroupRead
 from marvin.schemas.publishing import (
@@ -22,6 +22,7 @@ from marvin.schemas.publishing import (
     PublishedEntryListItem,
     PublishedEntryRead,
     PublishedResourceRead,
+    PublishedResourceSummary,
     SiteConfiguration,
     WorkspaceInfo,
     WorkspaceSiteInfo,
@@ -525,3 +526,187 @@ async def get_published_asset(
         alt_text=asset.alt_text,
         file_url=f"/api/publish/{group.slug}/assets/{asset.slug}/file",
     )
+
+
+@router.get(
+    "/{workspace_slug}/resources",
+    response_model=list[PublishedResourceSummary],
+    summary="List Resources",
+)
+async def list_published_resources(
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+    resource_type: str | None = Query(None, description="Filter by resource type"),
+    limit: int = Query(
+        settings.PUBLISHING_DEFAULT_PAGE_SIZE,
+        ge=1,
+        le=settings.PUBLISHING_MAX_PAGE_SIZE,
+        description="Max results"
+    ),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+) -> list[PublishedResourceSummary]:
+    """
+    List all resources in the workspace.
+
+    Returns resource metadata for external sites to reference.
+
+    **Filters:**
+    - `resource_type`: Filter by resource type (fabric, tool, supplier, etc.)
+    - Scoped to the workspace associated with the API client
+
+    **Use cases:**
+    - `?resource_type=fabric` - Get all fabrics
+    - `?resource_type=tool` - Get all tools
+    - Build resource directories, material libraries
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+    """
+    api_client, group = context
+
+    # Build query for resources
+    query = session.query(Resources).filter(
+        Resources.group_id == group.id,
+    )
+
+    # Filter by resource type if specified
+    if resource_type:
+        query = query.filter(Resources.resource_type == resource_type)
+
+    # Apply pagination
+    resources = query.order_by(Resources.name).offset(offset).limit(limit).all()
+
+    # Convert to response schema
+    return [
+        PublishedResourceSummary(
+            slug=resource.slug,
+            name=resource.name,
+            resource_type=resource.resource_type,
+            description=resource.description,
+            url=resource.url,
+            external_id=resource.external_id,
+            metadata=resource.metadata_,
+        )
+        for resource in resources
+    ]
+
+
+@router.get(
+    "/{workspace_slug}/resources/{resource_slug}",
+    response_model=PublishedResourceSummary,
+    summary="Get Resource",
+)
+async def get_published_resource(
+    resource_slug: str,
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+) -> PublishedResourceSummary:
+    """
+    Get a single resource by slug.
+
+    Returns resource metadata for external sites to reference.
+
+    **Use case**: Resource detail pages, material information displays.
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+
+    **Raises:**
+    - 404: Resource not found
+    """
+    api_client, group = context
+
+    # Query resource
+    resource = (
+        session.query(Resources)
+        .filter(
+            Resources.group_id == group.id,
+            Resources.slug == resource_slug,
+        )
+        .first()
+    )
+
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    return PublishedResourceSummary(
+        slug=resource.slug,
+        name=resource.name,
+        resource_type=resource.resource_type,
+        description=resource.description,
+        url=resource.url,
+        external_id=resource.external_id,
+        metadata=resource.metadata_,
+    )
+
+
+@router.get(
+    "/{workspace_slug}/resources/{resource_slug}/entries",
+    response_model=list[PublishedEntryListItem],
+    summary="Get Resource Entries",
+)
+async def get_resource_entries(
+    resource_slug: str,
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+) -> list[PublishedEntryListItem]:
+    """
+    Get all published entries that reference a resource.
+
+    Returns entries that use this resource (e.g., projects using a fabric).
+
+    **Filters:**
+    - Only returns entries with `status = 'published'`
+
+    **Use case**: "View projects using this fabric" links on resource pages.
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+
+    **Raises:**
+    - 404: Resource not found
+    """
+    api_client, group = context
+
+    # Get resource
+    resource = (
+        session.query(Resources)
+        .filter(
+            Resources.group_id == group.id,
+            Resources.slug == resource_slug,
+        )
+        .first()
+    )
+
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    # Get published entries that reference this resource
+    from marvin.db.models.platform import EntryResources
+
+    entries = (
+        session.query(Entries)
+        .join(EntryResources)
+        .filter(
+            EntryResources.resource_id == resource.id,
+            Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+        )
+        .order_by(Entries.published_at.desc())
+        .all()
+    )
+
+    # Convert to list items
+    entry_items = []
+    for entry in entries:
+        # Get collection slugs for each entry
+        collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+
+        entry_items.append(
+            PublishedEntryListItem(
+                slug=entry.slug,
+                title=entry.title,
+                entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
+                summary=entry.summary,
+                published_at=entry.published_at,
+                collections=collection_slugs,
+            )
+        )
+
+    return entry_items

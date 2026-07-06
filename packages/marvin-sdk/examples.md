@@ -250,9 +250,9 @@ const contentHtml = marked.parse(post.contentMarkdown ?? '');
 
     <div class="content" set:html={contentHtml} />
 
-    {post.metadataJson?.tags && (
+    {post.metadata?.tags && (
       <div class="tags">
-        {post.metadataJson.tags.map((tag: string) => (
+        {post.metadata.tags.map((tag: string) => (
           <span class="tag">{tag}</span>
         ))}
       </div>
@@ -297,8 +297,8 @@ const featuredProjects = await marvin.getCollectionEntries('featured-projects');
         <h2>{project.title}</h2>
         <p>{project.summary}</p>
         
-        {project.metadataJson?.year && (
-          <span class="year">{project.metadataJson.year}</span>
+        {project.metadata?.year && (
+          <span class="year">{project.metadata.year}</span>
         )}
       </a>
     ))}
@@ -345,7 +345,7 @@ export async function getStaticPaths() {
 }
 
 const { project } = Astro.props;
-const metadata = project.metadataJson || {};
+const metadata = project.metadata || {};
 
 // Parse Markdown to HTML
 const contentHtml = marked.parse(project.contentMarkdown ?? '');
@@ -548,12 +548,12 @@ const fabrics = await marvin.getResources({ resourceType: 'fabric' });
         
         {fabric.description && <p>{fabric.description}</p>}
         
-        {fabric.metadataJson?.weight && (
-          <span class="meta">Weight: {fabric.metadataJson.weight}</span>
+        {fabric.metadata?.weight && (
+          <span class="meta">Weight: {fabric.metadata.weight}</span>
         )}
         
-        {fabric.metadataJson?.composition && (
-          <span class="meta">Composition: {fabric.metadataJson.composition}</span>
+        {fabric.metadata?.composition && (
+          <span class="meta">Composition: {fabric.metadata.composition}</span>
         )}
         
         {fabric.url && (
@@ -588,7 +588,7 @@ const { fabric } = Astro.props;
 
 // Get entries that use this fabric
 const relatedEntries = await marvin.getResourceEntries(fabric.slug);
-const metadata = fabric.metadataJson || {};
+const metadata = fabric.metadata || {};
 ---
 
 <BaseLayout title={fabric.name}>
@@ -697,8 +697,8 @@ const contentHtml = marked.parse(project.contentMarkdown ?? '');
           {project.resources.map((resource) => (
             <a href={`/materials/${resource.resourceType}/${resource.slug}`} class="resource-tag">
               {resource.name}
-              {resource.metadataJson?.weight && (
-                <span class="meta">({resource.metadataJson.weight})</span>
+              {resource.metadata?.weight && (
+                <span class="meta">({resource.metadata.weight})</span>
               )}
             </a>
           ))}
@@ -853,8 +853,8 @@ const ogImage = entry.assets?.[0]?.url;
   {entry.publishedAt && (
     <meta property="article:published_time" content={entry.publishedAt} />
   )}
-  {entry.metadataJson?.tags && (
-    entry.metadataJson.tags.map((tag: string) => (
+  {entry.metadata?.tags && (
+    entry.metadata.tags.map((tag: string) => (
       <meta property="article:tag" content={tag} />
     ))
   )}

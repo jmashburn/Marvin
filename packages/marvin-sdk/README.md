@@ -172,7 +172,7 @@ const entry = await marvin.entry('about-us');
 entry.title
 entry.slug
 entry.contentMarkdown
-entry.metadataJson
+entry.metadata
 entry.publishedAt
 
 // Relationships
@@ -219,7 +219,7 @@ resource.resourceType    // 'fabric', 'tool', 'supplier', etc.
 resource.description
 resource.externalId
 resource.url
-resource.metadataJson
+resource.metadata
 
 // Methods
 const entries = await resource.entries();  // Entries that reference this resource
@@ -493,7 +493,7 @@ Get all projects.
 Properties:
 - `id`, `title`, `slug`, `summary`, `description`
 - `contentMarkdown` - Raw Markdown content
-- `metadataJson` - Custom metadata object
+- `metadata` - Custom metadata object
 - `status`, `publishedAt`, `createdAt`, `updatedAt`
 - `entryTypeId`, `entryType`
 - `assets` - Array of related assets
@@ -576,7 +576,7 @@ Properties:
 - `id`, `name`, `slug`
 - `resourceType` - Type of resource (fabric, tool, supplier, etc.)
 - `description`, `externalId`, `url`
-- `metadataJson` - Custom metadata object
+- `metadata` - Custom metadata object
 - `createdAt`, `updatedAt`
 
 Methods:

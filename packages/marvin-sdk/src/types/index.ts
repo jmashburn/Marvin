@@ -69,7 +69,7 @@ export interface MarvinResource {
   description?: string;
   externalId?: string;
   url?: string;
-  metadataJson?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -81,7 +81,7 @@ export interface MarvinEntry {
   summary?: string;
   description?: string;
   contentMarkdown?: string;
-  metadataJson?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   status: string;
   publishedAt?: string;
   createdAt: string;

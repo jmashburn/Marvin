@@ -181,6 +181,38 @@ class PublishedCollectionSummary(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublishedResourceSummary(_MarvinModel):
+    """
+    Schema for published resources in standalone context.
+
+    Provides resource metadata without entry-specific placement info.
+    Used for listing resources and getting individual resource details.
+    """
+
+    slug: str
+    """URL-friendly identifier for the resource."""
+
+    name: str
+    """Resource name."""
+
+    resource_type: str
+    """Type of resource (fabric, tool, supplier, etc)."""
+
+    description: str | None = None
+    """Optional description."""
+
+    url: str | None = None
+    """External URL (supplier site, GitHub repo, etc)."""
+
+    external_id: str | None = None
+    """External identifier (SKU, ISBN, etc)."""
+
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PublishedResourceRead(_MarvinModel):
     """
     Schema for published resources in entry context.

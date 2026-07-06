@@ -19,7 +19,7 @@ export class Entry {
   get summary() { return this.data.summary; }
   get description() { return this.data.description; }
   get contentMarkdown() { return this.data.contentMarkdown; }
-  get metadataJson() { return this.data.metadataJson; }
+  get metadata() { return this.data.metadata; }
   get status() { return this.data.status; }
   get publishedAt() { return this.data.publishedAt; }
   get createdAt() { return this.data.createdAt; }
