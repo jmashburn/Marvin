@@ -85,7 +85,7 @@ class GroupPreferencesController(BaseUserController):
 
         return preferences.preferences
 
-    @router.patch("", response_model=GroupPreferencesRead, summary="Update Workspace Preferences")
+    @router.patch("", response_model=GroupPreferencesRead, summary="Update Workspace Preferences and Settings")
     def update_preferences(self, group_id: UUID4, data: GroupPreferencesUpdate) -> GroupPreferencesRead:
         """
         Update workspace preferences (requires ADMIN or OWNER role).
@@ -130,8 +130,23 @@ class GroupPreferencesController(BaseUserController):
                 detail=f"Preferences not found for workspace {group_id}",
             )
 
-        # Update fields from data
-        for field, value in data.model_dump(exclude_unset=True).items():
+        # Extract data dict for processing
+        data_dict = data.model_dump(exclude_unset=True)
+
+        # Check if name or slug are in the data and update the workspace (Groups model)
+        workspace_fields = {}
+        if 'name' in data_dict:
+            workspace_fields['name'] = data_dict.pop('name')
+        if 'slug' in data_dict:
+            workspace_fields['slug'] = data_dict.pop('slug')
+
+        # Update workspace fields if present
+        if workspace_fields:
+            for field, value in workspace_fields.items():
+                setattr(workspace, field, value)
+
+        # Update preference fields from remaining data
+        for field, value in data_dict.items():
             if hasattr(preferences_model, field) and field not in ['id', 'group_id']:
                 setattr(preferences_model, field, value)
 

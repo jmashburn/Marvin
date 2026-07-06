@@ -176,12 +176,36 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 <script define:vars={{ newToken, newClientName }}>
   // Show token modal if redirected from create/rotate
   if (newToken && newClientName) {
-    const modal = document.getElementById('token-modal');
-    const tokenValue = document.getElementById('token-value');
-    if (modal && tokenValue) {
-      tokenValue.textContent = newToken;
-      modal.showModal();
+    console.log('Token received:', newToken);
+    console.log('Client name:', newClientName);
+
+    // Wait for DOM to be fully loaded
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', showTokenModal);
+    } else {
+      showTokenModal();
     }
+
+    function showTokenModal() {
+      const modal = document.getElementById('token-modal') as HTMLDialogElement;
+      const tokenValue = document.getElementById('token-value');
+      if (modal && tokenValue) {
+        tokenValue.textContent = newToken;
+        console.log('Showing modal...');
+
+        // Use showModal if supported, otherwise fallback to setting display
+        if (typeof modal.showModal === 'function') {
+          modal.showModal();
+        } else {
+          modal.style.display = 'block';
+          modal.setAttribute('open', '');
+        }
+      } else {
+        console.error('Modal or token display element not found', { modal, tokenValue });
+      }
+    }
+  } else {
+    console.log('No token in URL params');
   }
 
   // Copy token to clipboard

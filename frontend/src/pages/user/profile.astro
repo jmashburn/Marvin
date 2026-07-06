@@ -27,7 +27,7 @@ try {
   {error ? (
     <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : user && (
-    <form method="POST" action="/api/user/profile/update" class="profile-form">
+    <form id="profile-form" method="POST" action="/api/user/profile/update" class="profile-form">
       <input type="hidden" name="user_id" value={user.id} />
       <section class="form-section">
         <h3>Account Details</h3>
@@ -47,12 +47,58 @@ try {
         </div>
       </section>
       <div class="form-actions">
-        <button type="submit" class="button">Save Changes</button>
+        <button type="submit" id="submit-btn" class="button">Save Changes</button>
         <a href="/user/api-tokens" class="button secondary">Manage API Tokens</a>
       </div>
     </form>
   )}
 </AppLayout>
+
+<script>
+  const form = document.getElementById('profile-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+
+  if (form && submitBtn) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const userId = formData.get('user_id') as string;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      const data = {
+        full_name: formData.get('full_name') as string,
+        email: formData.get('email') as string,
+        username: formData.get('username') as string,
+      };
+
+      try {
+        const response = await fetch(`/api/users/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          window.location.href = '/user/profile?success=1';
+        } else {
+          const error = await response.json();
+          alert('Error: ' + (error.detail || 'Failed to update profile'));
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save Changes';
+        }
+      } catch (err) {
+        console.error('Profile update error:', err);
+        alert('Error: Network error. Please try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+      }
+    });
+  }
+</script>
 
 <style>
   .toolbar { display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
@@ -70,4 +116,5 @@ try {
   .form-grid label > span { font-size: 14px; font-weight: 500; }
   .form-grid input { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
   .form-actions { display: flex; gap: 12px; }
+  .button:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>

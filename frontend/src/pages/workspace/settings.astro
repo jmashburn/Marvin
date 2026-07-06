@@ -9,17 +9,19 @@ const authToken = getAuthToken(Astro.cookies);
 let workspace = null;
 let error: string | null = null;
 let currentUserRole: WorkspaceRole | null = null;
+let isPlatformAdmin = false;
 
 try {
   workspace = await getCurrentWorkspace(authToken);
 
   if (workspace) {
-    // Get current user's role
+    // Get current user's role and admin status
     const members = await listWorkspaceMembers(workspace.id, authToken);
     const currentUser = await fetchApi<any>('/api/self', {}, authToken);
     if (currentUser) {
       const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
       currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
+      isPlatformAdmin = currentUser.admin === true;
     }
   }
 } catch (e) {
@@ -28,6 +30,9 @@ try {
 }
 
 const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUserRole === 'ADMIN');
+
+const urlParams = Astro.url.searchParams;
+const success = urlParams.get('success') === '1';
 ---
 
 <AppLayout title="Workspace Settings" eyebrow="Workspace">
@@ -37,6 +42,12 @@ const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUser
       <p>Manage your workspace configuration and preferences</p>
     </div>
   </div>
+
+  {success && (
+    <div class="alert alert-success">
+      <strong>Success!</strong> Workspace settings updated successfully
+    </div>
+  )}
 
   {error ? (
     <div class="error-banner">
@@ -52,7 +63,13 @@ const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUser
 
       <section class="settings-section">
         <h3>General Settings</h3>
-        <form method="POST" action="/api/groups/{workspace.id}/preferences" class="settings-form">
+        <form
+          id="workspace-settings-form"
+          data-workspace-id={workspace.id}
+          method="POST"
+          action="/api/groups/{workspace.id}/preferences"
+          class="settings-form"
+        >
           <div class="form-grid">
             <label>
               <span>Workspace Name</span>
@@ -78,7 +95,7 @@ const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUser
 
           {canManage && (
             <div class="form-actions">
-              <button type="submit" class="button">Save Changes</button>
+              <button type="submit" id="submit-btn" class="button">Save Changes</button>
               <button type="reset" class="button secondary">Reset</button>
             </div>
           )}
@@ -107,15 +124,21 @@ const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUser
         <h3>Danger Zone</h3>
         <p>Irreversible and destructive actions.</p>
 
-        {canManage && currentUserRole === 'OWNER' ? (
+        {isPlatformAdmin ? (
           <div class="danger-actions">
-            <button type="button" class="button danger" disabled>
+            <button
+              type="button"
+              id="delete-workspace-btn"
+              class="button danger"
+              data-workspace-id={workspace.id}
+              data-workspace-name={workspace.name}
+            >
               Delete Workspace
             </button>
-            <small>Workspace deletion is not yet implemented</small>
+            <small>⚠️ Platform admin only - This will permanently delete the workspace and all its data</small>
           </div>
         ) : (
-          <p class="muted">Only workspace owners can perform destructive actions.</p>
+          <p class="muted">Only platform administrators can delete workspaces.</p>
         )}
       </section>
     </div>
@@ -125,6 +148,117 @@ const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUser
     </div>
   )}
 </AppLayout>
+
+<script>
+  const form = document.getElementById('workspace-settings-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const deleteBtn = document.getElementById('delete-workspace-btn') as HTMLButtonElement;
+
+  // Settings form submission
+  if (form && submitBtn) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const workspaceId = form.dataset.workspaceId;
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      try {
+        const formData = new FormData(form);
+        const data = {
+          name: formData.get('name') as string,
+          slug: formData.get('slug') as string,
+        };
+
+        const response = await fetch(`/api/groups/${workspaceId}/preferences`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          window.location.href = '/workspace/settings?success=1';
+        } else {
+          const error = await response.json();
+          alert('Error: ' + (error.detail || 'Failed to update workspace settings'));
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save Changes';
+        }
+      } catch (err) {
+        alert('Error: Network error. Please try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+      }
+    });
+  }
+
+  // Delete workspace
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', async () => {
+      const workspaceId = deleteBtn.dataset.workspaceId;
+      const workspaceName = deleteBtn.dataset.workspaceName;
+
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      // Double confirmation for destructive action
+      const confirmation = confirm(
+        `⚠️ DELETE WORKSPACE: "${workspaceName}"\n\n` +
+        `This will permanently delete:\n` +
+        `• The workspace and all settings\n` +
+        `• All workspace members\n` +
+        `• All entries and collections\n` +
+        `• All assets and media\n\n` +
+        `This action CANNOT be undone.\n\n` +
+        `Are you absolutely sure you want to proceed?`
+      );
+
+      if (!confirmation) return;
+
+      // Second confirmation
+      const secondConfirmation = confirm(
+        `FINAL WARNING\n\n` +
+        `You are about to permanently delete workspace "${workspaceName}".\n\n` +
+        `Type the workspace name to confirm, or click Cancel.`
+      );
+
+      if (!secondConfirmation) return;
+
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Deleting...';
+
+      try {
+        const response = await fetch(`/api/admin/groups/${workspaceId}?force=true`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+
+        if (response.ok || response.status === 204) {
+          alert('Workspace deleted successfully. Redirecting...');
+          window.location.href = '/';
+        } else {
+          const error = await response.json();
+          alert('Error: ' + (error.detail || 'Failed to delete workspace'));
+          deleteBtn.disabled = false;
+          deleteBtn.textContent = 'Delete Workspace';
+        }
+      } catch (err) {
+        console.error('Delete error:', err);
+        alert('Error: Network error. Please try again.');
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = 'Delete Workspace';
+      }
+    });
+  }
+</script>
 
 <style>
   .toolbar {
@@ -317,5 +451,16 @@ const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUser
   .muted {
     color: var(--muted);
     font-size: 14px;
+  }
+
+  .alert-success {
+    background: rgb(53 122 85 / 0.1);
+    color: var(--good);
+    border: 1px solid var(--good);
+  }
+
+  .button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 </style>

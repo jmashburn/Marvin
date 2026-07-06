@@ -66,7 +66,7 @@ class GroupPreferencesCreate(_MarvinModel):
 
 class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow partial updates.
     """
-    Schema for updating existing group preferences.
+    Schema for updating existing group preferences and workspace settings.
     All fields are optional for partial updates.
     The id and group_id are set by the controller based on the URL path.
     """
@@ -76,6 +76,12 @@ class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow p
 
     group_id: UUID4 | None = None  # Group ID is usually not updatable for existing preferences.
     """The group ID. Typically not changed during an update."""
+
+    # Workspace-level settings (stored in Groups model, not preferences)
+    name: str | None = None
+    """Optional: The name of the workspace."""
+    slug: str | None = None
+    """Optional: The URL-friendly slug for the workspace."""
 
     private_group: bool | None = None
     """Optional: New value for the private group setting."""

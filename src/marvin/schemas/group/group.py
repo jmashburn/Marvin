@@ -83,6 +83,8 @@ class GroupRead(GroupUpdate):  # Extends GroupUpdate, which might be unusual if 
 
     id: UUID4
     """The unique identifier of the group."""
+    slug: str | None = None
+    """The URL-friendly slug of the group."""
     users: list[UserSummary] | None = None
     """
     DEPRECATED: Legacy users with group_id = this workspace.
