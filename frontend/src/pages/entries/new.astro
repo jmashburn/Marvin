@@ -58,20 +58,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
               required
               placeholder="e.g., My First Project"
             />
-            <p class="form-help">The main heading for this entry</p>
-          </div>
-
-          <div class="form-group">
-            <label for="slug">Slug *</label>
-            <input
-              type="text"
-              id="slug"
-              name="slug"
-              required
-              placeholder="e.g., my-first-project"
-              pattern="[a-z0-9-]+"
-            />
-            <p class="form-help">URL-friendly identifier (lowercase, hyphens only)</p>
+            <p class="form-help">Slug will be auto-generated from the title</p>
           </div>
 
           <div class="form-group">

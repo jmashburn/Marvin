@@ -31,15 +31,29 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         return self.session.scalar(query) is not None
 
     def create(self, data: Any) -> EntryRead:
+        from slugify import slugify
+
         data_dict = data if isinstance(data, dict) else data.model_dump()
         if self.group_id:
             data_dict["group_id"] = self.group_id
+
+        # Auto-generate slug from title if not provided
+        if not data_dict.get("slug") and data_dict.get("title"):
+            data_dict["slug"] = slugify(data_dict["title"])
+
         if not self._entry_type_exists(data_dict["entry_type_id"]):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry type does not exist in this group.")
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryRead:
+        from slugify import slugify
+
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
+
+        # Auto-regenerate slug if title is being updated
+        if "title" in data_dict and data_dict.get("title"):
+            data_dict["slug"] = slugify(data_dict["title"])
+
         entry_type_id = data_dict.get("entry_type_id")
         if entry_type_id and not self._entry_type_exists(entry_type_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry type does not exist in this group.")

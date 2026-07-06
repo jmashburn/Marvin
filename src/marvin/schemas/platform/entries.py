@@ -27,7 +27,7 @@ class EntryCreate(_MarvinModel):
 
     entry_type_id: UUID4
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     summary: str | None = None
     description: str | None = None
     content_markdown: str | None = None

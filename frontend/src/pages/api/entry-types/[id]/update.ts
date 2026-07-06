@@ -10,7 +10,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
 
     await updateEntryType(id, {
       name: formData.get('name') as string,
-      slug: formData.get('slug') as string,
+      // slug is auto-regenerated from name on the backend
       icon: (formData.get('icon') as string) || null,
       color: (formData.get('color') as string) || null,
       description: (formData.get('description') as string) || null,

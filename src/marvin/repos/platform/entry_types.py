@@ -24,13 +24,27 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         )
 
     def create(self, data: Any) -> EntryTypeRead:
+        from slugify import slugify
+
         data_dict = data if isinstance(data, dict) else data.model_dump()
         if self.group_id:
             data_dict["group_id"] = self.group_id
+
+        # Auto-generate slug from name if not provided
+        if not data_dict.get("slug") and data_dict.get("name"):
+            data_dict["slug"] = slugify(data_dict["name"])
+
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryTypeRead:
+        from slugify import slugify
+
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
+
+        # Auto-regenerate slug if name is being updated
+        if "name" in data_dict and data_dict.get("name"):
+            data_dict["slug"] = slugify(data_dict["name"])
+
         data_dict.pop("group_id", None)
         return super().update(match_value, data_dict, match_key=match_key)
 

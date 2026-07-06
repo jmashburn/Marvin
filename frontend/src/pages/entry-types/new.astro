@@ -22,20 +22,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
           required
           placeholder="e.g., Tutorial, Case Study, Blog Post"
         />
-        <p class="form-help">Human-readable name for this entry type</p>
-      </div>
-
-      <div class="form-group">
-        <label for="slug">Slug *</label>
-        <input
-          type="text"
-          id="slug"
-          name="slug"
-          required
-          placeholder="e.g., tutorial, case-study, blog-post"
-          pattern="[a-z0-9-]+"
-        />
-        <p class="form-help">URL-friendly identifier (lowercase, hyphens only)</p>
+        <p class="form-help">Slug will be auto-generated from the name</p>
       </div>
 
       <div class="form-row">

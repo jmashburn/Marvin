@@ -9,8 +9,8 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
     const formData = await request.formData();
     const updates: Record<string, unknown> = {};
 
-    // Collect all form fields
-    const fields = ['title', 'slug', 'entry_type_id', 'summary', 'description', 'content_markdown', 'status', 'published_at'];
+    // Collect all form fields (slug is auto-generated from title on backend)
+    const fields = ['title', 'entry_type_id', 'summary', 'description', 'content_markdown', 'status', 'published_at'];
     for (const field of fields) {
       const value = formData.get(field);
       if (value !== null) {

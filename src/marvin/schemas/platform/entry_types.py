@@ -12,7 +12,7 @@ class EntryTypeCreate(_MarvinModel):
     """Schema for creating an entry type."""
 
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     icon: str | None = None
     color: str | None = None
     description: str | None = None

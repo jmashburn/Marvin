@@ -8,7 +8,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const entry = await createEntry({
       entry_type_id: formData.get('entry_type_id') as string,
       title: formData.get('title') as string,
-      slug: formData.get('slug') as string,
+      // slug is auto-generated from title on the backend
       summary: (formData.get('summary') as string) || null,
       description: (formData.get('description') as string) || null,
       status: (formData.get('status') as string) || 'draft',

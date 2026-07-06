@@ -13,8 +13,8 @@ class CollectionCreate(_MarvinModel):
 
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     """Name of the collection."""
-    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    """URL-friendly slug for the collection."""
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    """URL-friendly slug for the collection. Auto-generated from name if not provided."""
     description: str | None = None
     """Optional description of the collection."""
     sort_order: int = 0
