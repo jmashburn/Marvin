@@ -26,7 +26,7 @@ const baseUrl = Astro.url.origin;
   <div class="toolbar">
     <div>
       <h2>Workspace Invites</h2>
-      <p>Create invitation links to add members to {workspace?.workspace.name || 'this workspace'}</p>
+      <p>Create invitation links to add members to {workspace?.workspace?.name || 'this workspace'}</p>
     </div>
     <a href="/workspace/invites/new" class="button">Create Invite</a>
   </div>
