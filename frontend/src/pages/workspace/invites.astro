@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listInviteTokens } from "@/lib/api/invites";
@@ -23,6 +24,11 @@ const baseUrl = Astro.url.origin;
 ---
 
 <AppLayout title="Workspace Invites" eyebrow="Workspace">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings?tab=members" },
+    { label: "Invitations" }
+  ]} />
+
   <div class="toolbar">
     <div>
       <h2>Workspace Invites</h2>
