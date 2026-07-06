@@ -22,7 +22,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading entry types:</strong> {error}</p>
-      <a href="/entries" class="button secondary">Back to Entries</a>
+      <a href="/workspace/entries" class="button secondary">Back to Entries</a>
     </div>
   ) : (
     <>
@@ -31,7 +31,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
           <h2 style="margin:0;font-size:20px;">Create Entry</h2>
           <p style="margin:4px 0 0;color:var(--muted);">Create a new entry in your workspace.</p>
         </div>
-        <a class="button secondary" href="/entries">Cancel</a>
+        <a class="button secondary" href="/workspace/entries">Cancel</a>
       </div>
 
       <section class="form-section">
@@ -97,7 +97,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 
           <div class="form-actions">
             <button type="submit" class="button">Create Entry</button>
-            <a href="/entries" class="button secondary">Cancel</a>
+            <a href="/workspace/entries" class="button secondary">Cancel</a>
           </div>
         </form>
       </section>

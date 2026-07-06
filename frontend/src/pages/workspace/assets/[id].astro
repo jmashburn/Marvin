@@ -24,7 +24,7 @@ if (!id) {
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading asset:</strong> {error}</p>
-      <a href="/assets" class="button secondary">Back to Assets</a>
+      <a href="/workspace/assets" class="button secondary">Back to Assets</a>
     </div>
   ) : asset ? (
     <>
@@ -39,7 +39,7 @@ if (!id) {
               Delete
             </button>
           </form>
-          <a class="button secondary" href="/assets">Back</a>
+          <a class="button secondary" href="/workspace/assets">Back</a>
         </div>
       </div>
 
@@ -108,7 +108,7 @@ if (!id) {
 
             <div class="form-actions">
               <button type="submit" class="button">Save Changes</button>
-              <a href="/assets" class="button secondary">Cancel</a>
+              <a href="/workspace/assets" class="button secondary">Cancel</a>
             </div>
           </form>
         </section>

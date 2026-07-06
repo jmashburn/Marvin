@@ -32,7 +32,7 @@ const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order
           <h2 style="margin:0;font-size:20px;">Collections</h2>
           <p style="margin:4px 0 0;color:var(--muted);">Curated groupings of related entries.</p>
         </div>
-        <a class="button" href="/collections/new">Create Collection</a>
+        <a class="button" href="/workspace/collections/new">Create Collection</a>
       </div>
 
       {sortedCollections.length === 0 ? (
@@ -41,7 +41,7 @@ const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order
           <p class="empty-description">
             Collections help you organize and group related entries together.
           </p>
-          <a href="/collections/new" class="button">Create Collection</a>
+          <a href="/workspace/collections/new" class="button">Create Collection</a>
         </div>
       ) : (
         <table class="table">

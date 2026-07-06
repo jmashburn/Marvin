@@ -1,314 +1,249 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getAuthToken } from "@/lib/api/client";
+import { getResource } from "@/lib/api/resources";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
-let resource: any = null;
+let resource = null;
 let error: string | null = null;
 
-try {
-  resource = await fetchApi<any>(`/api/resources/${id}`, {}, authToken);
-} catch (e) {
-  console.error('[resources/edit] Error:', e);
-  error = e instanceof Error ? e.message : String(e);
+if (!id) {
+  error = "Resource ID is required";
+} else {
+  try {
+    resource = await getResource(id, authToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Resource] Failed to load:', error);
+  }
 }
-
-const metadataStr = resource?.metadata ? JSON.stringify(resource.metadata, null, 2) : '';
 ---
 
-<AppLayout title="Edit Resource" eyebrow="Workspace">
-  <div class="page-header">
-    <div>
-      <h2>Edit Resource</h2>
-      <p>Update resource information</p>
-    </div>
-  </div>
-
+<AppLayout title={resource ? resource.name : "Edit Resource"}>
   {error ? (
-    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+    <div class="error-banner">
+      <p><strong>Error loading resource:</strong> {error}</p>
+      <a href="/workspace/resources" class="button secondary">Back to Resources</a>
+    </div>
   ) : resource ? (
-    <div class="form-container">
-      <form id="update-resource-form" class="form">
-        <input type="hidden" name="id" value={resource.id} />
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Edit Resource</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Update resource details</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <form method="POST" action={`/api/resources/${id}/delete`} style="display:inline;">
+            <button type="submit" class="button secondary" onclick="return confirm('Delete this resource?')">
+              Delete
+            </button>
+          </form>
+          <a class="button secondary" href="/workspace/resources">Back</a>
+        </div>
+      </div>
 
-        <div class="form-section">
-          <h3>Basic Information</h3>
-
-          <label class="form-field">
-            <span class="label">Slug</span>
+      <section class="form-section">
+        <form method="POST" action={`/api/resources/${id}/update`} class="form">
+          <div class="form-group">
+            <label for="name">Name *</label>
             <input
               type="text"
-              value={resource.slug}
-              disabled
-              class="input disabled"
-            />
-            <small class="hint">Auto-generated from name</small>
-          </label>
-
-          <label class="form-field">
-            <span class="label">Name *</span>
-            <input
-              type="text"
+              id="name"
               name="name"
               required
               value={resource.name}
-              class="input"
             />
-          </label>
+          </div>
 
-          <label class="form-field">
-            <span class="label">Resource Type *</span>
+          <div class="form-group">
+            <label for="slug">Slug</label>
             <input
               type="text"
+              id="slug"
+              name="slug"
+              value={resource.slug}
+              disabled
+              style="background: var(--panel-2); color: var(--muted);"
+            />
+            <p class="form-help">Auto-generated from name</p>
+          </div>
+
+          <div class="form-group">
+            <label for="resource_type">Type *</label>
+            <input
+              type="text"
+              id="resource_type"
               name="resource_type"
               required
-              value={resource.resource_type}
-              class="input"
+              value={resource.resourceType}
             />
-          </label>
+            <p class="form-help">Category for this resource</p>
+          </div>
 
-          <label class="form-field">
-            <span class="label">Description</span>
-            <textarea
-              name="description"
-              rows="3"
-              class="input textarea"
-            >{resource.description || ''}</textarea>
-          </label>
-        </div>
-
-        <div class="form-section">
-          <h3>External References</h3>
-
-          <label class="form-field">
-            <span class="label">External ID</span>
-            <input
-              type="text"
-              name="external_id"
-              value={resource.external_id || ''}
-              class="input"
-            />
-          </label>
-
-          <label class="form-field">
-            <span class="label">URL</span>
+          <div class="form-group">
+            <label for="url">URL</label>
             <input
               type="url"
+              id="url"
               name="url"
-              value={resource.url || ''}
-              class="input"
+              value={resource.url || ""}
             />
-            <small class="hint">Link to supplier site, documentation, or related resource</small>
-          </label>
-        </div>
+            <p class="form-help">External website or documentation</p>
+            {resource.url && (
+              <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
+                Open in new tab ↗
+              </a>
+            )}
+          </div>
 
-        <div class="form-section">
-          <h3>Metadata (JSON)</h3>
+          <div class="form-group">
+            <label for="external_id">External ID</label>
+            <input
+              type="text"
+              id="external_id"
+              name="external_id"
+              value={resource.externalId || ""}
+            />
+          </div>
 
-          <label class="form-field">
-            <span class="label">Metadata</span>
+          <div class="form-group">
+            <label for="description">Description</label>
             <textarea
-              name="metadata"
-              rows="5"
-              class="input textarea mono"
-            >{metadataStr}</textarea>
-            <small class="hint">Optional JSON metadata for custom attributes</small>
-          </label>
-        </div>
+              id="description"
+              name="description"
+              rows="4"
+            >{resource.description || ""}</textarea>
+          </div>
 
-        <div class="form-actions">
-          <button type="submit" class="button">Save Changes</button>
-          <button type="button" id="delete-btn" class="button danger">Delete</button>
-          <a href="/workspace/resources" class="button secondary">Cancel</a>
-        </div>
-      </form>
-    </div>
+          <div class="form-group">
+            <label for="metadata_">Metadata (JSON)</label>
+            <p class="form-help">Custom metadata fields for this resource</p>
+            <textarea
+              id="metadata_"
+              name="metadata_"
+              rows="6"
+              placeholder='{"key": "value"}'
+              class="metadata-editor"
+            >{resource.metadata ? JSON.stringify(resource.metadata, null, 2) : ""}</textarea>
+            <small style="font-size: 11px; color: var(--muted);">
+              Must be valid JSON. Example: {`{"supplier_code": "ABC123", "contact": "john@example.com"}`}
+            </small>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="button">Save Changes</button>
+            <a href="/workspace/resources" class="button secondary">Cancel</a>
+          </div>
+        </form>
+      </section>
+    </>
   ) : null}
 </AppLayout>
 
-<script define:vars={{ id }}>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { slugify } from '@/lib/utils';
+<script>
+  // Validate metadata JSON
+  const metadataField = document.getElementById('metadata_');
 
-  const form = document.getElementById('update-resource-form');
-  const deleteBtn = document.getElementById('delete-btn');
+  if (metadataField) {
+    metadataField.addEventListener('blur', () => {
+      const value = metadataField.value.trim();
+      if (!value) return;
 
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-
-    // Auto-regenerate slug from name
-    const name = formData.get('name');
-    const slug = slugify(name);
-
-    // Parse metadata if provided
-    let metadata = null;
-    const metadataStr = formData.get('metadata')?.trim();
-    if (metadataStr) {
       try {
-        metadata = JSON.parse(metadataStr);
-      } catch (err) {
-        alert('Invalid JSON in metadata field');
-        return;
+        JSON.parse(value);
+        metadataField.style.borderColor = 'var(--line)';
+      } catch (error) {
+        metadataField.style.borderColor = '#ef5350';
       }
-    }
-
-    const payload = {
-      id: formData.get('id'),
-      slug,
-      name,
-      resource_type: formData.get('resource_type'),
-      description: formData.get('description') || null,
-      url: formData.get('url') || null,
-      external_id: formData.get('external_id') || null,
-      metadata,
-    };
-
-    try {
-      const { fetchApi } = await import('@/lib/api/client');
-
-      await fetchApi(`/api/resources/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      window.location.href = '/workspace/resources?updated=true';
-    } catch (error) {
-      alert('Failed to update resource. Please try again.');
-      console.error('Error updating resource:', error);
-    }
-  });
-
-  deleteBtn?.addEventListener('click', async () => {
-    if (!confirm('Are you sure you want to delete this resource?')) return;
-
-    try {
-      const { fetchApi } = await import('@/lib/api/client');
-
-      await fetchApi(`/api/resources/${id}`, {
-        method: 'DELETE',
-      });
-
-      window.location.href = '/workspace/resources?deleted=true';
-    } catch (error) {
-      alert('Failed to delete resource. Please try again.');
-      console.error('Error deleting resource:', error);
-    }
-  });
+    });
+  }
 </script>
 
 <style>
-  .page-header {
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 32px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--line);
+    gap: 1rem;
   }
 
-  .page-header h2 {
+  .error-banner p {
     margin: 0;
-    font-size: 24px;
-    font-weight: 600;
+    color: var(--color-error);
   }
 
-  .page-header p {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
-
-  .form-container {
-    max-width: 700px;
+  .form-section {
+    max-width: 42rem;
   }
 
   .form {
     display: grid;
-    gap: 24px;
-  }
-
-  .form-section {
-    display: grid;
-    gap: 16px;
-    padding: 24px;
+    gap: 2rem;
+    padding: 2rem;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
 
-  .form-section h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
-
-  .form-field {
+  .form-group {
     display: grid;
-    gap: 6px;
+    gap: 0.5rem;
   }
 
-  .label {
-    font-size: 14px;
-    font-weight: 500;
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
   }
 
-  .input {
-    width: 100%;
-    padding: 10px 12px;
+  input[type="text"],
+  input[type="url"],
+  textarea {
+    padding: 0.5rem 0.75rem;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
-    font-size: 14px;
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
   }
 
-  .input.disabled {
-    background: var(--panel-2);
-    color: var(--muted);
-    cursor: not-allowed;
-  }
-
-  .textarea {
+  textarea {
     resize: vertical;
     font-family: inherit;
   }
 
-  .textarea.mono {
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
   }
 
-  .hint {
-    font-size: 12px;
-    color: var(--muted);
+  .external-link {
+    font-size: 0.875rem;
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .external-link:hover {
+    text-decoration: underline;
   }
 
   .form-actions {
     display: flex;
-    gap: 12px;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
   }
 
-  .alert {
-    padding: 16px;
-    margin-bottom: 24px;
-    border-radius: var(--radius);
-  }
-
-  .alert-error {
-    background: var(--color-error-bg);
-    color: var(--color-error);
-    border: 1px solid var(--color-error);
-  }
-
-  .button.danger {
-    background: var(--color-error);
-    color: white;
-  }
-
-  .button.danger:hover {
-    background: var(--color-error);
-    opacity: 0.9;
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
   }
 </style>

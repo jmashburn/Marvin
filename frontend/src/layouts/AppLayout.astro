@@ -46,10 +46,10 @@ const navGroups = [
   {
     label: "Content",
     items: [
-      { href: "/entries", label: "Entries", icon: "📝" },
-      { href: "/collections", label: "Collections", icon: "📚" },
-      { href: "/assets", label: "Assets", icon: "🖼" },
-      { href: "/resources", label: "Resources", icon: "🔗" },
+      { href: "/workspace/entries", label: "Entries", icon: "📝" },
+      { href: "/workspace/collections", label: "Collections", icon: "📚" },
+      { href: "/workspace/assets", label: "Assets", icon: "🖼" },
+      { href: "/workspace/resources", label: "Resources", icon: "🔗" },
     ]
   },
   {
@@ -136,7 +136,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
             </div>
           </div>
           <div class="topbar-actions">
-            <a class="button secondary" href="/entries">Review Queue</a>
+            <a class="button secondary" href="/workspace/entries">Review Queue</a>
             <form method="POST" action="/api/auth/logout" style="display:inline;">
               <button type="submit" class="button secondary">Logout</button>
             </form>

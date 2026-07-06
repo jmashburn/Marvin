@@ -59,7 +59,7 @@ if (filter !== "all") {
           <h2 style="margin:0;font-size:20px;">Media library</h2>
           <p style="margin:4px 0 0;color:var(--muted);">{assets.length} reusable uploads available to entries.</p>
         </div>
-        <a class="button" href="/assets/new">Upload Asset</a>
+        <a class="button" href="/workspace/assets/new">Upload Asset</a>
       </div>
 
       {assets.length === 0 ? (
@@ -68,13 +68,13 @@ if (filter !== "all") {
           <p class="empty-description">
             Upload your first asset to use in entries.
           </p>
-          <a href="/assets/new" class="button">Upload Asset</a>
+          <a href="/workspace/assets/new" class="button">Upload Asset</a>
         </div>
       ) : (
         <>
           <div class="filter-bar">
             <nav class="segmented" aria-label="Asset type filter">
-              <a href="/assets?filter=all" aria-current={filter === "all" ? "page" : undefined}>
+              <a href="/workspace/assets?filter=all" aria-current={filter === "all" ? "page" : undefined}>
                 All ({assets.length})
               </a>
               {categories.map((category: string) => {

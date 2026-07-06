@@ -39,7 +39,7 @@ if (!id) {
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading collection:</strong> {error}</p>
-      <a href="/collections" class="button secondary">Back to Collections</a>
+      <a href="/workspace/collections" class="button secondary">Back to Collections</a>
     </div>
   ) : collection ? (
     <>
@@ -48,7 +48,7 @@ if (!id) {
           <h2 style="margin:0;font-size:20px;">Edit Collection</h2>
           <p style="margin:4px 0 0;color:var(--muted);">Update collection details and manage entries</p>
         </div>
-        <a class="button secondary" href="/collections">Back</a>
+        <a class="button secondary" href="/workspace/collections">Back</a>
       </div>
 
       <section class="form-section">
@@ -149,7 +149,7 @@ if (!id) {
 
           <div class="form-actions">
             <button type="submit" class="button">Save Changes</button>
-            <a href="/collections" class="button secondary">Cancel</a>
+            <a href="/workspace/collections" class="button secondary">Cancel</a>
           </div>
         </form>
       </section>

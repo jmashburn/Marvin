@@ -40,7 +40,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading entry:</strong> {error}</p>
-      <a href="/entries" class="button secondary">Back to Entries</a>
+      <a href="/workspace/entries" class="button secondary">Back to Entries</a>
     </div>
   ) : entry ? (
     <>
@@ -55,7 +55,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
               Delete
             </button>
           </form>
-          <a class="button secondary" href="/entries">Back</a>
+          <a class="button secondary" href="/workspace/entries">Back</a>
         </div>
       </div>
 

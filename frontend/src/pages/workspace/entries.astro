@@ -43,7 +43,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
     <>
       <div class="toolbar">
         <nav class="segmented" aria-label="Entry type">
-          <a href="/entries" aria-current={!selectedTypeId ? "page" : undefined}>
+          <a href="/workspace/entries" aria-current={!selectedTypeId ? "page" : undefined}>
             all
           </a>
           {sortedTypes.map((type) => (
@@ -56,7 +56,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
             </a>
           ))}
         </nav>
-        <a class="button" href="/entries/new">New Entry</a>
+        <a class="button" href="/workspace/entries/new">New Entry</a>
       </div>
 
       {filteredEntries.length === 0 ? (
@@ -67,7 +67,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
               ? `No entries of this type yet. Create one to get started.`
               : `Create your first entry to get started.`}
           </p>
-          <a href="/entries/new" class="button">Create Entry</a>
+          <a href="/workspace/entries/new" class="button">Create Entry</a>
         </div>
       ) : (
         <section class="grid" aria-label="Entries">

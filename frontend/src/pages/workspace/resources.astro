@@ -1,195 +1,206 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getAuthToken } from "@/lib/api/client";
+import { listResources } from "@/lib/api/resources";
 
 const authToken = getAuthToken(Astro.cookies);
 
-let resources: any[] = [];
+let resources = [];
 let error: string | null = null;
 
 try {
-  resources = await fetchApi<any[]>('/api/resources', {}, authToken);
+  resources = await listResources(authToken);
 } catch (e) {
-  console.error('[resources] Error:', e);
   error = e instanceof Error ? e.message : String(e);
+  console.error('[Resources] Failed to load:', error);
+}
+
+// Get filter from query params
+const filter = Astro.url.searchParams.get("filter") ?? "all";
+
+// Get unique types
+const allTypes = Array.from(new Set(resources.map((r: any) => r.resourceType))).sort();
+
+// Filter resources
+let filteredResources = resources;
+if (filter !== "all") {
+  filteredResources = resources.filter((r: any) => r.resourceType === filter);
 }
 ---
 
-<AppLayout title="Resources" eyebrow="Workspace">
+<AppLayout title="Resources" eyebrow="Content">
   <div class="toolbar">
     <div>
-      <h2>Resources</h2>
-      <p>Manage workspace resources (fabrics, tools, suppliers, etc.)</p>
+      <h2 style="margin:0;font-size:20px;">Resources</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">External references, suppliers, tools, and materials</p>
     </div>
     <a href="/workspace/resources/new" class="button">Add Resource</a>
   </div>
 
   {error ? (
-    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+    <div class="error-banner">
+      <p><strong>Error loading resources:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
+    </div>
   ) : resources.length === 0 ? (
     <div class="empty-state">
-      <div class="empty-icon">📦</div>
-      <p class="empty-title">No resources</p>
-      <p class="empty-description">Add resources to track materials, tools, suppliers, and more</p>
-      <a href="/workspace/resources/new" class="button">Add Resource</a>
+      <div class="empty-icon">🔗</div>
+      <h3>No resources yet</h3>
+      <p>Resources are external references like suppliers, tools, fabrics, or documentation.</p>
+      <a href="/workspace/resources/new" class="button">Add Your First Resource</a>
     </div>
   ) : (
-    <div class="resources-list">
-      {resources.map((resource) => (
-        <div class="resource-card">
-          <div class="resource-info">
-            <div class="resource-header">
-              <strong>{resource.name}</strong>
-              <span class="resource-type-badge">{resource.resource_type}</span>
-            </div>
-            {resource.description && <p class="resource-description">{resource.description}</p>}
-            <div class="resource-meta">
-              <code class="resource-slug">{resource.slug}</code>
-              {resource.external_id && <span> • {resource.external_id}</span>}
-              {resource.url && <span> • <a href={resource.url} target="_blank" rel="noopener">View</a></span>}
-            </div>
-          </div>
-          <div class="resource-actions">
-            <a href={`/workspace/resources/${resource.id}`} class="button secondary small">Edit</a>
-          </div>
-        </div>
-      ))}
-    </div>
+    <>
+      <div class="filter-bar">
+        <nav class="segmented" aria-label="Resource type filter">
+          <a href="/workspace/resources?filter=all" aria-current={filter === "all" ? "page" : undefined}>
+            All ({resources.length})
+          </a>
+          {allTypes.map((type: string) => {
+            const count = resources.filter((r: any) => r.resourceType === type).length;
+            return (
+              <a href={`/resources?filter=${type}`} aria-current={filter === type ? "page" : undefined}>
+                {type} ({count})
+              </a>
+            );
+          })}
+        </nav>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>External ID</th>
+            <th>URL</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredResources.map((resource: any) => (
+            <tr>
+              <td><strong>{resource.name}</strong></td>
+              <td><span class="type-badge">{resource.resourceType}</span></td>
+              <td class="description-cell">{resource.description || '—'}</td>
+              <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
+              <td>
+                {resource.url ? (
+                  <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
+                    {new URL(resource.url).hostname} ↗
+                  </a>
+                ) : '—'}
+              </td>
+              <td>
+                <div class="actions">
+                  <a href={`/resources/${resource.id}`} class="button secondary small">Edit</a>
+                  <form method="POST" action={`/api/resources/${resource.id}/delete`} style="display:inline;">
+                    <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this resource?')">
+                      Delete
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   )}
 </AppLayout>
 
 <style>
-  .toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 32px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .toolbar h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-  }
-
-  .toolbar p {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
-
-  .alert {
-    padding: 16px;
-    margin-bottom: 24px;
-    border-radius: var(--radius);
-  }
-
-  .alert-error {
+  .error-banner {
+    padding: 1.5rem;
     background: var(--color-error-bg);
-    color: var(--color-error);
     border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
   }
 
   .empty-state {
-    padding: 80px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
     text-align: center;
   }
 
   .empty-icon {
-    font-size: 64px;
-    margin-bottom: 16px;
-    opacity: 0.3;
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
   }
 
-  .empty-title {
-    margin: 0 0 8px;
-    font-size: 18px;
-    font-weight: 600;
+  .empty-state h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.5rem;
   }
 
-  .empty-description {
-    margin: 0 0 24px;
+  .empty-state p {
+    margin: 0 0 1.5rem;
     color: var(--muted);
-    font-size: 14px;
+    max-width: 32rem;
   }
 
-  .resources-list {
-    display: grid;
-    gap: 16px;
+  .filter-bar {
+    margin-bottom: 1.5rem;
   }
 
-  .resource-card {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-    padding: 20px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-  }
-
-  .resource-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .resource-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .resource-header strong {
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  .resource-type-badge {
-    padding: 2px 8px;
-    background: rgba(79, 156, 132, 0.1);
-    color: var(--accent);
+  .type-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--panel-2);
     border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: capitalize;
   }
 
-  .resource-description {
-    margin: 0;
-    font-size: 14px;
-    color: var(--muted);
+  .description-cell {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .resource-meta {
-    font-size: 12px;
-    color: var(--muted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .resource-slug {
-    font-family: ui-monospace, monospace;
-    font-size: 12px;
-  }
-
-  .resource-meta a {
+  .external-link {
     color: var(--accent);
+    text-decoration: none;
+    font-size: 0.875rem;
+  }
+
+  .external-link:hover {
     text-decoration: underline;
   }
 
-  .resource-actions {
-    flex-shrink: 0;
+  .actions {
+    display: flex;
+    gap: 0.5rem;
   }
 
   .button.small {
-    padding: 6px 14px;
-    font-size: 13px;
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+
+  .button.danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg);
   }
 </style>

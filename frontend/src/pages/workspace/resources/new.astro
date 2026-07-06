@@ -2,90 +2,97 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 ---
 
-<AppLayout title="Add Resource" eyebrow="Workspace">
-  <div class="page-header">
+<AppLayout title="New Resource" eyebrow="Resources">
+  <div class="toolbar">
     <div>
-      <h2>Add Resource</h2>
-      <p>Create a new workspace resource</p>
+      <h2 style="margin:0;font-size:20px;">New Resource</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Add an external reference, supplier, tool, or material</p>
     </div>
+    <a href="/workspace/resources" class="button secondary">Cancel</a>
   </div>
 
-  <div class="form-container">
-    <form id="create-resource-form" class="form">
-      <div class="form-section">
-        <h3>Basic Information</h3>
-
-        <label class="form-field">
-          <span class="label">Name *</span>
-          <input
-            type="text"
-            name="name"
-            required
-            placeholder="Cotton Fabric - Blue"
-            class="input"
-          />
-        </label>
-
-        <label class="form-field">
-          <span class="label">Resource Type *</span>
-          <input
-            type="text"
-            name="resource_type"
-            required
-            placeholder="fabric, tool, supplier, etc."
-            class="input"
-          />
-        </label>
-
-        <label class="form-field">
-          <span class="label">Description</span>
-          <textarea
-            name="description"
-            rows="3"
-            placeholder="Optional description of this resource"
-            class="input textarea"
-          ></textarea>
-        </label>
+  <section class="form-section">
+    <form method="POST" action="/api/resources" class="form">
+      <div class="form-group">
+        <label for="name">Name *</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          required
+          placeholder="e.g., Organic Cotton Supplier, Figma, GitHub Repo"
+        />
       </div>
 
-      <div class="form-section">
-        <h3>External References</h3>
-
-        <label class="form-field">
-          <span class="label">External ID</span>
-          <input
-            type="text"
-            name="external_id"
-            placeholder="SKU, ISBN, or other external identifier"
-            class="input"
-          />
-        </label>
-
-        <label class="form-field">
-          <span class="label">URL</span>
-          <input
-            type="url"
-            name="url"
-            placeholder="https://supplier.com/product"
-            class="input"
-          />
-          <small class="hint">Link to supplier site, documentation, or related resource</small>
-        </label>
+      <div class="form-group">
+        <label for="slug">Slug</label>
+        <input
+          type="text"
+          id="slug"
+          name="slug"
+          placeholder="Auto-generated from name"
+          disabled
+          style="background: var(--panel-2); color: var(--muted);"
+        />
+        <p class="form-help">Auto-generated from name</p>
       </div>
 
-      <div class="form-section">
-        <h3>Metadata (JSON)</h3>
+      <div class="form-group">
+        <label for="resource_type">Type *</label>
+        <input
+          type="text"
+          id="resource_type"
+          name="resource_type"
+          required
+          placeholder="e.g., supplier, tool, fabric, documentation"
+        />
+        <p class="form-help">Category for this resource</p>
+      </div>
 
-        <label class="form-field">
-          <span class="label">Metadata</span>
-          <textarea
-            name="metadata"
-            rows="5"
-            placeholder='{"color": "blue", "weight": "200gsm", "width": "60in"}'
-            class="input textarea mono"
-          ></textarea>
-          <small class="hint">Optional JSON metadata for custom attributes</small>
-        </label>
+      <div class="form-group">
+        <label for="url">URL</label>
+        <input
+          type="url"
+          id="url"
+          name="url"
+          placeholder="https://example.com"
+        />
+        <p class="form-help">External website or documentation</p>
+      </div>
+
+      <div class="form-group">
+        <label for="external_id">External ID</label>
+        <input
+          type="text"
+          id="external_id"
+          name="external_id"
+          placeholder="SKU, ISBN, or other identifier"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows="4"
+          placeholder="What is this resource? How is it used?"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="metadata_">Metadata (JSON)</label>
+        <p class="form-help">Custom metadata fields for this resource</p>
+        <textarea
+          id="metadata_"
+          name="metadata_"
+          rows="6"
+          placeholder='{"key": "value"}'
+          class="metadata-editor"
+        ></textarea>
+        <small style="font-size: 11px; color: var(--muted);">
+          Must be valid JSON. Example: {`{"supplier_code": "ABC123", "contact": "john@example.com"}`}
+        </small>
       </div>
 
       <div class="form-actions">
@@ -93,143 +100,117 @@ import AppLayout from "@/layouts/AppLayout.astro";
         <a href="/workspace/resources" class="button secondary">Cancel</a>
       </div>
     </form>
-  </div>
+  </section>
 </AppLayout>
 
 <script>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { slugify } from '@/lib/utils';
+  // Auto-generate slug from name
+  const nameInput = document.getElementById('name');
+  const slugInput = document.getElementById('slug');
 
-  const form = document.getElementById('create-resource-form');
+  if (nameInput && slugInput) {
+    nameInput.addEventListener('input', () => {
+      const slug = nameInput.value
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      slugInput.value = slug;
+    });
+  }
 
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
+  // Validate metadata JSON on form submit
+  const form = document.querySelector('form');
+  const metadataField = document.getElementById('metadata_');
 
-    // Auto-generate slug from name
-    const name = formData.get('name') as string;
-    const slug = slugify(name);
+  if (form && metadataField) {
+    metadataField.addEventListener('blur', () => {
+      const value = metadataField.value.trim();
+      if (!value) return;
 
-    // Parse metadata if provided
-    let metadata = null;
-    const metadataStr = (formData.get('metadata') as string)?.trim();
-    if (metadataStr) {
       try {
-        metadata = JSON.parse(metadataStr);
-      } catch (err) {
-        alert('Invalid JSON in metadata field');
-        return;
+        JSON.parse(value);
+        metadataField.style.borderColor = 'var(--line)';
+      } catch (error) {
+        metadataField.style.borderColor = '#ef5350';
       }
-    }
+    });
 
-    const payload = {
-      slug,
-      name,
-      resource_type: formData.get('resource_type'),
-      description: formData.get('description') || null,
-      url: formData.get('url') || null,
-      external_id: formData.get('external_id') || null,
-      metadata,
-    };
+    form.addEventListener('submit', async (e) => {
+      const metadataValue = metadataField.value.trim();
 
-    try {
-      const { fetchApi } = await import('@/lib/api/client');
-
-      await fetchApi('/api/resources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      window.location.href = '/workspace/resources?created=true';
-    } catch (error) {
-      alert('Failed to create resource. Please try again.');
-      console.error('Error creating resource:', error);
-    }
-  });
+      if (metadataValue) {
+        try {
+          JSON.parse(metadataValue);
+        } catch (error) {
+          e.preventDefault();
+          alert('Metadata must be valid JSON. Please check your syntax.');
+          metadataField.focus();
+          return;
+        }
+      }
+    });
+  }
 </script>
 
 <style>
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 32px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .page-header h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-  }
-
-  .page-header p {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
-
-  .form-container {
-    max-width: 700px;
+  .form-section {
+    max-width: 42rem;
   }
 
   .form {
     display: grid;
-    gap: 24px;
-  }
-
-  .form-section {
-    display: grid;
-    gap: 16px;
-    padding: 24px;
+    gap: 2rem;
+    padding: 2rem;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
 
-  .form-section h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
-
-  .form-field {
+  .form-group {
     display: grid;
-    gap: 6px;
+    gap: 0.5rem;
   }
 
-  .label {
-    font-size: 14px;
-    font-weight: 500;
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
   }
 
-  .input {
-    width: 100%;
-    padding: 10px 12px;
+  input[type="text"],
+  input[type="url"],
+  textarea {
+    padding: 0.5rem 0.75rem;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
-    font-size: 14px;
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
   }
 
-  .textarea {
+  textarea {
     resize: vertical;
     font-family: inherit;
   }
 
-  .textarea.mono {
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-  }
-
-  .hint {
-    font-size: 12px;
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
     color: var(--muted);
   }
 
   .form-actions {
     display: flex;
-    gap: 12px;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
   }
 </style>
