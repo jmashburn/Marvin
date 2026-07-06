@@ -76,9 +76,10 @@ const finalNavGroups = [
 ];
 
 // Admin settings link - only for super admins (platform-wide)
+// Added at the very end with a separator label for visual distinction
 if (isSuperAdmin) {
   finalNavGroups.push({
-    label: null,
+    label: "Administration",
     items: [
       { href: "/admin", label: "Admin Settings", icon: "⚙" },
     ]
