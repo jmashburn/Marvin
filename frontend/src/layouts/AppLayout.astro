@@ -21,11 +21,11 @@ try {
   // Not logged in or error
 }
 
-// Navigation structure organized around user workflows
-// Everything below workspace switcher operates inside the active workspace
+// Simplified navigation following 80% rule
+// Primary sidebar contains only daily-use features
 const navGroups = [
   {
-    label: null, // No label for top-level items
+    label: null,
     items: [
       { href: "/", label: "Dashboard", icon: "⌂" },
     ]
@@ -42,40 +42,23 @@ const navGroups = [
     label: "Publishing",
     items: [
       { href: "/publishing/site", label: "Website", icon: "🌐" },
-      { href: "/publishing/clients", label: "Site Clients", icon: "🔑" },
-    ]
-  },
-  {
-    label: "Automation",
-    items: [
-      { href: "/automation/events", label: "Events", icon: "⚡" },
-      { href: "/automation/webhooks", label: "Webhooks", icon: "🪝" },
-      { href: "/automation/notifications", label: "Notifications", icon: "📧" },
     ]
   },
   {
     label: "Workspace",
     items: [
-      { href: "/workspace/settings", label: "Workspace Settings", icon: "⚙" },
-      { href: "/workspace/members", label: "Members", icon: "👥" },
+      { href: "/workspace/settings", label: "Settings", icon: "⚙" },
     ]
   },
   {
-    label: "Configuration",
-    items: [
-      { href: "/entry-types", label: "Entry Types", icon: "◈" },
-    ]
-  },
-  {
-    label: "User",
+    label: null,
     items: [
       { href: "/user/profile", label: "Profile", icon: "👤" },
-      { href: "/user/api-tokens", label: "Personal API Tokens", icon: "🔑" },
     ]
   },
 ];
 
-// Add Platform section for super admins only
+// Platform section for super admins only
 if (isAdmin) {
   navGroups.push({
     label: "Platform",

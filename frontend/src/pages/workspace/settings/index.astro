@@ -1,0 +1,318 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+const currentTab = Astro.url.searchParams.get('tab') || 'general';
+
+let workspace = null;
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+} catch (e) {
+  console.error('[workspace/settings] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const tabs = [
+  { id: 'general', label: 'General', icon: '⚙' },
+  { id: 'members', label: 'Members', icon: '👥' },
+  { id: 'entry-types', label: 'Entry Types', icon: '◈' },
+  { id: 'publishing', label: 'Publishing', icon: '🌐' },
+  { id: 'automation', label: 'Automation', icon: '⚡' },
+  { id: 'integrations', label: 'Integrations', icon: '🔌' },
+];
+---
+
+<AppLayout title="Workspace Settings" eyebrow="Workspace">
+  <div class="settings-container">
+    <div class="settings-header">
+      <div>
+        <h1>Workspace Settings</h1>
+        <p>{workspace?.workspace.name || 'Configure your workspace'}</p>
+      </div>
+    </div>
+
+    <nav class="tabs">
+      {tabs.map(tab => (
+        <a
+          href={`/workspace/settings?tab=${tab.id}`}
+          class:list={['tab', { active: currentTab === tab.id }]}
+        >
+          <span class="tab-icon">{tab.icon}</span>
+          <span class="tab-label">{tab.label}</span>
+        </a>
+      ))}
+    </nav>
+
+    <div class="tab-content">
+      {currentTab === 'general' && (
+        <div class="content-section">
+          <h2>General Settings</h2>
+          <p class="section-description">Basic workspace configuration</p>
+
+          <div class="quick-links">
+            <a href="/workspace/settings/general" class="link-card">
+              <strong>Workspace Details</strong>
+              <p>Name, description, and branding</p>
+            </a>
+            <a href="/workspace/settings/preferences" class="link-card">
+              <strong>Preferences</strong>
+              <p>Timezone, locale, and regional settings</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'members' && (
+        <div class="content-section">
+          <h2>Members</h2>
+          <p class="section-description">Manage team members, roles, and invitations</p>
+
+          <div class="quick-links">
+            <a href="/workspace/members" class="link-card">
+              <strong>Team Members</strong>
+              <p>View and manage workspace members</p>
+            </a>
+            <a href="/workspace/invites" class="link-card">
+              <strong>Invitations</strong>
+              <p>Create and manage invite links</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'entry-types' && (
+        <div class="content-section">
+          <h2>Entry Types</h2>
+          <p class="section-description">Define content structure and custom fields</p>
+
+          <div class="quick-links">
+            <a href="/entry-types" class="link-card">
+              <strong>Manage Entry Types</strong>
+              <p>Create and configure content types</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Custom Fields</strong>
+              <p>Coming soon</p>
+            </div>
+            <div class="link-card disabled">
+              <strong>Templates</strong>
+              <p>Coming soon</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'publishing' && (
+        <div class="content-section">
+          <h2>Publishing</h2>
+          <p class="section-description">Configure publishing targets and integrations</p>
+
+          <div class="quick-links">
+            <a href="/publishing/site" class="link-card">
+              <strong>Website Configuration</strong>
+              <p>Site settings and metadata</p>
+            </a>
+            <a href="/publishing/clients" class="link-card">
+              <strong>Site Clients</strong>
+              <p>Manage API clients and applications</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Domains & SEO</strong>
+              <p>Coming soon</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'automation' && (
+        <div class="content-section">
+          <h2>Automation</h2>
+          <p class="section-description">Events, webhooks, and automated workflows</p>
+
+          <div class="quick-links">
+            <a href="/automation/events" class="link-card">
+              <strong>Events</strong>
+              <p>Monitor workspace event system</p>
+            </a>
+            <a href="/automation/webhooks" class="link-card">
+              <strong>Webhooks</strong>
+              <p>HTTP callbacks for events</p>
+            </a>
+            <a href="/automation/notifications" class="link-card">
+              <strong>Notifications</strong>
+              <p>Email, Slack, and other alerts</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Scheduler</strong>
+              <p>Coming soon</p>
+            </div>
+            <div class="link-card disabled">
+              <strong>AI Workflows</strong>
+              <p>Coming soon</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'integrations' && (
+        <div class="content-section">
+          <h2>Integrations</h2>
+          <p class="section-description">Connect external services and APIs</p>
+
+          <div class="coming-soon">
+            <p>🔌 Integrations coming soon</p>
+            <p class="hint">Connect GitHub, Slack, email providers, and external APIs</p>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+</AppLayout>
+
+<style>
+  .settings-container {
+    max-width: 1200px;
+  }
+
+  .settings-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .settings-header h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .settings-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 32px;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow-x: auto;
+  }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+
+  .tab:hover {
+    background: var(--panel-2);
+    color: inherit;
+  }
+
+  .tab.active {
+    background: white;
+    color: inherit;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .tab-icon {
+    font-size: 16px;
+  }
+
+  .tab-content {
+    min-height: 400px;
+  }
+
+  .content-section h2 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .link-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+  }
+
+  .link-card:not(.disabled):hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .link-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .link-card strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .link-card p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .coming-soon {
+    padding: 60px 24px;
+    text-align: center;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .coming-soon p {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+
+  .coming-soon .hint {
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 500px;
+    margin: 0 auto;
+  }
+</style>
