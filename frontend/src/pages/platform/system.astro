@@ -140,17 +140,15 @@ try {
   import { fetchApi } from '@/lib/api/client';
 
   // Helper to run cleanup tasks
-  async function runCleanupTask(endpoint: string, confirmMessage: string, successMessage: string) {
+  async function runCleanupTask(event: Event, endpoint: string, confirmMessage: string, successMessage: string) {
     if (!confirm(confirmMessage)) return;
 
-    const button = event?.target as HTMLButtonElement;
-    const originalText = button?.textContent || '';
+    const button = event.target as HTMLButtonElement;
+    const originalText = button.textContent || '';
 
     try {
-      if (button) {
-        button.disabled = true;
-        button.textContent = 'Running...';
-      }
+      button.disabled = true;
+      button.textContent = 'Running...';
 
       const result = await fetchApi<{ message?: string }>(`/api/admin/maintenance/${endpoint}`, {
         method: 'POST',
@@ -161,16 +159,15 @@ try {
     } catch (error) {
       console.error('Cleanup task error:', error);
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      if (button) {
-        button.disabled = false;
-        button.textContent = originalText;
-      }
+      button.disabled = false;
+      button.textContent = originalText;
     }
   }
 
   // Cleanup expired tokens
-  document.getElementById('cleanup-tokens')?.addEventListener('click', () => {
+  document.getElementById('cleanup-tokens')?.addEventListener('click', (e) => {
     runCleanupTask(
+      e,
       'cleanup-tokens',
       'Clean up expired tokens? This will remove all expired API tokens and sessions.',
       'Token cleanup completed successfully'
@@ -178,8 +175,9 @@ try {
   });
 
   // Cleanup old events
-  document.getElementById('cleanup-events')?.addEventListener('click', () => {
+  document.getElementById('cleanup-events')?.addEventListener('click', (e) => {
     runCleanupTask(
+      e,
       'cleanup-events',
       'Clean up old event logs? This will remove events older than 90 days.',
       'Event cleanup completed successfully'
@@ -187,8 +185,9 @@ try {
   });
 
   // Optimize database
-  document.getElementById('optimize-db')?.addEventListener('click', () => {
+  document.getElementById('optimize-db')?.addEventListener('click', (e) => {
     runCleanupTask(
+      e,
       'optimize-db',
       'Optimize database? This will run VACUUM and ANALYZE. The database will be locked briefly.',
       'Database optimization completed successfully'
@@ -196,8 +195,9 @@ try {
   });
 
   // Clear cache
-  document.getElementById('clear-cache')?.addEventListener('click', () => {
+  document.getElementById('clear-cache')?.addEventListener('click', (e) => {
     runCleanupTask(
+      e,
       'clear-cache',
       'Clear all caches? This will remove temporary files and cached data.',
       'Cache cleared successfully'
