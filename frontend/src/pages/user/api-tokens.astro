@@ -9,7 +9,7 @@ const newToken = Astro.url.searchParams.get('token');
 const newTokenName = Astro.url.searchParams.get('token_name');
 
 try {
-  tokens = await fetchApi<any[]>('/api/api-tokens', {}, authToken);
+  tokens = await fetchApi<any[]>('/api/self/api-tokens', {}, authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
 }
@@ -105,7 +105,7 @@ function formatDate(date: string | null | undefined): string {
       if (!confirm(`Rotate the token "${name}"? The old token will stop working.`)) return;
 
       try {
-        const data = await fetchApi(`/api/api-tokens/${id}/rotate`, {
+        const data = await fetchApi(`/api/self/api-tokens/${id}/rotate`, {
           method: 'POST',
         });
 
@@ -125,7 +125,7 @@ function formatDate(date: string | null | undefined): string {
       if (!confirm(`Delete the token "${name}"? This cannot be undone.`)) return;
 
       try {
-        await fetchApi(`/api/api-tokens/${id}`, {
+        await fetchApi(`/api/self/api-tokens/${id}`, {
           method: 'DELETE',
         });
 

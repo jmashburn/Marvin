@@ -82,7 +82,7 @@ try {
       try {
         const { fetchApi } = await import('@/lib/api/client');
 
-        await fetchApi(`/api/users/${userId}`, {
+        await fetchApi(`/api/self`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),

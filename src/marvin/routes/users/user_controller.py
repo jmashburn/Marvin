@@ -89,7 +89,7 @@ class UserController(BaseUserController):
         # `self.user` is injected by `BaseUserController` and contains the current user's data.
         return self.user
 
-    @user_router.put("/password", response_model=SuccessResponse, summary="Update Current User's Password")
+    @user_router.put("/self/password", response_model=SuccessResponse, summary="Update Current User's Password")
     def update_password(self, password_change_data: ChangePassword) -> SuccessResponse:
         """
         Updates the password for the currently authenticated user.
@@ -149,20 +149,16 @@ class UserController(BaseUserController):
 
         return SuccessResponse.respond("User password updated successfully.")
 
-    @user_router.put("/{item_id}", response_model=SuccessResponse, summary="Update User Profile")
-    def update_user(self, item_id: UUID4, new_data: UserUpdate) -> SuccessResponse:  # Changed new_data type to UserUpdate
+    @user_router.put("/self", response_model=SuccessResponse, summary="Update Current User Profile")
+    def update_user(self, new_data: UserUpdate) -> SuccessResponse:
         """
-        Updates the profile information for a specified user.
+        Updates the profile information for the currently authenticated user.
 
-        Users can only update their own profiles. Non-admin users cannot change
-        their permissions or group. Admins also have restrictions on changing their
-        own permissions via this user-facing endpoint.
+        Users can only update their own profiles via this endpoint. Non-admin users
+        cannot change their permissions or group. Admins also have restrictions on
+        changing their own permissions via this user-facing endpoint.
 
         Args:
-            item_id (UUID4): The ID of the user whose profile is to be updated.
-                             Must match the authenticated user's ID unless the
-                             requester is an admin (though admin edits of others
-                             are restricted here).
             new_data (UserUpdate): Pydantic schema containing the fields to update.
                                    This should be a partial update schema.
 
@@ -171,23 +167,23 @@ class UserController(BaseUserController):
 
         Raises:
             HTTPException (403 Forbidden): If the user attempts an unauthorized change
-                                         (e.g., editing another user as non-admin,
-                                         changing permissions).
+                                         (e.g., changing permissions).
             HTTPException (400/500): If the update fails for other reasons.
         """
         # Assert that the current user is allowed to make the proposed changes.
         # This helper function encapsulates permission logic.
-        assert_user_change_allowed(item_id, self.user, new_data)
+        # Use self.user.id since we're updating the authenticated user
+        assert_user_change_allowed(self.user.id, self.user, new_data)
 
         try:
             # Perform the update using the users repository.
             # `new_data.model_dump(exclude_unset=True)` ensures only provided fields are updated (PATCH behavior).
-            self.repos.users.update(item_id, new_data.model_dump(exclude_unset=True))
-            self.logger.info(f"User profile for ID {item_id} updated by user {self.user.username}.")
+            self.repos.users.update(self.user.id, new_data.model_dump(exclude_unset=True))
+            self.logger.info(f"User profile updated by user {self.user.username}.")
         except Exception as e:
-            self.logger.exception(f"Failed to update user profile for ID {item_id}: {e}")
+            self.logger.exception(f"Failed to update user profile for {self.user.username}: {e}")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,  # Changed to 500 for unexpected update failure
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=ErrorResponse.respond("Failed to update user profile due to a server error."),
             ) from e
 

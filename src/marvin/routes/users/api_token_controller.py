@@ -28,7 +28,7 @@ from marvin.schemas.user import (
 )
 
 
-router = UserAPIRouter(prefix="/api-tokens", tags=["User: Self Service"])
+router = UserAPIRouter(prefix="/self/api-tokens", tags=["User: Self Service"])
 
 
 @controller(router)

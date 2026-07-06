@@ -68,7 +68,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
     try {
       const { fetchApi } = await import('@/lib/api/client');
 
-      const data = await fetchApi('/api/api-tokens', {
+      const data = await fetchApi('/api/self/api-tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
