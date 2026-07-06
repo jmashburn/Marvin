@@ -1,9 +1,11 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
 import { getCollection } from "@/lib/api/collections";
 import { listEntries } from "@/lib/api/entries";
 import { getEntryCollections } from "@/lib/api/entries";
 
+const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
 let collection = null;
@@ -16,16 +18,14 @@ if (!id) {
 } else {
   try {
     [collection, allEntries] = await Promise.all([
-      getCollection(id),
-      listEntries(),
+      getCollection(id, authToken),
+      listEntries(authToken),
     ]);
 
     // Get entries that belong to this collection
-    // Since we don't have a direct API for this, we'll filter client-side for now
-    // In a future update, add GET /api/collections/{id}/entries endpoint
+    // Filter entries that have this collection in their collections array
     collectionEntries = allEntries.filter(entry => {
-      // This is a placeholder - in real implementation, fetch collection membership
-      return false; // TODO: implement collection membership check
+      return entry.collections && entry.collections.includes(id);
     });
 
   } catch (e) {
@@ -116,7 +116,7 @@ if (!id) {
               type="number"
               id="sort_order"
               name="sort_order"
-              value={collection.sort_order}
+              value={collection.sortOrder}
               min="0"
             />
             <p class="form-help">Lower numbers appear first</p>

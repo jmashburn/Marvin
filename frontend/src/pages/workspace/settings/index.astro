@@ -7,12 +7,22 @@ const authToken = getAuthToken(Astro.cookies);
 const currentTab = Astro.url.searchParams.get('tab') || 'general';
 
 let workspace: any = null;
+let appriseReady = false;
 
 try {
   workspace = await getCurrentWorkspace(authToken);
 } catch (e) {
   console.error('[workspace/settings] Error loading workspace:', e);
   // Continue anyway - workspace name is optional for this page
+}
+
+// Check if Apprise is available
+try {
+  const configCheck = await fetchApi<any>('/api/admin/about/check', {}, authToken);
+  appriseReady = configCheck?.apprise_ready === true;
+} catch (e) {
+  console.error('[workspace/settings] Error checking Apprise availability:', e);
+  // Default to false if check fails
 }
 
 const tabs = [
@@ -139,12 +149,19 @@ const tabs = [
             </a>
             <a href="/automation/webhooks" class="link-card">
               <strong>Webhooks</strong>
-              <p>HTTP callbacks for events</p>
+              <p>HTTP callbacks for scheduled tasks</p>
             </a>
-            <a href="/automation/notifications" class="link-card">
-              <strong>Notifications</strong>
-              <p>Email, Slack, and other alerts</p>
-            </a>
+            {appriseReady ? (
+              <a href="/automation/notifications" class="link-card">
+                <strong>Notifications</strong>
+                <p>80+ services: Slack, Discord, Email, SMS, and more</p>
+              </a>
+            ) : (
+              <div class="link-card disabled">
+                <strong>Notifications</strong>
+                <p>Requires Apprise (currently disabled)</p>
+              </div>
+            )}
             <div class="link-card disabled">
               <strong>Scheduler</strong>
               <p>Coming soon</p>

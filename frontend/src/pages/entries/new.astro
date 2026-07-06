@@ -15,7 +15,7 @@ try {
   console.error('[NewEntry] Failed to load entry types:', error);
 }
 
-const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
+const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 ---
 
 <AppLayout title="New Entry" eyebrow="Entries">

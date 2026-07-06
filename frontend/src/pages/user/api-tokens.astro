@@ -63,9 +63,9 @@ function formatDate(date: string | null | undefined): string {
               <strong>{token.name}</strong>
               {token.description && <p class="token-desc">{token.description}</p>}
               <div class="token-meta">
-                <span>Last used: {formatDate(token.last_used_at)}</span>
+                <span>Last used: {formatDate(token.lastUsedAt)}</span>
                 <span>•</span>
-                <span>Created: {formatDate(token.created_at)}</span>
+                <span>Created: {formatDate(token.createdAt)}</span>
                 {!token.enabled && <span class="token-revoked"> • Revoked</span>}
               </div>
             </div>

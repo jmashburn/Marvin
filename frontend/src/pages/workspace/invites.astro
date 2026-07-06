@@ -47,8 +47,8 @@ const baseUrl = Astro.url.origin;
           <div class="invite-info">
             <code class="invite-token">{invite.token}</code>
             <span class="invite-meta">
-              {invite.uses_left === -1 ? 'Unlimited uses' : `${invite.uses_left} uses left`}
-              {invite.created_at && ` • Created ${new Date(invite.created_at).toLocaleDateString()}`}
+              {invite.usesLeft === -1 ? 'Unlimited uses' : `${invite.usesLeft} uses left`}
+              {invite.createdAt && ` • Created ${new Date(invite.createdAt).toLocaleDateString()}`}
             </span>
           </div>
           <div class="invite-actions">

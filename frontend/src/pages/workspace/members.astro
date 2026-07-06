@@ -21,8 +21,8 @@ try {
     // Get current user info to find their role
     const currentUser = await fetchApi<any>('/api/self', {}, authToken);
     if (currentUser) {
-      const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
-      currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
+      const currentMembership = members.find(m => m.userId === currentUser.id);
+      currentUserRole = currentMembership?.workspaceRole || null;
     }
   }
 } catch (e) {
@@ -80,7 +80,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
     <div class="members-list">
       {members.map((member) => {
         const user = member?.user;
-        const fullName = user?.fullName || user?.full_name;
+        const fullName = user?.fullName;
         const username = user?.username;
         const email = user?.email;
         return (
