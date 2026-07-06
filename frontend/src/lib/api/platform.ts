@@ -22,7 +22,7 @@ function unwrapList<T>(response: ApiListResponse<T> | T[]): T[] {
  * Get all assets in the current workspace
  */
 export async function getAssets(authToken?: string): Promise<MarvinAsset[]> {
-  return unwrapList(await fetchApi<ApiListResponse<MarvinAsset> | MarvinAsset[]>('/api/assets', {}, authToken));
+  return unwrapList(await fetchApi<ApiListResponse<MarvinAsset> | MarvinAsset[]>('/api/platform/assets', {}, authToken));
 }
 
 // ===== API Client Management (Admin Operations) =====
@@ -32,7 +32,7 @@ export async function getAssets(authToken?: string): Promise<MarvinAsset[]> {
  * Auth: Normal Marvin user session, workspace-scoped
  */
 export async function getSiteClients(authToken?: string): Promise<APIClientRead[]> {
-  return fetchApi<APIClientRead[]>('/api/api-clients', {}, authToken);
+  return fetchApi<APIClientRead[]>('/api/platform/api-clients', {}, authToken);
 }
 
 /**
@@ -41,7 +41,7 @@ export async function getSiteClients(authToken?: string): Promise<APIClientRead[
  * Auth: Workspace ADMIN/OWNER required
  */
 export async function createSiteClient(data: APIClientCreate, authToken?: string): Promise<APIClientWithToken> {
-  return fetchApi<APIClientWithToken>('/api/api-clients', {
+  return fetchApi<APIClientWithToken>('/api/platform/api-clients', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -55,7 +55,7 @@ export async function createSiteClient(data: APIClientCreate, authToken?: string
  * Auth: Workspace ADMIN/OWNER required
  */
 export async function rotateSiteClientToken(id: string, authToken?: string): Promise<APIClientWithToken> {
-  return fetchApi<APIClientWithToken>(`/api/api-clients/${id}/rotate-token`, {
+  return fetchApi<APIClientWithToken>(`/api/platform/api-clients/${id}/rotate-token`, {
     method: 'POST',
   }, authToken);
 }
@@ -65,7 +65,7 @@ export async function rotateSiteClientToken(id: string, authToken?: string): Pro
  * Auth: Workspace ADMIN/OWNER required
  */
 export async function updateSiteClient(id: string, data: APIClientUpdate, authToken?: string): Promise<APIClientRead> {
-  return fetchApi<APIClientRead>(`/api/api-clients/${id}`, {
+  return fetchApi<APIClientRead>(`/api/platform/api-clients/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -77,7 +77,7 @@ export async function updateSiteClient(id: string, data: APIClientUpdate, authTo
  * Auth: Workspace ADMIN/OWNER required
  */
 export async function deleteSiteClient(id: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/api-clients/${id}`, { method: 'DELETE' }, authToken);
+  return fetchApi<void>(`/api/platform/api-clients/${id}`, { method: 'DELETE' }, authToken);
 }
 
 /**
@@ -86,5 +86,5 @@ export async function deleteSiteClient(id: string, authToken?: string): Promise<
  * Auth: Normal Marvin user session (read access to workspace)
  */
 export async function previewPublishPayload(id: string, authToken?: string): Promise<WorkspaceSiteInfo> {
-  return fetchApi<WorkspaceSiteInfo>(`/api/api-clients/${id}/preview`, {}, authToken);
+  return fetchApi<WorkspaceSiteInfo>(`/api/platform/api-clients/${id}/preview`, {}, authToken);
 }

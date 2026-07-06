@@ -13,21 +13,21 @@ import type {
  * List all entry types in the current workspace
  */
 export async function listEntryTypes(authToken?: string): Promise<EntryTypeRead[]> {
-  return fetchApi<EntryTypeRead[]>('/api/entry-types', {}, authToken);
+  return fetchApi<EntryTypeRead[]>('/api/platform/entry-types', {}, authToken);
 }
 
 /**
  * Get a single entry type by ID
  */
 export async function getEntryType(id: string): Promise<EntryTypeRead> {
-  return fetchApi<EntryTypeRead>(`/api/entry-types/${id}`);
+  return fetchApi<EntryTypeRead>(`/api/platform/entry-types/${id}`);
 }
 
 /**
  * Create a new entry type
  */
 export async function createEntryType(data: EntryTypeCreate): Promise<EntryTypeRead> {
-  return fetchApi<EntryTypeRead>('/api/entry-types', {
+  return fetchApi<EntryTypeRead>('/api/platform/entry-types', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -38,7 +38,7 @@ export async function createEntryType(data: EntryTypeCreate): Promise<EntryTypeR
  * Update an existing entry type
  */
 export async function updateEntryType(id: string, data: EntryTypeUpdate): Promise<EntryTypeRead> {
-  return fetchApi<EntryTypeRead>(`/api/entry-types/${id}`, {
+  return fetchApi<EntryTypeRead>(`/api/platform/entry-types/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -49,7 +49,7 @@ export async function updateEntryType(id: string, data: EntryTypeUpdate): Promis
  * Delete an entry type
  */
 export async function deleteEntryType(id: string): Promise<void> {
-  return fetchApi<void>(`/api/entry-types/${id}`, {
+  return fetchApi<void>(`/api/platform/entry-types/${id}`, {
     method: 'DELETE',
   });
 }

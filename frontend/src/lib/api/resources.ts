@@ -9,21 +9,21 @@ import type { ResourceRead, ResourceCreate, ResourceUpdate } from "./types";
  * List all resources in the current workspace
  */
 export async function listResources(authToken?: string): Promise<ResourceRead[]> {
-  return fetchApi<ResourceRead[]>('/api/resources', {}, authToken);
+  return fetchApi<ResourceRead[]>('/api/platform/resources', {}, authToken);
 }
 
 /**
  * Get a single resource by ID
  */
 export async function getResource(id: string, authToken?: string): Promise<ResourceRead> {
-  return fetchApi<ResourceRead>(`/api/resources/${id}`, {}, authToken);
+  return fetchApi<ResourceRead>(`/api/platform/resources/${id}`, {}, authToken);
 }
 
 /**
  * Create a new resource
  */
 export async function createResource(data: ResourceCreate, authToken?: string): Promise<ResourceRead> {
-  return fetchApi<ResourceRead>('/api/resources', {
+  return fetchApi<ResourceRead>('/api/platform/resources', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -34,7 +34,7 @@ export async function createResource(data: ResourceCreate, authToken?: string): 
  * Update an existing resource
  */
 export async function updateResource(id: string, data: ResourceUpdate, authToken?: string): Promise<ResourceRead> {
-  return fetchApi<ResourceRead>(`/api/resources/${id}`, {
+  return fetchApi<ResourceRead>(`/api/platform/resources/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -45,7 +45,7 @@ export async function updateResource(id: string, data: ResourceUpdate, authToken
  * Delete a resource
  */
 export async function deleteResource(id: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/resources/${id}`, {
+  return fetchApi<void>(`/api/platform/resources/${id}`, {
     method: 'DELETE',
   }, authToken);
 }

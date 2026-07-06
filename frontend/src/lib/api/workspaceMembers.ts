@@ -14,7 +14,7 @@ export async function listWorkspaceMembers(
   authToken?: string
 ): Promise<WorkspaceMembershipRead[]> {
   return fetchApi<WorkspaceMembershipRead[]>(
-    `/api/workspaces/${workspaceId}/members`,
+    `/api/platform/workspaces/${workspaceId}/members`,
     {},
     authToken
   );
@@ -30,7 +30,7 @@ export async function addWorkspaceMember(
   authToken?: string
 ): Promise<WorkspaceMembershipRead> {
   return fetchApi<WorkspaceMembershipRead>(
-    `/api/workspaces/${workspaceId}/members`,
+    `/api/platform/workspaces/${workspaceId}/members`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,7 +50,7 @@ export async function getWorkspaceMember(
   authToken?: string
 ): Promise<WorkspaceMembershipRead> {
   return fetchApi<WorkspaceMembershipRead>(
-    `/api/workspaces/${workspaceId}/members/${userId}`,
+    `/api/platform/workspaces/${workspaceId}/members/${userId}`,
     {},
     authToken
   );
@@ -68,7 +68,7 @@ export async function updateWorkspaceMemberRole(
   authToken?: string
 ): Promise<WorkspaceMembershipRead> {
   return fetchApi<WorkspaceMembershipRead>(
-    `/api/workspaces/${workspaceId}/members/${userId}`,
+    `/api/platform/workspaces/${workspaceId}/members/${userId}`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -89,7 +89,7 @@ export async function removeWorkspaceMember(
   authToken?: string
 ): Promise<void> {
   return fetchApi<void>(
-    `/api/workspaces/${workspaceId}/members/${userId}`,
+    `/api/platform/workspaces/${workspaceId}/members/${userId}`,
     { method: 'DELETE' },
     authToken
   );

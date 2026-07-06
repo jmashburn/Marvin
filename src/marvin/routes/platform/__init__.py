@@ -1,4 +1,15 @@
-"""Authenticated platform routes."""
+"""
+Authenticated platform routes.
+
+All routes are mounted under /api/platform/ prefix:
+- /api/platform/entry-types - Entry type definitions
+- /api/platform/entries - Content entries
+- /api/platform/collections - Content collections
+- /api/platform/api-clients - API client credentials
+- /api/platform/resources - Platform resources
+- /api/platform/assets - File assets
+- /api/platform/workspaces/{id}/members - Workspace member management
+"""
 
 from marvin.routes._base.routers import UserAPIRouter
 

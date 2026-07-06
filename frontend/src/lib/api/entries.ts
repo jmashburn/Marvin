@@ -14,21 +14,21 @@ import type {
  * List all entries in the current workspace
  */
 export async function listEntries(authToken?: string): Promise<EntryRead[]> {
-  return fetchApi<EntryRead[]>('/api/entries', {}, authToken);
+  return fetchApi<EntryRead[]>('/api/platform/entries', {}, authToken);
 }
 
 /**
  * Get a single entry by ID
  */
 export async function getEntry(id: string, authToken?: string): Promise<EntryRead> {
-  return fetchApi<EntryRead>(`/api/entries/${id}`, {}, authToken);
+  return fetchApi<EntryRead>(`/api/platform/entries/${id}`, {}, authToken);
 }
 
 /**
  * Create a new entry
  */
 export async function createEntry(data: EntryCreate, authToken?: string): Promise<EntryRead> {
-  return fetchApi<EntryRead>('/api/entries', {
+  return fetchApi<EntryRead>('/api/platform/entries', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -39,7 +39,7 @@ export async function createEntry(data: EntryCreate, authToken?: string): Promis
  * Update an existing entry
  */
 export async function updateEntry(id: string, data: EntryUpdate, authToken?: string): Promise<EntryRead> {
-  return fetchApi<EntryRead>(`/api/entries/${id}`, {
+  return fetchApi<EntryRead>(`/api/platform/entries/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -50,7 +50,7 @@ export async function updateEntry(id: string, data: EntryUpdate, authToken?: str
  * Delete an entry
  */
 export async function deleteEntry(id: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/entries/${id}`, {
+  return fetchApi<void>(`/api/platform/entries/${id}`, {
     method: 'DELETE',
   }, authToken);
 }
@@ -59,14 +59,14 @@ export async function deleteEntry(id: string, authToken?: string): Promise<void>
  * Get collections that contain this entry
  */
 export async function getEntryCollections(entryId: string, authToken?: string): Promise<CollectionRead[]> {
-  return fetchApi<CollectionRead[]>(`/api/entries/${entryId}/collections`, {}, authToken);
+  return fetchApi<CollectionRead[]>(`/api/platform/entries/${entryId}/collections`, {}, authToken);
 }
 
 /**
  * Add an entry to a collection
  */
 export async function addEntryToCollection(entryId: string, collectionId: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/entries/${entryId}/collections/${collectionId}`, {
+  return fetchApi<void>(`/api/platform/entries/${entryId}/collections/${collectionId}`, {
     method: 'POST',
   }, authToken);
 }
@@ -75,7 +75,7 @@ export async function addEntryToCollection(entryId: string, collectionId: string
  * Remove an entry from a collection
  */
 export async function removeEntryFromCollection(entryId: string, collectionId: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/entries/${entryId}/collections/${collectionId}`, {
+  return fetchApi<void>(`/api/platform/entries/${entryId}/collections/${collectionId}`, {
     method: 'DELETE',
   }, authToken);
 }

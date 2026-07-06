@@ -18,7 +18,7 @@ router.include_router(groups.router)
 router.include_router(users.router)
 router.include_router(events.router)
 router.include_router(admin.router)
-router.include_router(platform.router)
+router.include_router(platform.router, prefix="/platform")
 router.include_router(publish.router)
 
 
