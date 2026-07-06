@@ -17,6 +17,7 @@ try {
 
 let user: any = null;
 let workspaces: any[] = [];
+let workspaceMap: Map<string, any> = new Map();
 let error: string | null = null;
 
 try {
@@ -25,6 +26,11 @@ try {
   // Fetch available workspaces for membership management
   const workspacesResponse = await fetchApi<any>('/api/admin/groups', {}, authToken);
   workspaces = workspacesResponse.items || [];
+
+  // Create workspace map for easy lookup by ID
+  workspaces.forEach(ws => {
+    workspaceMap.set(ws.id, ws);
+  });
 } catch (e) {
   console.error('[admin/users/edit] Error:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -110,22 +116,43 @@ const authMethods = [
         </div>
 
         <div class="form-section">
-          <h3>Permissions</h3>
+          <h3>Platform Permissions</h3>
 
           <label class="checkbox-field">
             <input
               type="checkbox"
-              name="admin"
-              checked={user.admin === true}
+              name="can_manage"
+              checked={user.canManage === true}
             />
-            <span>Platform Administrator</span>
+            <span>Can Manage</span>
+            <small>Permission to manage workspace settings and configuration</small>
+          </label>
+
+          <label class="checkbox-field">
+            <input
+              type="checkbox"
+              name="can_invite"
+              checked={user.canInvite === true}
+            />
+            <span>Can Invite</span>
+            <small>Permission to invite other users to the workspace</small>
+          </label>
+
+          <label class="checkbox-field">
+            <input
+              type="checkbox"
+              name="can_organize"
+              checked={user.canOrganize === true}
+            />
+            <span>Can Organize</span>
+            <small>Permission for organizational tasks within the workspace</small>
           </label>
 
           <label class="form-field">
             <span class="label">Platform Role</span>
             <select name="platform_role" class="input">
               {platformRoles.map(role => (
-                <option value={role.value} selected={user.platform_role === role.value}>
+                <option value={role.value} selected={user.platformRole === role.value}>
                   {role.label}
                 </option>
               ))}
@@ -147,7 +174,7 @@ const authMethods = [
                 // Add default workspace
                 if (user.group) {
                   allWorkspaces.push({
-                    id: user.group_id,
+                    id: user.groupId,
                     name: user.group,
                     role: 'MEMBER',
                     isDefault: true
@@ -155,19 +182,20 @@ const authMethods = [
                 }
 
                 // Add additional memberships
-                if (user.workspace_memberships && user.workspace_memberships.length > 0) {
-                  user.workspace_memberships.forEach((membership: any) => {
-                    if (membership.group_id !== user.group_id) {
+                if (user.workspaceMemberships && user.workspaceMemberships.length > 0) {
+                  user.workspaceMemberships.forEach((membership: any) => {
+                    if (membership.groupId !== user.groupId) {
+                      const workspace = workspaceMap.get(membership.groupId);
                       allWorkspaces.push({
-                        id: membership.group_id,
-                        name: membership.group_id, // Only have ID
-                        role: membership.workspace_role,
+                        id: membership.groupId,
+                        name: workspace?.name || membership.groupId, // Use workspace name from map
+                        role: membership.workspaceRole,
                         isDefault: false
                       });
                     } else {
                       const defaultWs = allWorkspaces.find((w: any) => w.isDefault);
                       if (defaultWs) {
-                        defaultWs.role = membership.workspace_role;
+                        defaultWs.role = membership.workspaceRole;
                       }
                     }
                   });
@@ -292,7 +320,9 @@ const authMethods = [
       username: formData.get('username'),
       email: formData.get('email'),
       auth_method: formData.get('auth_method'),
-      admin: formData.get('admin') === 'on',
+      can_manage: formData.get('can_manage') === 'on',
+      can_invite: formData.get('can_invite') === 'on',
+      can_organize: formData.get('can_organize') === 'on',
       platform_role: formData.get('platform_role'),
     };
 
@@ -491,8 +521,8 @@ const authMethods = [
   }
 
   .checkbox-field {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: auto 1fr;
     gap: 10px;
     padding: 12px;
     background: var(--panel);
@@ -505,11 +535,19 @@ const authMethods = [
     width: 18px;
     height: 18px;
     cursor: pointer;
+    margin-top: 2px;
   }
 
   .checkbox-field span {
     font-size: 14px;
     font-weight: 500;
+  }
+
+  .checkbox-field small {
+    grid-column: 2;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: -6px;
   }
 
   small {
