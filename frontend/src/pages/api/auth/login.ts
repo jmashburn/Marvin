@@ -5,14 +5,20 @@
 import type { APIRoute } from 'astro';
 import { API_BASE_URL } from '@/lib/api/config';
 
-export const POST: APIRoute = async ({ request, cookies, redirect }) => {
+export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
   try {
     const formData = await request.formData();
     const username = formData.get('username');
     const password = formData.get('password');
 
+    // Get return path from query param
+    const returnPath = url.searchParams.get('return') || '/';
+
     if (!username || !password) {
-      return redirect('/login?error=missing', 303);
+      const loginError = returnPath !== '/'
+        ? `/login?error=missing&return=${encodeURIComponent(returnPath)}`
+        : '/login?error=missing';
+      return redirect(loginError, 303);
     }
 
     const backendUrl = `${API_BASE_URL}/api/auth/token`;
@@ -33,7 +39,10 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
     if (!response.ok) {
       console.error('[auth/login] Backend auth failed:', response.status);
-      return redirect('/login?error=invalid', 303);
+      const loginError = returnPath !== '/'
+        ? `/login?error=invalid&return=${encodeURIComponent(returnPath)}`
+        : '/login?error=invalid';
+      return redirect(loginError, 303);
     }
 
     const data = await response.json();
@@ -41,7 +50,10 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
     if (!accessToken) {
       console.error('[auth/login] No access token in response');
-      return redirect('/login?error=invalid', 303);
+      const loginError = returnPath !== '/'
+        ? `/login?error=invalid&return=${encodeURIComponent(returnPath)}`
+        : '/login?error=invalid';
+      return redirect(loginError, 303);
     }
 
     // Set the access token cookie (matching backend format)
@@ -53,11 +65,15 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
 
-    // Successfully logged in, redirect to dashboard
-    return redirect('/', 303);
+    // Successfully logged in, redirect to requested page or dashboard
+    return redirect(returnPath, 303);
 
   } catch (error) {
     console.error('[auth/login] Error:', error);
-    return redirect('/login?error=server', 303);
+    const returnPath = new URL(request.url).searchParams.get('return') || '/';
+    const loginError = returnPath !== '/'
+      ? `/login?error=server&return=${encodeURIComponent(returnPath)}`
+      : '/login?error=server';
+    return redirect(loginError, 303);
   }
 };

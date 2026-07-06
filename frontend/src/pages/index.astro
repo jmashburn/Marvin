@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { requireAuth } from "@/lib/auth";
 import { getAssets, getSiteClients } from "@/lib/api/platform";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listEntries } from "@/lib/api/entries";
@@ -8,6 +9,8 @@ import { listEntryTypes } from "@/lib/api/entryTypes";
 import { getAuthToken } from "@/lib/api/client";
 import type { EntryRead, APIClientRead, EntryTypeRead, CollectionRead } from "@/lib/api/types";
 
+// Require authentication
+const user = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
 
 let entries: EntryRead[] = [];

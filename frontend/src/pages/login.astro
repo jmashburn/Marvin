@@ -1,15 +1,18 @@
 ---
+import { isAuthenticated } from '@/lib/auth';
+
 // Ensure this page is server-rendered (not prerendered)
 export const prerender = false;
 
-// Check if user is already logged in (has valid token cookie)
-const token = Astro.cookies.get('marvin.access_token');
-if (token) {
-  // Already logged in, redirect to dashboard
-  return Astro.redirect('/');
+// Check if user is already logged in
+if (await isAuthenticated(Astro.cookies)) {
+  // Get return path from query param, default to dashboard
+  const returnPath = Astro.url.searchParams.get('return') || '/';
+  return Astro.redirect(returnPath);
 }
 
 const error = Astro.url.searchParams.get('error');
+const returnPath = Astro.url.searchParams.get('return');
 ---
 
 <!doctype html>
@@ -39,7 +42,7 @@ const error = Astro.url.searchParams.get('error');
           </div>
         )}
 
-        <form method="POST" action="/api/auth/login" class="login-form">
+        <form method="POST" action={returnPath ? `/api/auth/login?return=${encodeURIComponent(returnPath)}` : '/api/auth/login'} class="login-form">
           <div class="form-group">
             <label for="username">Username</label>
             <input
