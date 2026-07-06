@@ -146,7 +146,14 @@ export function createMarvinClient(config: MarvinClientConfig = {}) {
     workspaceSlug,
     getSite: () => request<unknown>(`${publishBase}/site`),
     getEntries: async (options: { entryType?: string; collection?: string; limit?: number; offset?: number } = {}) => {
-      const response = await request<PaginatedResponse<MarvinEntry>>(`${publishBase}/entries${queryString(options)}`);
+      // Convert camelCase to snake_case for API
+      const apiParams: Record<string, string | number | undefined> = {
+        entry_type: options.entryType,
+        collection: options.collection,
+        limit: options.limit,
+        offset: options.offset,
+      };
+      const response = await request<PaginatedResponse<MarvinEntry>>(`${publishBase}/entries${queryString(apiParams)}`);
       return response.data;
     },
     getEntry: (slug: string) => request<MarvinEntry>(`${publishBase}/entries/${encodeURIComponent(slug)}`),
@@ -165,7 +172,13 @@ export function createMarvinClient(config: MarvinClientConfig = {}) {
     },
     getAsset: (slug: string) => request<MarvinAsset>(`${publishBase}/assets/${encodeURIComponent(slug)}`),
     getResources: async (options: { resourceType?: string; limit?: number; offset?: number } = {}) => {
-      const response = await request<PaginatedResponse<MarvinResource>>(`${publishBase}/resources${queryString(options)}`);
+      // Convert camelCase to snake_case for API
+      const apiParams: Record<string, string | number | undefined> = {
+        resource_type: options.resourceType,
+        limit: options.limit,
+        offset: options.offset,
+      };
+      const response = await request<PaginatedResponse<MarvinResource>>(`${publishBase}/resources${queryString(apiParams)}`);
       return response.data;
     },
     getResource: (slug: string) => request<MarvinResource>(`${publishBase}/resources/${encodeURIComponent(slug)}`),
