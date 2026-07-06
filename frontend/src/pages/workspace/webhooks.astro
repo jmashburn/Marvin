@@ -20,6 +20,16 @@ try {
   console.error('[webhooks] Error loading:', e);
   error = e instanceof Error ? e.message : String(e);
 }
+
+function formatScheduledTime(time: string | null | undefined): string {
+  if (!time) return 'Not scheduled';
+  try {
+    const date = new Date(time);
+    return date.toLocaleString();
+  } catch {
+    return time;
+  }
+}
 ---
 
 <AppLayout title="Webhooks" eyebrow="Workspace">
@@ -28,55 +38,269 @@ try {
       <h2>Webhooks</h2>
       <p>Configure HTTP callbacks for workspace events</p>
     </div>
-    <button class="button" disabled>New Webhook (Coming Soon)</button>
+    <button class="button" id="create-webhook-btn">New Webhook</button>
   </div>
 
-  {error ? (
-    <div class="alert alert-error">
-      <strong>Error:</strong> {error}
-    </div>
-  ) : webhooks.length === 0 ? (
-    <div class="empty-state">
-      <div class="empty-icon">🔗</div>
-      <p class="empty-title">No webhooks configured</p>
-      <p class="empty-description">
-        Webhooks allow you to receive HTTP notifications when events occur in your workspace
-      </p>
-      <button class="button" disabled>New Webhook (Coming Soon)</button>
-    </div>
-  ) : (
-    <div class="webhooks-grid">
-      {webhooks.map((webhook) => (
-        <article class="webhook-card">
-          <div class="webhook-header">
-            <div>
-              <h3>{webhook.name}</h3>
-              <code class="webhook-url">{webhook.url}</code>
+  <div class="page-container">
+    {error ? (
+      <div class="alert alert-error">
+        <strong>Error:</strong> {error}
+      </div>
+    ) : webhooks.length === 0 ? (
+      <div class="empty-state">
+        <div class="empty-icon">🔗</div>
+        <p class="empty-title">No webhooks configured</p>
+        <p class="empty-description">
+          Webhooks allow you to receive HTTP notifications when events occur in your workspace
+        </p>
+        <button class="button" id="create-webhook-empty">New Webhook</button>
+      </div>
+    ) : (
+      <div class="webhooks-grid">
+        {webhooks.map((webhook) => (
+          <article class="webhook-card">
+            <div class="webhook-header">
+              <div>
+                <h3>{webhook.name}</h3>
+                <code class="webhook-url">{webhook.url}</code>
+              </div>
+              <span class={`status-badge ${webhook.enabled ? "active" : "inactive"}`}>
+                {webhook.enabled ? "Active" : "Inactive"}
+              </span>
             </div>
-            <span class={`status-badge ${webhook.enabled ? "active" : "inactive"}`}>
-              {webhook.enabled ? "Active" : "Inactive"}
-            </span>
-          </div>
-          <div class="webhook-meta">
-            <div class="meta-item">
-              <span class="meta-label">Method</span>
-              <span class="meta-value">{webhook.method || 'POST'}</span>
+            <div class="webhook-meta">
+              <div class="meta-item">
+                <span class="meta-label">Method</span>
+                <span class="meta-value">{webhook.method || 'POST'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Type</span>
+                <span class="meta-value">{webhook.webhook_type || 'generic'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Scheduled</span>
+                <span class="meta-value">{formatScheduledTime(webhook.scheduled_time)}</span>
+              </div>
             </div>
-            <div class="meta-item">
-              <span class="meta-label">Type</span>
-              <span class="meta-value">{webhook.webhook_type || 'generic'}</span>
+            <div class="webhook-actions">
+              <button
+                class="button secondary small"
+                data-action="edit"
+                data-id={webhook.id}
+                data-webhook={JSON.stringify(webhook)}
+              >Edit</button>
+              <button
+                class="button secondary small"
+                data-action="toggle"
+                data-id={webhook.id}
+                data-enabled={webhook.enabled}
+              >{webhook.enabled ? 'Disable' : 'Enable'}</button>
+              <button
+                class="button secondary small danger"
+                data-action="delete"
+                data-id={webhook.id}
+                data-name={webhook.name}
+              >Delete</button>
             </div>
-          </div>
-          <div class="webhook-actions">
-            <button class="button secondary small" disabled>Edit (Coming Soon)</button>
-            <button class="button secondary small" disabled>Test</button>
-            <button class="button secondary small danger" disabled>Delete</button>
-          </div>
-        </article>
-      ))}
+          </article>
+        ))}
+      </div>
+    )}
+  </div>
+
+  <!-- Create/Edit Webhook Modal -->
+  <dialog id="webhook-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="modal-title">New Webhook</h3>
+      <form id="webhook-form">
+        <input type="hidden" id="webhook-id" name="id" />
+
+        <label>
+          <span>Name <span class="required">*</span></span>
+          <input type="text" name="name" required placeholder="Production deployment notification" />
+        </label>
+
+        <label>
+          <span>URL <span class="required">*</span></span>
+          <input type="url" name="url" required placeholder="https://api.example.com/webhook" />
+        </label>
+
+        <div class="form-row">
+          <label>
+            <span>Method</span>
+            <select name="method">
+              <option value="POST">POST</option>
+              <option value="GET">GET</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Type</span>
+            <select name="webhook_type">
+              <option value="generic">Generic</option>
+              <option value="user">User</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          <span>Scheduled Time (UTC) <span class="required">*</span></span>
+          <input type="datetime-local" name="scheduled_time" required />
+          <small>When should this webhook be triggered?</small>
+        </label>
+
+        <label class="checkbox-label">
+          <input type="checkbox" name="enabled" checked />
+          <span>Enabled</span>
+        </label>
+
+        <div class="modal-actions">
+          <button type="submit" class="button" id="save-webhook">Save Webhook</button>
+          <button type="button" class="button secondary" id="cancel-webhook">Cancel</button>
+        </div>
+      </form>
     </div>
-  )}
+  </dialog>
 </AppLayout>
+
+<script>
+  const createModal = document.getElementById('webhook-modal') as HTMLDialogElement;
+  const webhookForm = document.getElementById('webhook-form') as HTMLFormElement;
+  const modalTitle = document.getElementById('modal-title') as HTMLHeadingElement;
+  const webhookIdInput = document.getElementById('webhook-id') as HTMLInputElement;
+
+  // Open create modal
+  [document.getElementById('create-webhook-btn'), document.getElementById('create-webhook-empty')].forEach(btn => {
+    btn?.addEventListener('click', () => {
+      modalTitle.textContent = 'New Webhook';
+      webhookForm.reset();
+      webhookIdInput.value = '';
+      // Set default scheduled time to now
+      const now = new Date();
+      const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      (webhookForm.querySelector('[name="scheduled_time"]') as HTMLInputElement).value = localDateTime;
+      createModal?.showModal();
+    });
+  });
+
+  // Open edit modal
+  document.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const webhook = JSON.parse(btn.getAttribute('data-webhook') || '{}');
+      modalTitle.textContent = 'Edit Webhook';
+      webhookIdInput.value = webhook.id;
+
+      (webhookForm.querySelector('[name="name"]') as HTMLInputElement).value = webhook.name;
+      (webhookForm.querySelector('[name="url"]') as HTMLInputElement).value = webhook.url;
+      (webhookForm.querySelector('[name="method"]') as HTMLSelectElement).value = webhook.method || 'POST';
+      (webhookForm.querySelector('[name="webhook_type"]') as HTMLSelectElement).value = webhook.webhook_type || 'generic';
+      (webhookForm.querySelector('[name="enabled"]') as HTMLInputElement).checked = webhook.enabled !== false;
+
+      // Convert UTC time to local for input
+      if (webhook.scheduled_time) {
+        const date = new Date(webhook.scheduled_time);
+        const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        (webhookForm.querySelector('[name="scheduled_time"]') as HTMLInputElement).value = localDateTime;
+      }
+
+      createModal?.showModal();
+    });
+  });
+
+  // Cancel button
+  document.getElementById('cancel-webhook')?.addEventListener('click', () => createModal?.close());
+
+  // Submit form
+  webhookForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(webhookForm);
+    const id = webhookIdInput.value;
+
+    // Convert local datetime to UTC ISO string
+    const localTime = formData.get('scheduled_time') as string;
+    const utcTime = new Date(localTime).toISOString();
+
+    const data = {
+      name: formData.get('name'),
+      url: formData.get('url'),
+      method: formData.get('method'),
+      webhook_type: formData.get('webhook_type'),
+      enabled: formData.get('enabled') === 'on',
+      scheduled_time: utcTime,
+    };
+
+    try {
+      const url = id ? `/api/groups/webhooks/${id}` : '/api/groups/webhooks';
+      const method = id ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert('Error: ' + (error.detail || 'Failed to save webhook'));
+      }
+    } catch (error) {
+      alert('Network error: Failed to save webhook');
+    }
+  });
+
+  // Toggle webhook
+  document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const enabled = btn.getAttribute('data-enabled') === 'true';
+
+      try {
+        const response = await fetch(`/api/groups/webhooks/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ enabled: !enabled }),
+        });
+
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          alert('Failed to toggle webhook');
+        }
+      } catch (error) {
+        alert('Network error');
+      }
+    });
+  });
+
+  // Delete webhook
+  document.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const name = btn.getAttribute('data-name');
+
+      if (!confirm(`Delete webhook "${name}"? This cannot be undone.`)) return;
+
+      try {
+        const response = await fetch(`/api/groups/webhooks/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          window.location.reload();
+        } else {
+          alert('Failed to delete webhook');
+        }
+      } catch (error) {
+        alert('Network error');
+      }
+    });
+  });
+</script>
 
 <style>
   .toolbar {
@@ -98,6 +322,10 @@ try {
     margin: 8px 0 0;
     color: var(--muted);
     font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 900px;
   }
 
   .alert {
@@ -169,6 +397,7 @@ try {
     font-size: 13px;
     color: var(--muted);
     font-family: ui-monospace, monospace;
+    word-break: break-all;
   }
 
   .status-badge {
@@ -176,6 +405,7 @@ try {
     border-radius: 4px;
     font-size: 12px;
     font-weight: 500;
+    flex-shrink: 0;
   }
 
   .status-badge.active {
@@ -222,7 +452,7 @@ try {
   }
 
   .button.small {
-    padding: 6px 12px;
+    padding: 6px 14px;
     font-size: 13px;
   }
 
@@ -233,5 +463,99 @@ try {
   .button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .modal {
+    border: none;
+    border-radius: var(--radius);
+    padding: 0;
+    max-width: 550px;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.15);
+  }
+
+  .modal::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .modal-content {
+    padding: 24px;
+    background: var(--panel);
+  }
+
+  .modal h3 {
+    margin: 0 0 20px;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .modal form {
+    display: grid;
+    gap: 16px;
+  }
+
+  .modal label {
+    display: grid;
+    gap: 6px;
+  }
+
+  .modal label > span {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .required {
+    color: var(--warn);
+  }
+
+  .modal input[type="text"],
+  .modal input[type="url"],
+  .modal input[type="datetime-local"],
+  .modal select,
+  .modal textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .modal input:focus,
+  .modal select:focus,
+  .modal textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .modal small {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: -2px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
   }
 </style>
