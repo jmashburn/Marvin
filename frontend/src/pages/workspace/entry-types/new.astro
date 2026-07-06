@@ -1,14 +1,21 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
 ---
 
 <AppLayout title="Create Entry Type">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings?tab=entry-types" },
+    { label: "Entry Types", href: "/workspace/entry-types" },
+    { label: "New" }
+  ]} />
+
   <div class="toolbar">
     <div>
       <h2 style="margin:0;font-size:20px;">New Entry Type</h2>
       <p style="margin:4px 0 0;color:var(--muted);">Define a new content type for your workspace.</p>
     </div>
-    <a class="button secondary" href="/entry-types">Cancel</a>
+    <a class="button secondary" href="/workspace/entry-types">Cancel</a>
   </div>
 
   <section class="form-section">

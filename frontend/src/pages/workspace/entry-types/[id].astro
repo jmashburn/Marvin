@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
 import { getEntryType } from "@/lib/api/entryTypes";
 
 const { id } = Astro.params;
@@ -22,10 +23,16 @@ const isSystem = entryType?.isSystem ?? false;
 ---
 
 <AppLayout title={entryType ? `Edit ${entryType.name}` : "Edit Entry Type"}>
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings?tab=entry-types" },
+    { label: "Entry Types", href: "/workspace/entry-types" },
+    { label: entryType?.name || "Edit" }
+  ]} />
+
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading entry type:</strong> {error}</p>
-      <a href="/entry-types" class="button secondary">Back to Entry Types</a>
+      <a href="/workspace/entry-types" class="button secondary">Back to Entry Types</a>
     </div>
   ) : entryType ? (
     <>
@@ -36,7 +43,7 @@ const isSystem = entryType?.isSystem ?? false;
             {isSystem ? "System entry types have limited editing" : "Update entry type details"}
           </p>
         </div>
-        <a class="button secondary" href="/entry-types">Back</a>
+        <a class="button secondary" href="/workspace/entry-types">Back</a>
       </div>
 
       <section class="form-section">
