@@ -120,6 +120,7 @@ if not settings.PRODUCTION:
     # Define allowed origins for CORS (typically frontend development server)
     allowed_origins = [
         "http://localhost:3000",  # Example: React frontend
+        "http://localhost:4321",  # Astro frontend development server
         "http://localhost:8080",  # If API is also served/tested on a different port locally
     ]
     logger.info(f"CORS enabled for development. Allowed origins: {allowed_origins}")
