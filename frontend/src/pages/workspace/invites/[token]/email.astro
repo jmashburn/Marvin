@@ -1,0 +1,200 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+const { token } = Astro.params;
+
+let workspace = null;
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+} catch (e) {
+  console.error('[invites/email] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const registerUrl = `${Astro.url.origin}/register?invite=${token}`;
+---
+
+<AppLayout title="Email Invite" eyebrow="Workspace">
+  <div class="page-header">
+    <div>
+      <h2>Send Email Invitation</h2>
+      <p>Send this invitation link via email</p>
+    </div>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : (
+    <div class="form-container">
+      <div class="invite-link-preview">
+        <label class="form-field">
+          <span class="label">Invitation Link</span>
+          <code class="link-display">{registerUrl}</code>
+        </label>
+      </div>
+
+      <form id="email-form" class="form">
+        <input type="hidden" name="token" value={token} />
+
+        <div class="form-section">
+          <h3>Recipient</h3>
+
+          <label class="form-field">
+            <span class="label">Email Address</span>
+            <input
+              type="email"
+              name="email"
+              required
+              placeholder="user@example.com"
+              class="input"
+            />
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button">Send Invitation</button>
+          <a href="/workspace/invites" class="button secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  )}
+</AppLayout>
+
+<script>
+  const form = document.getElementById('email-form');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    const payload = {
+      email: formData.get('email'),
+      token: formData.get('token'),
+    };
+
+    try {
+      const response = await fetch('/api/groups/invitations/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        window.location.href = '/workspace/invites?sent=true';
+      } else {
+        const error = await response.text();
+        alert(`Failed to send invitation: ${error}`);
+      }
+    } catch (error) {
+      alert('Failed to send invitation. Please try again.');
+      console.error('Error sending invitation:', error);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 600px;
+  }
+
+  .invite-link-preview {
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+  }
+
+  .link-display {
+    display: block;
+    padding: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    word-break: break-all;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+</style>

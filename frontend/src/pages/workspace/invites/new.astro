@@ -1,0 +1,172 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+} catch (e) {
+  console.error('[invites/new] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title="Create Invite" eyebrow="Workspace">
+  <div class="page-header">
+    <div>
+      <h2>Create Invite Token</h2>
+      <p>Generate an invitation link for {workspace?.workspace.name || 'this workspace'}</p>
+    </div>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : (
+    <div class="form-container">
+      <form id="create-invite-form" class="form">
+        <div class="form-section">
+          <h3>Invite Settings</h3>
+
+          <label class="form-field">
+            <span class="label">Number of Uses</span>
+            <input
+              type="number"
+              name="uses_left"
+              value="10"
+              min="-1"
+              required
+              class="input"
+            />
+            <small class="hint">Set to -1 for unlimited uses</small>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button">Create Invite Token</button>
+          <a href="/workspace/invites" class="button secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  )}
+</AppLayout>
+
+<script>
+  const form = document.getElementById('create-invite-form');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const usesLeft = parseInt(formData.get('uses_left') as string);
+
+    try {
+      const response = await fetch('/api/groups/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ uses_left: usesLeft }),
+      });
+
+      if (response.ok) {
+        window.location.href = '/workspace/invites?created=true';
+      } else {
+        const error = await response.text();
+        alert(`Failed to create invite: ${error}`);
+      }
+    } catch (error) {
+      alert('Failed to create invite. Please try again.');
+      console.error('Error creating invite:', error);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 600px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+</style>

@@ -28,7 +28,7 @@ const baseUrl = Astro.url.origin;
       <h2>Workspace Invites</h2>
       <p>Create invitation links to add members to {workspace?.workspace.name || 'this workspace'}</p>
     </div>
-    <button class="button" id="create-invite-btn">Create Invite</button>
+    <a href="/workspace/invites/new" class="button">Create Invite</a>
   </div>
 
   {error ? (
@@ -38,7 +38,7 @@ const baseUrl = Astro.url.origin;
       <div class="empty-icon">✉️</div>
       <p class="empty-title">No invite tokens</p>
       <p class="empty-description">Create an invite link to onboard new members</p>
-      <button class="button" id="create-invite-empty">Create Invite</button>
+      <a href="/workspace/invites/new" class="button">Create Invite</a>
     </div>
   ) : (
     <div class="invites-list">
@@ -55,78 +55,18 @@ const baseUrl = Astro.url.origin;
             <button class="button secondary small copy-btn" data-token={invite.token}>
               Copy Link
             </button>
-            <button class="button secondary small email-btn" data-token={invite.token}>
+            <a href={`/workspace/invites/${invite.token}/email`} class="button secondary small">
               Email
-            </button>
+            </a>
           </div>
         </div>
       ))}
     </div>
   )}
 
-  <!-- Create Invite Modal -->
-  <dialog id="create-invite-modal" class="modal">
-    <div class="modal-content">
-      <h3>Create Invite Token</h3>
-      <form id="create-invite-form">
-        <label>
-          <span>Number of Uses</span>
-          <input type="number" name="uses_left" value="10" min="-1" />
-          <small>-1 for unlimited uses</small>
-        </label>
-        <div class="modal-actions">
-          <button type="submit" class="button">Create</button>
-          <button type="button" class="button secondary" id="cancel-create">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
-
-  <!-- Email Modal -->
-  <dialog id="email-modal" class="modal">
-    <div class="modal-content">
-      <h3>Send Email Invitation</h3>
-      <form id="email-form">
-        <input type="hidden" name="token" id="email-token" />
-        <label>
-          <span>Email Address</span>
-          <input type="email" name="email" required placeholder="user@example.com" />
-        </label>
-        <div class="modal-actions">
-          <button type="submit" class="button">Send</button>
-          <button type="button" class="button secondary" id="cancel-email">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
-</AppLayout>
+  </AppLayout>
 
 <script define:vars={{ baseUrl }}>
-  const createInviteModal = document.getElementById('create-invite-modal');
-  const createInviteForm = document.getElementById('create-invite-form');
-
-  [document.getElementById('create-invite-btn'), document.getElementById('create-invite-empty')].forEach(btn => {
-    btn?.addEventListener('click', () => createInviteModal?.showModal());
-  });
-
-  document.getElementById('cancel-create')?.addEventListener('click', () => createInviteModal?.close());
-
-  createInviteForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    try {
-      await fetch('/api/groups/invitations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ uses_left: parseInt(formData.get('uses_left')) }),
-      });
-      window.location.reload();
-    } catch (error) {
-      alert('Failed to create invite');
-    }
-  });
-
   // Copy invite link
   document.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -136,38 +76,6 @@ const baseUrl = Astro.url.origin;
       btn.textContent = 'Copied!';
       setTimeout(() => btn.textContent = 'Copy Link', 2000);
     });
-  });
-
-  // Email invite
-  const emailModal = document.getElementById('email-modal');
-  const emailForm = document.getElementById('email-form');
-  document.querySelectorAll('.email-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('email-token').value = btn.dataset.token;
-      emailModal?.showModal();
-    });
-  });
-
-  document.getElementById('cancel-email')?.addEventListener('click', () => emailModal?.close());
-
-  emailForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    try {
-      await fetch('/api/groups/invitations/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: formData.get('email'),
-          token: formData.get('token'),
-        }),
-      });
-      alert('Invitation sent!');
-      emailModal?.close();
-    } catch (error) {
-      alert('Failed to send email');
-    }
   });
 </script>
 
@@ -188,14 +96,4 @@ const baseUrl = Astro.url.origin;
   .invite-meta { font-size: 12px; color: var(--muted); }
   .invite-actions { display: flex; gap: 8px; }
   .button.small { padding: 6px 12px; font-size: 13px; }
-  .modal { border: none; border-radius: var(--radius); padding: 0; max-width: 500px; box-shadow: 0 8px 32px rgb(0 0 0 / 0.15); }
-  .modal::backdrop { background: rgb(0 0 0 / 0.5); }
-  .modal-content { padding: 24px; background: var(--panel); }
-  .modal h3 { margin: 0 0 20px; font-size: 20px; font-weight: 600; }
-  .modal form { display: grid; gap: 16px; }
-  .modal label { display: grid; gap: 6px; }
-  .modal label > span { font-size: 14px; font-weight: 500; }
-  .modal input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
-  .modal small { font-size: 12px; color: var(--muted); }
-  .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px; }
 </style>
