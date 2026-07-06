@@ -83,6 +83,15 @@ export type MarvinAsset = {
   publicUrl?: string;
 };
 
+export type PaginatedResponse<T> = {
+  data: T[];
+  meta: {
+    total?: number;
+    page?: number;
+    limit?: number;
+  };
+};
+
 function required(value: string | undefined, name: string): string {
   if (!value || value.trim() === "") {
     throw new Error(`${name} is required. Set it in .env or pass it as a CLI option.`);
@@ -136,16 +145,24 @@ export function createMarvinClient(config: MarvinClientConfig = {}) {
   return {
     workspaceSlug,
     getSite: () => request<unknown>(`${publishBase}/site`),
-    getEntries: (options: { entryType?: string; collection?: string; limit?: number; offset?: number } = {}) =>
-      request<MarvinEntry[]>(`${publishBase}/entries${queryString(options)}`),
+    getEntries: async (options: { entryType?: string; collection?: string; limit?: number; offset?: number } = {}) => {
+      const response = await request<PaginatedResponse<MarvinEntry>>(`${publishBase}/entries${queryString(options)}`);
+      return response.data;
+    },
     getEntry: (slug: string) => request<MarvinEntry>(`${publishBase}/entries/${encodeURIComponent(slug)}`),
     getCollections: () => request<MarvinCollection[]>(`${publishBase}/collections`),
     getCollection: (slug: string) => request<MarvinCollection>(`${publishBase}/collections/${encodeURIComponent(slug)}`),
-    getCollectionEntries: (slug: string) => request<MarvinEntry[]>(`${publishBase}/collections/${encodeURIComponent(slug)}/entries`),
+    getCollectionEntries: async (slug: string) => {
+      const response = await request<PaginatedResponse<MarvinEntry>>(`${publishBase}/collections/${encodeURIComponent(slug)}/entries`);
+      return response.data;
+    },
     getAssets: (options: { type?: string; limit?: number; offset?: number } = {}) =>
       request<MarvinAsset[]>(`${publishBase}/assets${queryString(options)}`),
     getResources: () => request<MarvinResource[]>(`${publishBase}/resources`),
     getResource: (slug: string) => request<MarvinResource>(`${publishBase}/resources/${encodeURIComponent(slug)}`),
-    getResourceEntries: (slug: string) => request<MarvinEntry[]>(`${publishBase}/resources/${encodeURIComponent(slug)}/entries`),
+    getResourceEntries: async (slug: string) => {
+      const response = await request<PaginatedResponse<MarvinEntry>>(`${publishBase}/resources/${encodeURIComponent(slug)}/entries`);
+      return response.data;
+    },
   };
 }

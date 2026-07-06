@@ -80,13 +80,16 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
             created_at=api_client_model.created_at,
         )
 
-    def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> APIClientRead:
-        """Update API client (cannot change group_id or token)."""
+    def update(self, match_value: Any, new_data: Any, match_key: str | None = None, _allow_token_hash: bool = False) -> APIClientRead:
+        """Update API client (cannot change group_id or token unless explicitly allowed)."""
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
-        # Prevent group_id and token_hash changes
+        # Prevent group_id changes (always)
         data_dict.pop("group_id", None)
-        data_dict.pop("token_hash", None)
+
+        # Prevent token_hash changes unless explicitly allowed (e.g., from rotate_token)
+        if not _allow_token_hash:
+            data_dict.pop("token_hash", None)
 
         return super().update(match_value, data_dict, match_key=match_key)
 
@@ -112,10 +115,11 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
         # Generate new token
         plaintext_token = self._generate_token()
 
-        # Update with new token hash
+        # Update with new token hash (allow token_hash update via internal flag)
         updated = self.update(
             api_client_id,
-            {"token_hash": get_hasher().hash(plaintext_token)}
+            {"token_hash": get_hasher().hash(plaintext_token)},
+            _allow_token_hash=True
         )
 
         # Return with new plaintext token
