@@ -18,7 +18,7 @@ if (!id) {
   }
 }
 
-const isSystem = entryType?.is_system ?? false;
+const isSystem = entryType?.isSystem ?? false;
 ---
 
 <AppLayout title={entryType ? `Edit ${entryType.name}` : "Edit Entry Type"}>
@@ -105,7 +105,7 @@ const isSystem = entryType?.is_system ?? false;
               type="number"
               id="sort_order"
               name="sort_order"
-              value={entryType.sort_order}
+              value={entryType.sortOrder}
               min="0"
             />
             <p class="form-help">Lower numbers appear first</p>
