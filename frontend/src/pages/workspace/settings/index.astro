@@ -6,14 +6,13 @@ import { getCurrentWorkspace } from "@/lib/api/workspaces";
 const authToken = getAuthToken(Astro.cookies);
 const currentTab = Astro.url.searchParams.get('tab') || 'general';
 
-let workspace = null;
-let error: string | null = null;
+let workspace: any = null;
 
 try {
   workspace = await getCurrentWorkspace(authToken);
 } catch (e) {
-  console.error('[workspace/settings] Error:', e);
-  error = e instanceof Error ? e.message : String(e);
+  console.error('[workspace/settings] Error loading workspace:', e);
+  // Continue anyway - workspace name is optional for this page
 }
 
 const tabs = [
