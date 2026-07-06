@@ -7,6 +7,20 @@ const { id } = Astro.params;
 
 let notification: any = null;
 let error: string | null = null;
+let appriseReady = false;
+
+// Check if Apprise is available
+try {
+  const configCheck = await fetchApi<any>('/api/admin/about/check', {}, authToken);
+  appriseReady = configCheck?.apprise_ready === true;
+} catch (e) {
+  console.error('[notifications/edit] Error checking Apprise availability:', e);
+}
+
+// Redirect if Apprise is not available
+if (!appriseReady) {
+  return Astro.redirect('/automation/notifications');
+}
 
 try {
   notification = await fetchApi<any>(`/api/group/notifications/${id}`, {}, authToken);

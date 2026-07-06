@@ -6,6 +6,20 @@ const authToken = getAuthToken(Astro.cookies);
 
 let eventOptions: any[] = [];
 let error: string | null = null;
+let appriseReady = false;
+
+// Check if Apprise is available
+try {
+  const configCheck = await fetchApi<any>('/api/admin/about/check', {}, authToken);
+  appriseReady = configCheck?.apprise_ready === true;
+} catch (e) {
+  console.error('[notifications/new] Error checking Apprise availability:', e);
+}
+
+// Redirect if Apprise is not available
+if (!appriseReady) {
+  return Astro.redirect('/automation/notifications');
+}
 
 try {
   const response = await fetchApi<any>('/api/event/options', {}, authToken);
