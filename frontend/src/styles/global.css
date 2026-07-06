@@ -66,6 +66,12 @@ select {
   padding: 20px;
 }
 
+.sidebar-header {
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  margin-bottom: 18px;
+}
+
 .brand {
   display: grid;
   gap: 4px;

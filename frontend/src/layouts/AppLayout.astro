@@ -22,6 +22,7 @@ try {
 }
 
 // Navigation structure organized around user workflows
+// Everything below workspace switcher operates inside the active workspace
 const navGroups = [
   {
     label: null, // No label for top-level items
@@ -47,16 +48,22 @@ const navGroups = [
   {
     label: "Automation",
     items: [
+      { href: "/automation/events", label: "Events", icon: "⚡" },
       { href: "/automation/webhooks", label: "Webhooks", icon: "🪝" },
       { href: "/automation/notifications", label: "Notifications", icon: "📧" },
+    ]
+  },
+  {
+    label: "Workspace",
+    items: [
+      { href: "/workspace/settings", label: "Workspace Settings", icon: "⚙" },
+      { href: "/workspace/members", label: "Members", icon: "👥" },
     ]
   },
   {
     label: "Configuration",
     items: [
       { href: "/entry-types", label: "Entry Types", icon: "◈" },
-      { href: "/workspace/settings", label: "Workspace Settings", icon: "⚙" },
-      { href: "/workspace/members", label: "Members", icon: "👥" },
     ]
   },
   {
@@ -100,10 +107,9 @@ function isActive(itemPath: string, currentPath: string): boolean {
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <a class="brand" href="/">
-          <strong>Marvin</strong>
-          <span>Content engine</span>
-        </a>
+        <div class="sidebar-header">
+          <WorkspaceSwitcher />
+        </div>
         {navGroups.map((group, groupIndex) => (
           <div class="nav-group">
             {group.label && (
