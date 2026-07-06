@@ -25,6 +25,14 @@ try {
   // Default to false if check fails
 }
 
+// Fetch workspace statistics for the statistics tab
+let stats: any = null;
+try {
+  stats = await fetchApi<any>('/api/admin/maintenance/stats', {}, authToken);
+} catch (e) {
+  console.error('[workspace/settings] Error loading statistics:', e);
+}
+
 const tabs = [
   { id: 'general', label: 'General', icon: '⚙' },
   { id: 'members', label: 'Members', icon: '👥' },
@@ -32,6 +40,7 @@ const tabs = [
   { id: 'publishing', label: 'Publishing', icon: '🌐' },
   { id: 'automation', label: 'Automation', icon: '⚡' },
   { id: 'integrations', label: 'Integrations', icon: '🔌' },
+  { id: 'statistics', label: 'Statistics', icon: '📊' },
 ];
 ---
 
@@ -185,6 +194,40 @@ const tabs = [
           </div>
         </div>
       )}
+
+      {currentTab === 'statistics' && (
+        <div class="content-section">
+          <h2>Workspace Statistics</h2>
+          <p class="section-description">Overview of data in your workspace</p>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total Users</div>
+              <div class="stat-value">{stats?.users_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Total Groups</div>
+              <div class="stat-value">{stats?.groups_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Total Entries</div>
+              <div class="stat-value">{stats?.entries_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Total Assets</div>
+              <div class="stat-value">{stats?.assets_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">API Tokens</div>
+              <div class="stat-value">{stats?.api_tokens_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Webhooks</div>
+              <div class="stat-value">{stats?.webhooks_count || '—'}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   </div>
 </AppLayout>
@@ -330,5 +373,33 @@ const tabs = [
     color: var(--muted);
     max-width: 500px;
     margin: 0 auto;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+  }
+
+  .stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .stat-label {
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--accent);
   }
 </style>

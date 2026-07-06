@@ -64,16 +64,6 @@ const navGroups = [
   },
 ];
 
-// Add workspace stats for admins
-if (isAdmin) {
-  navGroups.push({
-    label: null,
-    items: [
-      { href: "/platform/system", label: "Workspace Stats", icon: "📊" },
-    ]
-  });
-}
-
 const finalNavGroups = [
   ...navGroups,
   {
