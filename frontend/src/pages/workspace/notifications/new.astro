@@ -1,0 +1,180 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Create Notification" eyebrow="Workspace">
+  <div class="page-header">
+    <div>
+      <h2>Create Event Notification</h2>
+      <p>Set up a new notification endpoint</p>
+    </div>
+  </div>
+
+  <div class="form-container">
+    <form id="create-notification-form" class="form">
+      <div class="form-section">
+        <h3>Notification Details</h3>
+
+        <label class="form-field">
+          <span class="label">Name</span>
+          <input
+            type="text"
+            name="name"
+            required
+            placeholder="Slack Notifications"
+            class="input"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="label">Apprise URL</span>
+          <input
+            type="text"
+            name="apprise_url"
+            required
+            placeholder="slack://token/channel"
+            class="input"
+          />
+          <small class="hint">
+            Apprise notification URL. See <a href="https://github.com/caronc/apprise" target="_blank">Apprise docs</a> for formats.
+          </small>
+        </label>
+
+        <label class="form-field checkbox-field">
+          <input type="checkbox" name="enabled" checked />
+          <span>Enabled</span>
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Notification</button>
+        <a href="/workspace/notifications" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</AppLayout>
+
+<script>
+  const form = document.getElementById('create-notification-form');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    const payload = {
+      name: formData.get('name'),
+      apprise_url: formData.get('apprise_url'),
+      enabled: formData.get('enabled') === 'on',
+    };
+
+    try {
+      const response = await fetch('/api/group/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        window.location.href = '/workspace/notifications?created=true';
+      } else {
+        const error = await response.text();
+        alert(`Failed to create notification: ${error}`);
+      }
+    } catch (error) {
+      alert('Failed to create notification. Please try again.');
+      console.error('Error creating notification:', error);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 700px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .checkbox-field {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: auto;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .hint a {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+</style>

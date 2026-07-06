@@ -1,0 +1,195 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let resources: any[] = [];
+let error: string | null = null;
+
+try {
+  resources = await fetchApi<any[]>('/api/resources', {}, authToken);
+} catch (e) {
+  console.error('[resources] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title="Resources" eyebrow="Workspace">
+  <div class="toolbar">
+    <div>
+      <h2>Resources</h2>
+      <p>Manage workspace resources (fabrics, tools, suppliers, etc.)</p>
+    </div>
+    <a href="/workspace/resources/new" class="button">Add Resource</a>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : resources.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">📦</div>
+      <p class="empty-title">No resources</p>
+      <p class="empty-description">Add resources to track materials, tools, suppliers, and more</p>
+      <a href="/workspace/resources/new" class="button">Add Resource</a>
+    </div>
+  ) : (
+    <div class="resources-list">
+      {resources.map((resource) => (
+        <div class="resource-card">
+          <div class="resource-info">
+            <div class="resource-header">
+              <strong>{resource.name}</strong>
+              <span class="resource-type-badge">{resource.resource_type}</span>
+            </div>
+            {resource.description && <p class="resource-description">{resource.description}</p>}
+            <div class="resource-meta">
+              <code class="resource-slug">{resource.slug}</code>
+              {resource.external_id && <span> • {resource.external_id}</span>}
+              {resource.url && <span> • <a href={resource.url} target="_blank" rel="noopener">View</a></span>}
+            </div>
+          </div>
+          <div class="resource-actions">
+            <a href={`/workspace/resources/${resource.id}`} class="button secondary small">Edit</a>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</AppLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .resources-list {
+    display: grid;
+    gap: 16px;
+  }
+
+  .resource-card {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .resource-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .resource-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .resource-header strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .resource-type-badge {
+    padding: 2px 8px;
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .resource-description {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .resource-meta {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .resource-slug {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+
+  .resource-meta a {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+
+  .resource-actions {
+    flex-shrink: 0;
+  }
+
+  .button.small {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+</style>

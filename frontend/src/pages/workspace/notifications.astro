@@ -1,0 +1,183 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let notifications: any[] = [];
+let error: string | null = null;
+
+try {
+  const response = await fetchApi<any>('/api/group/notifications', {}, authToken);
+  notifications = response.items || [];
+} catch (e) {
+  console.error('[notifications] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title="Notifications" eyebrow="Workspace">
+  <div class="toolbar">
+    <div>
+      <h2>Event Notifications</h2>
+      <p>Configure notifications for workspace events</p>
+    </div>
+    <a href="/workspace/notifications/new" class="button">Create Notification</a>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : notifications.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">🔔</div>
+      <p class="empty-title">No notifications configured</p>
+      <p class="empty-description">Set up notifications to stay informed about workspace events</p>
+      <a href="/workspace/notifications/new" class="button">Create Notification</a>
+    </div>
+  ) : (
+    <div class="notifications-list">
+      {notifications.map((notif) => (
+        <div class="notification-card">
+          <div class="notification-info">
+            <div class="notification-header">
+              <strong>{notif.name}</strong>
+              {notif.enabled === false && <span class="badge-disabled">Disabled</span>}
+            </div>
+            <p class="notification-url">{notif.apprise_url}</p>
+            <div class="notification-meta">
+              <span>ID: {notif.id}</span>
+            </div>
+          </div>
+          <div class="notification-actions">
+            <a href={`/workspace/notifications/${notif.id}`} class="button secondary small">Edit</a>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</AppLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .notifications-list {
+    display: grid;
+    gap: 16px;
+  }
+
+  .notification-card {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .notification-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .notification-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .notification-header strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .badge-disabled {
+    padding: 2px 8px;
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--muted);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .notification-url {
+    margin: 0;
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  .notification-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .notification-actions {
+    flex-shrink: 0;
+  }
+
+  .button.small {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+</style>

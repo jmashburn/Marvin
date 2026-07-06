@@ -1,0 +1,380 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  if (currentUser?.admin !== true) {
+    return Astro.redirect('/');
+  }
+} catch (e) {
+  return Astro.redirect('/');
+}
+---
+
+<AdminLayout title="Email Settings">
+  <div class="toolbar">
+    <div>
+      <h2>Email Configuration</h2>
+      <p>Configure SMTP settings and test email delivery</p>
+    </div>
+  </div>
+
+  <div class="page-container">
+    <div class="email-grid">
+      <!-- SMTP Configuration -->
+      <section class="card">
+        <h3>SMTP Server Settings</h3>
+        <p class="card-description">Configure outgoing mail server</p>
+
+        <form id="smtp-form" class="smtp-form">
+          <label class="form-field">
+            <span class="label">SMTP Host *</span>
+            <input
+              type="text"
+              name="smtp_host"
+              placeholder="smtp.gmail.com"
+              required
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">SMTP Port *</span>
+            <input
+              type="number"
+              name="smtp_port"
+              placeholder="587"
+              value="587"
+              required
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Username</span>
+            <input
+              type="text"
+              name="smtp_username"
+              placeholder="user@gmail.com"
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Password</span>
+            <input
+              type="password"
+              name="smtp_password"
+              placeholder="••••••••"
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">From Address *</span>
+            <input
+              type="email"
+              name="from_address"
+              placeholder="noreply@example.com"
+              required
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">From Name</span>
+            <input
+              type="text"
+              name="from_name"
+              placeholder="Marvin Platform"
+              class="input"
+            />
+          </label>
+
+          <label class="checkbox-field">
+            <input type="checkbox" name="use_tls" checked />
+            <span>Use TLS/SSL</span>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit" class="button">Save Settings</button>
+            <button type="button" class="button secondary" onclick="alert('Configuration saved locally. Backend integration needed.')">
+              Reset
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Test Email -->
+      <section class="card">
+        <h3>Test Email Delivery</h3>
+        <p class="card-description">Send a test email to verify SMTP configuration</p>
+
+        <form id="test-email-form" class="test-form">
+          <label class="form-field">
+            <span class="label">Test Email Address *</span>
+            <input
+              type="email"
+              name="test_email"
+              placeholder="test@example.com"
+              required
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Subject</span>
+            <input
+              type="text"
+              name="subject"
+              value="Marvin Platform - Test Email"
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Message</span>
+            <textarea
+              name="message"
+              rows="4"
+              class="input textarea"
+            >This is a test email from Marvin Platform. If you received this, your SMTP configuration is working correctly.</textarea>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit" class="button">Send Test Email</button>
+          </div>
+        </form>
+
+        <div id="test-result" class="test-result hidden"></div>
+      </section>
+
+      <!-- Email Templates (Future) -->
+      <section class="card">
+        <h3>Email Templates</h3>
+        <p class="card-description">Customize email templates (coming soon)</p>
+        <div class="coming-soon">
+          <p>📧 Email template customization will be available here</p>
+          <p class="hint">Configure templates for invitations, notifications, password resets, etc.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  const smtpForm = document.getElementById('smtp-form');
+  const testForm = document.getElementById('test-email-form');
+  const testResult = document.getElementById('test-result');
+
+  smtpForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    const config = {
+      smtp_host: formData.get('smtp_host'),
+      smtp_port: parseInt(formData.get('smtp_port') as string),
+      smtp_username: formData.get('smtp_username'),
+      smtp_password: formData.get('smtp_password'),
+      from_address: formData.get('from_address'),
+      from_name: formData.get('from_name'),
+      use_tls: formData.get('use_tls') === 'on',
+    };
+
+    // TODO: Replace with actual API endpoint when backend is ready
+    alert('SMTP settings would be saved here.\n\nBackend API endpoint needed: POST /api/admin/email/config');
+    console.log('SMTP Config:', config);
+  });
+
+  testForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    const payload = {
+      to: formData.get('test_email'),
+      subject: formData.get('subject'),
+      message: formData.get('message'),
+    };
+
+    testResult?.classList.remove('hidden', 'success', 'error');
+    testResult!.textContent = 'Sending test email...';
+    testResult?.classList.add('info');
+
+    // TODO: Replace with actual API endpoint when backend is ready
+    setTimeout(() => {
+      testResult?.classList.remove('info');
+      testResult?.classList.add('success');
+      testResult!.textContent = '✓ Test email sent successfully! (Mock response - backend API needed)';
+    }, 1500);
+
+    console.log('Test Email:', payload);
+
+    // Actual implementation when backend is ready:
+    // try {
+    //   const response = await fetch('/api/admin/email/test', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     credentials: 'include',
+    //     body: JSON.stringify(payload),
+    //   });
+    //
+    //   if (response.ok) {
+    //     testResult?.classList.add('success');
+    //     testResult!.textContent = '✓ Test email sent successfully!';
+    //   } else {
+    //     const error = await response.text();
+    //     testResult?.classList.add('error');
+    //     testResult!.textContent = `✗ Failed to send test email: ${error}`;
+    //   }
+    // } catch (error) {
+    //   testResult?.classList.add('error');
+    //   testResult!.textContent = '✗ Network error. Please try again.';
+    // }
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 900px;
+  }
+
+  .email-grid {
+    display: grid;
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .card h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .card-description {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .smtp-form, .test-form {
+    display: grid;
+    gap: 16px;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: auto;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .test-result {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .test-result.hidden {
+    display: none;
+  }
+
+  .test-result.info {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .test-result.success {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .test-result.error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .coming-soon {
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .coming-soon p {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+
+  .coming-soon .hint {
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 400px;
+    margin: 0 auto;
+  }
+</style>

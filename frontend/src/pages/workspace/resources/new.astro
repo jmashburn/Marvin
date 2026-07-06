@@ -1,0 +1,238 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Add Resource" eyebrow="Workspace">
+  <div class="page-header">
+    <div>
+      <h2>Add Resource</h2>
+      <p>Create a new workspace resource</p>
+    </div>
+  </div>
+
+  <div class="form-container">
+    <form id="create-resource-form" class="form">
+      <div class="form-section">
+        <h3>Basic Information</h3>
+
+        <label class="form-field">
+          <span class="label">Name *</span>
+          <input
+            type="text"
+            name="name"
+            required
+            placeholder="Cotton Fabric - Blue"
+            class="input"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="label">Resource Type *</span>
+          <input
+            type="text"
+            name="resource_type"
+            required
+            placeholder="fabric, tool, supplier, etc."
+            class="input"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="label">Description</span>
+          <textarea
+            name="description"
+            rows="3"
+            placeholder="Optional description of this resource"
+            class="input textarea"
+          ></textarea>
+        </label>
+      </div>
+
+      <div class="form-section">
+        <h3>External References</h3>
+
+        <label class="form-field">
+          <span class="label">External ID</span>
+          <input
+            type="text"
+            name="external_id"
+            placeholder="SKU, ISBN, or other external identifier"
+            class="input"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="label">URL</span>
+          <input
+            type="url"
+            name="url"
+            placeholder="https://supplier.com/product"
+            class="input"
+          />
+          <small class="hint">Link to supplier site, documentation, or related resource</small>
+        </label>
+      </div>
+
+      <div class="form-section">
+        <h3>Metadata (JSON)</h3>
+
+        <label class="form-field">
+          <span class="label">Metadata</span>
+          <textarea
+            name="metadata"
+            rows="5"
+            placeholder='{"color": "blue", "weight": "200gsm", "width": "60in"}'
+            class="input textarea mono"
+          ></textarea>
+          <small class="hint">Optional JSON metadata for custom attributes</small>
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Resource</button>
+        <a href="/workspace/resources" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</AppLayout>
+
+<script>
+  import { slugify } from '@/lib/utils';
+
+  const form = document.getElementById('create-resource-form');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    // Auto-generate slug from name
+    const name = formData.get('name') as string;
+    const slug = slugify(name);
+
+    // Parse metadata if provided
+    let metadata = null;
+    const metadataStr = (formData.get('metadata') as string)?.trim();
+    if (metadataStr) {
+      try {
+        metadata = JSON.parse(metadataStr);
+      } catch (err) {
+        alert('Invalid JSON in metadata field');
+        return;
+      }
+    }
+
+    const payload = {
+      slug,
+      name,
+      resource_type: formData.get('resource_type'),
+      description: formData.get('description') || null,
+      url: formData.get('url') || null,
+      external_id: formData.get('external_id') || null,
+      metadata,
+    };
+
+    try {
+      const response = await fetch('/api/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        window.location.href = '/workspace/resources?created=true';
+      } else {
+        const error = await response.text();
+        alert(`Failed to create resource: ${error}`);
+      }
+    } catch (error) {
+      alert('Failed to create resource. Please try again.');
+      console.error('Error creating resource:', error);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 700px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .textarea.mono {
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+</style>
