@@ -21,7 +21,7 @@ if (urlParams.get('error')) {
 }
 
 try {
-  workspace = await fetchApi<WorkspaceWithMembership>('/api/users/me/workspace/current', {}, authToken);
+  workspace = await fetchApi<WorkspaceWithMembership>('/api/self/workspaces/current', {}, authToken);
 
   if (workspace) {
     // Get preferences for this workspace

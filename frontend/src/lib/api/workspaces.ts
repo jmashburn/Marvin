@@ -15,7 +15,7 @@ import type {
  * Get the user's currently active workspace
  */
 export async function getCurrentWorkspace(authToken?: string): Promise<GroupRead> {
-  return fetchApi<GroupRead>('/api/users/me/workspace/current', {}, authToken);
+  return fetchApi<GroupRead>('/api/self/workspaces/current', {}, authToken);
 }
 
 /**
@@ -24,7 +24,7 @@ export async function getCurrentWorkspace(authToken?: string): Promise<GroupRead
  * For regular users: Returns only workspaces they're members of
  */
 export async function listWorkspaces(authToken?: string): Promise<WorkspaceWithMembership[]> {
-  return fetchApi<WorkspaceWithMembership[]>('/api/users/me/workspace', {}, authToken);
+  return fetchApi<WorkspaceWithMembership[]>('/api/self/workspaces', {}, authToken);
 }
 
 /**
@@ -32,7 +32,7 @@ export async function listWorkspaces(authToken?: string): Promise<WorkspaceWithM
  */
 export async function activateWorkspace(workspaceId: string, authToken?: string): Promise<GroupRead> {
   const body: WorkspaceActivationRequest = { workspace_id: workspaceId };
-  return fetchApi<GroupRead>('/api/users/me/workspace/current', {
+  return fetchApi<GroupRead>('/api/self/workspaces/current', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

@@ -1,5 +1,10 @@
 """
 Controller for workspace activation - allows users to switch between workspaces.
+
+Endpoints:
+- GET /self/workspaces/current - Get current active workspace
+- PUT /self/workspaces/current - Set active workspace
+- GET /self/workspaces - List all accessible workspaces
 """
 
 from typing import Annotated
@@ -18,7 +23,7 @@ from marvin.schemas.workspace.workspace_activation import (
     WorkspaceWithMembership,
 )
 
-router = APIRouter(prefix="/users/me/workspace", tags=["Workspace Activation"])
+router = APIRouter(prefix="/self/workspaces", tags=["User: Self Service"])
 
 
 @controller(router)

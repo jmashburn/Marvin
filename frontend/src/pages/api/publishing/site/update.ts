@@ -9,7 +9,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
     // Get current workspace
     const workspace = await fetchApi<WorkspaceWithMembership>(
-      '/api/users/me/workspace/current',
+      '/api/self/workspaces/current',
       {},
       authToken
     );
