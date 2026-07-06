@@ -1,0 +1,232 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let stats: any = null;
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+
+  // Try to fetch workspace stats
+  try {
+    // TODO: Replace with actual stats endpoint when available
+    // stats = await fetchApi<any>('/api/workspace/stats', {}, authToken);
+  } catch (e) {
+    console.log('Stats endpoint not available');
+  }
+} catch (e) {
+  console.error('[workspace] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title="Workspace Dashboard" eyebrow="Settings">
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : (
+    <div class="workspace-dashboard">
+      <div class="welcome-section">
+        <h2>{workspace?.workspace.name || 'Workspace'}</h2>
+        <p>Manage your workspace settings and resources</p>
+      </div>
+
+      <div class="quick-links">
+        <a href="/workspace/members" class="quick-link-card">
+          <div class="card-icon">👥</div>
+          <h3>Members</h3>
+          <p>Manage team members and permissions</p>
+          {stats?.members_count && <div class="card-stat">{stats.members_count} members</div>}
+        </a>
+
+        <a href="/workspace/invites" class="quick-link-card">
+          <div class="card-icon">✉️</div>
+          <h3>Invitations</h3>
+          <p>Create and manage invitation links</p>
+          {stats?.invites_count && <div class="card-stat">{stats.invites_count} active</div>}
+        </a>
+
+        <a href="/workspace/resources" class="quick-link-card">
+          <div class="card-icon">📦</div>
+          <h3>Resources</h3>
+          <p>Track materials, tools, and suppliers</p>
+          {stats?.resources_count && <div class="card-stat">{stats.resources_count} resources</div>}
+        </a>
+
+        <a href="/workspace/notifications" class="quick-link-card">
+          <div class="card-icon">🔔</div>
+          <h3>Notifications</h3>
+          <p>Configure event notifications</p>
+          {stats?.notifications_count && <div class="card-stat">{stats.notifications_count} configured</div>}
+        </a>
+
+        <a href="/workspace/webhooks" class="quick-link-card">
+          <div class="card-icon">🔗</div>
+          <h3>Webhooks</h3>
+          <p>Integrate with external services</p>
+          {stats?.webhooks_count && <div class="card-stat">{stats.webhooks_count} active</div>}
+        </a>
+
+        <a href="/workspace/settings" class="quick-link-card">
+          <div class="card-icon">⚙</div>
+          <h3>Workspace Settings</h3>
+          <p>Configure workspace details and preferences</p>
+        </a>
+      </div>
+
+      {workspace?.workspace.slug && (
+        <div class="workspace-info">
+          <h3>Workspace Information</h3>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Workspace Name</span>
+              <span class="info-value">{workspace.workspace.name}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Workspace Slug</span>
+              <code class="info-value">{workspace.workspace.slug}</code>
+            </div>
+            {workspace.workspace.id && (
+              <div class="info-item">
+                <span class="info-label">Workspace ID</span>
+                <code class="info-value">{workspace.workspace.id}</code>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )}
+</AppLayout>
+
+<style>
+  .workspace-dashboard {
+    max-width: 1200px;
+  }
+
+  .welcome-section {
+    margin-bottom: 40px;
+  }
+
+  .welcome-section h2 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .welcome-section p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+
+  .quick-link-card {
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .quick-link-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
+    transform: translateY(-2px);
+  }
+
+  .card-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+
+  .quick-link-card h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .quick-link-card p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .card-stat {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .workspace-info {
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .workspace-info h3 {
+    margin: 0 0 20px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .info-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .info-item {
+    display: grid;
+    gap: 6px;
+  }
+
+  .info-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .info-value {
+    font-size: 14px;
+  }
+
+  code.info-value {
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+</style>
