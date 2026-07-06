@@ -79,17 +79,7 @@ const success = urlParams.get('success') === '1';
                 value={workspace.name}
                 disabled={!canManage}
               />
-            </label>
-
-            <label>
-              <span>Slug</span>
-              <input
-                type="text"
-                name="slug"
-                value={workspace.slug || ""}
-                disabled={!canManage}
-              />
-              <small>Used in URLs and API endpoints</small>
+              <small>Slug is auto-generated from the name</small>
             </label>
           </div>
 
@@ -108,6 +98,10 @@ const success = urlParams.get('success') === '1';
           <div class="info-item">
             <span class="info-label">Workspace ID</span>
             <code class="info-value">{workspace.id}</code>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Slug</span>
+            <code class="info-value">{workspace.slug || "Not set"}</code>
           </div>
           <div class="info-item">
             <span class="info-label">Your Role</span>
@@ -172,7 +166,6 @@ const success = urlParams.get('success') === '1';
         const formData = new FormData(form);
         const data = {
           name: formData.get('name') as string,
-          slug: formData.get('slug') as string,
         };
 
         const response = await fetch(`/api/groups/${workspaceId}/preferences`, {

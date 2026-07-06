@@ -24,18 +24,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
             placeholder="e.g., Production Site, Staging, Mobile App"
             autofocus
           />
-          <small>Descriptive name for this API client</small>
-        </label>
-
-        <label class="span-2">
-          <span>Slug</span>
-          <input
-            type="text"
-            name="slug"
-            placeholder="auto-generated from name"
-            pattern="[a-z0-9-]+"
-          />
-          <small>URL-friendly identifier (lowercase, hyphens only)</small>
+          <small>Slug will be auto-generated from the name</small>
         </label>
 
         <label class="span-2">
@@ -108,7 +97,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
       const formData = new FormData(form);
       const data: Record<string, any> = {
         name: formData.get('name'),
-        slug: formData.get('slug') || undefined,
         description: formData.get('description') || undefined,
         permissions: {}
       };

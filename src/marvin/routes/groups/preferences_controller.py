@@ -133,12 +133,17 @@ class GroupPreferencesController(BaseUserController):
         # Extract data dict for processing
         data_dict = data.model_dump(exclude_unset=True)
 
-        # Check if name or slug are in the data and update the workspace (Groups model)
+        # Check if name is in the data and update the workspace (Groups model)
+        # Auto-generate slug from name if name is being updated
         workspace_fields = {}
         if 'name' in data_dict:
+            from slugify import slugify
             workspace_fields['name'] = data_dict.pop('name')
+            workspace_fields['slug'] = slugify(workspace_fields['name'])
+
+        # Remove slug from data_dict if present (we auto-generate it)
         if 'slug' in data_dict:
-            workspace_fields['slug'] = data_dict.pop('slug')
+            data_dict.pop('slug')
 
         # Update workspace fields if present
         if workspace_fields:

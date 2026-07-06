@@ -79,9 +79,7 @@ class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow p
 
     # Workspace-level settings (stored in Groups model, not preferences)
     name: str | None = None
-    """Optional: The name of the workspace."""
-    slug: str | None = None
-    """Optional: The URL-friendly slug for the workspace."""
+    """Optional: The name of the workspace. Slug is auto-generated from name."""
 
     private_group: bool | None = None
     """Optional: New value for the private group setting."""

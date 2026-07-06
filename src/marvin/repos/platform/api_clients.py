@@ -43,8 +43,9 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
             data_dict["group_id"] = self.group_id
 
         # Auto-generate slug from name if not provided
+        from slugify import slugify
         if not data_dict.get("slug"):
-            data_dict["slug"] = self._slugify(data_dict["name"])
+            data_dict["slug"] = slugify(data_dict["name"])
 
         # Generate secure token with marvin_sk_ prefix
         plaintext_token = self._generate_token()
@@ -188,11 +189,3 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
         random_part = secrets.token_urlsafe(settings.SECURITY_TOKEN_RANDOM_BYTES)
         return f"{token_prefix}{random_part}"
 
-    def _slugify(self, name: str) -> str:
-        """Convert name to URL-friendly slug."""
-        import re
-        slug = name.lower().strip()
-        slug = re.sub(r'[^\w\s-]', '', slug)
-        slug = re.sub(r'[\s_-]+', '-', slug)
-        slug = re.sub(r'^-+|-+$', '', slug)
-        return slug or "api-client"
