@@ -16,13 +16,13 @@ try {
 }
 ---
 
-<AppLayout title="Notifications" eyebrow="Workspace">
+<AppLayout title="Notifications" eyebrow="Automation">
   <div class="toolbar">
     <div>
       <h2>Event Notifications</h2>
       <p>Configure notifications for workspace events</p>
     </div>
-    <a href="/workspace/notifications/new" class="button">Create Notification</a>
+    <a href="/automation/notifications/new" class="button">Create Notification</a>
   </div>
 
   {error ? (
@@ -32,7 +32,7 @@ try {
       <div class="empty-icon">🔔</div>
       <p class="empty-title">No notifications configured</p>
       <p class="empty-description">Set up notifications to stay informed about workspace events</p>
-      <a href="/workspace/notifications/new" class="button">Create Notification</a>
+      <a href="/automation/notifications/new" class="button">Create Notification</a>
     </div>
   ) : (
     <div class="notifications-list">
@@ -49,7 +49,7 @@ try {
             </div>
           </div>
           <div class="notification-actions">
-            <a href={`/workspace/notifications/${notif.id}`} class="button secondary small">Edit</a>
+            <a href={`/automation/notifications/${notif.id}`} class="button secondary small">Edit</a>
           </div>
         </div>
       ))}

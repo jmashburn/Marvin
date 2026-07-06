@@ -21,7 +21,7 @@ try {
   // Not logged in or error
 }
 
-// Grouped navigation structure for workflow-oriented UX
+// Navigation structure organized around user workflows
 const navGroups = [
   {
     label: null, // No label for top-level items
@@ -32,45 +32,50 @@ const navGroups = [
   {
     label: "Content",
     items: [
-      { href: "/entries", label: "Entries", icon: "▤" },
-      { href: "/collections", label: "Collections", icon: "☰" },
-    ]
-  },
-  {
-    label: "Structure",
-    items: [
-      { href: "/entry-types", label: "Entry Types", icon: "◈" },
+      { href: "/entries", label: "Entries", icon: "📝" },
+      { href: "/collections", label: "Collections", icon: "📚" },
+      { href: "/assets", label: "Assets", icon: "🖼" },
     ]
   },
   {
     label: "Publishing",
     items: [
-      { href: "/publishing/site", label: "Site", icon: "◉" },
-      { href: "/publishing/clients", label: "Clients", icon: "⚡" },
-      { href: "/assets", label: "Assets", icon: "◫" },
+      { href: "/publishing/site", label: "Website", icon: "🌐" },
+      { href: "/publishing/clients", label: "Site Clients", icon: "🔑" },
     ]
   },
   {
-    label: "Settings",
+    label: "Automation",
     items: [
-      { href: "/workspace", label: "Workspace Dashboard", icon: "⚙" },
+      { href: "/automation/webhooks", label: "Webhooks", icon: "🪝" },
+      { href: "/automation/notifications", label: "Notifications", icon: "📧" },
+    ]
+  },
+  {
+    label: "Configuration",
+    items: [
+      { href: "/entry-types", label: "Entry Types", icon: "◈" },
+      { href: "/workspace/settings", label: "Workspace Settings", icon: "⚙" },
+      { href: "/workspace/members", label: "Members", icon: "👥" },
     ]
   },
   {
     label: "User",
     items: [
       { href: "/user/profile", label: "Profile", icon: "👤" },
-      { href: "/user/api-tokens", label: "API Tokens", icon: "🔑" },
+      { href: "/user/api-tokens", label: "Personal API Tokens", icon: "🔑" },
     ]
   },
 ];
 
-// Add admin link if user is admin
+// Add Platform section for super admins only
 if (isAdmin) {
   navGroups.push({
-    label: "Administration",
+    label: "Platform",
     items: [
-      { href: "/admin", label: "Admin Panel", icon: "⚡" },
+      { href: "/platform/workspaces", label: "Workspaces", icon: "🏢" },
+      { href: "/platform/users", label: "Users", icon: "👥" },
+      { href: "/platform/system", label: "System", icon: "🛠" },
     ]
   });
 }

@@ -16,7 +16,7 @@ try {
 }
 ---
 
-<AppLayout title="Edit Notification" eyebrow="Workspace">
+<AppLayout title="Edit Notification" eyebrow="Automation">
   <div class="page-header">
     <div>
       <h2>Edit Event Notification</h2>
@@ -68,7 +68,7 @@ try {
         <div class="form-actions">
           <button type="submit" class="button">Save Changes</button>
           <button type="button" id="delete-btn" class="button danger">Delete</button>
-          <a href="/workspace/notifications" class="button secondary">Cancel</a>
+          <a href="/automation/notifications" class="button secondary">Cancel</a>
         </div>
       </form>
     </div>
@@ -99,7 +99,7 @@ try {
       });
 
       if (response.ok) {
-        window.location.href = '/workspace/notifications?updated=true';
+        window.location.href = '/automation/notifications?updated=true';
       } else {
         const error = await response.text();
         alert(`Failed to update notification: ${error}`);
@@ -120,7 +120,7 @@ try {
       });
 
       if (response.ok) {
-        window.location.href = '/workspace/notifications?deleted=true';
+        window.location.href = '/automation/notifications?deleted=true';
       } else {
         alert('Failed to delete notification');
       }

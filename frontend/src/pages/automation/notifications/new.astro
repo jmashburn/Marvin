@@ -2,7 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 ---
 
-<AppLayout title="Create Notification" eyebrow="Workspace">
+<AppLayout title="Create Notification" eyebrow="Automation">
   <div class="page-header">
     <div>
       <h2>Create Event Notification</h2>
@@ -48,7 +48,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
       <div class="form-actions">
         <button type="submit" class="button">Create Notification</button>
-        <a href="/workspace/notifications" class="button secondary">Cancel</a>
+        <a href="/automation/notifications" class="button secondary">Cancel</a>
       </div>
     </form>
   </div>
@@ -76,7 +76,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
       });
 
       if (response.ok) {
-        window.location.href = '/workspace/notifications?created=true';
+        window.location.href = '/automation/notifications?created=true';
       } else {
         const error = await response.text();
         alert(`Failed to create notification: ${error}`);
