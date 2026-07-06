@@ -1,6 +1,7 @@
 ---
 import EntryCard from "@/components/EntryCard.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
+import FilterBar from "@/components/FilterBar.astro";
 import { listEntries } from "@/lib/api/entries";
 import { listEntryTypes } from "@/lib/api/entryTypes";
 import { getAuthToken } from "@/lib/api/client";
@@ -21,16 +22,8 @@ try {
   console.error('[Entries] Failed to load:', error);
 }
 
-// Get selected type filter from query params
-const selectedTypeId = Astro.url.searchParams.get("type_id") ?? "";
-
-// Filter entries by type if specified
-const filteredEntries = selectedTypeId
-  ? entries.filter(e => e.entry_type_id === selectedTypeId)
-  : entries;
-
 // Sort entry types by sort_order
-const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
+const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 ---
 
 <AppLayout title="Entries">
@@ -42,41 +35,90 @@ const sortedTypes = entryTypes.sort((a, b) => a.sort_order - b.sort_order);
   ) : (
     <>
       <div class="toolbar">
-        <nav class="segmented" aria-label="Entry type">
-          <a href="/workspace/entries" aria-current={!selectedTypeId ? "page" : undefined}>
-            all
-          </a>
-          {sortedTypes.map((type) => (
-            <a
-              href={`/entries?type_id=${type.id}`}
-              aria-current={selectedTypeId === type.id ? "page" : undefined}
-            >
-              {type.icon && <span aria-hidden="true">{type.icon}</span>}
-              {type.name}
-            </a>
-          ))}
-        </nav>
-        <a class="button" href="/workspace/entries/new">New Entry</a>
+        <div>
+          <h2 style="margin:0;font-size:20px;">Entries</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Manage all your content entries.</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <FilterBar
+            searchPlaceholder="Search entries..."
+            filters={[
+              {
+                id: "type-filter",
+                label: "Types",
+                options: sortedTypes.map(type => ({
+                  value: type.id,
+                  label: type.name
+                }))
+              },
+              {
+                id: "status-filter",
+                label: "Statuses",
+                options: [
+                  { value: "inbox", label: "Inbox" },
+                  { value: "draft", label: "Draft" },
+                  { value: "in_progress", label: "In Progress" },
+                  { value: "in_review", label: "In Review" },
+                  { value: "published", label: "Published" },
+                  { value: "archived", label: "Archived" }
+                ]
+              }
+            ]}
+          />
+          <a class="button" href="/workspace/entries/new">New Entry</a>
+        </div>
       </div>
 
-      {filteredEntries.length === 0 ? (
+      {entries.length === 0 ? (
         <div class="empty-state">
           <p class="empty-title">No entries yet</p>
           <p class="empty-description">
-            {selectedTypeId
-              ? `No entries of this type yet. Create one to get started.`
-              : `Create your first entry to get started.`}
+            Create your first entry to get started.
           </p>
           <a href="/workspace/entries/new" class="button">Create Entry</a>
         </div>
       ) : (
         <section class="grid" aria-label="Entries">
-          {filteredEntries.map((entry) => <EntryCard entry={entry} />)}
+          {entries.map((entry) => (
+            <div class="entry-wrapper" data-type={entry.entryTypeId} data-status={entry.status}>
+              <EntryCard entry={entry} />
+            </div>
+          ))}
         </section>
       )}
     </>
   )}
 </AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+  const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+  const statusFilter = document.getElementById('status-filter') as HTMLSelectElement;
+
+  function filterEntries() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const typeQuery = typeFilter?.value || '';
+    const statusQuery = statusFilter?.value || '';
+    const wrappers = document.querySelectorAll('.entry-wrapper');
+
+    wrappers.forEach(wrapper => {
+      const card = wrapper.querySelector('.entry-card');
+      const title = card?.querySelector('h3')?.textContent?.toLowerCase() || '';
+      const type = wrapper.getAttribute('data-type') || '';
+      const status = wrapper.getAttribute('data-status') || '';
+
+      const matchesSearch = !searchQuery || title.includes(searchQuery);
+      const matchesType = !typeQuery || type === typeQuery;
+      const matchesStatus = !statusQuery || status === statusQuery;
+
+      (wrapper as HTMLElement).style.display = (matchesSearch && matchesType && matchesStatus) ? '' : 'none';
+    });
+  }
+
+  searchInput?.addEventListener('input', filterEntries);
+  typeFilter?.addEventListener('change', filterEntries);
+  statusFilter?.addEventListener('change', filterEntries);
+</script>
 
 <style>
   .error-banner {

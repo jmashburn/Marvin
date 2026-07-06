@@ -1,0 +1,92 @@
+---
+interface FilterOption {
+  value: string;
+  label: string;
+}
+
+interface Filter {
+  id: string;
+  label: string;
+  options: FilterOption[];
+  defaultValue?: string;
+}
+
+interface Props {
+  searchPlaceholder?: string;
+  filters?: Filter[];
+  searchId?: string;
+}
+
+const {
+  searchPlaceholder = "Search...",
+  filters = [],
+  searchId = "filter-search"
+} = Astro.props;
+---
+
+<div class="filter-bar">
+  <input
+    type="search"
+    id={searchId}
+    class="filter-search"
+    placeholder={searchPlaceholder}
+  />
+
+  {filters.map(filter => (
+    <select
+      id={filter.id}
+      class="filter-select"
+      data-filter={filter.id}
+    >
+      <option value="">All {filter.label}</option>
+      {filter.options.map(opt => (
+        <option value={opt.value} selected={filter.defaultValue === opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  ))}
+</div>
+
+<style>
+  .filter-bar {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .filter-search {
+    min-width: 240px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  .filter-search:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .filter-search::placeholder {
+    color: var(--muted);
+  }
+
+  .filter-select {
+    min-width: 160px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .filter-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+</style>

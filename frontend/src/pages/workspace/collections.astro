@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import FilterBar from "@/components/FilterBar.astro";
 import { listCollections } from "@/lib/api/collections";
 import { getAuthToken } from "@/lib/api/client";
 
@@ -16,7 +17,7 @@ try {
 }
 
 // Sort by sort_order
-const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order);
+const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
 ---
 
 <AppLayout title="Collections">
@@ -32,7 +33,22 @@ const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order
           <h2 style="margin:0;font-size:20px;">Collections</h2>
           <p style="margin:4px 0 0;color:var(--muted);">Curated groupings of related entries.</p>
         </div>
-        <a class="button" href="/workspace/collections/new">Create Collection</a>
+        <div style="display:flex;gap:0.75rem;">
+          <FilterBar
+            searchPlaceholder="Search collections..."
+            filters={[
+              {
+                id: "type-filter",
+                label: "Types",
+                options: [
+                  { value: "manual", label: "Manual" },
+                  { value: "smart", label: "Smart" }
+                ]
+              }
+            ]}
+          />
+          <a class="button" href="/workspace/collections/new">Create Collection</a>
+        </div>
       </div>
 
       {sortedCollections.length === 0 ? (
@@ -58,7 +74,7 @@ const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order
           </thead>
           <tbody>
             {sortedCollections.map((collection) => (
-              <tr>
+              <tr class="collection-row" data-type={collection.isSmart ? 'smart' : 'manual'}>
                 <td>
                   {collection.icon && (
                     <span style={`font-size:1.5rem;${collection.color ? `color:${collection.color}` : ''}`}>
@@ -66,16 +82,16 @@ const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order
                     </span>
                   )}
                 </td>
-                <td><strong>{collection.name}</strong></td>
+                <td class="collection-name"><strong>{collection.name}</strong></td>
                 <td><code>{collection.slug}</code></td>
                 <td>{collection.description || '—'}</td>
                 <td>
-                  <span class="pill">{collection.is_smart ? 'Smart' : 'Manual'}</span>
+                  <span class="pill">{collection.isSmart ? 'Smart' : 'Manual'}</span>
                 </td>
-                <td>{collection.sort_order}</td>
+                <td>{collection.sortOrder}</td>
                 <td>
                   <div class="actions">
-                    <a href={`/collections/${collection.id}`} class="button secondary small">Edit</a>
+                    <a href={`/workspace/collections/${collection.id}`} class="button secondary small">Edit</a>
                     <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
                       <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
                         Delete
@@ -91,6 +107,30 @@ const sortedCollections = collections.sort((a, b) => a.sort_order - b.sort_order
     </>
   )}
 </AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+  const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+
+  function filterCollections() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const typeQuery = typeFilter?.value || '';
+    const rows = document.querySelectorAll('.collection-row');
+
+    rows.forEach(row => {
+      const name = row.querySelector('.collection-name')?.textContent?.toLowerCase() || '';
+      const type = row.getAttribute('data-type') || '';
+
+      const matchesSearch = !searchQuery || name.includes(searchQuery);
+      const matchesType = !typeQuery || type === typeQuery;
+
+      (row as HTMLElement).style.display = (matchesSearch && matchesType) ? '' : 'none';
+    });
+  }
+
+  searchInput?.addEventListener('input', filterCollections);
+  typeFilter?.addEventListener('change', filterCollections);
+</script>
 
 <style>
   .error-banner {

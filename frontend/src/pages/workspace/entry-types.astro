@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import FilterBar from "@/components/FilterBar.astro";
 import { listEntryTypes } from "@/lib/api/entryTypes";
 import { listEntries } from "@/lib/api/entries";
 import { getAuthToken } from "@/lib/api/client";
@@ -52,7 +53,10 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
           <h2 style="margin:0;font-size:20px;">Entry Types</h2>
           <p style="margin:4px 0 0;color:var(--muted);">Define content types for your workspace.</p>
         </div>
-        <a class="button" href="/workspace/entry-types/new">Create Entry Type</a>
+        <div style="display:flex;gap:0.75rem;">
+          <FilterBar searchPlaceholder="Search entry types..." />
+          <a class="button" href="/workspace/entry-types/new">Create Entry Type</a>
+        </div>
       </div>
 
       {systemTypes.length > 0 && (
@@ -73,7 +77,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
               {systemTypes.map((type) => {
                 const count = entryCounts.get(type.id) || 0;
                 return (
-                  <tr class={count === 0 ? 'empty-type' : ''}>
+                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`} data-system="true">
                     <td>
                       {type.icon && (
                         <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
@@ -81,7 +85,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                         </span>
                       )}
                     </td>
-                    <td><strong>{type.name}</strong></td>
+                    <td class="type-name"><strong>{type.name}</strong></td>
                     <td><code>{type.slug}</code></td>
                     <td>{type.description || '—'}</td>
                     <td>
@@ -127,7 +131,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
               {customTypes.map((type) => {
                 const count = entryCounts.get(type.id) || 0;
                 return (
-                  <tr class={count === 0 ? 'empty-type' : ''}>
+                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`} data-system="false">
                     <td>
                       {type.icon && (
                         <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
@@ -135,7 +139,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                         </span>
                       )}
                     </td>
-                    <td><strong>{type.name}</strong></td>
+                    <td class="type-name"><strong>{type.name}</strong></td>
                     <td><code>{type.slug}</code></td>
                     <td>{type.description || '—'}</td>
                     <td>
@@ -166,6 +170,25 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
     </>
   )}
 </AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+
+  function filterEntryTypes() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const rows = document.querySelectorAll('.entry-type-row');
+
+    rows.forEach(row => {
+      const name = row.querySelector('.type-name')?.textContent?.toLowerCase() || '';
+
+      const matchesSearch = !searchQuery || name.includes(searchQuery);
+
+      (row as HTMLElement).style.display = matchesSearch ? '' : 'none';
+    });
+  }
+
+  searchInput?.addEventListener('input', filterEntryTypes);
+</script>
 
 <style>
   .error-banner {

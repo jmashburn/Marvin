@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import FilterBar from "@/components/FilterBar.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { listResources } from "@/lib/api/resources";
 
@@ -15,17 +16,8 @@ try {
   console.error('[Resources] Failed to load:', error);
 }
 
-// Get filter from query params
-const filter = Astro.url.searchParams.get("filter") ?? "all";
-
 // Get unique types
 const allTypes = Array.from(new Set(resources.map((r: any) => r.resourceType))).sort();
-
-// Filter resources
-let filteredResources = resources;
-if (filter !== "all") {
-  filteredResources = resources.filter((r: any) => r.resourceType === filter);
-}
 ---
 
 <AppLayout title="Resources" eyebrow="Content">
@@ -34,7 +26,22 @@ if (filter !== "all") {
       <h2 style="margin:0;font-size:20px;">Resources</h2>
       <p style="margin:4px 0 0;color:var(--muted);">External references, suppliers, tools, and materials</p>
     </div>
-    <a href="/workspace/resources/new" class="button">Add Resource</a>
+    <div style="display:flex;gap:0.75rem;">
+      <FilterBar
+        searchPlaceholder="Search resources..."
+        filters={[
+          {
+            id: "type-filter",
+            label: "Types",
+            options: allTypes.map(type => ({
+              value: type,
+              label: type
+            }))
+          }
+        ]}
+      />
+      <a href="/workspace/resources/new" class="button">Add Resource</a>
+    </div>
   </div>
 
   {error ? (
@@ -50,65 +57,71 @@ if (filter !== "all") {
       <a href="/workspace/resources/new" class="button">Add Your First Resource</a>
     </div>
   ) : (
-    <>
-      <div class="filter-bar">
-        <nav class="segmented" aria-label="Resource type filter">
-          <a href="/workspace/resources?filter=all" aria-current={filter === "all" ? "page" : undefined}>
-            All ({resources.length})
-          </a>
-          {allTypes.map((type: string) => {
-            const count = resources.filter((r: any) => r.resourceType === type).length;
-            return (
-              <a href={`/resources?filter=${type}`} aria-current={filter === type ? "page" : undefined}>
-                {type} ({count})
-              </a>
-            );
-          })}
-        </nav>
-      </div>
-
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Description</th>
-            <th>External ID</th>
-            <th>URL</th>
-            <th>Actions</th>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>External ID</th>
+          <th>URL</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {resources.map((resource: any) => (
+          <tr class="resource-row" data-type={resource.resourceType}>
+            <td class="resource-name"><strong>{resource.name}</strong></td>
+            <td><span class="type-badge">{resource.resourceType}</span></td>
+            <td class="description-cell">{resource.description || '—'}</td>
+            <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
+            <td>
+              {resource.url ? (
+                <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
+                  {new URL(resource.url).hostname} ↗
+                </a>
+              ) : '—'}
+            </td>
+            <td>
+              <div class="actions">
+                <a href={`/workspace/resources/${resource.id}`} class="button secondary small">Edit</a>
+                <form method="POST" action={`/api/resources/${resource.id}/delete`} style="display:inline;">
+                  <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this resource?')">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {filteredResources.map((resource: any) => (
-            <tr>
-              <td><strong>{resource.name}</strong></td>
-              <td><span class="type-badge">{resource.resourceType}</span></td>
-              <td class="description-cell">{resource.description || '—'}</td>
-              <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
-              <td>
-                {resource.url ? (
-                  <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
-                    {new URL(resource.url).hostname} ↗
-                  </a>
-                ) : '—'}
-              </td>
-              <td>
-                <div class="actions">
-                  <a href={`/resources/${resource.id}`} class="button secondary small">Edit</a>
-                  <form method="POST" action={`/api/resources/${resource.id}/delete`} style="display:inline;">
-                    <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this resource?')">
-                      Delete
-                    </button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
+        ))}
+      </tbody>
       </table>
-    </>
   )}
 </AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+  const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+
+  function filterResources() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const typeQuery = typeFilter?.value || '';
+    const rows = document.querySelectorAll('.resource-row');
+
+    rows.forEach(row => {
+      const name = row.querySelector('.resource-name')?.textContent?.toLowerCase() || '';
+      const type = row.getAttribute('data-type') || '';
+
+      const matchesSearch = !searchQuery || name.includes(searchQuery);
+      const matchesType = !typeQuery || type === typeQuery;
+
+      (row as HTMLElement).style.display = (matchesSearch && matchesType) ? '' : 'none';
+    });
+  }
+
+  searchInput?.addEventListener('input', filterResources);
+  typeFilter?.addEventListener('change', filterResources);
+</script>
 
 <style>
   .error-banner {
@@ -151,10 +164,6 @@ if (filter !== "all") {
     margin: 0 0 1.5rem;
     color: var(--muted);
     max-width: 32rem;
-  }
-
-  .filter-bar {
-    margin-bottom: 1.5rem;
   }
 
   .type-badge {

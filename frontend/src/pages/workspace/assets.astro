@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import FilterBar from "@/components/FilterBar.astro";
 import { getAssets } from "@/lib/api/platform";
 import { getAuthToken } from "@/lib/api/client";
 
@@ -15,34 +16,13 @@ try {
   console.error('[Assets] Failed to load:', error);
 }
 
-// Get filter from query params
-const filter = Astro.url.searchParams.get("filter") ?? "all";
-
 // Categorize by MIME type
 function getMimeCategory(mimeType: string): string {
-  if (mimeType.startsWith('image/')) return 'Images';
-  if (mimeType.startsWith('video/')) return 'Videos';
-  if (mimeType.startsWith('audio/')) return 'Audio';
-  if (mimeType.includes('pdf')) return 'Documents';
-  return 'Other';
-}
-
-// Group assets by category
-const assetsByCategory: Record<string, any[]> = {};
-assets.forEach((asset: any) => {
-  const category = getMimeCategory(asset.mimeType);
-  if (!assetsByCategory[category]) {
-    assetsByCategory[category] = [];
-  }
-  assetsByCategory[category].push(asset);
-});
-
-const categories = Object.keys(assetsByCategory).sort();
-
-// Filter assets
-let filteredAssets = assets;
-if (filter !== "all") {
-  filteredAssets = assets.filter((a: any) => getMimeCategory(a.mimeType) === filter);
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.includes('pdf')) return 'document';
+  return 'other';
 }
 ---
 
@@ -59,7 +39,25 @@ if (filter !== "all") {
           <h2 style="margin:0;font-size:20px;">Media library</h2>
           <p style="margin:4px 0 0;color:var(--muted);">{assets.length} reusable uploads available to entries.</p>
         </div>
-        <a class="button" href="/workspace/assets/new">Upload Asset</a>
+        <div style="display:flex;gap:0.75rem;">
+          <FilterBar
+            searchPlaceholder="Search assets..."
+            filters={[
+              {
+                id: "type-filter",
+                label: "Types",
+                options: [
+                  { value: "image", label: "Images" },
+                  { value: "video", label: "Videos" },
+                  { value: "audio", label: "Audio" },
+                  { value: "document", label: "Documents" },
+                  { value: "other", label: "Other" }
+                ]
+              }
+            ]}
+          />
+          <a class="button" href="/workspace/assets/new">Upload Asset</a>
+        </div>
       </div>
 
       {assets.length === 0 ? (
@@ -71,24 +69,7 @@ if (filter !== "all") {
           <a href="/workspace/assets/new" class="button">Upload Asset</a>
         </div>
       ) : (
-        <>
-          <div class="filter-bar">
-            <nav class="segmented" aria-label="Asset type filter">
-              <a href="/workspace/assets?filter=all" aria-current={filter === "all" ? "page" : undefined}>
-                All ({assets.length})
-              </a>
-              {categories.map((category: string) => {
-                const count = assetsByCategory[category].length;
-                return (
-                  <a href={`/assets?filter=${category}`} aria-current={filter === category ? "page" : undefined}>
-                    {category} ({count})
-                  </a>
-                );
-              })}
-            </nav>
-          </div>
-
-          <table class="table">
+        <table class="table">
           <thead>
             <tr>
               <th>Preview</th>
@@ -101,8 +82,8 @@ if (filter !== "all") {
             </tr>
           </thead>
           <tbody>
-            {filteredAssets.map((asset: any) => (
-              <tr>
+            {assets.map((asset: any) => (
+              <tr class="asset-row" data-type={getMimeCategory(asset.mimeType)}>
                 <td>
                   <div class="preview">
                     {asset.url && (
@@ -114,11 +95,11 @@ if (filter !== "all") {
                     )}
                   </div>
                 </td>
-                <td>
+                <td class="asset-name">
                   <strong>{asset.name}</strong>
                   {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
                 </td>
-                <td><span class="type-badge">{asset.mimeType}</span></td>
+                <td class="asset-type"><span class="type-badge">{asset.mimeType}</span></td>
                 <td>
                   {asset.width && asset.height
                     ? `${asset.width} × ${asset.height}`
@@ -132,7 +113,7 @@ if (filter !== "all") {
                 <td class="alt-text-cell">{asset.altText || '—'}</td>
                 <td>
                   <div class="actions">
-                    <a href={`/assets/${asset.id}`} class="button secondary small">Edit</a>
+                    <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
                     {asset.url && (
                       <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary small">
                         View
@@ -144,11 +125,34 @@ if (filter !== "all") {
             ))}
           </tbody>
         </table>
-        </>
       )}
     </>
   )}
 </AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+  const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+
+  function filterAssets() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const typeQuery = typeFilter?.value || '';
+    const rows = document.querySelectorAll('.asset-row');
+
+    rows.forEach(row => {
+      const name = row.querySelector('.asset-name')?.textContent?.toLowerCase() || '';
+      const type = row.getAttribute('data-type') || '';
+
+      const matchesSearch = !searchQuery || name.includes(searchQuery);
+      const matchesType = !typeQuery || type === typeQuery;
+
+      (row as HTMLElement).style.display = (matchesSearch && matchesType) ? '' : 'none';
+    });
+  }
+
+  searchInput?.addEventListener('input', filterAssets);
+  typeFilter?.addEventListener('change', filterAssets);
+</script>
 
 <style>
   .error-banner {
@@ -185,10 +189,6 @@ if (filter !== "all") {
     margin: 0;
     color: var(--muted);
     max-width: 32rem;
-  }
-
-  .filter-bar {
-    margin-bottom: 1.5rem;
   }
 
   .preview {
