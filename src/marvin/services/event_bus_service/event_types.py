@@ -71,24 +71,35 @@ class EventTypes(EventTypeBase):
     directly tied to database subscription fields like these event types might be.
     """
 
-    # Internal event types, often not directly subscribable by end-users but used by system components.
+    # ==========================================================================
+    # System Events
+    # ==========================================================================
     test_message = auto()
     """A test message event, used for verifying notifier configurations."""
     webhook_task = auto()
     """An event that triggers scheduled webhook processing."""
+
+    # ==========================================================================
+    # User & Authentication Events
+    # ==========================================================================
     user_signup = auto()
     """Event dispatched when a new user signs up."""
     user_authenticated = auto()
     """Event dispatched when a user authenticates."""
-
-    # Application-specific events (examples):
-    # RECIPE_CREATED = "recipe_created"
-    # RECIPE_UPDATED = "recipe_updated"
-    # SHOPPING_LIST_GENERATED = "shopping_list_generated"
-    token_refreshed = auto()  # Added from auth_controller example
+    user_updated = auto()
+    """Event dispatched when a user profile is updated."""
+    user_deleted = auto()
+    """Event dispatched when a user account is deleted."""
+    user_password_reset_requested = auto()
+    """Event dispatched when a user requests a password reset."""
+    user_password_reset_completed = auto()
+    """Event dispatched when a user completes a password reset."""
+    token_refreshed = auto()
     """Event dispatched when a user's access token is refreshed."""
 
-    # Workspace lifecycle events
+    # ==========================================================================
+    # Workspace Lifecycle Events
+    # ==========================================================================
     workspace_created = auto()
     """Event dispatched when a new workspace is created."""
     workspace_updated = auto()
@@ -97,6 +108,224 @@ class EventTypes(EventTypeBase):
     """Event dispatched when a workspace is deleted."""
     workspace_activated = auto()
     """Event dispatched when a user switches to a different workspace."""
+
+    # ==========================================================================
+    # Workspace Member Events
+    # ==========================================================================
+    member_added = auto()
+    """Event dispatched when a new member is added to a workspace."""
+    member_removed = auto()
+    """Event dispatched when a member is removed from a workspace."""
+    member_role_changed = auto()
+    """Event dispatched when a member's role is changed."""
+
+    # ==========================================================================
+    # Invitation Events
+    # ==========================================================================
+    invitation_created = auto()
+    """Event dispatched when a workspace invitation is created."""
+    invitation_sent = auto()
+    """Event dispatched when a workspace invitation is sent via email."""
+    invitation_accepted = auto()
+    """Event dispatched when a workspace invitation is accepted."""
+    invitation_revoked = auto()
+    """Event dispatched when a workspace invitation is revoked."""
+
+    # ==========================================================================
+    # Entry Events (Content Management)
+    # ==========================================================================
+    entry_created = auto()
+    """Event dispatched when a new entry is created."""
+    entry_updated = auto()
+    """Event dispatched when an entry is updated."""
+    entry_deleted = auto()
+    """Event dispatched when an entry is deleted."""
+    entry_published = auto()
+    """Event dispatched when an entry is published."""
+    entry_unpublished = auto()
+    """Event dispatched when an entry is unpublished."""
+    entry_archived = auto()
+    """Event dispatched when an entry is archived."""
+    entry_restored = auto()
+    """Event dispatched when an archived entry is restored."""
+
+    # ==========================================================================
+    # Collection Events
+    # ==========================================================================
+    collection_created = auto()
+    """Event dispatched when a new collection is created."""
+    collection_updated = auto()
+    """Event dispatched when a collection is updated."""
+    collection_deleted = auto()
+    """Event dispatched when a collection is deleted."""
+    entry_added_to_collection = auto()
+    """Event dispatched when an entry is added to a collection."""
+    entry_removed_from_collection = auto()
+    """Event dispatched when an entry is removed from a collection."""
+
+    # ==========================================================================
+    # Asset Events (Media Management)
+    # ==========================================================================
+    asset_uploaded = auto()
+    """Event dispatched when a new asset is uploaded."""
+    asset_updated = auto()
+    """Event dispatched when an asset metadata is updated."""
+    asset_deleted = auto()
+    """Event dispatched when an asset is deleted."""
+    asset_attached_to_entry = auto()
+    """Event dispatched when an asset is attached to an entry."""
+    asset_detached_from_entry = auto()
+    """Event dispatched when an asset is detached from an entry."""
+
+    # ==========================================================================
+    # Entry Type Events (Schema Management)
+    # ==========================================================================
+    entry_type_created = auto()
+    """Event dispatched when a new entry type is created."""
+    entry_type_updated = auto()
+    """Event dispatched when an entry type is updated."""
+    entry_type_deleted = auto()
+    """Event dispatched when an entry type is deleted."""
+
+    # ==========================================================================
+    # Publishing Events
+    # ==========================================================================
+    site_published = auto()
+    """Event dispatched when a site is published/deployed."""
+    site_deployment_started = auto()
+    """Event dispatched when a site deployment begins."""
+    site_deployment_completed = auto()
+    """Event dispatched when a site deployment completes."""
+    site_deployment_failed = auto()
+    """Event dispatched when a site deployment fails."""
+    site_build_started = auto()
+    """Event dispatched when a site build process starts."""
+    site_build_completed = auto()
+    """Event dispatched when a site build process completes."""
+    site_build_failed = auto()
+    """Event dispatched when a site build process fails."""
+
+    # ==========================================================================
+    # Webhook Events
+    # ==========================================================================
+    webhook_created = auto()
+    """Event dispatched when a new webhook is created."""
+    webhook_updated = auto()
+    """Event dispatched when a webhook is updated."""
+    webhook_deleted = auto()
+    """Event dispatched when a webhook is deleted."""
+    webhook_triggered = auto()
+    """Event dispatched when a webhook is triggered."""
+    webhook_delivery_succeeded = auto()
+    """Event dispatched when a webhook delivery succeeds."""
+    webhook_delivery_failed = auto()
+    """Event dispatched when a webhook delivery fails."""
+
+    # ==========================================================================
+    # API & Integration Events
+    # ==========================================================================
+    api_token_created = auto()
+    """Event dispatched when a new API token is created."""
+    api_token_rotated = auto()
+    """Event dispatched when an API token is rotated."""
+    api_token_revoked = auto()
+    """Event dispatched when an API token is revoked."""
+    api_rate_limit_exceeded = auto()
+    """Event dispatched when an API rate limit is exceeded."""
+    api_client_created = auto()
+    """Event dispatched when a new API client is registered."""
+    api_client_updated = auto()
+    """Event dispatched when an API client is updated."""
+    api_client_deleted = auto()
+    """Event dispatched when an API client is deleted."""
+
+    # ==========================================================================
+    # Resource Events
+    # ==========================================================================
+    resource_created = auto()
+    """Event dispatched when a new resource is created."""
+    resource_updated = auto()
+    """Event dispatched when a resource is updated."""
+    resource_deleted = auto()
+    """Event dispatched when a resource is deleted."""
+
+    # ==========================================================================
+    # Collaboration Events
+    # ==========================================================================
+    comment_added = auto()
+    """Event dispatched when a comment is added to an entry."""
+    comment_updated = auto()
+    """Event dispatched when a comment is updated."""
+    comment_deleted = auto()
+    """Event dispatched when a comment is deleted."""
+    entry_shared = auto()
+    """Event dispatched when an entry is shared with another user."""
+    mention_created = auto()
+    """Event dispatched when a user is mentioned in content."""
+
+    # ==========================================================================
+    # Workflow & Automation Events
+    # ==========================================================================
+    workflow_started = auto()
+    """Event dispatched when an automated workflow starts."""
+    workflow_completed = auto()
+    """Event dispatched when an automated workflow completes."""
+    workflow_failed = auto()
+    """Event dispatched when an automated workflow fails."""
+    approval_requested = auto()
+    """Event dispatched when content approval is requested."""
+    approval_granted = auto()
+    """Event dispatched when content approval is granted."""
+    approval_rejected = auto()
+    """Event dispatched when content approval is rejected."""
+
+    # ==========================================================================
+    # Search & Indexing Events
+    # ==========================================================================
+    search_index_updated = auto()
+    """Event dispatched when the search index is updated."""
+    search_index_rebuilt = auto()
+    """Event dispatched when the search index is completely rebuilt."""
+
+    # ==========================================================================
+    # Security & Audit Events
+    # ==========================================================================
+    permission_changed = auto()
+    """Event dispatched when permissions are changed."""
+    role_assigned = auto()
+    """Event dispatched when a role is assigned to a user."""
+    role_revoked = auto()
+    """Event dispatched when a role is revoked from a user."""
+    suspicious_activity_detected = auto()
+    """Event dispatched when suspicious activity is detected."""
+    login_failed_multiple_times = auto()
+    """Event dispatched when multiple login failures occur."""
+    session_expired = auto()
+    """Event dispatched when a user session expires."""
+
+    # ==========================================================================
+    # Storage & Backup Events
+    # ==========================================================================
+    backup_started = auto()
+    """Event dispatched when a backup process starts."""
+    backup_completed = auto()
+    """Event dispatched when a backup process completes."""
+    backup_failed = auto()
+    """Event dispatched when a backup process fails."""
+    storage_quota_warning = auto()
+    """Event dispatched when storage quota reaches warning threshold."""
+    storage_quota_exceeded = auto()
+    """Event dispatched when storage quota is exceeded."""
+
+    # ==========================================================================
+    # Notification Events
+    # ==========================================================================
+    notification_sent = auto()
+    """Event dispatched when a notification is sent to a user."""
+    notification_read = auto()
+    """Event dispatched when a user reads a notification."""
+    digest_sent = auto()
+    """Event dispatched when a digest email is sent."""
 
 
 class EventDocumentTypeBase(Enum):
@@ -118,7 +347,24 @@ class EventDocumentType(EventDocumentTypeBase):
     """A generic document type, for events with non-specific or simple data."""
     user = "user"
     """Indicates the event data pertains to a user entity."""
-    # Example: RECIPE = "recipe", SHOPPING_LIST = "shopping_list"
+    workspace = "workspace"
+    """Indicates the event data pertains to a workspace entity."""
+    entry = "entry"
+    """Indicates the event data pertains to an entry entity."""
+    collection = "collection"
+    """Indicates the event data pertains to a collection entity."""
+    asset = "asset"
+    """Indicates the event data pertains to an asset entity."""
+    webhook = "webhook"
+    """Indicates the event data pertains to a webhook entity."""
+    member = "member"
+    """Indicates the event data pertains to a workspace member."""
+    invitation = "invitation"
+    """Indicates the event data pertains to an invitation."""
+    api_token = "api_token"
+    """Indicates the event data pertains to an API token."""
+    deployment = "deployment"
+    """Indicates the event data pertains to a site deployment."""
 
 
 class EventOperationBase(Enum):
@@ -225,6 +471,123 @@ class EventWebhookData(EventDocumentDataBase):
     """
     # document_type and operation would be set by the dispatcher of webhook_task events.
     # e.g., document_type = EventDocumentType.generic, operation = EventOperation.info
+
+
+# =============================================================================
+# Entry Event Data Models
+# =============================================================================
+
+
+class EventEntryData(EventDocumentDataBase):
+    """Data payload for entry-related events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.entry
+    entry_id: UUID4
+    """The unique identifier of the entry."""
+    entry_title: str
+    """The title of the entry."""
+    entry_type: str | None = None
+    """The type/schema of the entry."""
+    workspace_id: UUID4
+    """The workspace containing the entry."""
+    author_id: UUID4
+    """The user who created/modified the entry."""
+
+
+class EventCollectionData(EventDocumentDataBase):
+    """Data payload for collection-related events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.collection
+    collection_id: UUID4
+    """The unique identifier of the collection."""
+    collection_name: str
+    """The name of the collection."""
+    workspace_id: UUID4
+    """The workspace containing the collection."""
+    entry_count: int | None = None
+    """The number of entries in the collection."""
+
+
+class EventAssetData(EventDocumentDataBase):
+    """Data payload for asset-related events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.asset
+    asset_id: UUID4
+    """The unique identifier of the asset."""
+    asset_name: str
+    """The filename of the asset."""
+    asset_type: str | None = None
+    """The MIME type of the asset."""
+    asset_size: int | None = None
+    """The size of the asset in bytes."""
+    workspace_id: UUID4
+    """The workspace containing the asset."""
+    uploader_id: UUID4
+    """The user who uploaded the asset."""
+
+
+class EventMemberData(EventDocumentDataBase):
+    """Data payload for workspace member events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.member
+    workspace_id: UUID4
+    """The workspace ID."""
+    user_id: UUID4
+    """The user ID of the member."""
+    username: str
+    """The username of the member."""
+    role: str
+    """The role of the member (OWNER, ADMIN, EDITOR, AUTHOR, VIEWER)."""
+    previous_role: str | None = None
+    """The previous role (for role change events)."""
+
+
+class EventInvitationData(EventDocumentDataBase):
+    """Data payload for invitation events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.invitation
+    invitation_id: UUID4 | str
+    """The unique identifier or token of the invitation."""
+    workspace_id: UUID4
+    """The workspace the invitation is for."""
+    inviter_id: UUID4
+    """The user who created the invitation."""
+    invitee_email: str | None = None
+    """The email address of the invited user (if applicable)."""
+    uses_left: int | None = None
+    """The number of remaining uses for the invitation."""
+
+
+class EventAPITokenData(EventDocumentDataBase):
+    """Data payload for API token events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.api_token
+    token_id: UUID4
+    """The unique identifier of the API token."""
+    token_name: str
+    """The name of the API token."""
+    user_id: UUID4
+    """The user who owns the token."""
+    token_prefix: str | None = None
+    """The prefix of the token (for identification)."""
+
+
+class EventDeploymentData(EventDocumentDataBase):
+    """Data payload for site deployment events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.deployment
+    workspace_id: UUID4
+    """The workspace being deployed."""
+    deployment_id: str | None = None
+    """The unique identifier of the deployment."""
+    site_url: str | None = None
+    """The URL of the deployed site."""
+    triggered_by: UUID4
+    """The user who triggered the deployment."""
+    status: str | None = None
+    """The status of the deployment (started, completed, failed)."""
+    error_message: str | None = None
+    """Error message if deployment failed."""
 
 
 class EventBusMessage(_MarvinModel):
