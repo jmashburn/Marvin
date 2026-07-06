@@ -12,12 +12,13 @@ try {
     return Astro.redirect('/');
   }
 
-  // Try to fetch database stats if endpoint exists
+  // Fetch database stats
   try {
-    stats = await fetchApi<any>('/api/admin/stats', {}, authToken);
+    stats = await fetchApi<any>('/api/admin/maintenance/stats', {}, authToken);
   } catch (e) {
     // Stats endpoint may not exist yet, that's okay
-    console.log('Stats endpoint not available');
+    console.error('Stats endpoint error:', e);
+    error = e instanceof Error ? e.message : String(e);
   }
 } catch (e) {
   console.error('[admin/maintenance] Error loading:', e);
@@ -42,27 +43,27 @@ try {
         <div class="stats-grid">
           <div class="stat-item">
             <div class="stat-label">Total Users</div>
-            <div class="stat-value">{stats?.users_count || '—'}</div>
+            <div class="stat-value">{stats?.usersCount || stats?.users_count || '—'}</div>
           </div>
           <div class="stat-item">
             <div class="stat-label">Total Groups</div>
-            <div class="stat-value">{stats?.groups_count || '—'}</div>
+            <div class="stat-value">{stats?.groupsCount || stats?.groups_count || '—'}</div>
           </div>
           <div class="stat-item">
             <div class="stat-label">Total Entries</div>
-            <div class="stat-value">{stats?.entries_count || '—'}</div>
+            <div class="stat-value">{stats?.entriesCount || stats?.entries_count || '—'}</div>
           </div>
           <div class="stat-item">
             <div class="stat-label">Total Assets</div>
-            <div class="stat-value">{stats?.assets_count || '—'}</div>
+            <div class="stat-value">{stats?.assetsCount || stats?.assets_count || '—'}</div>
           </div>
           <div class="stat-item">
             <div class="stat-label">API Tokens</div>
-            <div class="stat-value">{stats?.api_tokens_count || '—'}</div>
+            <div class="stat-value">{stats?.apiTokensCount || stats?.api_tokens_count || '—'}</div>
           </div>
           <div class="stat-item">
             <div class="stat-label">Webhooks</div>
-            <div class="stat-value">{stats?.webhooks_count || '—'}</div>
+            <div class="stat-value">{stats?.webhooksCount || stats?.webhooks_count || '—'}</div>
           </div>
         </div>
       </section>
@@ -110,30 +111,30 @@ try {
           <div class="storage-item">
             <div class="storage-info">
               <span class="storage-label">Database Size</span>
-              <span class="storage-path">/var/lib/marvin/marvin.db</span>
+              <span class="storage-path">{stats?.databasePath || stats?.database_path || '/var/lib/marvin/marvin.db'}</span>
             </div>
-            <span class="storage-size">{stats?.database_size || 'Unknown'}</span>
+            <span class="storage-size">{stats?.databaseSize || stats?.database_size || 'Unknown'}</span>
           </div>
           <div class="storage-item">
             <div class="storage-info">
               <span class="storage-label">Assets Storage</span>
-              <span class="storage-path">/var/lib/marvin/assets/</span>
+              <span class="storage-path">{stats?.assetsPath || stats?.assets_path || '/var/lib/marvin/assets/'}</span>
             </div>
-            <span class="storage-size">{stats?.assets_size || 'Unknown'}</span>
+            <span class="storage-size">{stats?.assetsSize || stats?.assets_size || 'Unknown'}</span>
           </div>
           <div class="storage-item">
             <div class="storage-info">
               <span class="storage-label">Backup Storage</span>
-              <span class="storage-path">/var/lib/marvin/backups/</span>
+              <span class="storage-path">{stats?.backupsPath || stats?.backups_path || '/var/lib/marvin/backups/'}</span>
             </div>
-            <span class="storage-size">{stats?.backups_size || 'Unknown'}</span>
+            <span class="storage-size">{stats?.backupsSize || stats?.backups_size || 'Unknown'}</span>
           </div>
           <div class="storage-item">
             <div class="storage-info">
-              <span class="storage-label">Total Storage Used</span>
-              <span class="storage-path">All data combined</span>
+              <span class="storage-label">Data Directory</span>
+              <span class="storage-path">{stats?.dataDirPath || stats?.data_dir_path || '/var/lib/marvin/'}</span>
             </div>
-            <span class="storage-size total">{stats?.total_size || 'Unknown'}</span>
+            <span class="storage-size total">{stats?.totalSize || stats?.total_size || 'Unknown'}</span>
           </div>
         </div>
       </section>

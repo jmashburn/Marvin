@@ -110,4 +110,5 @@ class AdminAboutController(BaseAdminController):
             is_up_to_date=is_up_to_date_status,  # Application version is current
             oidc_ready=settings.OIDC_READY,  # OIDC configured and ready
             enable_openai=settings.OPENAI_ENABLED,  # OpenAI configured and enabled
+            apprise_ready=settings.APPRISE_READY,  # Apprise notification service configured and enabled
         )

@@ -35,9 +35,13 @@ class SystemStats(BaseModel):
     api_tokens_count: int
     webhooks_count: int
     database_size: str
+    database_path: str
     assets_size: str
+    assets_path: str
     backups_size: str
+    backups_path: str
     total_size: str
+    data_dir_path: str
 
 
 def tail_log(log_file: Path, n: int) -> list[str]:
@@ -157,22 +161,21 @@ class AdminMaintenanceController(BaseAdminController):
         Returns:
             SystemStats: A Pydantic model containing system statistics and storage info.
         """
-        from marvin.db.db_setup import db  # Get database session
-        from marvin.db.models.users import User
-        from marvin.db.models.groups import Group
-        from marvin.db.models.entries import Entry
-        from marvin.db.models.assets import Asset
-        from marvin.db.models.api_tokens import APIToken
-        from marvin.db.models.webhooks import Webhook
+        from marvin.db.db_setup import session_context
+        from marvin.db.models.users.users import Users, LongLiveToken
+        from marvin.db.models.groups.groups import Groups
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.assets import Assets
+        from marvin.db.models.groups.webhooks import GroupWebhooksModel
 
         # Count records using SQLAlchemy
-        with db.session() as session:
-            users_count = session.query(User).count()
-            groups_count = session.query(Group).count()
-            entries_count = session.query(Entry).count()
-            assets_count = session.query(Asset).count()
-            api_tokens_count = session.query(APIToken).count()
-            webhooks_count = session.query(Webhook).count()
+        with session_context() as session:
+            users_count = session.query(Users).count()
+            groups_count = session.query(Groups).count()
+            entries_count = session.query(Entries).count()
+            assets_count = session.query(Assets).count()
+            api_tokens_count = session.query(LongLiveToken).count()
+            webhooks_count = session.query(GroupWebhooksModel).count()
 
         # Get directory sizes
         dirs = self.directories
@@ -197,7 +200,11 @@ class AdminMaintenanceController(BaseAdminController):
             api_tokens_count=api_tokens_count,
             webhooks_count=webhooks_count,
             database_size=fs_stats.pretty_size(db_size),
+            database_path=str(db_file),
             assets_size=fs_stats.pretty_size(assets_size),
+            assets_path=str(assets_dir),
             backups_size=fs_stats.pretty_size(backups_size),
+            backups_path=str(dirs.BACKUP_DIR),
             total_size=fs_stats.pretty_size(total_size),
+            data_dir_path=str(dirs.DATA_DIR),
         )
