@@ -79,12 +79,12 @@ function formatLastUsed(timestamp: string | null | undefined): string {
           <div class="client-meta">
             <div class="meta-item">
               <span class="meta-label">Last Used</span>
-              <span class="meta-value">{formatLastUsed(client.last_used_at)}</span>
+              <span class="meta-value">{formatLastUsed(client.lastUsedAt)}</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">Created</span>
               <span class="meta-value">
-                {new Date(client.created_at || "").toLocaleDateString()}
+                {new Date(client.createdAt || "").toLocaleDateString()}
               </span>
             </div>
           </div>
@@ -104,7 +104,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
             <button
               class="button secondary small"
               data-action="preview"
-              data-client-id={client.id}
+              data-client-slug={client.slug}
               data-client-name={client.name}
             >
               Preview
@@ -112,7 +112,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
             <button
               class="button secondary small"
               data-action="rotate"
-              data-client-id={client.id}
+              data-client-slug={client.slug}
               data-client-name={client.name}
             >
               Rotate Token
@@ -120,7 +120,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
             <button
               class="button secondary small"
               data-action="toggle"
-              data-client-id={client.id}
+              data-client-slug={client.slug}
               data-enabled={client.enabled}
             >
               {client.enabled ? "Disable" : "Enable"}
@@ -176,37 +176,18 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 <script define:vars={{ newToken, newClientName }}>
   // Show token modal if redirected from create/rotate
   if (newToken && newClientName) {
-    console.log('Token received:', newToken);
-    console.log('Client name:', newClientName);
-
-    // Wait for DOM to be fully loaded
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', showTokenModal);
-    } else {
-      showTokenModal();
-    }
-
-    function showTokenModal() {
+    window.addEventListener('DOMContentLoaded', () => {
       const modal = document.getElementById('token-modal') as HTMLDialogElement;
       const tokenValue = document.getElementById('token-value');
       if (modal && tokenValue) {
         tokenValue.textContent = newToken;
-        console.log('Showing modal...');
-
-        // Use showModal if supported, otherwise fallback to setting display
-        if (typeof modal.showModal === 'function') {
-          modal.showModal();
-        } else {
-          modal.style.display = 'block';
-          modal.setAttribute('open', '');
-        }
-      } else {
-        console.error('Modal or token display element not found', { modal, tokenValue });
+        modal.showModal?.() || modal.setAttribute('open', '');
       }
-    }
-  } else {
-    console.log('No token in URL params');
+    });
   }
+</script>
+
+<script>
 
   // Copy token to clipboard
   document.getElementById('copy-token')?.addEventListener('click', async () => {
@@ -235,20 +216,26 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   document.querySelectorAll('[data-action="preview"]').forEach(button => {
     button.addEventListener('click', async (e) => {
       const target = e.currentTarget as HTMLButtonElement;
-      const clientId = target.dataset.clientId;
+      const clientSlug = target.dataset.clientSlug;
       const clientName = target.dataset.clientName;
 
-      if (!clientId) return;
+      if (!clientSlug) {
+        console.error('No client slug');
+        return;
+      }
 
       try {
-        const response = await fetch(`/api/api-clients/${clientId}/preview`, {
+        const response = await fetch(`/api/api-clients/${clientSlug}/preview`, {
           credentials: 'include'
         });
 
-        if (!response.ok) throw new Error('Failed to load preview');
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to load preview: ${response.status} ${errorText}`);
+        }
 
         const data = await response.json();
-        const modal = document.getElementById('preview-modal');
+        const modal = document.getElementById('preview-modal') as HTMLDialogElement;
         const subtitle = document.getElementById('preview-subtitle');
         const content = document.getElementById('preview-content');
 
@@ -259,7 +246,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
         }
       } catch (error) {
         console.error('Preview error:', error);
-        alert('Failed to load preview');
+        alert('Failed to load preview: ' + error.message);
       }
     });
   });
@@ -273,10 +260,10 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   document.querySelectorAll('[data-action="rotate"]').forEach(button => {
     button.addEventListener('click', async (e) => {
       const target = e.currentTarget as HTMLButtonElement;
-      const clientId = target.dataset.clientId;
+      const clientSlug = target.dataset.clientSlug;
       const clientName = target.dataset.clientName;
 
-      if (!clientId || !clientName) return;
+      if (!clientSlug || !clientName) return;
 
       // Show confirmation
       const confirmModal = document.getElementById('confirm-modal');
@@ -297,12 +284,15 @@ function formatLastUsed(timestamp: string | null | undefined): string {
         confirmModal.close();
 
         try {
-          const response = await fetch(`/api/api-clients/${clientId}/rotate-token`, {
+          const response = await fetch(`/api/api-clients/${clientSlug}/rotate-token`, {
             method: 'POST',
             credentials: 'include'
           });
 
-          if (!response.ok) throw new Error('Failed to rotate token');
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to rotate token: ${response.status} - ${errorText}`);
+          }
 
           const result = await response.json();
 
@@ -310,7 +300,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
           window.location.href = `/publishing/clients?token=${encodeURIComponent(result.token)}&client_name=${encodeURIComponent(clientName)}`;
         } catch (error) {
           console.error('Rotate error:', error);
-          alert('Failed to rotate token');
+          alert('Failed to rotate token: ' + error.message);
         }
       };
     });
@@ -320,26 +310,29 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   document.querySelectorAll('[data-action="toggle"]').forEach(button => {
     button.addEventListener('click', async (e) => {
       const target = e.currentTarget as HTMLButtonElement;
-      const clientId = target.dataset.clientId;
+      const clientSlug = target.dataset.clientSlug;
       const currentEnabled = target.dataset.enabled === 'true';
 
-      if (!clientId) return;
+      if (!clientSlug) return;
 
       try {
-        const response = await fetch(`/api/api-clients/${clientId}`, {
+        const response = await fetch(`/api/api-clients/${clientSlug}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ enabled: !currentEnabled })
         });
 
-        if (!response.ok) throw new Error('Failed to update client');
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to update client: ${response.status} - ${errorText}`);
+        }
 
         // Reload page
         window.location.reload();
       } catch (error) {
         console.error('Toggle error:', error);
-        alert('Failed to update client');
+        alert('Failed to update client: ' + error.message);
       }
     });
   });
@@ -536,6 +529,10 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   .button.small {
     padding: 6px 12px;
     font-size: 13px;
+  }
+
+  [data-action] {
+    cursor: pointer;
   }
 
   /* Modal Styles */

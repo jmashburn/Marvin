@@ -178,6 +178,18 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
 
         return None
 
+    def get_by_slug(self, slug: str) -> APIClientRead | None:
+        """
+        Get an API client by its slug.
+
+        Args:
+            slug: The slug of the API client
+
+        Returns:
+            APIClientRead if found, None otherwise
+        """
+        return self.get_one(slug, key="slug")
+
     def _generate_token(self) -> str:
         """
         Generate a secure API token with configurable prefix.
