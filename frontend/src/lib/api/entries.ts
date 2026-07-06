@@ -20,62 +20,62 @@ export async function listEntries(authToken?: string): Promise<EntryRead[]> {
 /**
  * Get a single entry by ID
  */
-export async function getEntry(id: string): Promise<EntryRead> {
-  return fetchApi<EntryRead>(`/api/entries/${id}`);
+export async function getEntry(id: string, authToken?: string): Promise<EntryRead> {
+  return fetchApi<EntryRead>(`/api/entries/${id}`, {}, authToken);
 }
 
 /**
  * Create a new entry
  */
-export async function createEntry(data: EntryCreate): Promise<EntryRead> {
+export async function createEntry(data: EntryCreate, authToken?: string): Promise<EntryRead> {
   return fetchApi<EntryRead>('/api/entries', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
-  });
+  }, authToken);
 }
 
 /**
  * Update an existing entry
  */
-export async function updateEntry(id: string, data: EntryUpdate): Promise<EntryRead> {
+export async function updateEntry(id: string, data: EntryUpdate, authToken?: string): Promise<EntryRead> {
   return fetchApi<EntryRead>(`/api/entries/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
-  });
+  }, authToken);
 }
 
 /**
  * Delete an entry
  */
-export async function deleteEntry(id: string): Promise<void> {
+export async function deleteEntry(id: string, authToken?: string): Promise<void> {
   return fetchApi<void>(`/api/entries/${id}`, {
     method: 'DELETE',
-  });
+  }, authToken);
 }
 
 /**
  * Get collections that contain this entry
  */
-export async function getEntryCollections(entryId: string): Promise<CollectionRead[]> {
-  return fetchApi<CollectionRead[]>(`/api/entries/${entryId}/collections`);
+export async function getEntryCollections(entryId: string, authToken?: string): Promise<CollectionRead[]> {
+  return fetchApi<CollectionRead[]>(`/api/entries/${entryId}/collections`, {}, authToken);
 }
 
 /**
  * Add an entry to a collection
  */
-export async function addEntryToCollection(entryId: string, collectionId: string): Promise<void> {
+export async function addEntryToCollection(entryId: string, collectionId: string, authToken?: string): Promise<void> {
   return fetchApi<void>(`/api/entries/${entryId}/collections/${collectionId}`, {
     method: 'POST',
-  });
+  }, authToken);
 }
 
 /**
  * Remove an entry from a collection
  */
-export async function removeEntryFromCollection(entryId: string, collectionId: string): Promise<void> {
+export async function removeEntryFromCollection(entryId: string, collectionId: string, authToken?: string): Promise<void> {
   return fetchApi<void>(`/api/entries/${entryId}/collections/${collectionId}`, {
     method: 'DELETE',
-  });
+  }, authToken);
 }

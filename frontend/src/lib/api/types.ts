@@ -12,9 +12,9 @@ export interface MarvinAsset {
   slug: string;
   name: string;
   url?: string;
-  mime_type: string;
-  alt_text?: string | null;
-  file_size?: number;
+  mimeType: string;
+  altText?: string | null;
+  fileSize?: number;
   width?: number | null;
   height?: number | null;
   description?: string | null;
@@ -22,9 +22,9 @@ export interface MarvinAsset {
   role?: AssetPlacementRole | null;
   usage?: AssetPlacementUsage | null;
   position?: number;
-  focal_point?: string | null;
+  focalPoint?: string | null;
   caption?: string | null;
-  placement_metadata?: Record<string, unknown> | null;
+  placementMetadata?: Record<string, unknown> | null;
 }
 
 export interface MarvinEntry {
@@ -35,6 +35,7 @@ export interface MarvinEntry {
   summary?: string | null;
   content_markdown?: string;
   frontmatter?: Record<string, unknown> | null;
+  metadata_json?: Record<string, unknown> | null;
   status: EntryStatus;
   published_at?: string | null;
   collections?: string[];
@@ -101,8 +102,8 @@ export interface GroupAdminUpdate {
 export interface UserSummary {
   id: string;
   username: string;
-  email: string;
-  full_name?: string | null;
+  email?: string | null;
+  fullName?: string | null;
 }
 
 export interface GroupRead {
@@ -148,16 +149,16 @@ export interface EntryTypeUpdate {
 
 export interface EntryTypeRead {
   id: string;
-  group_id: string;
+  groupId: string;
   name: string;
   slug: string;
   icon?: string | null;
   color?: string | null;
   description?: string | null;
-  sort_order: number;
-  is_system: boolean;
-  created_at?: string | null;
-  update_at?: string | null;
+  sortOrder: number;
+  isSystem: boolean;
+  createdAt?: string | null;
+  updateAt?: string | null;
 }
 
 // ===== Collection Types =====
@@ -186,17 +187,17 @@ export interface CollectionUpdate {
 
 export interface CollectionRead {
   id: string;
-  group_id: string;
+  groupId: string;
   name: string;
   slug: string;
   description?: string | null;
-  sort_order: number;
+  sortOrder: number;
   icon?: string | null;
   color?: string | null;
-  is_smart: boolean;
-  smart_rules?: Record<string, unknown> | null;
-  created_at?: string | null;
-  update_at?: string | null;
+  isSmart: boolean;
+  smartRules?: Record<string, unknown> | null;
+  createdAt?: string | null;
+  updateAt?: string | null;
 }
 
 // ===== Entry Types =====
@@ -205,6 +206,36 @@ export interface ResourceSummary {
   id: string;
   name: string;
   slug: string;
+  resourceType: string;
+  description?: string | null;
+  url?: string | null;
+  externalId?: string | null;
+}
+
+export interface ResourceCreate {
+  slug: string;
+  name: string;
+  resource_type: string;
+  description?: string | null;
+  url?: string | null;
+  external_id?: string | null;
+  metadata_?: Record<string, unknown> | null;
+}
+
+export interface ResourceUpdate {
+  id: string;
+  slug?: string;
+  name?: string;
+  resource_type?: string;
+  description?: string | null;
+  url?: string | null;
+  external_id?: string | null;
+  metadata_?: Record<string, unknown> | null;
+}
+
+export interface ResourceRead extends ResourceSummary {
+  metadata?: Record<string, unknown> | null;
+  createdBy: string;
 }
 
 export interface EntryCreate {
@@ -214,6 +245,7 @@ export interface EntryCreate {
   summary?: string | null;
   description?: string | null;
   content_markdown?: string | null;
+  metadata_json?: Record<string, unknown> | null;
   status?: EntryStatus;
   published_at?: string | null;
 }
@@ -225,33 +257,35 @@ export interface EntryUpdate {
   summary?: string | null;
   description?: string | null;
   content_markdown?: string | null;
+  metadata_json?: Record<string, unknown> | null;
   status?: EntryStatus;
   published_at?: string | null;
 }
 
 export interface EntryRead {
   id: string;
-  group_id: string;
-  entry_type_id: string;
+  groupId: string;
+  entryTypeId: string;
   title: string;
   slug: string;
   summary?: string | null;
   description?: string | null;
-  content_markdown?: string | null;
+  contentMarkdown?: string | null;
+  metadataJson?: Record<string, unknown> | null;
   status: EntryStatus;
-  published_at?: string | null;
-  created_by?: string | null;
-  created_at?: string | null;
-  update_at?: string | null;
+  publishedAt?: string | null;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updateAt?: string | null;
   resources?: ResourceSummary[];
   assets?: MarvinAsset[];
+  collections?: string[];
 }
 
 // Backwards compatibility with old interface
 export interface MarvinEntry extends EntryRead {
-  entry_type: string;
+  entryType?: string;
   frontmatter?: Record<string, unknown> | null;
-  collections?: string[];
 }
 
 // ===== API Client Types (Site Clients) =====
@@ -318,9 +352,9 @@ export interface WorkspaceSiteInfo {
 
 export interface WorkspaceMembershipRead {
   id: string;
-  user_id: string;
-  group_id: string;
-  workspace_role: WorkspaceRole;
+  userId: string;
+  groupId: string;
+  workspaceRole: WorkspaceRole;
   user?: UserSummary; // Populated by backend when listing members
 }
 
