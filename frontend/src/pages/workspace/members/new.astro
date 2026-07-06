@@ -1,0 +1,201 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import type { WorkspaceRole } from "@/lib/api/types";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+} catch (e) {
+  console.error('[members/new] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// Role display names
+const roleLabels: Record<WorkspaceRole, string> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  EDITOR: "Editor",
+  AUTHOR: "Author",
+  VIEWER: "Viewer",
+};
+
+// Role descriptions
+const roleDescriptions: Record<WorkspaceRole, string> = {
+  OWNER: "Full control, can delete workspace",
+  ADMIN: "Manage settings, members, and publishing",
+  EDITOR: "Create and edit all content",
+  AUTHOR: "Create and edit own content",
+  VIEWER: "Read-only access",
+};
+---
+
+<AppLayout title="Add Member" eyebrow="Workspace">
+  <div class="page-header">
+    <div>
+      <h2>Add Workspace Member</h2>
+      <p>Add a user to {workspace?.workspace?.name || 'this workspace'}</p>
+    </div>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : (
+    <div class="form-container">
+      <form id="add-member-form" class="form">
+        <div class="form-section">
+          <h3>Member Details</h3>
+
+          <label class="form-field">
+            <span class="label">User ID *</span>
+            <input
+              type="text"
+              name="user_id"
+              required
+              placeholder="User UUID"
+              class="input"
+            />
+            <small class="hint">Enter the user's ID to add them to the workspace</small>
+          </label>
+
+          <label class="form-field">
+            <span class="label">Role *</span>
+            <select name="workspace_role" required class="input">
+              {Object.entries(roleLabels).map(([role, label]) => (
+                <option value={role}>
+                  {label} - {roleDescriptions[role as WorkspaceRole]}
+                </option>
+              ))}
+            </select>
+            <small class="hint">Choose the level of access for this member</small>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button">Add Member</button>
+          <a href="/workspace/members" class="button secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  )}
+</AppLayout>
+
+<script define:vars={{ workspaceId: workspace?.workspace?.id }}>
+  const form = document.getElementById('add-member-form');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          user_id: formData.get('user_id'),
+          workspace_role: formData.get('workspace_role'),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to add member');
+      }
+
+      window.location.href = '/workspace/members?added=true';
+    } catch (error) {
+      console.error('Add member error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to add member');
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 700px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+</style>

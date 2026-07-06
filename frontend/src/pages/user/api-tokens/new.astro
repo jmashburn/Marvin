@@ -1,0 +1,184 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="New API Token" eyebrow="User Settings">
+  <div class="page-header">
+    <div>
+      <h2>Create API Token</h2>
+      <p>Generate a new personal access token</p>
+    </div>
+  </div>
+
+  <div class="form-container">
+    <form id="create-token-form" class="form">
+      <div class="form-section">
+        <h3>Token Details</h3>
+
+        <label class="form-field">
+          <span class="label">Name *</span>
+          <input
+            type="text"
+            name="name"
+            required
+            placeholder="Production API Access"
+            class="input"
+          />
+          <small class="hint">A descriptive name to identify this token</small>
+        </label>
+
+        <label class="form-field">
+          <span class="label">Description</span>
+          <textarea
+            name="description"
+            rows="3"
+            placeholder="Used for production deployment scripts"
+            class="input"
+          ></textarea>
+          <small class="hint">Optional notes about this token's purpose</small>
+        </label>
+
+        <div class="info-box">
+          <strong>⚠️ Important</strong>
+          <p>Your token will be shown only once after creation. Copy it immediately and store it securely.</p>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Token</button>
+        <a href="/user/api-tokens" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</AppLayout>
+
+<script>
+  const form = document.getElementById('create-token-form');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    const payload = {
+      name: formData.get('name'),
+      description: formData.get('description') || undefined,
+    };
+
+    try {
+      const response = await fetch('/api/api-tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Redirect to list page with token and name in query params
+        window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(payload.name as string)}`;
+      } else {
+        const error = await response.text();
+        alert(`Failed to create token: ${error}`);
+      }
+    } catch (error) {
+      alert('Failed to create token. Please try again.');
+      console.error('Error creating token:', error);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 700px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  textarea.input {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .info-box {
+    padding: 16px;
+    background: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    border-radius: var(--radius);
+  }
+
+  .info-box strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+
+  .info-box p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+</style>

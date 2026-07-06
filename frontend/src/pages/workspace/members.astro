@@ -59,7 +59,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
       <p>Manage who has access to {workspace?.name || 'this workspace'}</p>
     </div>
     {canManage && (
-      <button class="button" id="add-member-btn">Add Member</button>
+      <a href="/workspace/members/new" class="button">Add Member</a>
     )}
   </div>
 
@@ -73,7 +73,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
       <p class="empty-title">No members found</p>
       <p class="empty-description">Add members to collaborate on this workspace</p>
       {canManage && (
-        <button class="button" id="add-member-empty">Add Member</button>
+        <a href="/workspace/members/new" class="button">Add Member</a>
       )}
     </div>
   ) : (
@@ -135,33 +135,6 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
     </div>
   )}
 
-  <!-- Add Member Modal -->
-  <dialog id="add-member-modal" class="modal">
-    <div class="modal-content">
-      <h3>Add Workspace Member</h3>
-      <p class="modal-subtitle">Invite a user to collaborate on this workspace</p>
-      <form id="add-member-form">
-        <label>
-          <span>User ID</span>
-          <input type="text" name="user_id" required placeholder="User UUID" />
-          <small>Enter the user's ID to add them to the workspace</small>
-        </label>
-        <label>
-          <span>Role</span>
-          <select name="workspace_role" required>
-            {Object.entries(roleLabels).map(([role, label]) => (
-              <option value={role}>{label} - {roleDescriptions[role as WorkspaceRole]}</option>
-            ))}
-          </select>
-        </label>
-        <div class="modal-actions">
-          <button type="submit" class="button">Add Member</button>
-          <button type="button" class="button secondary" id="cancel-add">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
-
   <!-- Confirm Remove Modal -->
   <dialog id="confirm-remove-modal" class="modal">
     <div class="modal-content">
@@ -176,46 +149,6 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
 </AppLayout>
 
 <script define:vars={{ workspaceId: workspace?.workspace?.id, canManage }}>
-  // Add member modal
-  const addMemberBtn = document.getElementById('add-member-btn');
-  const addMemberEmpty = document.getElementById('add-member-empty');
-  const addMemberModal = document.getElementById('add-member-modal');
-  const addMemberForm = document.getElementById('add-member-form');
-  const cancelAdd = document.getElementById('cancel-add');
-
-  [addMemberBtn, addMemberEmpty].forEach(btn => {
-    btn?.addEventListener('click', () => addMemberModal?.showModal());
-  });
-
-  cancelAdd?.addEventListener('click', () => addMemberModal?.close());
-
-  addMemberForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-
-    try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          user_id: formData.get('user_id'),
-          workspace_role: formData.get('workspace_role'),
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to add member');
-      }
-
-      window.location.reload();
-    } catch (error) {
-      console.error('Add member error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to add member');
-    }
-  });
-
   // Role change
   if (canManage) {
     document.querySelectorAll('.role-select').forEach(select => {
