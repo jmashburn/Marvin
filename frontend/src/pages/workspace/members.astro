@@ -175,7 +175,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
   </dialog>
 </AppLayout>
 
-<script define:vars={{ workspaceId: workspace?.workspace.id, canManage }}>
+<script define:vars={{ workspaceId: workspace?.workspace?.id, canManage }}>
   // Add member modal
   const addMemberBtn = document.getElementById('add-member-btn');
   const addMemberEmpty = document.getElementById('add-member-empty');
