@@ -1,5 +1,6 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
@@ -51,9 +52,14 @@ const authMethods = [
 ---
 
 <AdminLayout title={user?.username || 'Edit User'}>
+  <Breadcrumb items={[
+    { label: "Admin", href: "/admin" },
+    { label: "Users", href: "/admin/users" },
+    { label: user?.username || "Edit User" }
+  ]} />
+
   <div class="page-header">
     <div>
-      <a href="/admin/users" class="back-link">← Back to Users</a>
       <h2>{user?.fullName || user?.username || 'Edit User'}</h2>
       <p>Manage user account and permissions</p>
     </div>

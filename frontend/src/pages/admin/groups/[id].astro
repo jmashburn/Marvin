@@ -1,5 +1,6 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
@@ -26,10 +27,16 @@ if (!id) {
 ---
 
 <AdminLayout title={group ? `Manage ${group.name}` : "Manage Workspace"}>
+  <Breadcrumb items={[
+    { label: "Admin", href: "/admin" },
+    { label: "Workspaces", href: "/admin/workspaces" },
+    { label: group?.name || "Manage" }
+  ]} />
+
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading workspace:</strong> {error}</p>
-      <a href="/admin/groups" class="button secondary">Back to Workspaces</a>
+      <a href="/admin/workspaces" class="button secondary">Back to Workspaces</a>
     </div>
   ) : group ? (
     <>
@@ -38,7 +45,7 @@ if (!id) {
           <h2 style="margin:0;font-size:20px;">{group.name}</h2>
           <p style="margin:4px 0 0;color:var(--muted);">Manage workspace settings and members</p>
         </div>
-        <a class="button secondary" href="/admin/groups">Back</a>
+        <a class="button secondary" href="/admin/workspaces">Back</a>
       </div>
 
       <div class="layout-grid">
