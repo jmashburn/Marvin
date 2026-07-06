@@ -19,10 +19,25 @@ from marvin.routes._base import BaseAdminController, controller  # Base admin co
 from marvin.schemas.admin import MaintenanceSummary  # Pydantic schema for maintenance summary
 from marvin.schemas.admin.maintenance import MaintenanceStorageDetails  # Schema for storage details
 from marvin.schemas.response import ErrorResponse, SuccessResponse  # Standardized response schemas
+from pydantic import BaseModel  # For stats response model
 
 # APIRouter for admin maintenance section, prefixed with /maintenance
 # All routes here will be under /admin/maintenance.
 router = APIRouter(prefix="/maintenance")
+
+
+class SystemStats(BaseModel):
+    """System statistics response model."""
+    users_count: int
+    groups_count: int
+    entries_count: int
+    assets_count: int
+    api_tokens_count: int
+    webhooks_count: int
+    database_size: str
+    assets_size: str
+    backups_size: str
+    total_size: str
 
 
 def tail_log(log_file: Path, n: int) -> list[str]:
@@ -129,3 +144,60 @@ class AdminMaintenanceController(BaseAdminController):
             ) from e
 
         return SuccessResponse.respond("Temporary (.temp) directory has been cleaned successfully.")
+
+    @router.get("/stats", response_model=SystemStats, summary="Get System Statistics")
+    def get_system_stats(self) -> SystemStats:
+        """
+        Retrieves system-wide statistics including database counts and storage sizes.
+
+        Returns counts for users, groups, entries, assets, API tokens, and webhooks,
+        along with storage usage information.
+        Accessible only by administrators.
+
+        Returns:
+            SystemStats: A Pydantic model containing system statistics and storage info.
+        """
+        from marvin.db.db_setup import db  # Get database session
+        from marvin.db.models.users import User
+        from marvin.db.models.groups import Group
+        from marvin.db.models.entries import Entry
+        from marvin.db.models.assets import Asset
+        from marvin.db.models.api_tokens import APIToken
+        from marvin.db.models.webhooks import Webhook
+
+        # Count records using SQLAlchemy
+        with db.session() as session:
+            users_count = session.query(User).count()
+            groups_count = session.query(Group).count()
+            entries_count = session.query(Entry).count()
+            assets_count = session.query(Asset).count()
+            api_tokens_count = session.query(APIToken).count()
+            webhooks_count = session.query(Webhook).count()
+
+        # Get directory sizes
+        dirs = self.directories
+        data_dir_size = fs_stats.get_dir_size(dirs.DATA_DIR)
+        backups_size = fs_stats.get_dir_size(dirs.BACKUP_DIR)
+
+        # For assets, check if there's an assets directory in data
+        assets_dir = dirs.DATA_DIR / "assets"
+        assets_size = fs_stats.get_dir_size(assets_dir) if assets_dir.exists() else 0
+
+        # Database size - check the actual SQLite file
+        db_file = dirs.DATA_DIR / "marvin.db"
+        db_size = db_file.stat().st_size if db_file.exists() else 0
+
+        total_size = data_dir_size
+
+        return SystemStats(
+            users_count=users_count,
+            groups_count=groups_count,
+            entries_count=entries_count,
+            assets_count=assets_count,
+            api_tokens_count=api_tokens_count,
+            webhooks_count=webhooks_count,
+            database_size=fs_stats.pretty_size(db_size),
+            assets_size=fs_stats.pretty_size(assets_size),
+            backups_size=fs_stats.pretty_size(backups_size),
+            total_size=fs_stats.pretty_size(total_size),
+        )
