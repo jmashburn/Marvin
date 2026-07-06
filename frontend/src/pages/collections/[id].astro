@@ -122,6 +122,31 @@ if (!id) {
             <p class="form-help">Lower numbers appear first</p>
           </div>
 
+          <div class="form-group">
+            <label>
+              <input
+                type="checkbox"
+                name="is_smart"
+                id="is_smart"
+                value="true"
+                checked={collection.isSmart === true}
+              />
+              Smart Collection
+            </label>
+            <p class="form-help">Smart collections automatically populate based on query criteria</p>
+          </div>
+
+          <div class="form-group" id="query-field" style={collection.isSmart ? '' : 'display: none;'}>
+            <label for="query">Query (JSON)</label>
+            <textarea
+              id="query"
+              name="query"
+              rows="8"
+              placeholder='{"type": "blog", "status": "published"}'
+            >{collection.query ? JSON.stringify(collection.query, null, 2) : ''}</textarea>
+            <p class="form-help">JSON query for filtering entries. Example: {"type": "blog", "status": "published"}</p>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="button">Save Changes</button>
             <a href="/collections" class="button secondary">Cancel</a>
@@ -164,6 +189,18 @@ if (!id) {
     </>
   ) : null}
 </AppLayout>
+
+<script>
+  // Toggle query field visibility based on smart collection checkbox
+  const smartCheckbox = document.getElementById('is_smart') as HTMLInputElement;
+  const queryField = document.getElementById('query-field');
+
+  if (smartCheckbox && queryField) {
+    smartCheckbox.addEventListener('change', () => {
+      queryField.style.display = smartCheckbox.checked ? 'grid' : 'none';
+    });
+  }
+</script>
 
 <style>
   .error-banner {

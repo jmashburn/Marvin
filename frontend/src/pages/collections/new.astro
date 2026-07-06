@@ -77,12 +77,23 @@ import AppLayout from "@/layouts/AppLayout.astro";
           <input
             type="checkbox"
             name="is_smart"
+            id="is_smart"
             value="true"
-            disabled
           />
           Smart Collection
         </label>
-        <p class="form-help">Smart collections will be supported in a future update</p>
+        <p class="form-help">Smart collections automatically populate based on query criteria</p>
+      </div>
+
+      <div class="form-group" id="query-field" style="display: none;">
+        <label for="query">Query (JSON)</label>
+        <textarea
+          id="query"
+          name="query"
+          rows="8"
+          placeholder='{"type": "blog", "status": "published"}'
+        ></textarea>
+        <p class="form-help">JSON query for filtering entries. Example: {"type": "blog", "status": "published"}</p>
       </div>
 
       <div class="form-actions">
@@ -92,6 +103,18 @@ import AppLayout from "@/layouts/AppLayout.astro";
     </form>
   </section>
 </AppLayout>
+
+<script>
+  // Toggle query field visibility based on smart collection checkbox
+  const smartCheckbox = document.getElementById('is_smart') as HTMLInputElement;
+  const queryField = document.getElementById('query-field');
+
+  if (smartCheckbox && queryField) {
+    smartCheckbox.addEventListener('change', () => {
+      queryField.style.display = smartCheckbox.checked ? 'grid' : 'none';
+    });
+  }
+</script>
 
 <style>
   .form-section {
