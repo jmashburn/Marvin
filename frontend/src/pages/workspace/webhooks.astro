@@ -1,0 +1,237 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+let workspace = null;
+let webhooks: any[] = [];
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+
+  if (workspace) {
+    // Fetch webhooks for this workspace
+    const response = await fetchApi<any>('/api/groups/webhooks', {}, authToken);
+    webhooks = response.items || [];
+  }
+} catch (e) {
+  console.error('[webhooks] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title="Webhooks" eyebrow="Workspace">
+  <div class="toolbar">
+    <div>
+      <h2>Webhooks</h2>
+      <p>Configure HTTP callbacks for workspace events</p>
+    </div>
+    <button class="button" disabled>New Webhook (Coming Soon)</button>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  ) : webhooks.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">🔗</div>
+      <p class="empty-title">No webhooks configured</p>
+      <p class="empty-description">
+        Webhooks allow you to receive HTTP notifications when events occur in your workspace
+      </p>
+      <button class="button" disabled>New Webhook (Coming Soon)</button>
+    </div>
+  ) : (
+    <div class="webhooks-grid">
+      {webhooks.map((webhook) => (
+        <article class="webhook-card">
+          <div class="webhook-header">
+            <div>
+              <h3>{webhook.name}</h3>
+              <code class="webhook-url">{webhook.url}</code>
+            </div>
+            <span class={`status-badge ${webhook.enabled ? "active" : "inactive"}`}>
+              {webhook.enabled ? "Active" : "Inactive"}
+            </span>
+          </div>
+          <div class="webhook-meta">
+            <div class="meta-item">
+              <span class="meta-label">Method</span>
+              <span class="meta-value">{webhook.method || 'POST'}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Type</span>
+              <span class="meta-value">{webhook.webhook_type || 'generic'}</span>
+            </div>
+          </div>
+          <div class="webhook-actions">
+            <button class="button secondary small" disabled>Edit (Coming Soon)</button>
+            <button class="button secondary small" disabled>Test</button>
+            <button class="button secondary small danger" disabled>Delete</button>
+          </div>
+        </article>
+      ))}
+    </div>
+  )}
+</AppLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  .empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+
+  .empty-description {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 24px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .webhooks-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .webhook-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .webhook-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .webhook-header h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .webhook-url {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: ui-monospace, monospace;
+  }
+
+  .status-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .status-badge.active {
+    background: rgb(53 122 85 / 0.1);
+    color: var(--good);
+  }
+
+  .status-badge.inactive {
+    background: rgb(117 117 117 / 0.1);
+    color: var(--muted);
+  }
+
+  .webhook-meta {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 16px;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .meta-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .meta-value {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .webhook-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .button.small {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .button.danger:not(:disabled) {
+    color: var(--warn);
+  }
+
+  .button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+</style>
