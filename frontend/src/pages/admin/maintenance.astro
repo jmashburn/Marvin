@@ -1,73 +1,21 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
 
-const authToken = getAuthToken(Astro.cookies);
-let error: string | null = null;
-let stats: any = null;
-
-try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-  if (currentUser?.admin !== true) {
-    return Astro.redirect('/');
-  }
-
-  // Fetch database stats
-  try {
-    stats = await fetchApi<any>('/api/admin/maintenance/stats', {}, authToken);
-  } catch (e) {
-    // Stats endpoint may not exist yet, that's okay
-    console.error('Stats endpoint error:', e);
-    error = e instanceof Error ? e.message : String(e);
-  }
-} catch (e) {
-  console.error('[admin/maintenance] Error loading:', e);
-  return Astro.redirect('/');
-}
+// Require admin authentication
+const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 ---
 
 <AdminLayout title="Maintenance">
   <div class="toolbar">
     <div>
       <h2>Maintenance & Cleanup</h2>
-      <p>Run maintenance tasks and view system statistics</p>
+      <p>Run maintenance and cleanup operations</p>
     </div>
   </div>
 
   <div class="page-container">
     <div class="maintenance-grid">
-      <!-- Database Statistics -->
-      <section class="card">
-        <h3>Database Statistics</h3>
-        <p class="card-description">Overview of data stored in the system</p>
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-label">Total Users</div>
-            <div class="stat-value">{stats?.usersCount || stats?.users_count || '—'}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Total Groups</div>
-            <div class="stat-value">{stats?.groupsCount || stats?.groups_count || '—'}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Total Entries</div>
-            <div class="stat-value">{stats?.entriesCount || stats?.entries_count || '—'}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Total Assets</div>
-            <div class="stat-value">{stats?.assetsCount || stats?.assets_count || '—'}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">API Tokens</div>
-            <div class="stat-value">{stats?.apiTokensCount || stats?.api_tokens_count || '—'}</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Webhooks</div>
-            <div class="stat-value">{stats?.webhooksCount || stats?.webhooks_count || '—'}</div>
-          </div>
-        </div>
-      </section>
-
       <!-- Cleanup Tasks -->
       <section class="card">
         <h3>Cleanup Tasks</h3>
@@ -99,42 +47,6 @@ try {
               <p>Clear application caches and temporary files</p>
             </div>
             <button class="button secondary small" id="clear-cache">Clear Cache</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Storage Information -->
-      <section class="card">
-        <h3>Storage Overview</h3>
-        <p class="card-description">Data size across all APIs and storage</p>
-        <div class="storage-list">
-          <div class="storage-item">
-            <div class="storage-info">
-              <span class="storage-label">Database Size</span>
-              <span class="storage-path">{stats?.databasePath || stats?.database_path || '/var/lib/marvin/marvin.db'}</span>
-            </div>
-            <span class="storage-size">{stats?.databaseSize || stats?.database_size || 'Unknown'}</span>
-          </div>
-          <div class="storage-item">
-            <div class="storage-info">
-              <span class="storage-label">Assets Storage</span>
-              <span class="storage-path">{stats?.assetsPath || stats?.assets_path || '/var/lib/marvin/assets/'}</span>
-            </div>
-            <span class="storage-size">{stats?.assetsSize || stats?.assets_size || 'Unknown'}</span>
-          </div>
-          <div class="storage-item">
-            <div class="storage-info">
-              <span class="storage-label">Backup Storage</span>
-              <span class="storage-path">{stats?.backupsPath || stats?.backups_path || '/var/lib/marvin/backups/'}</span>
-            </div>
-            <span class="storage-size">{stats?.backupsSize || stats?.backups_size || 'Unknown'}</span>
-          </div>
-          <div class="storage-item">
-            <div class="storage-info">
-              <span class="storage-label">Data Directory</span>
-              <span class="storage-path">{stats?.dataDirPath || stats?.data_dir_path || '/var/lib/marvin/'}</span>
-            </div>
-            <span class="storage-size total">{stats?.totalSize || stats?.total_size || 'Unknown'}</span>
           </div>
         </div>
       </section>
@@ -219,30 +131,6 @@ try {
     color: var(--muted);
   }
 
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 20px;
-  }
-
-  .stat-item {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .stat-label {
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 500;
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 600;
-    color: var(--accent);
-  }
-
   .cleanup-tasks {
     display: grid;
     gap: 12px;
@@ -273,48 +161,6 @@ try {
     margin: 0;
     font-size: 13px;
     color: var(--muted);
-  }
-
-  .storage-list {
-    display: grid;
-    gap: 12px;
-  }
-
-  .storage-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 16px;
-    background: var(--panel-2);
-    border-radius: var(--radius);
-  }
-
-  .storage-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .storage-label {
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .storage-path {
-    font-size: 12px;
-    font-family: ui-monospace, monospace;
-    color: var(--muted);
-  }
-
-  .storage-size {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--accent);
-  }
-
-  .storage-size.total {
-    font-size: 18px;
   }
 
   .button.small {
