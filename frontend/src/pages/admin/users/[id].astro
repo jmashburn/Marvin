@@ -1,0 +1,792 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const { id } = Astro.params;
+
+// Check admin access
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  if (currentUser?.admin !== true) {
+    return Astro.redirect('/');
+  }
+} catch (e) {
+  return Astro.redirect('/');
+}
+
+let user: any = null;
+let workspaces: any[] = [];
+let error: string | null = null;
+
+try {
+  user = await fetchApi<any>(`/api/admin/users/${id}`, {}, authToken);
+
+  // Fetch available workspaces for membership management
+  const workspacesResponse = await fetchApi<any>('/api/admin/groups', {}, authToken);
+  workspaces = workspacesResponse.items || [];
+} catch (e) {
+  console.error('[admin/users/edit] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// Role options
+const platformRoles = [
+  { value: 'USER', label: 'User' },
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'SUPER_ADMIN', label: 'Super Admin' },
+];
+
+const authMethods = [
+  { value: 'MARVIN', label: 'Marvin (Password)' },
+  { value: 'LDAP', label: 'LDAP' },
+  { value: 'OIDC', label: 'OIDC' },
+];
+---
+
+<AdminLayout title={user?.username || 'Edit User'}>
+  <div class="page-header">
+    <div>
+      <a href="/admin/users" class="back-link">← Back to Users</a>
+      <h2>{user?.full_name || user?.username || 'Edit User'}</h2>
+      <p>Manage user account and permissions</p>
+    </div>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  ) : user ? (
+    <div class="form-container">
+      <form id="update-user-form" class="form">
+        <input type="hidden" name="id" value={user.id} />
+
+        <div class="form-section">
+          <h3>Account Details</h3>
+
+          <label class="form-field">
+            <span class="label">Full Name</span>
+            <input
+              type="text"
+              name="full_name"
+              value={user.full_name || ''}
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Username *</span>
+            <input
+              type="text"
+              name="username"
+              value={user.username}
+              required
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Email *</span>
+            <input
+              type="email"
+              name="email"
+              value={user.email}
+              required
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Authentication Method</span>
+            <select name="auth_method" class="input">
+              {authMethods.map(method => (
+                <option value={method.value} selected={user.auth_method === method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div class="form-section">
+          <h3>Permissions</h3>
+
+          <label class="checkbox-field">
+            <input
+              type="checkbox"
+              name="admin"
+              checked={user.admin === true}
+            />
+            <span>Platform Administrator</span>
+          </label>
+
+          <label class="form-field">
+            <span class="label">Platform Role</span>
+            <select name="platform_role" class="input">
+              {platformRoles.map(role => (
+                <option value={role.value} selected={user.platform_role === role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+            <small>Controls platform-level access and permissions</small>
+          </label>
+        </div>
+
+        <div class="form-section">
+          <h3>Workspace Memberships</h3>
+          <p class="section-description">Manage which workspaces this user can access</p>
+
+          <div class="memberships-manager">
+            <div class="current-memberships">
+              <strong>Current Access:</strong>
+              {(() => {
+                const allWorkspaces = [];
+
+                // Add default workspace
+                if (user.group) {
+                  allWorkspaces.push({
+                    id: user.group_id,
+                    name: user.group,
+                    role: 'MEMBER',
+                    isDefault: true
+                  });
+                }
+
+                // Add additional memberships
+                if (user.workspace_memberships && user.workspace_memberships.length > 0) {
+                  user.workspace_memberships.forEach((membership: any) => {
+                    if (membership.group_id !== user.group_id) {
+                      allWorkspaces.push({
+                        id: membership.group_id,
+                        name: membership.group_id, // Only have ID
+                        role: membership.workspace_role,
+                        isDefault: false
+                      });
+                    } else {
+                      const defaultWs = allWorkspaces.find((w: any) => w.isDefault);
+                      if (defaultWs) {
+                        defaultWs.role = membership.workspace_role;
+                      }
+                    }
+                  });
+                }
+
+                return allWorkspaces.length > 0 ? (
+                  <div class="memberships-list">
+                    {allWorkspaces.map((ws: any) => (
+                      <div class="membership-item" data-workspace-id={ws.id}>
+                        <div class="membership-info">
+                          <span class="workspace-name">
+                            {ws.name}
+                            {ws.isDefault && <span class="default-badge">Default</span>}
+                          </span>
+                          <span class={`role-badge role-${ws.role.toLowerCase()}`}>{ws.role}</span>
+                        </div>
+                        {!ws.isDefault && (
+                          <button
+                            type="button"
+                            class="remove-membership-btn"
+                            data-workspace-id={ws.id}
+                            data-workspace-name={ws.name}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p class="empty-message">No workspace memberships</p>
+                );
+              })()}
+            </div>
+
+            <div class="add-membership">
+              <strong>Add to Workspace:</strong>
+              <div class="add-membership-form">
+                <select id="workspace-select" class="input">
+                  <option value="">Select a workspace...</option>
+                  {workspaces.filter((ws: any) => {
+                    // Filter out workspaces user is already a member of
+                    const isMember = ws.id === user.group_id ||
+                      user.workspace_memberships?.some((m: any) => m.group_id === ws.id);
+                    return !isMember;
+                  }).map((ws: any) => (
+                    <option value={ws.id}>{ws.name}</option>
+                  ))}
+                </select>
+                <select id="role-select" class="input">
+                  <option value="VIEWER">Viewer</option>
+                  <option value="AUTHOR">Author</option>
+                  <option value="EDITOR" selected>Editor</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="OWNER">Owner</option>
+                </select>
+                <button type="button" id="add-membership-btn" class="button secondary">
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Account Status</h3>
+
+          <div class="info-group">
+            <div class="info-item">
+              <span class="info-label">User ID</span>
+              <span class="info-value">{user.id}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Default Workspace</span>
+              <span class="info-value">{user.group || user.group_id}</span>
+            </div>
+            {user.locked_at && (
+              <div class="info-item">
+                <span class="info-label">Locked At</span>
+                <span class="info-value alert">{new Date(user.locked_at).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button">Save Changes</button>
+          <a href="/admin/users" class="button secondary">Cancel</a>
+          <button type="button" id="delete-btn" class="button danger" style="margin-left: auto;">
+            Delete User
+          </button>
+        </div>
+      </form>
+    </div>
+  ) : null}
+
+  <!-- Delete Confirmation Modal -->
+  <dialog id="delete-modal" class="modal">
+    <div class="modal-content">
+      <h3>Delete User?</h3>
+      <p>Are you sure you want to delete <strong>{user?.username}</strong>? This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button type="button" class="button danger" id="confirm-delete">Delete</button>
+        <button type="button" class="button secondary" id="cancel-delete">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+</AdminLayout>
+
+<script define:vars={{ userId: user?.id }}>
+  // Update user form
+  const updateForm = document.getElementById('update-user-form');
+  updateForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    const data: any = {
+      full_name: formData.get('full_name') || null,
+      username: formData.get('username'),
+      email: formData.get('email'),
+      auth_method: formData.get('auth_method'),
+      admin: formData.get('admin') === 'on',
+      platform_role: formData.get('platform_role'),
+    };
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to update user');
+      }
+
+      window.location.href = '/admin/users';
+    } catch (error) {
+      console.error('Update error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update user');
+    }
+  });
+
+  // Delete user
+  const deleteBtn = document.getElementById('delete-btn');
+  const deleteModal = document.getElementById('delete-modal') as HTMLDialogElement;
+  const confirmDeleteBtn = document.getElementById('confirm-delete');
+  const cancelDeleteBtn = document.getElementById('cancel-delete');
+
+  deleteBtn?.addEventListener('click', () => {
+    deleteModal?.showModal();
+  });
+
+  cancelDeleteBtn?.addEventListener('click', () => {
+    deleteModal?.close();
+  });
+
+  confirmDeleteBtn?.addEventListener('click', async () => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete user');
+      }
+
+      window.location.href = '/admin/users';
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete user');
+      deleteModal?.close();
+    }
+  });
+
+  // Add workspace membership
+  const addMembershipBtn = document.getElementById('add-membership-btn');
+  const workspaceSelect = document.getElementById('workspace-select') as HTMLSelectElement;
+  const roleSelect = document.getElementById('role-select') as HTMLSelectElement;
+
+  addMembershipBtn?.addEventListener('click', async () => {
+    const workspaceId = workspaceSelect?.value;
+    const role = roleSelect?.value;
+
+    if (!workspaceId) {
+      alert('Please select a workspace');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/workspaces/${workspaceId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          user_id: userId,
+          workspace_role: role,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to add workspace membership');
+      }
+
+      window.location.reload();
+    } catch (error) {
+      console.error('Add membership error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to add workspace membership');
+    }
+  });
+
+  // Remove workspace membership
+  const removeButtons = document.querySelectorAll('.remove-membership-btn');
+  removeButtons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const target = btn as HTMLButtonElement;
+      const workspaceId = target.dataset.workspaceId;
+      const workspaceName = target.dataset.workspaceName;
+
+      if (!confirm(`Remove user from workspace "${workspaceName}"?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/workspaces/${workspaceId}/members/${userId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to remove workspace membership');
+        }
+
+        window.location.reload();
+      } catch (error) {
+        console.error('Remove membership error:', error);
+        alert(error instanceof Error ? error.message : 'Failed to remove workspace membership');
+      }
+    });
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  .back-link:hover {
+    text-decoration: underline;
+  }
+
+  .page-header h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  .form-container {
+    max-width: 700px;
+  }
+
+  .form {
+    display: grid;
+    gap: 32px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 20px;
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .section-description {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .form-field {
+    display: grid;
+    gap: 8px;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 14px;
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  .checkbox-field span {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .info-group {
+    display: grid;
+    gap: 12px;
+  }
+
+  .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .info-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .info-value {
+    font-size: 13px;
+    font-family: monospace;
+  }
+
+  .info-value.alert {
+    color: var(--warn);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .button:not(.secondary):not(.danger) {
+    background: var(--accent);
+    color: white;
+  }
+
+  .button:not(.secondary):not(.danger):hover {
+    opacity: 0.9;
+  }
+
+  .button.secondary {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: inherit;
+  }
+
+  .button.secondary:hover {
+    background: var(--panel-2);
+  }
+
+  .button.danger {
+    background: #dc2626;
+    color: white;
+  }
+
+  .button.danger:hover {
+    background: #b91c1c;
+  }
+
+  /* Modal */
+  .modal {
+    border: none;
+    border-radius: var(--radius);
+    padding: 0;
+    max-width: 500px;
+    width: 90vw;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.15);
+  }
+
+  .modal::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .modal-content {
+    padding: 24px;
+    background: var(--panel);
+  }
+
+  .modal h3 {
+    margin: 0 0 12px;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .modal p {
+    margin: 0 0 20px;
+    font-size: 14px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+
+  /* Workspace Membership Manager */
+  .memberships-manager {
+    display: grid;
+    gap: 24px;
+  }
+
+  .current-memberships strong,
+  .add-membership strong {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .memberships-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .membership-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .membership-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .workspace-name {
+    font-size: 14px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .default-badge {
+    margin-left: 8px;
+    padding: 2px 6px;
+    background: rgb(169 77 63 / 0.1);
+    color: var(--accent);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .role-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .role-badge.role-owner {
+    background: rgb(169 77 63 / 0.15);
+    color: var(--accent);
+  }
+
+  .role-badge.role-admin {
+    background: rgb(47 111 115 / 0.15);
+    color: var(--accent-2);
+  }
+
+  .role-badge.role-editor {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+  }
+
+  .role-badge.role-author {
+    background: rgb(189 145 64 / 0.15);
+    color: var(--gold);
+  }
+
+  .role-badge.role-viewer,
+  .role-badge.role-member {
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+
+  .remove-membership-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-weight: 500;
+    color: #dc2626;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .remove-membership-btn:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+
+  .empty-message {
+    padding: 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    background: var(--panel-2);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+  }
+
+  .add-membership {
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .add-membership-form {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+  }
+
+  @media (max-width: 600px) {
+    .add-membership-form {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

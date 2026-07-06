@@ -1,0 +1,249 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getResource } from "@/lib/api/resources";
+
+const authToken = getAuthToken(Astro.cookies);
+const { id } = Astro.params;
+
+let resource = null;
+let error: string | null = null;
+
+if (!id) {
+  error = "Resource ID is required";
+} else {
+  try {
+    resource = await getResource(id, authToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Resource] Failed to load:', error);
+  }
+}
+---
+
+<AppLayout title={resource ? resource.name : "Edit Resource"}>
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading resource:</strong> {error}</p>
+      <a href="/resources" class="button secondary">Back to Resources</a>
+    </div>
+  ) : resource ? (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Edit Resource</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Update resource details</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <form method="POST" action={`/api/resources/${id}/delete`} style="display:inline;">
+            <button type="submit" class="button secondary" onclick="return confirm('Delete this resource?')">
+              Delete
+            </button>
+          </form>
+          <a class="button secondary" href="/resources">Back</a>
+        </div>
+      </div>
+
+      <section class="form-section">
+        <form method="POST" action={`/api/resources/${id}/update`} class="form">
+          <div class="form-group">
+            <label for="name">Name *</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              required
+              value={resource.name}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="slug">Slug</label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              value={resource.slug}
+              disabled
+              style="background: var(--panel-2); color: var(--muted);"
+            />
+            <p class="form-help">Auto-generated from name</p>
+          </div>
+
+          <div class="form-group">
+            <label for="resource_type">Type *</label>
+            <input
+              type="text"
+              id="resource_type"
+              name="resource_type"
+              required
+              value={resource.resourceType}
+            />
+            <p class="form-help">Category for this resource</p>
+          </div>
+
+          <div class="form-group">
+            <label for="url">URL</label>
+            <input
+              type="url"
+              id="url"
+              name="url"
+              value={resource.url || ""}
+            />
+            <p class="form-help">External website or documentation</p>
+            {resource.url && (
+              <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
+                Open in new tab ↗
+              </a>
+            )}
+          </div>
+
+          <div class="form-group">
+            <label for="external_id">External ID</label>
+            <input
+              type="text"
+              id="external_id"
+              name="external_id"
+              value={resource.externalId || ""}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea
+              id="description"
+              name="description"
+              rows="4"
+            >{resource.description || ""}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="metadata_">Metadata (JSON)</label>
+            <p class="form-help">Custom metadata fields for this resource</p>
+            <textarea
+              id="metadata_"
+              name="metadata_"
+              rows="6"
+              placeholder='{"key": "value"}'
+              class="metadata-editor"
+            >{resource.metadata ? JSON.stringify(resource.metadata, null, 2) : ""}</textarea>
+            <small style="font-size: 11px; color: var(--muted);">
+              Must be valid JSON. Example: {`{"supplier_code": "ABC123", "contact": "john@example.com"}`}
+            </small>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="button">Save Changes</button>
+            <a href="/resources" class="button secondary">Cancel</a>
+          </div>
+        </form>
+      </section>
+    </>
+  ) : null}
+</AppLayout>
+
+<script>
+  // Validate metadata JSON
+  const metadataField = document.getElementById('metadata_');
+
+  if (metadataField) {
+    metadataField.addEventListener('blur', () => {
+      const value = metadataField.value.trim();
+      if (!value) return;
+
+      try {
+        JSON.parse(value);
+        metadataField.style.borderColor = 'var(--line)';
+      } catch (error) {
+        metadataField.style.borderColor = '#ef5350';
+      }
+    });
+  }
+</script>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="url"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .external-link {
+    font-size: 0.875rem;
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .external-link:hover {
+    text-decoration: underline;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
+  }
+</style>

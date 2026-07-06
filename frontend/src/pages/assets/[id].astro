@@ -1,0 +1,329 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const { id } = Astro.params;
+
+let asset = null;
+let error: string | null = null;
+
+if (!id) {
+  error = "Asset ID is required";
+} else {
+  try {
+    asset = await fetchApi(`/api/assets/${id}`, {}, authToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Asset] Failed to load:', error);
+  }
+}
+---
+
+<AppLayout title={asset ? asset.name : "Edit Asset"}>
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading asset:</strong> {error}</p>
+      <a href="/assets" class="button secondary">Back to Assets</a>
+    </div>
+  ) : asset ? (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Edit Asset</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Update asset metadata and details</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <form method="POST" action={`/api/assets/${id}/delete`} style="display:inline;">
+            <button type="submit" class="button secondary" onclick="return confirm('Delete this asset?')">
+              Delete
+            </button>
+          </form>
+          <a class="button secondary" href="/assets">Back</a>
+        </div>
+      </div>
+
+      <div class="editor-layout">
+        <section class="main-section">
+          <form method="POST" action={`/api/assets/${id}/update`} id="asset-form" class="form">
+            <div class="form-group">
+              <label for="name">Name *</label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                required
+                value={asset.name}
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="slug">Slug</label>
+              <input
+                type="text"
+                id="slug"
+                name="slug"
+                value={asset.slug}
+                disabled
+                style="background: var(--panel-2); color: var(--muted);"
+              />
+              <p class="form-help">Auto-generated from name</p>
+            </div>
+
+            <div class="form-group">
+              <label for="alt_text">Alt Text</label>
+              <input
+                type="text"
+                id="alt_text"
+                name="alt_text"
+                value={asset.altText || ""}
+                placeholder="Describe this image for accessibility"
+              />
+              <p class="form-help">Important for accessibility and SEO</p>
+            </div>
+
+            <div class="form-group">
+              <label for="description">Description</label>
+              <textarea
+                id="description"
+                name="description"
+                rows="4"
+              >{asset.description || ""}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="metadata_">Metadata (JSON)</label>
+              <p class="form-help">Custom metadata fields for this asset</p>
+              <textarea
+                id="metadata_"
+                name="metadata_"
+                rows="6"
+                placeholder='{"key": "value"}'
+                class="metadata-editor"
+              >{asset.metadata ? JSON.stringify(asset.metadata, null, 2) : ""}</textarea>
+              <small style="font-size: 11px; color: var(--muted);">
+                Must be valid JSON. Example: {`{"photographer": "Jane", "license": "CC-BY"}`}
+              </small>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="button">Save Changes</button>
+              <a href="/assets" class="button secondary">Cancel</a>
+            </div>
+          </form>
+        </section>
+
+        <aside class="sidebar">
+          <div class="sidebar-section">
+            <h3>Preview</h3>
+            {asset.url && (
+              <div class="asset-preview">
+                <img
+                  src={asset.url}
+                  alt={asset.altText || asset.name}
+                  style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
+                />
+              </div>
+            )}
+            {asset.url && (
+              <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
+                View Full Size ↗
+              </a>
+            )}
+          </div>
+
+          <div class="sidebar-section">
+            <h3>File Info</h3>
+            <dl class="info-list">
+              <dt>Type</dt>
+              <dd><code>{asset.mimeType}</code></dd>
+
+              {asset.width && asset.height && (
+                <>
+                  <dt>Dimensions</dt>
+                  <dd>{asset.width} × {asset.height}px</dd>
+                </>
+              )}
+
+              <dt>File Size</dt>
+              <dd>{(asset.fileSize / 1024).toFixed(1)} KB</dd>
+
+              {asset.focalPoint && (
+                <>
+                  <dt>Focal Point</dt>
+                  <dd>{asset.focalPoint}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        </aside>
+      </div>
+    </>
+  ) : null}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .editor-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    gap: 1.5rem;
+  }
+
+  .main-section {
+    min-width: 0;
+  }
+
+  .form {
+    display: grid;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .sidebar {
+    display: grid;
+    gap: 1.5rem;
+    align-content: start;
+  }
+
+  .sidebar-section {
+    padding: 1.5rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .sidebar-section h3 {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .asset-preview {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--panel-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .asset-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .info-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .info-list dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .info-list dd {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
+  }
+
+  @media (max-width: 1024px) {
+    .editor-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+      order: -1;
+    }
+  }
+</style>
+
+<script>
+  // Validate metadata JSON
+  const metadataField = document.getElementById('metadata_');
+
+  if (metadataField) {
+    metadataField.addEventListener('blur', () => {
+      const value = metadataField.value.trim();
+      if (!value) return;
+
+      try {
+        JSON.parse(value);
+        metadataField.style.borderColor = 'var(--line)';
+      } catch (error) {
+        metadataField.style.borderColor = '#ef5350';
+      }
+    });
+  }
+</script>
