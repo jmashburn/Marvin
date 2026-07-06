@@ -4,23 +4,25 @@ External, portable packages that can be used outside of the main Marvin applicat
 
 ## Available Packages
 
-### [@marvin/client](./marvin-client/)
+### [@marvin/sdk](./marvin-sdk/)
 
-A portable TypeScript client for fetching published content from Marvin CMS.
+The official TypeScript SDK for Marvin CMS. A modern, workspace-first SDK for building applications that integrate with Marvin.
 
-**Use Case**: Integrate Marvin as a headless CMS in Astro, Next.js, or other static site generators.
+**Use Case**: The primary way to integrate with Marvin across static sites, servers, CLIs, automation, and custom applications.
 
 **Key Features**:
-- 🚀 Portable - Copy into any TypeScript project
+- 🎯 Workspace-First - Work with Marvin concepts (Workspace, Entry, Collection)
+- 🚀 Performance - Built-in caching for build-time usage
+- 📘 Fully Typed - Complete TypeScript support
+- 🔄 Backwards Compatible - Works with existing APIs
+- 🎨 Object-Oriented - Rich objects instead of raw JSON
 - 🔒 Secure - Uses site client tokens (not user tokens)
-- 🏗️ Build-time - Optimized for static site generation
-- 📘 Typed - Full TypeScript support
 
 **Quick Start**:
 
 ```bash
 # Copy into your project
-cp -r packages/marvin-client src/lib/marvin
+cp -r packages/marvin-sdk src/lib/marvin
 
 # Configure environment variables
 MARVIN_API_URL=https://marvin.example.com
@@ -30,10 +32,17 @@ MARVIN_WORKSPACE_SLUG=your-workspace
 # Use in your code
 import { createMarvinClient } from '@/lib/marvin';
 const marvin = createMarvinClient();
-const entries = await marvin.getEntries();
+
+// Workspace-first API
+const workspace = await marvin.getWorkspace();
+const entries = await workspace.entries.list();
+
+// Convenience API
+const entry = await marvin.entry('about');
+const projects = await marvin.projects();
 ```
 
-See [marvin-client/README.md](./marvin-client/README.md) for full documentation.
+See [marvin-sdk/README.md](./marvin-sdk/README.md) for full documentation.
 
 ---
 
