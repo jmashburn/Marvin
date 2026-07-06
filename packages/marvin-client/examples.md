@@ -5,13 +5,14 @@ Real-world examples for using the Marvin publishing client in an Astro site.
 ## Table of Contents
 
 1. [Basic Setup](#basic-setup)
-2. [Site Configuration](#site-configuration)
-3. [Blog/News Pages](#blognews-pages)
-4. [Project Portfolio](#project-portfolio)
-5. [Dynamic Routes](#dynamic-routes)
-6. [Collections](#collections)
-7. [Assets & Images](#assets--images)
-8. [Metadata & SEO](#metadata--seo)
+2. [Markdown Rendering](#markdown-rendering)
+3. [Site Configuration](#site-configuration)
+4. [Blog/News Pages](#blognews-pages)
+5. [Project Portfolio](#project-portfolio)
+6. [Dynamic Routes](#dynamic-routes)
+7. [Collections](#collections)
+8. [Assets & Images](#assets--images)
+9. [Metadata & SEO](#metadata--seo)
 
 ---
 
@@ -41,6 +42,66 @@ export const marvinProd = createMarvinClient({
 MARVIN_API_URL=https://marvin.mashburn.co
 MARVIN_SITE_CLIENT_TOKEN=mbc_abc123xyz789
 MARVIN_WORKSPACE_SLUG=mash-burn
+```
+
+---
+
+## Markdown Rendering
+
+**Critical**: Entry content is returned as **raw Markdown**, not HTML. You must parse it before rendering.
+
+### Install Markdown Parser
+
+```bash
+npm install marked
+```
+
+### Create a Helper Function
+
+```ts
+// src/lib/markdown.ts
+import { marked } from 'marked';
+
+/**
+ * Parse Markdown to HTML
+ */
+export function renderMarkdown(markdown: string): string {
+  return marked.parse(markdown ?? '');
+}
+```
+
+### Use in Astro Components
+
+```astro
+---
+import { renderMarkdown } from '@/lib/markdown';
+import { marvin } from '@/lib/marvin';
+
+const entry = await marvin.getEntry('about');
+const contentHtml = renderMarkdown(entry.contentMarkdown ?? '');
+---
+
+<article>
+  <h1>{entry.title}</h1>
+  <!-- Render parsed HTML -->
+  <div class="content" set:html={contentHtml} />
+</article>
+```
+
+### Common Mistake
+
+**❌ WRONG** - This will render raw Markdown as text:
+```astro
+<div set:html={entry.contentMarkdown} />
+```
+
+**✅ CORRECT** - Parse Markdown first:
+```astro
+---
+import { marked } from 'marked';
+const contentHtml = marked.parse(entry.contentMarkdown ?? '');
+---
+<div set:html={contentHtml} />
 ```
 
 ---
@@ -145,6 +206,7 @@ const sortedPosts = posts.sort((a, b) => {
 ```astro
 // src/pages/blog/[slug].astro
 ---
+import { marked } from 'marked';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { marvin } from '@/lib/marvin';
 
@@ -158,6 +220,9 @@ export async function getStaticPaths() {
 }
 
 const { post } = Astro.props;
+
+// Parse Markdown to HTML
+const contentHtml = marked.parse(post.contentMarkdown ?? '');
 ---
 
 <BaseLayout title={post.title}>
@@ -182,7 +247,7 @@ const { post } = Astro.props;
       />
     )}
 
-    <div class="content" set:html={post.contentMarkdown} />
+    <div class="content" set:html={contentHtml} />
 
     {post.metadataJson?.tags && (
       <div class="tags">
@@ -265,6 +330,7 @@ const featuredProjects = await marvin.getCollectionEntries('featured-projects');
 ```astro
 // src/pages/projects/[slug].astro
 ---
+import { marked } from 'marked';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { marvin } from '@/lib/marvin';
 
@@ -279,6 +345,9 @@ export async function getStaticPaths() {
 
 const { project } = Astro.props;
 const metadata = project.metadataJson || {};
+
+// Parse Markdown to HTML
+const contentHtml = marked.parse(project.contentMarkdown ?? '');
 ---
 
 <BaseLayout title={project.title}>
@@ -307,7 +376,7 @@ const metadata = project.metadataJson || {};
       </div>
     )}
 
-    <div class="content" set:html={project.contentMarkdown} />
+    <div class="content" set:html={contentHtml} />
 
     {metadata.technologies && (
       <div class="technologies">
@@ -332,6 +401,7 @@ const metadata = project.metadataJson || {};
 ```astro
 // src/pages/[...slug].astro
 ---
+import { marked } from 'marked';
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { marvin } from '@/lib/marvin';
 
@@ -345,12 +415,15 @@ export async function getStaticPaths() {
 }
 
 const { page } = Astro.props;
+
+// Parse Markdown to HTML
+const contentHtml = marked.parse(page.contentMarkdown ?? '');
 ---
 
 <BaseLayout title={page.title}>
   <article class="page">
     <h1>{page.title}</h1>
-    <div class="content" set:html={page.contentMarkdown} />
+    <div class="content" set:html={contentHtml} />
   </article>
 </BaseLayout>
 ```

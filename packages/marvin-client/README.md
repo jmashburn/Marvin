@@ -158,34 +158,59 @@ const { entry } = Astro.props;
   </head>
   <body>
     <h1>{entry.title}</h1>
-    <div set:html={entry.contentMarkdown} />
+    <!-- Note: contentMarkdown is raw Markdown, not HTML -->
+    <div class="content" set:html={contentHtml} />
   </body>
 </html>
 ```
 
-### Rendering Markdown
+### Rendering Markdown Content
 
-Astro can render Markdown directly:
+**Important**: `entry.contentMarkdown` contains raw Markdown text, **not HTML**. You must parse it before rendering.
+
+#### Basic Markdown Rendering
+
+Install a Markdown parser:
+
+```bash
+npm install marked
+```
+
+Parse Markdown in your Astro component:
 
 ```astro
 ---
+import { marked } from 'marked';
+import { marvin } from '@/lib/marvin';
+
 const entry = await marvin.getEntry('about');
+
+// Parse Markdown to HTML
+const contentHtml = marked.parse(entry.contentMarkdown ?? '');
 ---
 
 <article>
   <h1>{entry.title}</h1>
   
-  <!-- Render markdown as HTML -->
-  <div class="content" set:html={entry.contentMarkdown} />
+  <!-- Render the parsed HTML -->
+  <div class="content" set:html={contentHtml} />
 </article>
 ```
 
-For more control over Markdown rendering:
+#### Advanced Markdown with Syntax Highlighting
 
-```ts
+For code syntax highlighting and other features:
+
+```bash
+npm install marked marked-highlight highlight.js
+```
+
+```astro
+---
 import { Marked } from 'marked';
 import { markedHighlight } from 'marked-highlight';
 import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css';
 
 const marked = new Marked(
   markedHighlight({
@@ -197,7 +222,72 @@ const marked = new Marked(
   })
 );
 
-const html = marked.parse(entry.contentMarkdown);
+const entry = await marvin.getEntry('about');
+const contentHtml = marked.parse(entry.contentMarkdown ?? '');
+---
+
+<article>
+  <h1>{entry.title}</h1>
+  <div class="content" set:html={contentHtml} />
+</article>
+```
+
+#### Content Sanitization
+
+If your content may come from untrusted sources, sanitize the HTML before rendering:
+
+```bash
+npm install dompurify
+npm install --save-dev @types/dompurify
+```
+
+```astro
+---
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
+
+const entry = await marvin.getEntry('user-content');
+
+// Parse Markdown
+const rawHtml = marked.parse(entry.contentMarkdown ?? '');
+
+// Sanitize HTML (server-side)
+const window = new JSDOM('').window;
+const purify = DOMPurify(window);
+const contentHtml = purify.sanitize(rawHtml);
+---
+
+<div class="content" set:html={contentHtml} />
+```
+
+**Security Note**: Only sanitize if content may be user-generated or untrusted. For content you control in Marvin, sanitization is usually unnecessary.
+
+#### Creating a Markdown Helper
+
+Create a reusable helper:
+
+```ts
+// src/lib/markdown.ts
+import { marked } from 'marked';
+
+export function renderMarkdown(markdown: string): string {
+  return marked.parse(markdown ?? '');
+}
+```
+
+Use it in your pages:
+
+```astro
+---
+import { renderMarkdown } from '@/lib/markdown';
+import { marvin } from '@/lib/marvin';
+
+const entry = await marvin.getEntry('about');
+const contentHtml = renderMarkdown(entry.contentMarkdown ?? '');
+---
+
+<div class="content" set:html={contentHtml} />
 ```
 
 ### Project Listing Page
@@ -312,6 +402,75 @@ Fetches published assets.
 - `offset?: number` - Pagination offset
 
 **Returns**: Array of assets
+
+## Response Data Shapes
+
+### Content Format
+
+**Important**: Entry content is returned as **raw Markdown**, not HTML.
+
+- `entry.contentMarkdown` - Raw Markdown text (string)
+- `entry.contentHtml` - Not currently provided (may be added in future)
+
+You **must parse Markdown** before rendering:
+
+```ts
+import { marked } from 'marked';
+const html = marked.parse(entry.contentMarkdown ?? '');
+```
+
+Do **not** use `set:html={entry.contentMarkdown}` directly - it will render raw Markdown as text.
+
+### Entry Response Example
+
+```json
+{
+  "id": "abc123",
+  "title": "About Us",
+  "slug": "about-us",
+  "summary": "Learn about our company",
+  "description": "A longer description...",
+  "contentMarkdown": "# Heading\n\nThis is **Markdown** content.",
+  "metadataJson": {
+    "customField": "value",
+    "tags": ["tag1", "tag2"]
+  },
+  "status": "published",
+  "publishedAt": "2026-07-06T12:00:00Z",
+  "createdAt": "2026-07-01T10:00:00Z",
+  "updatedAt": "2026-07-06T12:00:00Z",
+  "entryTypeId": "xyz789",
+  "entryType": {
+    "id": "xyz789",
+    "name": "Page",
+    "slug": "page"
+  },
+  "collections": [...],
+  "assets": [...]
+}
+```
+
+### Metadata Structure
+
+The `metadataJson` field is a flexible JSON object for custom fields:
+
+```ts
+entry.metadataJson?.customField  // any custom data
+entry.metadataJson?.tags         // array of strings
+entry.metadataJson?.year         // number
+```
+
+TypeScript users can create type-safe interfaces:
+
+```ts
+interface PageMetadata {
+  tags?: string[];
+  author?: string;
+  featured?: boolean;
+}
+
+const metadata = entry.metadataJson as PageMetadata;
+```
 
 ## Expected Marvin API Endpoints
 
