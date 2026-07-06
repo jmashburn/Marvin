@@ -1,9 +1,18 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import { requireAdmin } from "@/lib/auth";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 // Require admin authentication
 const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+const authToken = getAuthToken(Astro.cookies);
+
+let stats: any = null;
+try {
+  stats = await fetchApi<any>('/api/admin/maintenance/stats', {}, authToken);
+} catch (e) {
+  console.error('[admin/maintenance] Failed to fetch stats:', e);
+}
 ---
 
 <AdminLayout title="Maintenance">
@@ -47,6 +56,42 @@ const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathnam
               <p>Clear application caches and temporary files</p>
             </div>
             <button class="button secondary small" id="clear-cache">Clear Cache</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Storage Information -->
+      <section class="card">
+        <h3>Storage Overview</h3>
+        <p class="card-description">Data size across all storage</p>
+        <div class="storage-list">
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Database Size</span>
+              <span class="storage-path">{stats?.database_path || '/var/lib/marvin/marvin.db'}</span>
+            </div>
+            <span class="storage-size">{stats?.database_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Assets Storage</span>
+              <span class="storage-path">{stats?.assets_path || '/var/lib/marvin/assets/'}</span>
+            </div>
+            <span class="storage-size">{stats?.assets_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Backup Storage</span>
+              <span class="storage-path">{stats?.backups_path || '/var/lib/marvin/backups/'}</span>
+            </div>
+            <span class="storage-size">{stats?.backups_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Total Storage Used</span>
+              <span class="storage-path">{stats?.data_dir_path || 'All data combined'}</span>
+            </div>
+            <span class="storage-size total">{stats?.total_size || 'Unknown'}</span>
           </div>
         </div>
       </section>
@@ -167,5 +212,47 @@ const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathnam
     padding: 6px 14px;
     font-size: 13px;
     flex-shrink: 0;
+  }
+
+  .storage-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .storage-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .storage-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .storage-label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .storage-path {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+  }
+
+  .storage-size {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .storage-size.total {
+    font-size: 18px;
   }
 </style>
