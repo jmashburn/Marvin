@@ -1,0 +1,194 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+let users: any[] = [];
+let error: string | null = null;
+
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  if (currentUser?.admin !== true) {
+    return Astro.redirect('/');
+  }
+
+  const response = await fetchApi<any>('/api/admin/users', {}, authToken);
+  users = response.items || [];
+} catch (e) {
+  console.error('[admin/users] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AdminLayout title="Users">
+  <div class="toolbar">
+    <div>
+      <h2>Platform Users</h2>
+      <p>Manage user accounts and permissions</p>
+    </div>
+    <a href="/admin/users/new" class="button">Create User</a>
+  </div>
+
+  <div class="page-container">
+    {error ? (
+      <div class="alert alert-error">
+        <strong>Error:</strong> {error}
+      </div>
+    ) : users.length === 0 ? (
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <p class="empty-title">No users found</p>
+        <p class="empty-description">Create your first user to get started</p>
+        <a href="/admin/users/new" class="button">Create User</a>
+      </div>
+    ) : (
+      <div class="users-list">
+        {users.map((user) => (
+          <div class="user-card">
+            <div class="user-info">
+              <div class="user-header">
+                <strong>{user.full_name || user.username}</strong>
+                {user.admin && <span class="admin-badge">Admin</span>}
+              </div>
+              <p class="user-email">{user.email}</p>
+              <div class="user-meta">
+                <span>Username: {user.username}</span>
+                {user.group && <span>• Workspace: {user.group.name || user.group_id}</span>}
+              </div>
+            </div>
+            <div class="user-actions">
+              <a href={`/admin/users/${user.id}`} class="button secondary small">Edit</a>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+</AdminLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 900px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .users-list {
+    display: grid;
+    gap: 16px;
+  }
+
+  .user-card {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .user-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .user-header strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .admin-badge {
+    padding: 2px 8px;
+    background: rgb(169 99 47 / 0.1);
+    color: var(--warn);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .user-email {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .user-meta {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 6px;
+  }
+
+  .user-actions {
+    flex-shrink: 0;
+  }
+
+  .button.small {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+</style>

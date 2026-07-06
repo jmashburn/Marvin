@@ -1,0 +1,100 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  if (currentUser?.admin !== true) {
+    return Astro.redirect('/');
+  }
+} catch (e) {
+  return Astro.redirect('/');
+}
+---
+
+<AdminLayout title="Site Settings">
+  <div class="toolbar">
+    <div>
+      <h2>Site Settings</h2>
+      <p>Configure platform-wide settings</p>
+    </div>
+  </div>
+
+  <div class="page-container">
+    <section class="settings-section">
+      <h3>Platform Configuration</h3>
+      <p class="section-description">Global settings for the Marvin platform</p>
+      <div class="coming-soon">
+        <p>🚧 Site settings configuration coming soon</p>
+        <p class="hint">This will allow configuration of platform name, branding, authentication methods, and more.</p>
+      </div>
+    </section>
+  </div>
+</AdminLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 900px;
+  }
+
+  .settings-section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .settings-section h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .coming-soon {
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .coming-soon p {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+
+  .coming-soon .hint {
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 400px;
+    margin: 0 auto;
+  }
+</style>

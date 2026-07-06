@@ -1,0 +1,327 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+let error: string | null = null;
+let stats: any = null;
+
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  if (currentUser?.admin !== true) {
+    return Astro.redirect('/');
+  }
+
+  // Try to fetch database stats if endpoint exists
+  try {
+    stats = await fetchApi<any>('/api/admin/stats', {}, authToken);
+  } catch (e) {
+    // Stats endpoint may not exist yet, that's okay
+    console.log('Stats endpoint not available');
+  }
+} catch (e) {
+  console.error('[admin/maintenance] Error loading:', e);
+  return Astro.redirect('/');
+}
+---
+
+<AdminLayout title="Maintenance">
+  <div class="toolbar">
+    <div>
+      <h2>Maintenance & Cleanup</h2>
+      <p>Run maintenance tasks and view system statistics</p>
+    </div>
+  </div>
+
+  <div class="page-container">
+    <div class="maintenance-grid">
+      <!-- Database Statistics -->
+      <section class="card">
+        <h3>Database Statistics</h3>
+        <p class="card-description">Overview of data stored in the system</p>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value">{stats?.users_count || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Groups</div>
+            <div class="stat-value">{stats?.groups_count || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Entries</div>
+            <div class="stat-value">{stats?.entries_count || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Assets</div>
+            <div class="stat-value">{stats?.assets_count || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">API Tokens</div>
+            <div class="stat-value">{stats?.api_tokens_count || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Webhooks</div>
+            <div class="stat-value">{stats?.webhooks_count || '—'}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cleanup Tasks -->
+      <section class="card">
+        <h3>Cleanup Tasks</h3>
+        <p class="card-description">Run maintenance and cleanup operations</p>
+        <div class="cleanup-tasks">
+          <div class="task-item">
+            <div class="task-info">
+              <strong>Clean Expired Tokens</strong>
+              <p>Remove expired API tokens and user sessions</p>
+            </div>
+            <button class="button secondary small" id="cleanup-tokens">Run Cleanup</button>
+          </div>
+          <div class="task-item">
+            <strong>Clean Old Events</strong>
+            <p>Remove event logs older than 90 days</p>
+            </div>
+            <button class="button secondary small" id="cleanup-events">Run Cleanup</button>
+          </div>
+          <div class="task-item">
+            <div class="task-info">
+              <strong>Optimize Database</strong>
+              <p>Run VACUUM and ANALYZE on database tables</p>
+            </div>
+            <button class="button secondary small" id="optimize-db">Run Optimization</button>
+          </div>
+          <div class="task-item">
+            <div class="task-info">
+              <strong>Clear Cache</strong>
+              <p>Clear application caches and temporary files</p>
+            </div>
+            <button class="button secondary small" id="clear-cache">Clear Cache</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Storage Information -->
+      <section class="card">
+        <h3>Storage Overview</h3>
+        <p class="card-description">Data size across all APIs and storage</p>
+        <div class="storage-list">
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Database Size</span>
+              <span class="storage-path">/var/lib/marvin/marvin.db</span>
+            </div>
+            <span class="storage-size">{stats?.database_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Assets Storage</span>
+              <span class="storage-path">/var/lib/marvin/assets/</span>
+            </div>
+            <span class="storage-size">{stats?.assets_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Backup Storage</span>
+              <span class="storage-path">/var/lib/marvin/backups/</span>
+            </div>
+            <span class="storage-size">{stats?.backups_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Total Storage Used</span>
+              <span class="storage-path">All data combined</span>
+            </div>
+            <span class="storage-size total">{stats?.total_size || 'Unknown'}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  // Cleanup tokens
+  document.getElementById('cleanup-tokens')?.addEventListener('click', async () => {
+    if (!confirm('Clean up expired tokens? This will remove all expired API tokens and sessions.')) return;
+
+    try {
+      const response = await fetch('/api/admin/maintenance/cleanup-tokens', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        alert('Cleanup completed successfully');
+        window.location.reload();
+      } else {
+        alert('Cleanup failed - endpoint may not be implemented yet');
+      }
+    } catch (error) {
+      alert('Network error');
+    }
+  });
+
+  // Similar handlers for other cleanup tasks
+  ['cleanup-events', 'optimize-db', 'clear-cache'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', () => {
+      alert('This maintenance task is not yet implemented');
+    });
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 1200px;
+  }
+
+  .maintenance-grid {
+    display: grid;
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .card h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .card-description {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .cleanup-tasks {
+    display: grid;
+    gap: 12px;
+  }
+
+  .task-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .task-info {
+    flex: 1;
+  }
+
+  .task-info strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .task-info p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .storage-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .storage-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .storage-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .storage-label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .storage-path {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+  }
+
+  .storage-size {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .storage-size.total {
+    font-size: 18px;
+  }
+
+  .button.small {
+    padding: 6px 14px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+</style>

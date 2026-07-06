@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 interface Props {
   title: string;
@@ -9,6 +10,16 @@ interface Props {
 
 const { title, eyebrow = "Marvin Platform" } = Astro.props;
 const path = Astro.url.pathname;
+
+// Check if user is admin
+const authToken = getAuthToken(Astro.cookies);
+let isAdmin = false;
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  isAdmin = currentUser?.admin === true;
+} catch (e) {
+  // Not logged in or error
+}
 
 // Grouped navigation structure for workflow-oriented UX
 const navGroups = [
@@ -55,6 +66,16 @@ const navGroups = [
     ]
   },
 ];
+
+// Add admin link if user is admin
+if (isAdmin) {
+  navGroups.push({
+    label: "Administration",
+    items: [
+      { href: "/admin", label: "Admin Panel", icon: "⚡" },
+    ]
+  });
+}
 
 // Helper to check if path is active (exact or starts with for nested routes)
 function isActive(itemPath: string, currentPath: string): boolean {

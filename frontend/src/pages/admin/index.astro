@@ -1,0 +1,126 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+let isAdmin = false;
+let error: string | null = null;
+
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  isAdmin = currentUser?.admin === true;
+
+  if (!isAdmin) {
+    return Astro.redirect('/');
+  }
+} catch (e) {
+  console.error('[admin] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+  return Astro.redirect('/');
+}
+---
+
+<AdminLayout title="Admin Dashboard">
+  <div class="admin-dashboard">
+    <div class="welcome-section">
+      <h2>Welcome to Marvin Administration</h2>
+      <p>Manage platform settings, users, and workspaces</p>
+    </div>
+
+    <div class="quick-links">
+      <a href="/admin/site-settings" class="quick-link-card">
+        <div class="card-icon">⚙</div>
+        <h3>Site Settings</h3>
+        <p>Configure platform-wide settings</p>
+      </a>
+
+      <a href="/admin/users" class="quick-link-card">
+        <div class="card-icon">👥</div>
+        <h3>Users</h3>
+        <p>Manage user accounts</p>
+      </a>
+
+      <a href="/admin/groups" class="quick-link-card">
+        <div class="card-icon">◫</div>
+        <h3>Groups</h3>
+        <p>Manage workspaces and groups</p>
+      </a>
+
+      <a href="/admin/backups" class="quick-link-card">
+        <div class="card-icon">💾</div>
+        <h3>Backups</h3>
+        <p>Backup and restore data</p>
+      </a>
+
+      <a href="/admin/maintenance" class="quick-link-card">
+        <div class="card-icon">🔧</div>
+        <h3>Maintenance</h3>
+        <p>Run cleanup and view statistics</p>
+      </a>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .admin-dashboard {
+    max-width: 1200px;
+  }
+
+  .welcome-section {
+    margin-bottom: 40px;
+  }
+
+  .welcome-section h2 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .welcome-section p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .quick-link-card {
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+  }
+
+  .quick-link-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
+    transform: translateY(-2px);
+  }
+
+  .card-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+
+  .quick-link-card h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .quick-link-card p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+</style>
