@@ -57,9 +57,9 @@ class GroupPreferencesCreate(_MarvinModel):
     site_contact_email: str | None = None
     """Primary contact email for the site."""
     site_social_json: dict | None = None
-    """Social media links and handles (e.g., {instagram: 'url', facebook: 'url'})."""
+    """DEPRECATED: Social media links. Use site_metadata_json with 'social' key instead."""
     site_metadata_json: dict | None = None
-    """Flexible metadata for framework-specific or custom site settings."""
+    """Flexible metadata for framework-specific settings. Include social links under 'social' key, SEO under 'seo', etc."""
 
     model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
 
@@ -107,9 +107,9 @@ class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow p
     site_contact_email: str | None = None
     """Optional: Primary contact email for the site."""
     site_social_json: dict | None = None
-    """Optional: Social media links and handles."""
+    """Optional: DEPRECATED - Social media links. Use site_metadata_json with 'social' key instead."""
     site_metadata_json: dict | None = None
-    """Optional: Flexible metadata for framework-specific or custom site settings."""
+    """Optional: Flexible metadata for framework-specific settings. Include social links under 'social' key, SEO under 'seo', etc."""
 
     model_config = ConfigDict(from_attributes=True)
 

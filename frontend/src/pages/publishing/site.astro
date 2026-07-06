@@ -157,7 +157,7 @@ try {
       </section>
 
       <section class="form-section">
-        <h3>Contact & Social</h3>
+        <h3>Contact</h3>
         <p class="section-description">How people can reach you</p>
         <div class="form-grid">
           <label class="span-2">
@@ -169,30 +169,38 @@ try {
               placeholder="hello@example.com"
             />
           </label>
-          <label class="span-2">
-            <span>Social Links (JSON)</span>
-            <textarea
-              name="site_social_json"
-              rows="4"
-              placeholder='{"instagram": "https://...", "twitter": "https://..."}'
-            >{JSON.stringify(preferences.site_social_json || {}, null, 2)}</textarea>
-            <small>JSON object with social media URLs</small>
-          </label>
         </div>
       </section>
 
       <section class="form-section">
-        <h3>Advanced</h3>
-        <p class="section-description">Custom metadata for framework-specific settings</p>
+        <h3>Metadata</h3>
+        <p class="section-description">Custom metadata for framework-specific settings, social links, SEO, analytics, etc.</p>
         <div class="form-grid">
           <label class="span-2">
             <span>Custom Metadata (JSON)</span>
             <textarea
               name="site_metadata_json"
-              rows="6"
-              placeholder='{"seo": {"image": "..."}, "analytics": {"id": "..."}}'
-            >{JSON.stringify(preferences.site_metadata_json || {}, null, 2)}</textarea>
-            <small>Additional metadata for your publishing framework</small>
+              rows="10"
+              placeholder='{"social": {"instagram": "...", "twitter": "..."}, "seo": {"image": "..."}, "analytics": {"id": "..."}}'
+            >{(() => {
+              const metadata = preferences.site_metadata_json;
+              const social = preferences.site_social_json;
+
+              // Merge social into metadata if it exists
+              if (social && Object.keys(social).length > 0) {
+                const combined = { ...(metadata || {}), social };
+                return JSON.stringify(combined, null, 2);
+              }
+
+              // Show metadata if it exists and has content
+              if (metadata && Object.keys(metadata).length > 0) {
+                return JSON.stringify(metadata, null, 2);
+              }
+
+              // Empty state
+              return "";
+            })()}</textarea>
+            <small>Additional metadata for your publishing framework. Include social links under "social" key.</small>
           </label>
         </div>
       </section>
@@ -226,11 +234,20 @@ try {
 
       // Convert form data to object, handling JSON fields
       formData.forEach((value, key) => {
-        if (key === 'site_social_json' || key === 'site_metadata_json') {
+        if (key === 'site_metadata_json') {
           try {
-            data[key] = value ? JSON.parse(value as string) : null;
+            const parsed = value ? JSON.parse(value as string) : null;
+            data[key] = parsed && Object.keys(parsed).length > 0 ? parsed : null;
+
+            // If metadata has a "social" key, also set site_social_json for backward compatibility
+            if (parsed && parsed.social) {
+              data['site_social_json'] = parsed.social;
+            } else {
+              data['site_social_json'] = null;
+            }
           } catch {
             data[key] = null;
+            data['site_social_json'] = null;
           }
         } else {
           data[key] = value || null;
