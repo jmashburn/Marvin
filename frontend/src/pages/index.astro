@@ -124,7 +124,7 @@ function getStatusClass(status: string): string {
           <h2 class="section-title">Needs Attention</h2>
           <div class="attention-grid">
             {needsAttention.staleDrafts.length > 0 && (
-              <a href="/entries?status=draft" class="attention-card">
+              <a href="/workspace/entries?status=draft" class="attention-card">
                 <div class="attention-icon">📝</div>
                 <div class="attention-content">
                   <strong>{needsAttention.staleDrafts.length} stale draft{needsAttention.staleDrafts.length === 1 ? '' : 's'}</strong>
@@ -133,7 +133,7 @@ function getStatusClass(status: string): string {
               </a>
             )}
             {needsAttention.emptyEntryTypes.length > 0 && (
-              <a href="/entry-types" class="attention-card">
+              <a href="/workspace/entry-types" class="attention-card">
                 <div class="attention-icon">◈</div>
                 <div class="attention-content">
                   <strong>{needsAttention.emptyEntryTypes.length} empty entry type{needsAttention.emptyEntryTypes.length === 1 ? '' : 's'}</strong>
@@ -142,7 +142,7 @@ function getStatusClass(status: string): string {
               </a>
             )}
             {needsAttention.emptyCollections.length > 0 && (
-              <a href="/collections" class="attention-card">
+              <a href="/workspace/collections" class="attention-card">
                 <div class="attention-icon">☰</div>
                 <div class="attention-content">
                   <strong>{needsAttention.emptyCollections.length} empty collection{needsAttention.emptyCollections.length === 1 ? '' : 's'}</strong>
@@ -169,7 +169,7 @@ function getStatusClass(status: string): string {
         <div class="quick-create-grid">
           {entryTypes.length > 0 ? (
             entryTypes.slice(0, 6).map((type) => (
-              <a href={`/entries/new?type=${type.id}`} class="quick-create-card">
+              <a href={`/workspace/entries/new?type=${type.id}`} class="quick-create-card">
                 <span class="quick-create-icon" style={type.color ? `color: ${type.color}` : undefined}>
                   {type.icon || '▤'}
                 </span>
@@ -177,12 +177,12 @@ function getStatusClass(status: string): string {
               </a>
             ))
           ) : (
-            <a href="/entry-types" class="quick-create-card">
+            <a href="/workspace/entry-types" class="quick-create-card">
               <span class="quick-create-icon">◈</span>
               <span class="quick-create-label">Create Entry Type</span>
             </a>
           )}
-          <a href="/collections/new" class="quick-create-card">
+          <a href="/workspace/collections/new" class="quick-create-card">
             <span class="quick-create-icon">☰</span>
             <span class="quick-create-label">New Collection</span>
           </a>
@@ -221,7 +221,7 @@ function getStatusClass(status: string): string {
           ) : (
             <div class="empty-state-small">
               <p>No entries yet</p>
-              <a href="/entries/new" class="button small">Create Entry</a>
+              <a href="/workspace/entries/new" class="button small">Create Entry</a>
             </div>
           )}
         </section>
