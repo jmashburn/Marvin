@@ -18,14 +18,15 @@ let isSuperAdmin = false;
 try {
   const currentUser = await fetchApi<any>('/api/self', {}, authToken);
   isAdmin = currentUser?.admin === true;
-  isSuperAdmin = currentUser?.platform_role === 'SUPER_ADMIN';
+  // API returns camelCase (platformRole) not snake_case (platform_role)
+  isSuperAdmin = currentUser?.platformRole === 'SUPER_ADMIN';
 
   // Debug logging
   if (import.meta.env.DEV) {
     console.log('[AppLayout] User role check:', {
       admin: isAdmin,
       superAdmin: isSuperAdmin,
-      platform_role: currentUser?.platform_role,
+      platformRole: currentUser?.platformRole,
       full_user: currentUser,
     });
   }
