@@ -137,6 +137,11 @@ try {
 </AppLayout>
 
 <script>
+  // Get API base URL from environment (same as config.ts)
+  const API_BASE_URL = import.meta.env.PUBLIC_MARVIN_API_URL ||
+                       import.meta.env.MARVIN_API_URL ||
+                       'http://localhost:8080';
+
   // Helper to run cleanup tasks
   async function runCleanupTask(endpoint: string, confirmMessage: string, successMessage: string) {
     if (!confirm(confirmMessage)) return;
@@ -150,7 +155,7 @@ try {
         button.textContent = 'Running...';
       }
 
-      const response = await fetch(`/api/admin/maintenance/${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/maintenance/${endpoint}`, {
         method: 'POST',
         credentials: 'include',
       });
