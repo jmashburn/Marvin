@@ -70,18 +70,6 @@ const navGroups = [
   },
 ];
 
-// Platform section for workspace admins (workspace-scoped)
-// Shows workspace members and workspace statistics
-if (isAdmin) {
-  navGroups.push({
-    label: "Platform",
-    items: [
-      { href: "/platform/users", label: "Users", icon: "👥" },
-      { href: "/platform/system", label: "System", icon: "📊" },
-    ]
-  });
-}
-
 // Admin settings link - only for super admins (platform-wide)
 if (isSuperAdmin) {
   navGroups.push({
