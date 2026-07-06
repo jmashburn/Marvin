@@ -1,0 +1,26 @@
+{
+  "name": "marvin-cli",
+  "version": "0.2.0",
+  "description": "Small CLI for testing Marvin publish API / SDK access with formatted output.",
+  "type": "module",
+  "bin": {
+    "marvinctl": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
