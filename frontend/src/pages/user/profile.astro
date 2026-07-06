@@ -38,7 +38,7 @@ try {
         <div class="form-grid">
           <label class="span-2">
             <span>Full Name</span>
-            <input type="text" name="full_name" value={user.full_name || ""} />
+            <input type="text" name="full_name" value={user.fullName || ""} />
           </label>
           <label class="span-2">
             <span>Email</span>
@@ -68,13 +68,13 @@ try {
       e.preventDefault();
 
       const formData = new FormData(form);
-      const userId = formData.get('user_id') as string;
+      const userId = formData.get('userId') as string;
 
       submitBtn.disabled = true;
       submitBtn.textContent = 'Saving...';
 
       const data = {
-        full_name: formData.get('full_name') as string,
+        full_name: formData.get('fullName') as string,
         email: formData.get('email') as string,
         username: formData.get('username') as string,
       };

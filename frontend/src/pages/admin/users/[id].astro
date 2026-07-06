@@ -54,7 +54,7 @@ const authMethods = [
   <div class="page-header">
     <div>
       <a href="/admin/users" class="back-link">← Back to Users</a>
-      <h2>{user?.full_name || user?.username || 'Edit User'}</h2>
+      <h2>{user?.fullName || user?.username || 'Edit User'}</h2>
       <p>Manage user account and permissions</p>
     </div>
   </div>
@@ -76,7 +76,7 @@ const authMethods = [
             <input
               type="text"
               name="full_name"
-              value={user.full_name || ''}
+              value={user.fullName || ''}
               class="input"
             />
           </label>
@@ -107,7 +107,7 @@ const authMethods = [
             <span class="label">Authentication Method</span>
             <select name="auth_method" class="input">
               {authMethods.map(method => (
-                <option value={method.value} selected={user.auth_method === method.value}>
+                <option value={method.value} selected={user.authMethod === method.value}>
                   {method.label}
                 </option>
               ))}
@@ -189,6 +189,7 @@ const authMethods = [
                       allWorkspaces.push({
                         id: membership.groupId,
                         name: workspace?.name || membership.groupId, // Use workspace name from map
+
                         role: membership.workspaceRole,
                         isDefault: false
                       });
@@ -238,8 +239,8 @@ const authMethods = [
                   <option value="">Select a workspace...</option>
                   {workspaces.filter((ws: any) => {
                     // Filter out workspaces user is already a member of
-                    const isMember = ws.id === user.group_id ||
-                      user.workspace_memberships?.some((m: any) => m.group_id === ws.id);
+                    const isMember = ws.id === user.groupId ||
+                      user.workspaceMemberships?.some((m: any) => m.groupId === ws.id);
                     return !isMember;
                   }).map((ws: any) => (
                     <option value={ws.id}>{ws.name}</option>
@@ -270,12 +271,12 @@ const authMethods = [
             </div>
             <div class="info-item">
               <span class="info-label">Default Workspace</span>
-              <span class="info-value">{user.group || user.group_id}</span>
+              <span class="info-value">{user.group || user.groupId}</span>
             </div>
-            {user.locked_at && (
+            {user.lockedAt && (
               <div class="info-item">
                 <span class="info-label">Locked At</span>
-                <span class="info-value alert">{new Date(user.locked_at).toLocaleString()}</span>
+                <span class="info-value alert">{new Date(user.lockedAt).toLocaleString()}</span>
               </div>
             )}
           </div>
@@ -316,14 +317,20 @@ const authMethods = [
     const formData = new FormData(e.target as HTMLFormElement);
 
     const data: any = {
-      full_name: formData.get('full_name') || null,
+      full_name: formData.get('fullName') || null,
       username: formData.get('username'),
       email: formData.get('email'),
+<<<<<<< Updated upstream
       auth_method: formData.get('auth_method'),
       can_manage: formData.get('can_manage') === 'on',
       can_invite: formData.get('can_invite') === 'on',
       can_organize: formData.get('can_organize') === 'on',
       platform_role: formData.get('platform_role'),
+=======
+      auth_method: formData.get('authMethod'),
+      admin: formData.get('admin') === true,
+      platform_role: formData.get('platformRole'),
+>>>>>>> Stashed changes
     };
 
     try {
