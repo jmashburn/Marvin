@@ -149,12 +149,13 @@ class AdminMaintenanceController(BaseAdminController):
 
         return SuccessResponse.respond("Temporary (.temp) directory has been cleaned successfully.")
 
-    @router.post("/cleanup-tokens", response_model=SuccessResponse, summary="Clean Expired Tokens")
+    @router.post("/cleanup-tokens", response_model=SuccessResponse, summary="Clean Revoked Tokens")
     def cleanup_expired_tokens(self) -> SuccessResponse:
         """
-        Clean up expired API tokens and user sessions.
+        Clean up revoked API tokens.
 
-        Removes all expired long-live tokens and invalidated sessions from the database.
+        Removes all revoked long-live tokens from the database to reclaim space.
+        Tokens that have been disabled or revoked are permanently deleted.
         Accessible only by administrators.
 
         Returns:
@@ -162,67 +163,52 @@ class AdminMaintenanceController(BaseAdminController):
         """
         from marvin.db.db_setup import session_context
         from marvin.db.models.users.users import LongLiveToken
-        from datetime import datetime, UTC
+        from marvin.db.models.platform.api_clients import APIClients
 
         try:
             with session_context() as session:
-                # Delete expired tokens (assuming there's an expires_at field)
-                # If tokens don't have expiration, just count them
-                deleted_count = session.query(LongLiveToken).filter(
-                    LongLiveToken.created_at < datetime.now(UTC)
-                ).count()
+                # Delete revoked long-live tokens
+                revoked_tokens_count = session.query(LongLiveToken).filter(
+                    LongLiveToken.revoked_at.isnot(None)
+                ).delete(synchronize_session=False)
 
-                # For now, just log the count
-                # In a real implementation, you'd check for expired tokens
-                self.logger.info(f"Checked {deleted_count} tokens for expiration")
+                # Delete revoked API client tokens
+                revoked_clients_count = session.query(APIClients).filter(
+                    APIClients.revoked_at.isnot(None)
+                ).delete(synchronize_session=False)
 
-            return SuccessResponse.respond(f"Token cleanup completed. Checked {deleted_count} tokens.")
+                session.commit()
+
+                total_deleted = revoked_tokens_count + revoked_clients_count
+                self.logger.info(f"Deleted {revoked_tokens_count} revoked user tokens and {revoked_clients_count} revoked API clients")
+
+            return SuccessResponse.respond(
+                f"Token cleanup completed. Removed {revoked_tokens_count} revoked user tokens "
+                f"and {revoked_clients_count} revoked API clients (total: {total_deleted})."
+            )
         except Exception as e:
             self.logger.error(f"Failed to clean up tokens: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=ErrorResponse.respond(message="Failed to clean up expired tokens.", exception=str(e)),
+                detail=ErrorResponse.respond(message="Failed to clean up revoked tokens.", exception=str(e)),
             ) from e
 
-    @router.post("/cleanup-events", response_model=SuccessResponse, summary="Clean Old Events")
+    @router.post("/cleanup-events", response_model=SuccessResponse, summary="Clean Old Event Logs")
     def cleanup_old_events(self) -> SuccessResponse:
         """
-        Clean up event logs older than 90 days.
+        Clean up old event logs.
 
-        Removes all event log entries older than 90 days to keep the database size manageable.
+        Currently event logging is not implemented, so this endpoint is a placeholder.
+        When event logging is added, this will remove old log entries to keep database size manageable.
         Accessible only by administrators.
 
         Returns:
-            SuccessResponse: A Pydantic model indicating the success of the operation.
+            SuccessResponse: A Pydantic model indicating the operation status.
         """
-        from marvin.db.db_setup import session_context
-        from datetime import datetime, timedelta, UTC
-
-        try:
-            # Check if event model exists
-            try:
-                from marvin.db.models.groups.events import GroupEventNotifierOptionsModel
-
-                with session_context() as session:
-                    # Delete events older than 90 days
-                    cutoff_date = datetime.now(UTC) - timedelta(days=90)
-                    deleted_count = session.query(GroupEventNotifierOptionsModel).filter(
-                        GroupEventNotifierOptionsModel.created_at < cutoff_date
-                    ).delete()
-                    session.commit()
-
-                    self.logger.info(f"Deleted {deleted_count} old event records")
-
-                return SuccessResponse.respond(f"Event cleanup completed. Removed {deleted_count} old events.")
-            except ImportError:
-                # Event model doesn't exist yet
-                return SuccessResponse.respond("Event cleanup skipped - event logging not yet implemented.")
-        except Exception as e:
-            self.logger.error(f"Failed to clean up events: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=ErrorResponse.respond(message="Failed to clean up old events.", exception=str(e)),
-            ) from e
+        # Event logging not yet implemented
+        # When implemented, this would clean up actual event log entries, not notifier configurations
+        self.logger.info("Event cleanup called - event logging not yet implemented")
+        return SuccessResponse.respond("Event cleanup skipped - event logging not yet implemented.")
 
     @router.post("/optimize-db", response_model=SuccessResponse, summary="Optimize Database")
     def optimize_database(self) -> SuccessResponse:
