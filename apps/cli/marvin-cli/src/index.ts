@@ -108,6 +108,7 @@ program
   .option("--entry-type <slug>", "Filter by entry type slug")
   .option("--collection <slug>", "Filter by collection slug")
   .option("--limit <number>", "Limit", (v) => Number(v))
+  .option("--offset <number>", "Offset", (v) => Number(v))
   .action((opts) =>
     run(
       () => client().getEntries(opts),
@@ -128,9 +129,11 @@ program
 program
   .command("collections")
   .description("List collections")
-  .action(() =>
+  .option("--limit <number>", "Limit", (v) => Number(v))
+  .option("--offset <number>", "Offset", (v) => Number(v))
+  .action((opts) =>
     run(
-      () => client().getCollections(),
+      () => client().getCollections(opts),
       (data) => renderList(data as MarvinCollection[], collectionColumns, outputMode()),
     ),
   );
@@ -160,6 +163,7 @@ program
   .description("List assets")
   .option("--type <type>", "Filter by asset type")
   .option("--limit <number>", "Limit", (v) => Number(v))
+  .option("--offset <number>", "Offset", (v) => Number(v))
   .action((opts) =>
     run(
       () => client().getAssets(opts),
@@ -168,11 +172,24 @@ program
   );
 
 program
+  .command("asset <slug>")
+  .description("Fetch one asset by slug")
+  .action((slug) =>
+    run(
+      () => client().getAsset(slug),
+      (data) => renderList([data] as MarvinAsset[], assetColumns, outputMode()),
+    ),
+  );
+
+program
   .command("resources")
   .description("List resources")
-  .action(() =>
+  .option("--resource-type <type>", "Filter by resource type")
+  .option("--limit <number>", "Limit", (v) => Number(v))
+  .option("--offset <number>", "Offset", (v) => Number(v))
+  .action((opts) =>
     run(
-      () => client().getResources(),
+      () => client().getResources(opts),
       (data) => renderList(data as MarvinResource[], resourceColumns, outputMode()),
     ),
   );

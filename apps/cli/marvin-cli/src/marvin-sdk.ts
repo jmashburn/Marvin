@@ -150,15 +150,24 @@ export function createMarvinClient(config: MarvinClientConfig = {}) {
       return response.data;
     },
     getEntry: (slug: string) => request<MarvinEntry>(`${publishBase}/entries/${encodeURIComponent(slug)}`),
-    getCollections: () => request<MarvinCollection[]>(`${publishBase}/collections`),
+    getCollections: async (options: { limit?: number; offset?: number } = {}) => {
+      const response = await request<PaginatedResponse<MarvinCollection>>(`${publishBase}/collections${queryString(options)}`);
+      return response.data;
+    },
     getCollection: (slug: string) => request<MarvinCollection>(`${publishBase}/collections/${encodeURIComponent(slug)}`),
     getCollectionEntries: async (slug: string) => {
       const response = await request<PaginatedResponse<MarvinEntry>>(`${publishBase}/collections/${encodeURIComponent(slug)}/entries`);
       return response.data;
     },
-    getAssets: (options: { type?: string; limit?: number; offset?: number } = {}) =>
-      request<MarvinAsset[]>(`${publishBase}/assets${queryString(options)}`),
-    getResources: () => request<MarvinResource[]>(`${publishBase}/resources`),
+    getAssets: async (options: { type?: string; limit?: number; offset?: number } = {}) => {
+      const response = await request<PaginatedResponse<MarvinAsset>>(`${publishBase}/assets${queryString(options)}`);
+      return response.data;
+    },
+    getAsset: (slug: string) => request<MarvinAsset>(`${publishBase}/assets/${encodeURIComponent(slug)}`),
+    getResources: async (options: { resourceType?: string; limit?: number; offset?: number } = {}) => {
+      const response = await request<PaginatedResponse<MarvinResource>>(`${publishBase}/resources${queryString(options)}`);
+      return response.data;
+    },
     getResource: (slug: string) => request<MarvinResource>(`${publishBase}/resources/${encodeURIComponent(slug)}`),
     getResourceEntries: async (slug: string) => {
       const response = await request<PaginatedResponse<MarvinEntry>>(`${publishBase}/resources/${encodeURIComponent(slug)}/entries`);

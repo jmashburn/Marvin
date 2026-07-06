@@ -15,13 +15,17 @@ from marvin.db.models.platform import APIClients, Assets, Collections, Entries, 
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group import GroupRead
 from marvin.schemas.publishing import (
+    PaginationMeta,
     PublishedAssetRead,
+    PublishedAssetsResponse,
     PublishedCollectionRead,
+    PublishedCollectionsResponse,
     PublishedCollectionSummary,
     PublishedEntriesResponse,
     PublishedEntryListItem,
     PublishedEntryRead,
     PublishedResourceRead,
+    PublishedResourcesResponse,
     PublishedResourceSummary,
     SiteConfiguration,
     WorkspaceInfo,
@@ -122,13 +126,13 @@ async def list_published_entries(
     collection: str | None = Query(None, description="Filter by collection slug"),
     slug: str | None = Query(None, description="Filter by specific slug(s), comma-separated"),
     updated_since: str | None = Query(None, description="Filter by entries updated since ISO datetime"),
-    page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(
         settings.PUBLISHING_DEFAULT_PAGE_SIZE,
         ge=1,
         le=settings.PUBLISHING_MAX_PAGE_SIZE,
-        description="Items per page"
+        description="Max results"
     ),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
 ) -> PublishedEntriesResponse:
     """
     List all published entries in the workspace.
@@ -176,7 +180,12 @@ async def list_published_entries(
             # Return empty list if entry type doesn't exist
             return PublishedEntriesResponse(
                 data=[],
-                meta={"total": 0, "page": page, "limit": limit},
+                meta=PaginationMeta(
+                    total=0,
+                    page=(offset // limit) + 1,
+                    limit=limit,
+                    offset=offset,
+                ),
             )
 
         query = query.filter(Entries.entry_type_id == entry_type_obj.id)
@@ -196,7 +205,12 @@ async def list_published_entries(
             # Return empty list if collection doesn't exist
             return PublishedEntriesResponse(
                 data=[],
-                meta={"total": 0, "page": page, "limit": limit},
+                meta=PaginationMeta(
+                    total=0,
+                    page=(offset // limit) + 1,
+                    limit=limit,
+                    offset=offset,
+                ),
             )
 
         # Join with entry_collections to filter
@@ -221,7 +235,6 @@ async def list_published_entries(
     total = query.count()
 
     # Apply pagination
-    offset = (page - 1) * limit
     entries = query.order_by(Entries.published_at.desc()).offset(offset).limit(limit).all()
 
     # Convert to list items
@@ -243,11 +256,12 @@ async def list_published_entries(
 
     return PublishedEntriesResponse(
         data=data,
-        meta={
-            "total": total,
-            "page": page,
-            "limit": limit,
-        },
+        meta=PaginationMeta(
+            total=total,
+            page=(offset // limit) + 1,
+            limit=limit,
+            offset=offset,
+        ),
     )
 
 
@@ -342,13 +356,20 @@ async def get_published_entry(
 
 @router.get(
     "/{workspace_slug}/collections",
-    response_model=list[PublishedCollectionSummary],
+    response_model=PublishedCollectionsResponse,
     summary="List Collections",
 )
 async def list_published_collections(
     context: tuple = Depends(get_publishing_context),
     session: Session = Depends(generate_session),
-) -> list[PublishedCollectionSummary]:
+    limit: int = Query(
+        settings.PUBLISHING_DEFAULT_PAGE_SIZE,
+        ge=1,
+        le=settings.PUBLISHING_MAX_PAGE_SIZE,
+        description="Max results"
+    ),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+) -> PublishedCollectionsResponse:
     """
     List all collections in the workspace.
 
@@ -360,11 +381,20 @@ async def list_published_collections(
     """
     api_client, group = context
 
-    # Get all collections for this workspace
+    # Get total count
+    total = (
+        session.query(Collections)
+        .filter(Collections.group_id == group.id)
+        .count()
+    )
+
+    # Get paginated collections for this workspace
     collections = (
         session.query(Collections)
         .filter(Collections.group_id == group.id)
         .order_by(Collections.sort_order, Collections.name)
+        .limit(limit)
+        .offset(offset)
         .all()
     )
 
@@ -396,7 +426,15 @@ async def list_published_collections(
             )
         )
 
-    return result
+    return PublishedCollectionsResponse(
+        data=result,
+        meta=PaginationMeta(
+            total=total,
+            page=(offset // limit) + 1,
+            limit=limit,
+            offset=offset,
+        ),
+    )
 
 
 @router.get(
@@ -479,7 +517,7 @@ async def get_published_collection(
 
 @router.get(
     "/{workspace_slug}/assets",
-    response_model=list[PublishedAssetRead],
+    response_model=PublishedAssetsResponse,
     summary="List Assets",
 )
 async def list_published_assets(
@@ -493,7 +531,7 @@ async def list_published_assets(
         description="Max results"
     ),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-) -> list[PublishedAssetRead]:
+) -> PublishedAssetsResponse:
     """
     List all assets in the workspace.
 
@@ -521,11 +559,14 @@ async def list_published_assets(
     if type:
         query = query.filter(Assets.mime_type.like(f"{type}/%"))
 
+    # Get total count
+    total = query.count()
+
     # Apply pagination
     assets = query.order_by(Assets.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
-    return [
+    data = [
         PublishedAssetRead(
             slug=asset.slug,
             name=asset.name,
@@ -537,6 +578,16 @@ async def list_published_assets(
         )
         for asset in assets
     ]
+
+    return PublishedAssetsResponse(
+        data=data,
+        meta=PaginationMeta(
+            total=total,
+            page=(offset // limit) + 1,
+            limit=limit,
+            offset=offset,
+        ),
+    )
 
 
 @router.get(
@@ -592,7 +643,7 @@ async def get_published_asset(
 
 @router.get(
     "/{workspace_slug}/resources",
-    response_model=list[PublishedResourceSummary],
+    response_model=PublishedResourcesResponse,
     summary="List Resources",
 )
 async def list_published_resources(
@@ -606,7 +657,7 @@ async def list_published_resources(
         description="Max results"
     ),
     offset: int = Query(0, ge=0, description="Pagination offset"),
-) -> list[PublishedResourceSummary]:
+) -> PublishedResourcesResponse:
     """
     List all resources in the workspace.
 
@@ -634,11 +685,14 @@ async def list_published_resources(
     if resource_type:
         query = query.filter(Resources.resource_type == resource_type)
 
+    # Get total count
+    total = query.count()
+
     # Apply pagination
     resources = query.order_by(Resources.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
-    return [
+    data = [
         PublishedResourceSummary(
             slug=resource.slug,
             name=resource.name,
@@ -650,6 +704,16 @@ async def list_published_resources(
         )
         for resource in resources
     ]
+
+    return PublishedResourcesResponse(
+        data=data,
+        meta=PaginationMeta(
+            total=total,
+            page=(offset // limit) + 1,
+            limit=limit,
+            offset=offset,
+        ),
+    )
 
 
 @router.get(

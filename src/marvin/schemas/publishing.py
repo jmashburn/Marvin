@@ -113,6 +113,22 @@ class PublishedEntryListItem(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PaginationMeta(_MarvinModel):
+    """Pagination metadata."""
+
+    total: int
+    """Total number of items available."""
+
+    page: int
+    """Current page number (1-indexed)."""
+
+    limit: int
+    """Number of items per page."""
+
+    offset: int
+    """Offset for pagination."""
+
+
 class PublishedEntriesResponse(_MarvinModel):
     """
     Paginated response for listing published entries.
@@ -121,7 +137,7 @@ class PublishedEntriesResponse(_MarvinModel):
     data: list[PublishedEntryListItem]
     """List of published entries."""
 
-    meta: dict
+    meta: PaginationMeta
     """Pagination metadata (total, page, limit)."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -324,5 +340,47 @@ class WorkspaceSiteInfo(_MarvinModel):
 
     site: SiteConfiguration
     """Site configuration and identity."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublishedCollectionsResponse(_MarvinModel):
+    """
+    Paginated response for listing published collections.
+    """
+
+    data: list[PublishedCollectionSummary]
+    """List of published collections."""
+
+    meta: PaginationMeta
+    """Pagination metadata."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublishedResourcesResponse(_MarvinModel):
+    """
+    Paginated response for listing published resources.
+    """
+
+    data: list[PublishedResourceSummary]
+    """List of published resources."""
+
+    meta: PaginationMeta
+    """Pagination metadata."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublishedAssetsResponse(_MarvinModel):
+    """
+    Paginated response for listing published assets.
+    """
+
+    data: list[PublishedAssetRead]
+    """List of published assets."""
+
+    meta: PaginationMeta
+    """Pagination metadata."""
 
     model_config = ConfigDict(from_attributes=True)
