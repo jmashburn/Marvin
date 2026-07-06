@@ -1,8 +1,242 @@
 ---
-import FormShell from "@/components/FormShell.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
 ---
 
-<AppLayout title="Upload Asset" eyebrow="Assets">
-  <FormShell title="Asset record" description="Register media and file metadata before attaching it to entries." />
+<AppLayout title="New Asset" eyebrow="Assets">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0;font-size:20px;">New Asset</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Upload a new media file or image</p>
+    </div>
+    <a href="/assets" class="button secondary">Cancel</a>
+  </div>
+
+  <section class="form-section">
+    <form method="POST" action="/api/assets" class="form">
+      <div class="form-group">
+        <label for="name">Name *</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          required
+          placeholder="e.g., Product Photo, Hero Image, Logo"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="slug">Slug</label>
+        <input
+          type="text"
+          id="slug"
+          name="slug"
+          placeholder="Auto-generated from name"
+          disabled
+          style="background: var(--panel-2); color: var(--muted);"
+        />
+        <p class="form-help">Auto-generated from name</p>
+      </div>
+
+      <div class="form-group">
+        <label for="file_path">File Path *</label>
+        <input
+          type="text"
+          id="file_path"
+          name="file_path"
+          required
+          placeholder="/uploads/images/photo.jpg"
+        />
+        <p class="form-help">Path to the file in storage (file upload coming soon)</p>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="mime_type">MIME Type *</label>
+          <input
+            type="text"
+            id="mime_type"
+            name="mime_type"
+            required
+            placeholder="image/jpeg"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="file_size">File Size (bytes) *</label>
+          <input
+            type="number"
+            id="file_size"
+            name="file_size"
+            required
+            placeholder="102400"
+          />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="width">Width (px)</label>
+          <input
+            type="number"
+            id="width"
+            name="width"
+            placeholder="1920"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="height">Height (px)</label>
+          <input
+            type="number"
+            id="height"
+            name="height"
+            placeholder="1080"
+          />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="alt_text">Alt Text</label>
+        <input
+          type="text"
+          id="alt_text"
+          name="alt_text"
+          placeholder="Describe this image for accessibility"
+        />
+        <p class="form-help">Important for accessibility and SEO</p>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows="4"
+          placeholder="Additional details about this asset"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="metadata_">Metadata (JSON)</label>
+        <p class="form-help">Custom metadata fields for this asset</p>
+        <textarea
+          id="metadata_"
+          name="metadata_"
+          rows="6"
+          placeholder='{"photographer": "Jane Doe", "license": "CC-BY"}'
+          class="metadata-editor"
+        ></textarea>
+        <small style="font-size: 11px; color: var(--muted);">
+          Must be valid JSON. Example: {`{"credit": "Photo by John", "license": "MIT"}`}
+        </small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Asset</button>
+        <a href="/assets" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </section>
 </AppLayout>
+
+<style>
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="number"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
+  }
+</style>
+
+<script>
+  // Auto-generate slug from name
+  const nameInput = document.getElementById('name');
+  const slugInput = document.getElementById('slug');
+
+  if (nameInput && slugInput) {
+    nameInput.addEventListener('input', () => {
+      const slug = nameInput.value
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      slugInput.value = slug;
+    });
+  }
+
+  // Validate metadata JSON
+  const metadataField = document.getElementById('metadata_');
+
+  if (metadataField) {
+    metadataField.addEventListener('blur', () => {
+      const value = metadataField.value.trim();
+      if (!value) return;
+
+      try {
+        JSON.parse(value);
+        metadataField.style.borderColor = 'var(--line)';
+      } catch (error) {
+        metadataField.style.borderColor = '#ef5350';
+      }
+    });
+  }
+</script>

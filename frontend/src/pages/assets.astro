@@ -14,6 +14,36 @@ try {
   error = e instanceof Error ? e.message : String(e);
   console.error('[Assets] Failed to load:', error);
 }
+
+// Get filter from query params
+const filter = Astro.url.searchParams.get("filter") ?? "all";
+
+// Categorize by MIME type
+function getMimeCategory(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'Images';
+  if (mimeType.startsWith('video/')) return 'Videos';
+  if (mimeType.startsWith('audio/')) return 'Audio';
+  if (mimeType.includes('pdf')) return 'Documents';
+  return 'Other';
+}
+
+// Group assets by category
+const assetsByCategory: Record<string, any[]> = {};
+assets.forEach((asset: any) => {
+  const category = getMimeCategory(asset.mimeType);
+  if (!assetsByCategory[category]) {
+    assetsByCategory[category] = [];
+  }
+  assetsByCategory[category].push(asset);
+});
+
+const categories = Object.keys(assetsByCategory).sort();
+
+// Filter assets
+let filteredAssets = assets;
+if (filter !== "all") {
+  filteredAssets = assets.filter((a: any) => getMimeCategory(a.mimeType) === filter);
+}
 ---
 
 <AppLayout title="Assets">
@@ -41,25 +71,80 @@ try {
           <a href="/assets/new" class="button">Upload Asset</a>
         </div>
       ) : (
-        <section class="grid" aria-label="Assets">
-          {assets.map((asset) => (
-            <article class="card">
-              <div class="media">
-                {asset.url && <img src={asset.url} alt={asset.alt_text ?? asset.name} style={`object-position: ${asset.focal_point ?? "50% 50%"}`} />}
-              </div>
-              <div class="card-body">
-                <h2>{asset.name}</h2>
-                <p>{asset.alt_text}</p>
-                <div class="meta">
-                  <span class="pill">{asset.mime_type}</span>
-                  {asset.role && <span class="pill">{asset.role}</span>}
-                  {asset.usage && <span class="pill">{asset.usage}</span>}
-                  {asset.focal_point && <span class="pill">{asset.focal_point}</span>}
-                </div>
-              </div>
-            </article>
-          ))}
-        </section>
+        <>
+          <div class="filter-bar">
+            <nav class="segmented" aria-label="Asset type filter">
+              <a href="/assets?filter=all" aria-current={filter === "all" ? "page" : undefined}>
+                All ({assets.length})
+              </a>
+              {categories.map((category: string) => {
+                const count = assetsByCategory[category].length;
+                return (
+                  <a href={`/assets?filter=${category}`} aria-current={filter === category ? "page" : undefined}>
+                    {category} ({count})
+                  </a>
+                );
+              })}
+            </nav>
+          </div>
+
+          <table class="table">
+          <thead>
+            <tr>
+              <th>Preview</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Dimensions</th>
+              <th>Size</th>
+              <th>Alt Text</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAssets.map((asset: any) => (
+              <tr>
+                <td>
+                  <div class="preview">
+                    {asset.url && (
+                      <img
+                        src={asset.url}
+                        alt={asset.altText ?? asset.name}
+                        style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
+                      />
+                    )}
+                  </div>
+                </td>
+                <td>
+                  <strong>{asset.name}</strong>
+                  {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
+                </td>
+                <td><span class="type-badge">{asset.mimeType}</span></td>
+                <td>
+                  {asset.width && asset.height
+                    ? `${asset.width} × ${asset.height}`
+                    : '—'}
+                </td>
+                <td>
+                  {asset.fileSize
+                    ? `${(asset.fileSize / 1024).toFixed(1)} KB`
+                    : '—'}
+                </td>
+                <td class="alt-text-cell">{asset.altText || '—'}</td>
+                <td>
+                  <div class="actions">
+                    <a href={`/assets/${asset.id}`} class="button secondary small">Edit</a>
+                    {asset.url && (
+                      <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary small">
+                        View
+                      </a>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </>
       )}
     </>
   )}
@@ -100,5 +185,62 @@ try {
     margin: 0;
     color: var(--muted);
     max-width: 32rem;
+  }
+
+  .filter-bar {
+    margin-bottom: 1.5rem;
+  }
+
+  .preview {
+    width: 80px;
+    height: 80px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--panel-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .slug {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .type-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--panel-2);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .alt-text-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .button.small {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.875rem;
   }
 </style>
