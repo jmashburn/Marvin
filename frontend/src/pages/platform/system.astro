@@ -19,20 +19,26 @@ try {
 }
 ---
 
-<AppLayout title="System" eyebrow="Platform">
+<AppLayout title="Workspace System" eyebrow="Platform">
   <div class="toolbar">
     <div>
-      <h2>System</h2>
-      <p>System maintenance, cleanup tasks, and statistics</p>
+      <h2>Workspace System</h2>
+      <p>Workspace statistics and maintenance tasks</p>
     </div>
   </div>
 
+  {error && (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  )}
+
   <div class="page-container">
     <div class="maintenance-grid">
-      <!-- Database Statistics -->
+      <!-- Workspace Statistics -->
       <section class="card">
-        <h3>Database Statistics</h3>
-        <p class="card-description">Overview of data stored in the system</p>
+        <h3>Workspace Statistics</h3>
+        <p class="card-description">Overview of data in your workspace</p>
         <div class="stats-grid">
           <div class="stat-item">
             <div class="stat-label">Total Users</div>

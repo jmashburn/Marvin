@@ -1,0 +1,195 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { requireAdmin } from "@/lib/auth";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+// Require admin authentication
+const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+const authToken = getAuthToken(Astro.cookies);
+
+let error: string | null = null;
+let stats: any = null;
+
+// Fetch platform-wide statistics
+try {
+  stats = await fetchApi<any>('/api/admin/about/statistics', {}, authToken);
+} catch (e) {
+  console.error('[admin/system] Failed to fetch stats:', e);
+  error = 'Failed to load platform statistics';
+}
+---
+
+<AdminLayout title="Platform System">
+  <div class="toolbar">
+    <div>
+      <h2>Platform System</h2>
+      <p>Platform-wide statistics and information</p>
+    </div>
+  </div>
+
+  {error && (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  )}
+
+  <div class="page-container">
+    <div class="stats-grid">
+      <!-- Users & Groups -->
+      <section class="card">
+        <h3>Users & Groups</h3>
+        <div class="stat-items">
+          <div class="stat-item">
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value">{stats?.total_users || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Groups</div>
+            <div class="stat-value">{stats?.total_groups || '—'}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Content -->
+      <section class="card">
+        <h3>Content</h3>
+        <div class="stat-items">
+          <div class="stat-item">
+            <div class="stat-label">Total Entries</div>
+            <div class="stat-value">{stats?.total_entries || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Collections</div>
+            <div class="stat-value">{stats?.total_collections || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Entry Types</div>
+            <div class="stat-value">{stats?.total_entry_types || '—'}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Assets & Resources -->
+      <section class="card">
+        <h3>Assets & Resources</h3>
+        <div class="stat-items">
+          <div class="stat-item">
+            <div class="stat-label">Total Assets</div>
+            <div class="stat-value">{stats?.total_assets || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Resources</div>
+            <div class="stat-value">{stats?.total_resources || '—'}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- API & Integration -->
+      <section class="card">
+        <h3>API & Integration</h3>
+        <div class="stat-items">
+          <div class="stat-item">
+            <div class="stat-label">Total API Tokens</div>
+            <div class="stat-value">{stats?.total_api_tokens || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total API Clients</div>
+            <div class="stat-value">{stats?.total_api_clients || '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Webhooks</div>
+            <div class="stat-value">{stats?.total_webhooks || '—'}</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .page-container {
+    max-width: 1200px;
+  }
+
+  .stats-grid {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .card h3 {
+    margin: 0 0 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .stat-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .stat-item:last-child {
+    border-bottom: none;
+  }
+
+  .stat-label {
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .stat-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+</style>
