@@ -864,7 +864,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 
       // Build FormData
       const formData = new FormData(entryForm);
-      const data = {};
+      const data: Record<string, any> = {};
 
       for (const [key, value] of formData.entries()) {
         // Skip metadata_json as we'll add it separately

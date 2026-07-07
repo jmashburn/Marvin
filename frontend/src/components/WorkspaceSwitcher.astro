@@ -35,13 +35,13 @@ try {
     <div class="workspace-menu" id="workspace-menu" hidden>
       <div class="menu-header">Switch Workspace</div>
       <ul class="workspace-list">
-        {workspaces.map(({ workspace, role, is_active }) => (
+        {workspaces.map(({ workspace, role, isActive }) => (
           <li>
             <form method="POST" action="/api/workspace/activate">
               <input type="hidden" name="workspace_id" value={workspace.id} />
               <button
                 type="submit"
-                class:list={['workspace-item', { active: is_active }]}
+                class:list={['workspace-item', { active: isActive }]}
                 disabled={is_active}
               >
                 <span class="workspace-name">{workspace.name}</span>

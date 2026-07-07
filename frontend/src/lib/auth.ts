@@ -64,7 +64,9 @@ export async function requireAuth(
       ? `/login?return=${encodeURIComponent(currentPath)}`
       : '/login';
 
-    return redirect(loginUrl);
+    redirect(loginUrl);
+    // TypeScript doesn't know redirect throws, so add a return that never executes
+    throw new Error('Redirect should have thrown');
   }
 
   return user;
@@ -94,7 +96,9 @@ export async function requireAdmin(
   const user = await requireAuth(cookies, redirect, currentPath);
 
   if (!user.admin) {
-    return redirect('/');
+    redirect('/');
+    // TypeScript doesn't know redirect throws, so add a return that never executes
+    throw new Error('Redirect should have thrown');
   }
 
   return user;

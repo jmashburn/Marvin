@@ -252,7 +252,7 @@ function getStatusClass(status: string): string {
                 <div class="activity-content">
                   <strong>Last Published</strong>
                   <a href={`/entries/${lastPublishedEntry.id}`}>{lastPublishedEntry.title}</a>
-                  <span class="activity-time">{formatRelativeTime(lastPublishedEntry.published_at)}</span>
+                  <span class="activity-time">{formatRelativeTime(lastPublishedEntry.publishedAt)}</span>
                 </div>
               </div>
             ) : (
