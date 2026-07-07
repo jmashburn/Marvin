@@ -1,22 +1,24 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getEntry } from "@/lib/api/entries";
-import { listEntryTypes } from "@/lib/api/entryTypes";
+import { getEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
+import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections } from "@/lib/api/collections";
 import { getEntryCollections } from "@/lib/api/entries";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
-let entry = null;
-let entryTypes = [];
-let collections = [];
-let entryCollections = [];
+let entry: EntryRead | null = null;
+let entryTypes: EntryTypeRead[] = [];
+let collections: CollectionRead[] = [];
+let entryCollections: CollectionRead[] = [];
 let error: string | null = null;
 
 if (!id) {
   error = "Entry ID is required";
+} else if (!authToken) {
+  error = "Authentication required";
 } else {
   try {
     [entry, entryTypes, collections, entryCollections] = await Promise.all([
@@ -700,7 +702,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   const previewPane = document.querySelector('.markdown-preview');
 
   // Enhanced markdown to HTML converter
-  function renderMarkdown(markdown) {
+  function renderMarkdown(markdown: string): string {
     if (!markdown || markdown.trim() === '') {
       return '<p style="color:var(--muted);text-align:center;padding:2rem;">Nothing to preview yet. Start writing in the Edit tab!</p>';
     }
@@ -717,8 +719,8 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 
       // Parse and display frontmatter as a card
       const frontmatterLines = frontmatterContent.split('\n')
-        .filter(line => line.trim())
-        .map(line => {
+        .filter((line: string) => line.trim())
+        .map((line: string) => {
           const [key, ...valueParts] = line.split(':');
           const value = valueParts.join(':').trim();
           return `<div style="display:flex;gap:0.5rem;"><strong>${key.trim()}:</strong> <span>${value}</span></div>`;
@@ -730,20 +732,20 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 
     // Markdown tables
     const tableRegex = /^\|(.+)\|\n\|[-:\s|]+\|\n((?:\|.+\|\n?)*)/gim;
-    html = html.replace(tableRegex, (match, header, rows) => {
-      const headerCells = header.split('|').map(cell => cell.trim()).filter(Boolean);
-      const headerRow = '<tr>' + headerCells.map(cell => `<th>${cell}</th>`).join('') + '</tr>';
+    html = html.replace(tableRegex, (match: string, header: string, rows: string) => {
+      const headerCells = header.split('|').map((cell: string) => cell.trim()).filter(Boolean);
+      const headerRow = '<tr>' + headerCells.map((cell: string) => `<th>${cell}</th>`).join('') + '</tr>';
 
-      const bodyRows = rows.trim().split('\n').map(row => {
-        const cells = row.split('|').map(cell => cell.trim()).filter(Boolean);
-        return '<tr>' + cells.map(cell => `<td>${cell}</td>`).join('') + '</tr>';
+      const bodyRows = rows.trim().split('\n').map((row: string) => {
+        const cells = row.split('|').map((cell: string) => cell.trim()).filter(Boolean);
+        return '<tr>' + cells.map((cell: string) => `<td>${cell}</td>`).join('') + '</tr>';
       }).join('');
 
       return `<table class="markdown-table"><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table>`;
     });
 
     // Code blocks (fenced) - must come before inline code
-    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match: string, lang: string, code: string) => {
       const language = lang ? ` class="language-${lang}"` : '';
       return `<pre><code${language}>${escapeHtml(code.trim())}</code></pre>`;
     });
@@ -796,7 +798,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
     html = html.replace(/- \[x\] (.*$)/gim, '<li style="list-style:none;"><input type="checkbox" checked disabled> $1</li>');
 
     // Paragraphs
-    html = html.split('\n\n').map(block => {
+    html = html.split('\n\n').map((block: string) => {
       // Don't wrap if already has block-level tags
       if (block.match(/^<(h[1-6]|ul|ol|pre|blockquote|hr)/)) {
         return block;
@@ -808,7 +810,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   }
 
   // Helper to escape HTML in code blocks
-  function escapeHtml(text) {
+  function escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
@@ -817,7 +819,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   // Tab switching
   tabButtons.forEach(button => {
     button.addEventListener('click', () => {
-      const targetTab = button.dataset.tab;
+      const targetTab = (button as HTMLElement).dataset.tab;
 
       // Update buttons
       tabButtons.forEach(btn => btn.classList.remove('active'));
@@ -825,7 +827,7 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 
       // Update content
       tabContents.forEach(content => {
-        if (content.dataset.tabContent === targetTab) {
+        if ((content as HTMLElement).dataset.tabContent === targetTab) {
           content.classList.add('active');
         } else {
           content.classList.remove('active');
@@ -834,15 +836,15 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 
       // Render preview if switching to preview tab
       if (targetTab === 'preview' && markdownTextarea && previewPane) {
-        const rendered = renderMarkdown(markdownTextarea.value);
+        const rendered = renderMarkdown((markdownTextarea as HTMLTextAreaElement).value);
         previewPane.innerHTML = rendered;
       }
     });
   });
 
   // Handle form submission with JSON metadata parsing
-  const entryForm = document.getElementById('entry-form');
-  const metadataField = document.getElementById('metadata_json');
+  const entryForm = document.getElementById('entry-form') as HTMLFormElement | null;
+  const metadataField = document.getElementById('metadata_json') as HTMLTextAreaElement | null;
 
   if (entryForm && metadataField) {
     entryForm.addEventListener('submit', async (e) => {

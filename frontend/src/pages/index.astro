@@ -1,8 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { requireAuth } from "@/lib/auth";
-import { getAssets, getSiteClients } from "@/lib/api/platform";
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { getSiteClients } from "@/lib/api/platform";
 import { listEntries } from "@/lib/api/entries";
 import { listCollections } from "@/lib/api/collections";
 import { listEntryTypes } from "@/lib/api/entryTypes";
@@ -10,29 +9,29 @@ import { getAuthToken } from "@/lib/api/client";
 import type { EntryRead, APIClientRead, EntryTypeRead, CollectionRead } from "@/lib/api/types";
 
 // Require authentication
-const user = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
+await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
 
 let entries: EntryRead[] = [];
-let assets = [];
 let siteClients: APIClientRead[] = [];
 let collections: CollectionRead[] = [];
 let entryTypes: EntryTypeRead[] = [];
-let currentWorkspace = null;
 let error: string | null = null;
 
-try {
-  [currentWorkspace, entries, assets, siteClients, collections, entryTypes] = await Promise.all([
-    getCurrentWorkspace(authToken),
-    listEntries(authToken),
-    getAssets(authToken),
-    getSiteClients(authToken),
-    listCollections(authToken),
-    listEntryTypes(authToken),
-  ]);
-} catch (e) {
-  error = e instanceof Error ? e.message : String(e);
-  console.error('[Dashboard] Failed to load data:', error);
+if (!authToken) {
+  error = "Authentication required";
+} else {
+  try {
+    [entries, siteClients, collections, entryTypes] = await Promise.all([
+      listEntries(authToken),
+      getSiteClients(authToken),
+      listCollections(authToken),
+      listEntryTypes(authToken),
+    ]);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Dashboard] Failed to load data:', error);
+  }
 }
 
 // Publishing Overview Stats
@@ -47,7 +46,7 @@ const publishingStats = {
 const needsAttention = {
   staleDrafts: entries.filter(e => {
     if (e.status !== 'draft') return false;
-    const updated = e.updatedAt ? new Date(e.updatedAt) : null;
+    const updated = e.updateAt ? new Date(e.updateAt) : null;
     if (!updated) return true;
     const daysSinceUpdate = (Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceUpdate > 7;
@@ -64,8 +63,8 @@ const needsAttention = {
 // Recent Work - last 5 updated entries
 const recentWork = entries
   .sort((a, b) => {
-    const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-    const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    const dateA = a.updateAt ? new Date(a.updateAt).getTime() : 0;
+    const dateB = b.updateAt ? new Date(b.updateAt).getTime() : 0;
     return dateB - dateA;
   })
   .slice(0, 5);
@@ -196,7 +195,7 @@ function getStatusClass(status: string): string {
           {recentWork.length > 0 ? (
             <div class="recent-work-list">
               {recentWork.map((entry) => {
-                const entryType = entryTypes.find(t => t.id === entry.entry_type_id);
+                const entryType = entryTypes.find(t => t.id === entry.entryTypeId);
                 return (
                   <a href={`/entries/${entry.id}`} class="recent-work-item">
                     <div class="recent-work-content">
@@ -213,7 +212,7 @@ function getStatusClass(status: string): string {
                         </span>
                       </div>
                     </div>
-                    <span class="recent-work-time">{formatRelativeTime(entry.update_at)}</span>
+                    <span class="recent-work-time">{formatRelativeTime(entry.updateAt)}</span>
                   </a>
                 );
               })}

@@ -323,20 +323,14 @@ const authMethods = [
     const formData = new FormData(e.target as HTMLFormElement);
 
     const data: any = {
-      full_name: formData.get('fullName') || null,
+      full_name: formData.get('full_name') || null,
       username: formData.get('username'),
       email: formData.get('email'),
-<<<<<<< Updated upstream
       auth_method: formData.get('auth_method'),
       can_manage: formData.get('can_manage') === 'on',
       can_invite: formData.get('can_invite') === 'on',
       can_organize: formData.get('can_organize') === 'on',
       platform_role: formData.get('platform_role'),
-=======
-      auth_method: formData.get('authMethod'),
-      admin: formData.get('admin') === true,
-      platform_role: formData.get('platformRole'),
->>>>>>> Stashed changes
     };
 
     try {

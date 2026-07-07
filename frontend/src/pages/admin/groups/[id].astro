@@ -2,12 +2,20 @@
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
+import type { PlatformWorkspaceMember } from "@inneropen/marvin-sdk/platform";
+
+// Group type based on GroupRead schema
+interface GroupRead {
+  id: string;
+  name: string;
+  slug?: string | null;
+}
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
-let group = null;
-let members = [];
+let group: GroupRead | null = null;
+let members: PlatformWorkspaceMember[] = [];
 let error: string | null = null;
 
 if (!id) {
@@ -98,7 +106,7 @@ if (!id) {
                   </tr>
                 </thead>
                 <tbody>
-                  {members.map((member: any) => (
+                  {members.map((member) => (
                     <tr>
                       <td>
                         <strong>{member.user?.fullName || member.user?.username || 'Unknown'}</strong>
@@ -106,7 +114,7 @@ if (!id) {
                       <td>{member.user?.email || '—'}</td>
                       <td><span class="role-badge">{member.workspaceRole}</span></td>
                       <td>
-                        <form method="POST" action={`/api/admin/groups/${id}/members/${member.id}/delete`} style="display:inline;">
+                        <form method="POST" action={`/api/admin/groups/${id}/members/${member.userId}/delete`} style="display:inline;">
                           <button type="submit" class="button secondary small danger" onclick="return confirm('Remove this user from the workspace?')">
                             Remove
                           </button>

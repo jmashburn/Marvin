@@ -4,12 +4,17 @@ import Breadcrumb from "@/components/Breadcrumb.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listInviteTokens } from "@/lib/api/invites";
-import type { InviteTokenRead } from "@/lib/api/types";
+
+// SDK type for invite token response (only has token and usesLeft)
+interface InviteTokenSummary {
+  token: string;
+  usesLeft: number;
+}
 
 const authToken = getAuthToken(Astro.cookies);
 
 let workspace = null;
-let invites: InviteTokenRead[] = [];
+let invites: InviteTokenSummary[] = [];
 let error: string | null = null;
 
 try {
@@ -54,7 +59,6 @@ const baseUrl = Astro.url.origin;
             <code class="invite-token">{invite.token}</code>
             <span class="invite-meta">
               {invite.usesLeft === -1 ? 'Unlimited uses' : `${invite.usesLeft} uses left`}
-              {invite.createdAt && ` • Created ${new Date(invite.createdAt).toLocaleDateString()}`}
             </span>
           </div>
           <div class="invite-actions">

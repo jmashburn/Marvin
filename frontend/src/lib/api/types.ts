@@ -46,10 +46,18 @@ export interface MarvinEntry {
   assets?: MarvinAsset[];
 }
 
-// EntryRead is from SDK - uses camelCase
-// Re-export from SDK for type compatibility
-import type { PlatformEntry } from '@inneropen/marvin-sdk/platform';
+// SDK Types - Re-export from SDK for type compatibility
+import type {
+  PlatformEntry,
+  PlatformEntryType,
+  PlatformCollection,
+  PlatformAPIClient
+} from '@inneropen/marvin-sdk/platform';
+
 export type EntryRead = PlatformEntry;
+export type EntryTypeRead = PlatformEntryType;
+export type CollectionRead = PlatformCollection;
+export type APIClientRead = PlatformAPIClient;
 
 export interface SiteClient {
   id: string;
@@ -68,14 +76,7 @@ export interface ApiListResponse<T> {
   pageSize?: number;
 }
 
-// Collection types
-export interface CollectionRead {
-  id: string;
-  slug: string;
-  name: string;
-  description?: string | null;
-}
-
+// Collection types (for create/update - read type comes from SDK)
 export interface CollectionCreate {
   slug: string;
   name: string;
@@ -108,15 +109,7 @@ export interface ResourceUpdate {
   description?: string | null;
 }
 
-// Entry Type
-export interface EntryTypeRead {
-  id: string;
-  slug: string;
-  name: string;
-  description?: string | null;
-  schema?: Record<string, unknown> | null;
-}
-
+// Entry Type (create/update - read type comes from SDK)
 export interface EntryTypeCreate {
   slug: string;
   name: string;
@@ -155,17 +148,7 @@ export interface EntryUpdate {
   metadataJson?: Record<string, unknown> | null;
 }
 
-// API Client types
-export interface APIClientRead {
-  id: string;
-  workspaceId: string;
-  name: string;
-  description?: string | null;
-  enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
+// API Client types (create/update - read type comes from SDK)
 export interface APIClientCreate {
   name: string;
   description?: string | null;

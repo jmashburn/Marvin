@@ -2,24 +2,29 @@
 import EntryCard from "@/components/EntryCard.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
-import { listEntries } from "@/lib/api/entries";
-import { listEntryTypes } from "@/lib/api/entryTypes";
+import { listEntries, type EntryRead } from "@/lib/api/entries";
+import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 
-let entries = [];
-let entryTypes = [];
+let entries: EntryRead[] = [];
+let entryTypes: EntryTypeRead[] = [];
 let error: string | null = null;
 
-try {
-  [entries, entryTypes] = await Promise.all([
-    listEntries(authToken),
-    listEntryTypes(authToken),
-  ]);
-} catch (e) {
-  error = e instanceof Error ? e.message : String(e);
-  console.error('[Entries] Failed to load:', error);
+// Ensure we have auth token before making requests
+if (!authToken) {
+  error = 'Authentication required';
+} else {
+  try {
+    [entries, entryTypes] = await Promise.all([
+      listEntries(authToken),
+      listEntryTypes(authToken),
+    ]);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Entries] Failed to load:', error);
+  }
 }
 
 // Sort entry types by sort_order

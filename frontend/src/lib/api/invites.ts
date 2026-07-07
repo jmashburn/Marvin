@@ -3,13 +3,19 @@
  */
 
 import { fetchApi } from "./client";
-import type { InviteTokenRead, InviteTokenCreate, EmailInvitation } from "./types";
+import type { InviteTokenCreate, EmailInvitation } from "./types";
+
+// SDK type for invite token response (only has token and usesLeft)
+interface InviteTokenSummary {
+  token: string;
+  usesLeft: number;
+}
 
 /**
  * List all invite tokens for the current workspace
  */
-export async function listInviteTokens(authToken?: string): Promise<InviteTokenRead[]> {
-  const response = await fetchApi<{ items: InviteTokenRead[] }>(
+export async function listInviteTokens(authToken?: string): Promise<InviteTokenSummary[]> {
+  const response = await fetchApi<{ items: InviteTokenSummary[] }>(
     '/api/groups/invitations',
     {},
     authToken
@@ -23,8 +29,8 @@ export async function listInviteTokens(authToken?: string): Promise<InviteTokenR
 export async function createInviteToken(
   data: InviteTokenCreate,
   authToken?: string
-): Promise<InviteTokenRead> {
-  return fetchApi<InviteTokenRead>(
+): Promise<InviteTokenSummary> {
+  return fetchApi<InviteTokenSummary>(
     '/api/groups/invitations',
     {
       method: 'POST',

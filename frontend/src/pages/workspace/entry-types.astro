@@ -2,34 +2,39 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import FilterBar from "@/components/FilterBar.astro";
-import { listEntryTypes } from "@/lib/api/entryTypes";
-import { listEntries } from "@/lib/api/entries";
+import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
+import { listEntries, type EntryRead } from "@/lib/api/entries";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 
-let entryTypes = [];
-let entries = [];
+let entryTypes: EntryTypeRead[] = [];
+let entries: EntryRead[] = [];
 let error: string | null = null;
 
-try {
-  [entryTypes, entries] = await Promise.all([
-    listEntryTypes(authToken),
-    listEntries(authToken),
-  ]);
-} catch (e) {
-  error = e instanceof Error ? e.message : String(e);
-  console.error('[EntryTypes] Failed to load:', error);
+if (!authToken) {
+  error = 'Authentication required';
+  console.error('[EntryTypes] No auth token available');
+} else {
+  try {
+    [entryTypes, entries] = await Promise.all([
+      listEntryTypes(authToken),
+      listEntries(authToken),
+    ]);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[EntryTypes] Failed to load:', error);
+  }
 }
 
 // Count entries per type
-const entryCounts = new Map();
+const entryCounts = new Map<string, number>();
 entries.forEach(entry => {
   const count = entryCounts.get(entry.entryTypeId) || 0;
   entryCounts.set(entry.entryTypeId, count + 1);
 });
 
-// Sort by sort_order
+// Sort by sortOrder (camelCase from SDK)
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 const systemTypes = sortedTypes.filter(t => t.isSystem);
 const customTypes = sortedTypes.filter(t => !t.isSystem);

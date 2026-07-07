@@ -2,10 +2,10 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getSiteClients } from "@/lib/api/platform";
 import { getAuthToken } from "@/lib/api/client";
-import type { APIClientRead } from "@/lib/api/types";
+import type { PlatformAPIClient } from "@inneropen/marvin-sdk/platform";
 
 const authToken = getAuthToken(Astro.cookies);
-let clients: APIClientRead[] = [];
+let clients: PlatformAPIClient[] = [];
 let error: string | null = null;
 
 // Check for query params
@@ -13,11 +13,15 @@ const urlParams = Astro.url.searchParams;
 const newToken = urlParams.get('token');
 const newClientName = urlParams.get('client_name');
 
-try {
-  clients = await getSiteClients(authToken);
-} catch (e) {
-  console.error('[clients] Error loading:', e);
-  error = e instanceof Error ? e.message : String(e);
+if (!authToken) {
+  error = "Authentication required";
+} else {
+  try {
+    clients = await getSiteClients(authToken);
+  } catch (e) {
+    console.error('[clients] Error loading:', e);
+    error = e instanceof Error ? e.message : String(e);
+  }
 }
 
 // Format last used timestamp
@@ -177,11 +181,15 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   // Show token modal if redirected from create/rotate
   if (newToken && newClientName) {
     window.addEventListener('DOMContentLoaded', () => {
-      const modal = document.getElementById('token-modal') as HTMLDialogElement;
+      const modal = document.getElementById('token-modal');
       const tokenValue = document.getElementById('token-value');
       if (modal && tokenValue) {
         tokenValue.textContent = newToken;
-        modal.showModal?.() || modal.setAttribute('open', '');
+        if ('showModal' in modal) {
+          modal.showModal();
+        } else {
+          modal.setAttribute('open', '');
+        }
       }
     });
   }
@@ -209,7 +217,9 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   // Close token modal
   document.getElementById('close-modal')?.addEventListener('click', () => {
     const modal = document.getElementById('token-modal');
-    modal?.close();
+    if (modal && 'close' in modal) {
+      (modal as HTMLDialogElement).close();
+    }
     // Clear query params
     window.history.replaceState({}, '', '/publishing/clients');
   });
@@ -228,14 +238,16 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 
       try {
         const data = await fetchApi(`/api/api-clients/${clientSlug}/preview`, {});
-        const modal = document.getElementById('preview-modal') as HTMLDialogElement;
+        const modal = document.getElementById('preview-modal');
         const subtitle = document.getElementById('preview-subtitle');
         const content = document.getElementById('preview-content');
 
         if (modal && content && subtitle) {
           subtitle.textContent = `What "${clientName}" receives from the publishing API`;
           content.textContent = JSON.stringify(data, null, 2);
-          modal.showModal();
+          if ('showModal' in modal) {
+            (modal as HTMLDialogElement).showModal();
+          }
         }
       } catch (error) {
         console.error('Preview error:', error);
@@ -246,7 +258,10 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 
   // Close preview modal
   document.getElementById('close-preview')?.addEventListener('click', () => {
-    document.getElementById('preview-modal')?.close();
+    const modal = document.getElementById('preview-modal');
+    if (modal && 'close' in modal) {
+      (modal as HTMLDialogElement).close();
+    }
   });
 
   // Rotate token
@@ -270,16 +285,24 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       confirmTitle.textContent = 'Rotate Token?';
       confirmMessage.textContent = `The old token for "${clientName}" will be immediately invalidated. The new token will be shown once.`;
 
-      confirmModal.showModal();
+      if ('showModal' in confirmModal) {
+        (confirmModal as HTMLDialogElement).showModal();
+      }
 
-      confirmNo.onclick = () => confirmModal.close();
+      confirmNo.onclick = () => {
+        if ('close' in confirmModal) {
+          (confirmModal as HTMLDialogElement).close();
+        }
+      };
       confirmYes.onclick = async () => {
-        confirmModal.close();
+        if ('close' in confirmModal) {
+          (confirmModal as HTMLDialogElement).close();
+        }
 
         try {
           const result = await fetchApi(`/api/api-clients/${clientSlug}/rotate-token`, {
             method: 'POST',
-          });
+          }) as { token: string };
 
           // Redirect with token in query (will be shown in modal)
           window.location.href = `/publishing/clients?token=${encodeURIComponent(result.token)}&client_name=${encodeURIComponent(clientName)}`;

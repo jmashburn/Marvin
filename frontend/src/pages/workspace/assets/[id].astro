@@ -2,17 +2,33 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 
+// Backend API returns snake_case fields
+interface AssetResponse {
+  id: string;
+  slug: string;
+  name: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  width?: number;
+  height?: number;
+  alt_text?: string;
+  description?: string;
+  metadata_?: Record<string, unknown>;
+  uploaded_by: string;
+}
+
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
-let asset = null;
+let asset: AssetResponse | null = null;
 let error: string | null = null;
 
 if (!id) {
   error = "Asset ID is required";
 } else {
   try {
-    asset = await fetchApi(`/api/assets/${id}`, {}, authToken);
+    asset = await fetchApi<AssetResponse>(`/api/assets/${id}`, {}, authToken);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     console.error('[Asset] Failed to load:', error);
@@ -76,7 +92,7 @@ if (!id) {
                 type="text"
                 id="alt_text"
                 name="alt_text"
-                value={asset.altText || ""}
+                value={asset.alt_text || ""}
                 placeholder="Describe this image for accessibility"
               />
               <p class="form-help">Important for accessibility and SEO</p>
@@ -100,7 +116,7 @@ if (!id) {
                 rows="6"
                 placeholder='{"key": "value"}'
                 class="metadata-editor"
-              >{asset.metadata ? JSON.stringify(asset.metadata, null, 2) : ""}</textarea>
+              >{asset.metadata_ ? JSON.stringify(asset.metadata_, null, 2) : ""}</textarea>
               <small style="font-size: 11px; color: var(--muted);">
                 Must be valid JSON. Example: {`{"photographer": "Jane", "license": "CC-BY"}`}
               </small>
@@ -116,17 +132,16 @@ if (!id) {
         <aside class="sidebar">
           <div class="sidebar-section">
             <h3>Preview</h3>
-            {asset.url && (
+            {asset.file_path && (
               <div class="asset-preview">
                 <img
-                  src={asset.url}
-                  alt={asset.altText || asset.name}
-                  style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
+                  src={asset.file_path}
+                  alt={asset.alt_text || asset.name}
                 />
               </div>
             )}
-            {asset.url && (
-              <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
+            {asset.file_path && (
+              <a href={asset.file_path} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
                 View Full Size ↗
               </a>
             )}
@@ -136,7 +151,7 @@ if (!id) {
             <h3>File Info</h3>
             <dl class="info-list">
               <dt>Type</dt>
-              <dd><code>{asset.mimeType}</code></dd>
+              <dd><code>{asset.mime_type}</code></dd>
 
               {asset.width && asset.height && (
                 <>
@@ -146,14 +161,7 @@ if (!id) {
               )}
 
               <dt>File Size</dt>
-              <dd>{(asset.fileSize / 1024).toFixed(1)} KB</dd>
-
-              {asset.focalPoint && (
-                <>
-                  <dt>Focal Point</dt>
-                  <dd>{asset.focalPoint}</dd>
-                </>
-              )}
+              <dd>{(asset.file_size / 1024).toFixed(1)} KB</dd>
             </dl>
           </div>
         </aside>
@@ -311,7 +319,7 @@ if (!id) {
 
 <script>
   // Validate metadata JSON
-  const metadataField = document.getElementById('metadata_');
+  const metadataField = document.getElementById('metadata_') as HTMLTextAreaElement | null;
 
   if (metadataField) {
     metadataField.addEventListener('blur', () => {
