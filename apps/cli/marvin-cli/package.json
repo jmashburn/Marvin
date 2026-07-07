@@ -12,6 +12,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@inneropen/marvin-sdk": "^1.0.0",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5"
   },

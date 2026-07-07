@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import "dotenv/config";
 import { Command } from "commander";
-import {
-  createMarvinClient,
-  type MarvinAsset,
-  type MarvinCollection,
-  type MarvinEntry,
-  type MarvinResource,
-} from "./marvin-sdk.js";
+import { MarvinClient } from "@inneropen/marvin-sdk";
+import type {
+  MarvinAsset,
+  MarvinCollection,
+  MarvinEntry,
+  MarvinResource,
+} from "@inneropen/marvin-sdk/types";
 import { renderData, renderList, type OutputMode } from "./output.js";
 
 const program = new Command();
@@ -39,10 +39,25 @@ function outputMode(): OutputMode {
 
 function client() {
   const opts = program.opts();
-  return createMarvinClient({
-    apiUrl: opts.apiUrl,
-    token: opts.token,
-    workspaceSlug: opts.workspace,
+
+  const apiUrl = opts.apiUrl || process.env.MARVIN_API_URL;
+  const siteClientToken = opts.token || process.env.MARVIN_SITE_CLIENT_TOKEN;
+  const workspaceSlug = opts.workspace || process.env.MARVIN_WORKSPACE_SLUG;
+
+  if (!apiUrl) {
+    throw new Error("MARVIN_API_URL is required (set via --api-url or MARVIN_API_URL env var)");
+  }
+  if (!siteClientToken) {
+    throw new Error("Site client token is required (set via --token or MARVIN_SITE_CLIENT_TOKEN env var)");
+  }
+  if (!workspaceSlug) {
+    throw new Error("Workspace slug is required (set via --workspace or MARVIN_WORKSPACE_SLUG env var)");
+  }
+
+  return new MarvinClient({
+    apiUrl,
+    siteClientToken,
+    workspaceSlug,
   });
 }
 
@@ -80,7 +95,6 @@ const collectionColumns = {
   Name: (collection: MarvinCollection) => collection.name || "",
   Slug: (collection: MarvinCollection) => collection.slug || "",
   Description: (collection: MarvinCollection) => (collection.description || "").substring(0, 50),
-  Entries: (collection: MarvinCollection) => collection.entryCount ?? "",
 };
 
 const resourceColumns = {
@@ -100,7 +114,11 @@ const assetColumns = {
   Alt: (asset: MarvinAsset) => (asset.altText || "").substring(0, 40),
 };
 
-program.command("site").description("Fetch workspace site configuration").action(() => run(() => client().getSite()));
+program.command("site").description("Fetch workspace site configuration").action(() => run(async () => {
+  const c = client();
+  await c.initialize();
+  return c.site;
+}));
 
 program
   .command("entries")
@@ -111,7 +129,12 @@ program
   .option("--offset <number>", "Offset", (v) => Number(v))
   .action((opts) =>
     run(
-      () => client().getEntries(opts),
+      () => client().entries.list({
+        entryType: opts.entryType,
+        collection: opts.collection,
+        limit: opts.limit,
+        offset: opts.offset,
+      }),
       (data) => renderList(data as MarvinEntry[], entryColumns, outputMode()),
     ),
   );
@@ -121,7 +144,7 @@ program
   .description("Fetch one entry by slug")
   .action((slug) =>
     run(
-      () => client().getEntry(slug),
+      () => client().entries.get(slug),
       (data) => renderList([data] as MarvinEntry[], entryColumns, outputMode()),
     ),
   );
@@ -133,7 +156,7 @@ program
   .option("--offset <number>", "Offset", (v) => Number(v))
   .action((opts) =>
     run(
-      () => client().getCollections(opts),
+      () => client().collections.list(),
       (data) => renderList(data as MarvinCollection[], collectionColumns, outputMode()),
     ),
   );
@@ -143,7 +166,7 @@ program
   .description("Fetch one collection by slug")
   .action((slug) =>
     run(
-      () => client().getCollection(slug),
+      () => client().collections.get(slug),
       (data) => renderList([data] as MarvinCollection[], collectionColumns, outputMode()),
     ),
   );
@@ -153,7 +176,10 @@ program
   .description("Fetch entries in a collection")
   .action((slug) =>
     run(
-      () => client().getCollectionEntries(slug),
+      async () => {
+        const collection = await client().collections.get(slug);
+        return collection.entries || [];
+      },
       (data) => renderList(data as MarvinEntry[], entryColumns, outputMode()),
     ),
   );
@@ -166,7 +192,11 @@ program
   .option("--offset <number>", "Offset", (v) => Number(v))
   .action((opts) =>
     run(
-      () => client().getAssets(opts),
+      () => client().assets.list({
+        type: opts.type,
+        limit: opts.limit,
+        offset: opts.offset,
+      }),
       (data) => renderList(data as MarvinAsset[], assetColumns, outputMode()),
     ),
   );
@@ -176,7 +206,12 @@ program
   .description("Fetch one asset by slug")
   .action((slug) =>
     run(
-      () => client().getAsset(slug),
+      async () => {
+        const assets = await client().assets.list();
+        const asset = assets.find(a => a.slug === slug);
+        if (!asset) throw new Error(`Asset not found: ${slug}`);
+        return asset;
+      },
       (data) => renderList([data] as MarvinAsset[], assetColumns, outputMode()),
     ),
   );
@@ -189,7 +224,11 @@ program
   .option("--offset <number>", "Offset", (v) => Number(v))
   .action((opts) =>
     run(
-      () => client().getResources(opts),
+      () => client().resources.list({
+        resourceType: opts.resourceType,
+        limit: opts.limit,
+        offset: opts.offset,
+      }),
       (data) => renderList(data as MarvinResource[], resourceColumns, outputMode()),
     ),
   );
@@ -199,7 +238,7 @@ program
   .description("Fetch one resource by slug")
   .action((slug) =>
     run(
-      () => client().getResource(slug),
+      () => client().resources.get(slug),
       (data) => renderList([data] as MarvinResource[], resourceColumns, outputMode()),
     ),
   );
@@ -209,7 +248,7 @@ program
   .description("Fetch entries that reference a resource")
   .action((slug) =>
     run(
-      () => client().getResourceEntries(slug),
+      () => client().resources.entries(slug),
       (data) => renderList(data as MarvinEntry[], entryColumns, outputMode()),
     ),
   );
