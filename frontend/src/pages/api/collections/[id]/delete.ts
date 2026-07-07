@@ -1,12 +1,15 @@
 import type { APIRoute } from 'astro';
+import { getAuthToken } from '@/lib/api/client';
 import { deleteCollection } from '@/lib/api/collections';
 
-export const POST: APIRoute = async ({ params, redirect }) => {
+export const POST: APIRoute = async ({ params, redirect, cookies }) => {
   try {
+    const authToken = getAuthToken(cookies);
+    if (!authToken) return new Response('Unauthorized', { status: 401 });
     const { id } = params;
     if (!id) throw new Error('Collection ID required');
 
-    await deleteCollection(id);
+    await deleteCollection(id, authToken);
     return redirect('/collections', 303);
   } catch (error) {
     console.error('[collections/delete] Error:', error);

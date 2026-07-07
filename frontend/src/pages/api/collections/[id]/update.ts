@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { getAuthToken } from '@/lib/api/client';
 import { updateCollection } from '@/lib/api/collections';
 
 export const POST: APIRoute = async ({ params, request, redirect }) => {
