@@ -23,13 +23,15 @@ if (urlParams.get('error')) {
 try {
   workspace = await fetchApi<WorkspaceWithMembership>('/api/self/workspaces/current', {}, authToken);
 
-  if (workspace) {
+  if (workspace?.workspace?.id) {
     // Get preferences for this workspace
     preferences = await fetchApi<GroupPreferencesRead>(
       `/api/groups/${workspace.workspace.id}/preferences`,
       {},
       authToken
     );
+  } else {
+    error = "No active workspace found. Please activate a workspace first.";
   }
 } catch (e) {
   console.error('[site] Error loading:', e);
@@ -58,7 +60,7 @@ try {
     </div>
   )}
 
-  {workspace && preferences ? (
+  {workspace?.workspace?.id && preferences ? (
     <form method="POST" data-workspace-id={workspace.workspace.id} class="site-form" id="site-form">
       <section class="form-section">
         <h3>Identity</h3>
