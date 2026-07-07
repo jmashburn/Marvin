@@ -42,10 +42,10 @@ try {
               <button
                 type="submit"
                 class:list={['workspace-item', { active: isActive }]}
-                disabled={is_active}
+                disabled={isActive}
               >
                 <span class="workspace-name">{workspace.name}</span>
-                {is_active && <span class="active-badge">Active</span>}
+                {isActive && <span class="active-badge">Active</span>}
                 <span class="workspace-role">{role}</span>
               </button>
             </form>
