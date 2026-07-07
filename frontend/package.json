@@ -14,5 +14,8 @@
     "@inneropen/marvin-sdk": "^1.9.2",
     "astro": "^7.0.6",
     "typescript": "^5.9.2"
+  },
+  "devDependencies": {
+    "@astrojs/node": "^11.0.2"
   }
 }
