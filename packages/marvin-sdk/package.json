@@ -1,5 +1,5 @@
 {
-  "name": "@marvin/sdk",
+  "name": "@inneropen/marvin-sdk",
   "version": "1.0.0",
   "description": "Official TypeScript SDK for Marvin CMS",
   "type": "module",
