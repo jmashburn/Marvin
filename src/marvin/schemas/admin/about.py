@@ -54,27 +54,48 @@ class AppInfo(_MarvinModel):
 
 class AppTheme(_MarvinModel):
     """
-    Schema defining the color palette for the application's light and dark themes.
-    Provides default hex color values for various UI elements.
+    Schema defining the complete color system for the application's light and dark themes.
+    Includes background, surface, text, border, and accent colors.
+    Actual color values are defined in core/settings/theme.py
     """
 
-    # Light Theme Colors
-    light_primary: str = "#E58325"  # Primary color for light theme.
-    light_accent: str = "#007A99"  # Accent color for light theme.
-    light_secondary: str = "#973542"  # Secondary color for light theme.
-    light_success: str = "#43A047"  # Success color (e.g., for positive feedback) for light theme.
-    light_info: str = "#1976D2"  # Informational color for light theme.
-    light_warning: str = "#FF6D00"  # Warning color for light theme.
-    light_error: str = "#EF5350"  # Error color (e.g., for error messages) for light theme.
+    # Light theme - Background & Surface
+    light_bg: str
+    light_panel: str
+    light_panel_secondary: str
 
-    # Dark Theme Colors (currently same as light, likely placeholders or to be customized)
-    dark_primary: str = "#E58325"  # Primary color for dark theme.
-    dark_accent: str = "#007A99"  # Accent color for dark theme.
-    dark_secondary: str = "#973542"  # Secondary color for dark theme.
-    dark_success: str = "#43A047"  # Success color for dark theme.
-    dark_info: str = "#1976D2"  # Informational color for dark theme.
-    dark_warning: str = "#FF6D00"  # Warning color for dark theme.
-    dark_error: str = "#EF5350"  # Error color for dark theme.
+    # Light theme - Text & Borders
+    light_text: str
+    light_text_muted: str
+    light_border: str
+
+    # Light theme - Accent Colors
+    light_primary: str
+    light_accent: str
+    light_secondary: str
+    light_success: str
+    light_info: str
+    light_warning: str
+    light_error: str
+
+    # Dark theme - Background & Surface
+    dark_bg: str
+    dark_panel: str
+    dark_panel_secondary: str
+
+    # Dark theme - Text & Borders
+    dark_text: str
+    dark_text_muted: str
+    dark_border: str
+
+    # Dark theme - Accent Colors
+    dark_primary: str
+    dark_accent: str
+    dark_secondary: str
+    dark_success: str
+    dark_info: str
+    dark_warning: str
+    dark_error: str
 
 
 class AppStartupInfo(_MarvinModel):
