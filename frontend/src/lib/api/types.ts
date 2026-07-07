@@ -193,6 +193,7 @@ export interface GroupAdminUpdate {
 export interface WorkspaceWithMembership {
   workspace: GroupRead;
   role: WorkspaceRole;
+  is_active: boolean;
 }
 
 export interface WorkspaceActivationRequest {
@@ -236,4 +237,38 @@ export interface InviteTokenCreate {
 export interface EmailInvitation {
   email: string;
   role: WorkspaceRole;
+}
+
+// Group Preferences types
+export interface GroupPreferencesRead {
+  groupId: string;
+  privateGroup: boolean;
+  firstDayOfWeek: number;
+  siteTitle?: string | null;
+  siteTagline?: string | null;
+  siteDescription?: string | null;
+  siteCanonicalUrl?: string | null;
+  siteLogo?: string | null;
+  siteFavicon?: string | null;
+  siteLocale: string | null;
+  siteTimezone: string | null;
+  siteContactEmail?: string | null;
+  siteSocialJson?: Record<string, unknown> | null;
+  siteMetadataJson?: Record<string, unknown> | null;
+}
+
+export interface GroupPreferencesUpdate {
+  privateGroup?: boolean;
+  firstDayOfWeek?: number;
+  siteTitle?: string | null;
+  siteTagline?: string | null;
+  siteDescription?: string | null;
+  siteCanonicalUrl?: string | null;
+  siteLogo?: string | null;
+  siteFavicon?: string | null;
+  siteLocale?: string | null;
+  siteTimezone?: string | null;
+  siteContactEmail?: string | null;
+  siteSocialJson?: Record<string, unknown> | null;
+  siteMetadataJson?: Record<string, unknown> | null;
 }

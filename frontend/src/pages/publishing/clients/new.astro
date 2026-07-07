@@ -89,31 +89,59 @@ import AppLayout from "@/layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
+  interface APIClientWithToken {
+    id: string;
+    groupId: string;
+    name: string;
+    slug: string;
+    description?: string | null;
+    permissions: Record<string, unknown>;
+    token: string;
+    enabled: boolean;
+    createdAt?: string | null;
+  }
+
+  interface APIClientCreatePayload {
+    name: string;
+    description?: string | null;
+    permissions?: Record<string, boolean> | null;
+  }
+
   // HttpOnly cookie is automatically sent with credentials: 'include'
-  const form = document.getElementById('create-client-form') as HTMLFormElement;
+  const form = document.getElementById('create-client-form') as HTMLFormElement | null;
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const formData = new FormData(form);
-      const data: Record<string, any> = {
-        name: formData.get('name'),
-        description: formData.get('description') || undefined,
-        permissions: {}
-      };
+      const nameValue = formData.get('name');
+      const descriptionValue = formData.get('description');
+
+      if (typeof nameValue !== 'string' || !nameValue) {
+        alert('Name is required');
+        return;
+      }
+
+      const permissions: Record<string, boolean> = {};
 
       // Convert checkboxes to permissions object with colon format
-      const checkboxes = form.querySelectorAll('input[type="checkbox"]');
-      checkboxes.forEach((checkbox: any) => {
+      const checkboxes = form.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+      checkboxes.forEach((checkbox) => {
         if (checkbox.checked && checkbox.name) {
-          data.permissions[checkbox.name] = true;
+          permissions[checkbox.name] = true;
         }
       });
+
+      const data: APIClientCreatePayload = {
+        name: nameValue,
+        description: descriptionValue && typeof descriptionValue === 'string' ? descriptionValue : null,
+        permissions: Object.keys(permissions).length > 0 ? permissions : null,
+      };
 
       try {
         const { fetchApi } = await import('@/lib/api/client');
 
-        const result = await fetchApi('/api/api-clients', {
+        const result = await fetchApi<APIClientWithToken>('/api/platform/api-clients', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

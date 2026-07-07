@@ -26,7 +26,7 @@ try {
   if (workspace) {
     // Get preferences for this workspace
     preferences = await fetchApi<GroupPreferencesRead>(
-      `/api/groups/${workspace.id}/preferences`,
+      `/api/groups/${workspace.workspace.id}/preferences`,
       {},
       authToken
     );
@@ -59,7 +59,7 @@ try {
   )}
 
   {workspace && preferences ? (
-    <form method="POST" data-workspace-id={workspace.id} class="site-form" id="site-form">
+    <form method="POST" data-workspace-id={workspace.workspace.id} class="site-form" id="site-form">
       <section class="form-section">
         <h3>Identity</h3>
         <p class="section-description">How your site identifies itself to the world</p>
@@ -68,9 +68,9 @@ try {
             <span>Site Title</span>
             <input
               type="text"
-              name="site_title"
-              value={preferences.site_title || ""}
-              placeholder={workspace.name}
+              name="siteTitle"
+              value={preferences.siteTitle || ""}
+              placeholder={workspace.workspace.name}
             />
             <small>Defaults to workspace name if not set</small>
           </label>
@@ -78,25 +78,25 @@ try {
             <span>Tagline</span>
             <input
               type="text"
-              name="site_tagline"
-              value={preferences.site_tagline || ""}
+              name="siteTagline"
+              value={preferences.siteTagline || ""}
               placeholder="A short slogan or motto"
             />
           </label>
           <label class="span-2">
             <span>Description</span>
             <textarea
-              name="site_description"
+              name="siteDescription"
               rows="3"
               placeholder="Describe what this site is about"
-            >{preferences.site_description || ""}</textarea>
+            >{preferences.siteDescription || ""}</textarea>
           </label>
           <label class="span-2">
             <span>Canonical URL</span>
             <input
               type="url"
-              name="site_canonical_url"
-              value={preferences.site_canonical_url || ""}
+              name="siteCanonicalUrl"
+              value={preferences.siteCanonicalUrl || ""}
               placeholder="https://example.com"
             />
             <small>Where this site is published</small>
@@ -112,8 +112,8 @@ try {
             <span>Logo URL</span>
             <input
               type="url"
-              name="site_logo"
-              value={preferences.site_logo || ""}
+              name="siteLogo"
+              value={preferences.siteLogo || ""}
               placeholder="https://example.com/logo.png"
             />
           </label>
@@ -121,8 +121,8 @@ try {
             <span>Favicon URL</span>
             <input
               type="url"
-              name="site_favicon"
-              value={preferences.site_favicon || ""}
+              name="siteFavicon"
+              value={preferences.siteFavicon || ""}
               placeholder="https://example.com/favicon.ico"
             />
           </label>
@@ -137,8 +137,8 @@ try {
             <span>Locale</span>
             <input
               type="text"
-              name="site_locale"
-              value={preferences.site_locale || "en-US"}
+              name="siteLocale"
+              value={preferences.siteLocale || "en-US"}
               placeholder="en-US"
             />
             <small>e.g., en-US, en-GB, fr-FR</small>
@@ -147,8 +147,8 @@ try {
             <span>Timezone</span>
             <input
               type="text"
-              name="site_timezone"
-              value={preferences.site_timezone || "America/New_York"}
+              name="siteTimezone"
+              value={preferences.siteTimezone || "America/New_York"}
               placeholder="America/New_York"
             />
             <small>IANA timezone identifier</small>
@@ -164,8 +164,8 @@ try {
             <span>Contact Email</span>
             <input
               type="email"
-              name="site_contact_email"
-              value={preferences.site_contact_email || ""}
+              name="siteContactEmail"
+              value={preferences.siteContactEmail || ""}
               placeholder="hello@example.com"
             />
           </label>
@@ -179,12 +179,12 @@ try {
           <label class="span-2">
             <span>Custom Metadata (JSON)</span>
             <textarea
-              name="site_metadata_json"
+              name="siteMetadataJson"
               rows="10"
               placeholder='{"social": {"instagram": "...", "twitter": "..."}, "seo": {"image": "..."}, "analytics": {"id": "..."}}'
             >{(() => {
-              const metadata = preferences.site_metadata_json;
-              const social = preferences.site_social_json;
+              const metadata = preferences.siteMetadataJson;
+              const social = preferences.siteSocialJson;
 
               // Merge social into metadata if it exists
               if (social && Object.keys(social).length > 0) {
@@ -235,20 +235,20 @@ try {
 
       // Convert form data to object, handling JSON fields
       formData.forEach((value, key) => {
-        if (key === 'site_metadata_json') {
+        if (key === 'siteMetadataJson') {
           try {
             const parsed = value ? JSON.parse(value as string) : null;
             data[key] = parsed && Object.keys(parsed).length > 0 ? parsed : null;
 
-            // If metadata has a "social" key, also set site_social_json for backward compatibility
+            // If metadata has a "social" key, also set siteSocialJson for backward compatibility
             if (parsed && parsed.social) {
-              data['site_social_json'] = parsed.social;
+              data['siteSocialJson'] = parsed.social;
             } else {
-              data['site_social_json'] = null;
+              data['siteSocialJson'] = null;
             }
           } catch {
             data[key] = null;
-            data['site_social_json'] = null;
+            data['siteSocialJson'] = null;
           }
         } else {
           data[key] = value || null;

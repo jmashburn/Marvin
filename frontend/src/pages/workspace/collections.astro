@@ -1,19 +1,23 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
-import { listCollections } from "@/lib/api/collections";
+import { listCollections, type CollectionRead } from "@/lib/api/collections";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 
-let collections = [];
+let collections: CollectionRead[] = [];
 let error: string | null = null;
 
-try {
-  collections = await listCollections(authToken);
-} catch (e) {
-  error = e instanceof Error ? e.message : String(e);
-  console.error('[Collections] Failed to load:', error);
+if (!authToken) {
+  error = 'Not authenticated';
+} else {
+  try {
+    collections = await listCollections(authToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Collections] Failed to load:', error);
+  }
 }
 
 // Sort by sort_order

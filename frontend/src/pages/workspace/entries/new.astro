@@ -1,11 +1,14 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { listEntryTypes } from "@/lib/api/entryTypes";
+import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/auth/login');
+}
 
-let entryTypes = [];
+let entryTypes: EntryTypeRead[] = [];
 let error: string | null = null;
 
 try {

@@ -3,17 +3,19 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCollection } from "@/lib/api/collections";
 import { listEntries } from "@/lib/api/entries";
-import { getEntryCollections } from "@/lib/api/entries";
+import type { EntryRead, CollectionRead } from "@/lib/api/entries";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
-let collection = null;
-let allEntries = [];
-let collectionEntries = [];
+let collection: CollectionRead | null = null;
+let allEntries: EntryRead[] = [];
+let collectionEntries: EntryRead[] = [];
 let error: string | null = null;
 
-if (!id) {
+if (!authToken) {
+  error = "Authentication required";
+} else if (!id) {
   error = "Collection ID is required";
 } else {
   try {
@@ -24,6 +26,7 @@ if (!id) {
 
     // Get entries that belong to this collection
     // Filter entries that have this collection in their collections array
+    // Note: collections is an array of collection IDs (strings)
     collectionEntries = allEntries.filter(entry => {
       return entry.collections && entry.collections.includes(id);
     });
@@ -137,14 +140,14 @@ if (!id) {
           </div>
 
           <div class="form-group" id="query-field" style={collection.isSmart ? '' : 'display: none;'}>
-            <label for="query">Query (JSON)</label>
+            <label for="smartRules">Smart Rules (JSON)</label>
             <textarea
-              id="query"
-              name="query"
+              id="smartRules"
+              name="smartRules"
               rows="8"
               placeholder='&#123;"type": "blog", "status": "published"&#125;'
-            >{collection.query ? JSON.stringify(collection.query, null, 2) : ''}</textarea>
-            <p class="form-help">JSON query for filtering entries. Example: &#123;"type": "blog", "status": "published"&#125;</p>
+            >{collection.smartRules ? JSON.stringify(collection.smartRules, null, 2) : ''}</textarea>
+            <p class="form-help">JSON rules for filtering entries. Example: &#123;"type": "blog", "status": "published"&#125;</p>
           </div>
 
           <div class="form-actions">

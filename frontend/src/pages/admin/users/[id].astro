@@ -6,6 +6,10 @@ import { getAuthToken, fetchApi } from "@/lib/api/client";
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
+if (!id) {
+  return Astro.redirect('/admin/users');
+}
+
 // Check admin access
 try {
   const currentUser = await fetchApi<any>('/api/self', {}, authToken);
@@ -317,10 +321,10 @@ const authMethods = [
   import { fetchApi } from '@/lib/api/client';
 
   // Update user form
-  const updateForm = document.getElementById('update-user-form');
+  const updateForm = document.getElementById('update-user-form') as HTMLFormElement | null;
   updateForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
 
     const data: any = {
       full_name: formData.get('full_name') || null,
@@ -349,7 +353,7 @@ const authMethods = [
 
   // Delete user
   const deleteBtn = document.getElementById('delete-btn');
-  const deleteModal = document.getElementById('delete-modal') as HTMLDialogElement;
+  const deleteModal = document.getElementById('delete-modal') as HTMLDialogElement | null;
   const confirmDeleteBtn = document.getElementById('confirm-delete');
   const cancelDeleteBtn = document.getElementById('cancel-delete');
 
@@ -377,8 +381,8 @@ const authMethods = [
 
   // Add workspace membership
   const addMembershipBtn = document.getElementById('add-membership-btn');
-  const workspaceSelect = document.getElementById('workspace-select') as HTMLSelectElement;
-  const roleSelect = document.getElementById('role-select') as HTMLSelectElement;
+  const workspaceSelect = document.getElementById('workspace-select') as HTMLSelectElement | null;
+  const roleSelect = document.getElementById('role-select') as HTMLSelectElement | null;
 
   addMembershipBtn?.addEventListener('click', async () => {
     const workspaceId = workspaceSelect?.value;

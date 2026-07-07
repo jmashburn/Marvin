@@ -105,8 +105,8 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
 <script>
   // Auto-generate slug from name
-  const nameInput = document.getElementById('name');
-  const slugInput = document.getElementById('slug');
+  const nameInput = document.getElementById('name') as HTMLInputElement | null;
+  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
 
   if (nameInput && slugInput) {
     nameInput.addEventListener('input', () => {
@@ -122,7 +122,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
   // Validate metadata JSON on form submit
   const form = document.querySelector('form');
-  const metadataField = document.getElementById('metadata_');
+  const metadataField = document.getElementById('metadata_') as HTMLTextAreaElement | null;
 
   if (form && metadataField) {
     metadataField.addEventListener('blur', () => {

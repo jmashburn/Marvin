@@ -2,18 +2,22 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
-import type { WorkspaceRole } from "@/lib/api/types";
+import type { WorkspaceRole, GroupRead } from "@/lib/api/types";
 
 const authToken = getAuthToken(Astro.cookies);
 
-let workspace = null;
+let workspace: GroupRead | null = null;
 let error: string | null = null;
 
-try {
-  workspace = await getCurrentWorkspace(authToken);
-} catch (e) {
-  console.error('[members/new] Error:', e);
-  error = e instanceof Error ? e.message : String(e);
+if (!authToken) {
+  error = "Not authenticated";
+} else {
+  try {
+    workspace = await getCurrentWorkspace(authToken);
+  } catch (e) {
+    console.error('[members/new] Error:', e);
+    error = e instanceof Error ? e.message : String(e);
+  }
 }
 
 // Role display names
@@ -39,7 +43,7 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
   <div class="page-header">
     <div>
       <h2>Add Workspace Member</h2>
-      <p>Add a user to {workspace?.workspace?.name || 'this workspace'}</p>
+      <p>Add a user to {workspace?.name || 'this workspace'}</p>
     </div>
   </div>
 
@@ -85,13 +89,24 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
   )}
 </AppLayout>
 
-<script define:vars={{ workspaceId: workspace?.workspace?.id }}>
+<script define:vars={{ workspaceId: workspace?.id }}>
   // HttpOnly cookie is automatically sent with credentials: 'include'
   const form = document.getElementById('add-member-form');
 
+  if (!workspaceId) {
+    console.error('No workspace ID available');
+  }
+
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
+
+    if (!workspaceId) {
+      alert('Workspace not available');
+      return;
+    }
+
+    const target = e.target;
+    const formData = new FormData(target);
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
