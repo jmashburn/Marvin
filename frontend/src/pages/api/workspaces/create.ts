@@ -1,16 +1,18 @@
 import type { APIRoute } from 'astro';
+import { getAuthToken } from '@/lib/api/client';
 import { createWorkspace, activateWorkspace } from '@/lib/api/workspaces';
 
-export const POST: APIRoute = async ({ request, redirect }) => {
+export const POST: APIRoute = async ({ request, redirect, cookies }) => {
   try {
     const formData = await request.formData();
+    const authToken = await getAuthToken(cookies);
 
     const workspace = await createWorkspace({
       name: formData.get('name') as string,
-    });
+    }, authToken);
 
     // Auto-activate the new workspace
-    await activateWorkspace(workspace.id);
+    await activateWorkspace(workspace.id, authToken);
 
     return redirect('/', 303);
   } catch (error) {

@@ -144,7 +144,7 @@ if (!id) {
 
 <script>
   // Validate metadata JSON
-  const metadataField = document.getElementById('metadata_');
+  const metadataField = document.getElementById('metadata_') as HTMLInputElement | null;
 
   if (metadataField) {
     metadataField.addEventListener('blur', () => {

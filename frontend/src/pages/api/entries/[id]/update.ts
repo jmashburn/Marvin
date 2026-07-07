@@ -2,12 +2,13 @@ import type { APIRoute } from 'astro';
 import { getAuthToken } from '@/lib/api/client';
 import { updateEntry } from '@/lib/api/entries';
 
-export const POST: APIRoute = async ({ params, request, redirect }) => {
+export const POST: APIRoute = async ({ params, request, redirect, cookies }) => {
   try {
     const { id } = params;
     if (!id) throw new Error('Entry ID required');
 
     const formData = await request.formData();
+    const authToken = await getAuthToken(cookies);
     const updates: Record<string, unknown> = {};
 
     // Collect all form fields (slug is auto-generated from title on backend)
@@ -19,7 +20,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       }
     }
 
-    await updateEntry(id, updates);
+    await updateEntry(id, updates, authToken);
     return redirect(`/entries/${id}`, 303);
   } catch (error) {
     console.error('[entries/update] Error:', error);

@@ -2,6 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import { getEntryType } from "@/lib/api/entryTypes";
+import { getAuthToken } from '@/lib/api/client';
 
 const { id } = Astro.params;
 
@@ -12,7 +13,8 @@ if (!id) {
   error = "Entry type ID is required";
 } else {
   try {
-    entryType = await getEntryType(id);
+    const authToken = await getAuthToken(Astro.cookies);
+    entryType = await getEntryType(id, authToken);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     console.error('[EntryType] Failed to load:', error);

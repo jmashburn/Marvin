@@ -17,8 +17,8 @@ export const POST: APIRoute = async ({ request, redirect, cookies }) => {
       icon: (formData.get('icon') as string) || null,
       color: (formData.get('color') as string) || null,
       description: (formData.get('description') as string) || null,
-      sort_order: parseInt(formData.get('sort_order') as string) || 0,
-      is_smart: formData.get('is_smart') === 'true',
+      sortOrder: parseInt(formData.get('sort_order') as string) || 0,
+      isSmart: formData.get('is_smart') === 'true',
     }, authToken);
 
     return redirect('/collections', 303);

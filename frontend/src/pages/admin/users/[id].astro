@@ -321,12 +321,12 @@ const authMethods = [
   import { fetchApi } from '@/lib/api/client';
 
   // Update user form
-  const updateForm = document.getElementById('update-user-form') as HTMLFormElement | null;
+  const updateForm = /** @type {HTMLFormElement | null} */ (document.getElementById('update-user-form'));
   updateForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const formData = new FormData(/** @type {HTMLFormElement} */ (e.currentTarget));
 
-    const data: any = {
+    const data = {
       full_name: formData.get('full_name') || null,
       username: formData.get('username'),
       email: formData.get('email'),
@@ -353,7 +353,7 @@ const authMethods = [
 
   // Delete user
   const deleteBtn = document.getElementById('delete-btn');
-  const deleteModal = document.getElementById('delete-modal') as HTMLDialogElement | null;
+  const deleteModal = /** @type {HTMLDialogElement | null} */ (document.getElementById('delete-modal'));
   const confirmDeleteBtn = document.getElementById('confirm-delete');
   const cancelDeleteBtn = document.getElementById('cancel-delete');
 
@@ -381,8 +381,8 @@ const authMethods = [
 
   // Add workspace membership
   const addMembershipBtn = document.getElementById('add-membership-btn');
-  const workspaceSelect = document.getElementById('workspace-select') as HTMLSelectElement | null;
-  const roleSelect = document.getElementById('role-select') as HTMLSelectElement | null;
+  const workspaceSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('workspace-select'));
+  const roleSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('role-select'));
 
   addMembershipBtn?.addEventListener('click', async () => {
     const workspaceId = workspaceSelect?.value;
@@ -414,7 +414,7 @@ const authMethods = [
   const removeButtons = document.querySelectorAll('.remove-membership-btn');
   removeButtons.forEach(btn => {
     btn.addEventListener('click', async () => {
-      const target = btn as HTMLButtonElement;
+      const target = /** @type {HTMLButtonElement} */ (btn);
       const workspaceId = target.dataset.workspaceId;
       const workspaceName = target.dataset.workspaceName;
 

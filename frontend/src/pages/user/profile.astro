@@ -1,15 +1,22 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
-import type { UserSummary } from "@/lib/api/types";
+
+interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  fullName?: string | null;
+  admin: boolean;
+}
 
 const authToken = getAuthToken(Astro.cookies);
-let user: UserSummary | null = null;
+let user: UserProfile | null = null;
 let error: string | null = null;
 let success = Astro.url.searchParams.get('success');
 
 try {
-  user = await fetchApi<UserSummary>('/api/self', {}, authToken);
+  user = await fetchApi<UserProfile>('/api/self', {}, authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
 }

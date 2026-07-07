@@ -2,12 +2,13 @@ import type { APIRoute } from 'astro';
 import { getAuthToken } from '@/lib/api/client';
 import { updateCollection } from '@/lib/api/collections';
 
-export const POST: APIRoute = async ({ params, request, redirect }) => {
+export const POST: APIRoute = async ({ params, request, redirect, cookies }) => {
   try {
     const { id } = params;
     if (!id) throw new Error('Collection ID required');
 
     const formData = await request.formData();
+    const authToken = await getAuthToken(cookies);
 
     await updateCollection(id, {
       name: formData.get('name') as string,
@@ -15,8 +16,8 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       icon: (formData.get('icon') as string) || null,
       color: (formData.get('color') as string) || null,
       description: (formData.get('description') as string) || null,
-      sort_order: parseInt(formData.get('sort_order') as string) || 0,
-    });
+      sortOrder: parseInt(formData.get('sort_order') as string) || 0,
+    }, authToken);
 
     return redirect(`/collections/${id}`, 303);
   } catch (error) {

@@ -98,18 +98,9 @@ export const sampleEntries: MarvinEntry[] = [
 export const sampleSiteClients: SiteClient[] = [
   {
     id: "client-mashburn",
-    groupId: "a0ea12b7-9b7b-4fa0-bc6c-8ba8676545e7",
     name: "Mash & Burn Co.",
     slug: "mashandburnco",
-    enabled: true,
-    permissions: {
-      "read:published_entries": true,
-      "read:collections": true,
-      "read:assets": true
-    },
-    lastUsedAt: "2026-07-04T13:20:00Z",
-    createdAt: "2026-07-01T10:00:00Z",
-    updateAt: null,
-    revokedAt: null,
+    is_active: true,
+    created_at: "2026-07-01T10:00:00Z",
   },
 ];

@@ -8,20 +8,10 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     const formData = await request.formData();
     const authToken = getAuthToken(cookies);
 
-    // Build permissions object from checkboxes
-    const permissions: Record<string, boolean> = {
-      read_published_entries: formData.get('read_published_entries') === 'on',
-      read_collections: formData.get('read_collections') === 'on',
-      read_assets: formData.get('read_assets') === 'on',
-      read_resources: formData.get('read_resources') === 'on',
-    };
-
     // Build create payload
     const data: APIClientCreate = {
       name: formData.get('name') as string,
-      slug: (formData.get('slug') as string) || null,
       description: (formData.get('description') as string) || null,
-      permissions,
     };
 
     // Create via backend API

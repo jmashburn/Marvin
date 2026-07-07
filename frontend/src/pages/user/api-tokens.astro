@@ -105,7 +105,7 @@ function formatDate(date: string | null | undefined): string {
       if (!confirm(`Rotate the token "${name}"? The old token will stop working.`)) return;
 
       try {
-        const data = await fetchApi(`/api/self/api-tokens/${id}/rotate`, {
+        const data = await fetchApi<{ token: string }>(`/api/self/api-tokens/${id}/rotate`, {
           method: 'POST',
         });
 

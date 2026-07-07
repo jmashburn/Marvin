@@ -1,12 +1,14 @@
 import type { APIRoute } from 'astro';
+import { getAuthToken } from '@/lib/api/client';
 import { deleteEntryType } from '@/lib/api/entryTypes';
 
-export const POST: APIRoute = async ({ params, redirect }) => {
+export const POST: APIRoute = async ({ params, redirect, cookies }) => {
   try {
     const { id } = params;
     if (!id) throw new Error('Entry type ID required');
 
-    await deleteEntryType(id);
+    const authToken = await getAuthToken(cookies);
+    await deleteEntryType(id, authToken);
     return redirect('/entry-types', 303);
   } catch (error) {
     console.error('[entry-types/delete] Error:', error);
