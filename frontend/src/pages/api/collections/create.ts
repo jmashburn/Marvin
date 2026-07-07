@@ -1,8 +1,14 @@
 import type { APIRoute } from 'astro';
 import { createCollection } from '@/lib/api/collections';
+import { getAuthToken } from '@/lib/api/client';
 
-export const POST: APIRoute = async ({ request, redirect }) => {
+export const POST: APIRoute = async ({ request, redirect, cookies }) => {
   try {
+    const authToken = getAuthToken(cookies);
+    if (!authToken) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
     const formData = await request.formData();
 
     await createCollection({
@@ -13,7 +19,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       description: (formData.get('description') as string) || null,
       sort_order: parseInt(formData.get('sort_order') as string) || 0,
       is_smart: formData.get('is_smart') === 'true',
-    });
+    }, authToken);
 
     return redirect('/collections', 303);
   } catch (error) {
