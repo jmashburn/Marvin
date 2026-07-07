@@ -1,24 +1,43 @@
 /**
- * Workspace settings API client
+ * Workspace settings API
+ * Migrated to use @inneropen/marvin-sdk
  */
 
-import { fetchApi } from "./client";
-import type { GroupRead, GroupAdminUpdate } from "./types";
+import { createSdkClient } from '../sdk';
+import type { Workspace, WorkspaceUpdate, WorkspacePreferences, WorkspacePreferencesUpdate } from '@inneropen/marvin-sdk/platform';
+
+// Re-export types for backward compatibility
+export type GroupRead = Workspace;
+export type GroupAdminUpdate = WorkspaceUpdate;
 
 /**
  * Get workspace settings
  */
-export async function getWorkspaceSettings(workspaceId: string): Promise<GroupRead> {
-  return fetchApi<GroupRead>(`/api/admin/groups/${workspaceId}`);
+export async function getWorkspaceSettings(workspaceId: string, authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.get(workspaceId);
 }
 
 /**
  * Update workspace settings
  */
-export async function updateWorkspaceSettings(workspaceId: string, data: GroupAdminUpdate): Promise<GroupRead> {
-  return fetchApi<GroupRead>(`/api/admin/groups/${workspaceId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+export async function updateWorkspaceSettings(workspaceId: string, data: WorkspaceUpdate, authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.update(workspaceId, data);
+}
+
+/**
+ * Get workspace preferences
+ */
+export async function getWorkspacePreferences(workspaceId: string, authToken: string): Promise<WorkspacePreferences> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.getPreferences(workspaceId);
+}
+
+/**
+ * Update workspace preferences
+ */
+export async function updateWorkspacePreferences(workspaceId: string, data: WorkspacePreferencesUpdate, authToken: string): Promise<WorkspacePreferences> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.updatePreferences(workspaceId, data);
 }

@@ -1,19 +1,19 @@
 :root {
   color-scheme: light;
-  --bg: #f6f3ec;
-  --panel: #fffdf8;
-  --panel-2: #ece7dc;
-  --ink: #1e2725;
-  --muted: #65706b;
-  --line: #d8d0c2;
-  --accent: #a94d3f;
-  --accent-2: #2f6f73;
-  --gold: #bd9140;
-  --good: #357a55;
-  --warn: #a9632f;
+  --bg: #fafaf9;
+  --panel: #ffffff;
+  --panel-2: #f5f5f4;
+  --ink: #0c0a09;
+  --muted: #78716c;
+  --line: #e7e5e4;
+  --accent: var(--theme-primary, #ea580c);
+  --accent-2: var(--theme-accent, #0891b2);
+  --gold: var(--theme-warning, #d97706);
+  --good: var(--theme-success, #16a34a);
+  --warn: var(--theme-warning, #ea580c);
   --radius: 8px;
 
-  /* Semantic color tokens for components */
+  /* Semantic color tokens */
   --color-surface: var(--panel);
   --color-surface-hover: var(--panel-2);
   --color-border: var(--line);
@@ -21,12 +21,37 @@
   --color-text: var(--ink);
   --color-text-muted: var(--muted);
   --color-primary: var(--accent);
-  --color-primary-bg: rgb(169 77 63 / 0.1);
-  --color-error: var(--warn);
-  --color-error-bg: rgb(169 99 47 / 0.1);
+  --color-primary-bg: rgb(234 88 12 / 0.1);
+  --color-error: var(--theme-error, #dc2626);
+  --color-error-bg: rgb(220 38 38 / 0.1);
 
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0a09;
+  --panel: #1c1917;
+  --panel-2: #292524;
+  --ink: #fafaf9;
+  --muted: #a8a29e;
+  --line: #292524;
+  --accent: var(--theme-primary, #f97316);
+  --accent-2: var(--theme-accent, #06b6d4);
+  --gold: var(--theme-warning, #f59e0b);
+  --good: var(--theme-success, #22c55e);
+  --warn: var(--theme-warning, #f97316);
+
+  --color-surface: var(--panel);
+  --color-surface-hover: var(--panel-2);
+  --color-border: var(--line);
+  --color-border-hover: var(--muted);
+  --color-text: var(--ink);
+  --color-text-muted: var(--muted);
+  --color-primary: var(--accent);
+  --color-primary-bg: rgb(249 115 22 / 0.15);
+  --color-error: var(--theme-error, #ef4444);
+  --color-error-bg: rgb(239 68 68 / 0.15);
 }
 
 * {
@@ -62,7 +87,7 @@ select {
   top: 0;
   height: 100vh;
   border-right: 1px solid var(--line);
-  background: #202927;
+  background: var(--panel-2);
   padding: 20px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -90,7 +115,7 @@ select {
 
 .sidebar-header {
   padding-bottom: 18px;
-  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  border-bottom: 1px solid var(--line);
   margin-bottom: 18px;
 }
 
@@ -98,15 +123,16 @@ select {
   display: grid;
   gap: 4px;
   padding-bottom: 18px;
-  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  border-bottom: 1px solid var(--line);
 }
 
 .brand strong {
   font-size: 20px;
+  color: var(--ink);
 }
 
 .brand span {
-  color: rgb(255 250 240 / 70%);
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -123,14 +149,15 @@ select {
   min-height: 40px;
   padding: 9px 10px;
   border-radius: var(--radius);
-  color: rgba(255, 250, 240, 0.78) !important;
+  color: var(--muted) !important;
   text-decoration: none;
+  transition: all 0.2s;
 }
 
 .nav a[aria-current="page"],
 .nav a:hover {
-  background: rgba(255, 255, 255, 0.10);
-  color: #fffaf0 !important;
+  background: var(--panel);
+  color: var(--ink) !important;
 }
 
 .nav-group {
@@ -150,7 +177,8 @@ select {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: rgba(255, 250, 240, 0.50) !important;
+  color: var(--muted) !important;
+  opacity: 0.7;
 }
 
 .nav-group .nav {
@@ -161,7 +189,7 @@ select {
 .nav-group-admin {
   margin-top: auto !important;
   padding-top: 18px;
-  border-top: 1px solid rgb(255 255 255 / 14%);
+  border-top: 1px solid var(--line);
 }
 
 .main {
@@ -176,7 +204,7 @@ select {
   gap: 16px;
   padding: 18px 28px;
   border-bottom: 1px solid var(--line);
-  background: rgb(246 243 236 / 86%);
+  background: var(--bg);
   backdrop-filter: blur(16px);
   position: sticky;
   top: 0;
