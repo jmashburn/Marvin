@@ -317,8 +317,17 @@ const authMethods = [
 </AdminLayout>
 
 <script define:vars={{ userId: user?.id }}>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+<script define:vars={{ userId: user?.id }}>
+  import { createSdkClient } from '@/lib/sdk';
+  import { getAuthTokenFromBrowser } from '@/lib/api/client';
+
+  // Get auth token and SDK client for client-side requests
+  const authToken = getAuthTokenFromBrowser();
+  if (!authToken) {
+    alert('Not authenticated');
+    window.location.href = '/login';
+  }
+  const sdk = createSdkClient(authToken);
 
   // Update user form
   const updateForm = /** @type {HTMLFormElement | null} */ (document.getElementById('update-user-form'));
@@ -338,12 +347,7 @@ const authMethods = [
     };
 
     try {
-      await fetchApi(`/api/admin/users/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
+      await sdk.adminUsers.update(userId, data);
       window.location.href = '/admin/users';
     } catch (error) {
       console.error('Update error:', error);
@@ -367,10 +371,7 @@ const authMethods = [
 
   confirmDeleteBtn?.addEventListener('click', async () => {
     try {
-      await fetchApi(`/api/admin/users/${userId}`, {
-        method: 'DELETE',
-      });
-
+      await sdk.adminUsers.delete(userId);
       window.location.href = '/admin/users';
     } catch (error) {
       console.error('Delete error:', error);
@@ -394,15 +395,10 @@ const authMethods = [
     }
 
     try {
-      await fetchApi(`/api/admin/workspaces/${workspaceId}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          workspace_role: role,
-        }),
+      await sdk.workspaceMembers.add(workspaceId, {
+        userId: userId,
+        workspaceRole: role,
       });
-
       window.location.reload();
     } catch (error) {
       console.error('Add membership error:', error);
@@ -423,10 +419,7 @@ const authMethods = [
       }
 
       try {
-        await fetchApi(`/api/admin/workspaces/${workspaceId}/members/${userId}`, {
-          method: 'DELETE',
-        });
-
+        await sdk.workspaceMembers.remove(workspaceId, userId);
         window.location.reload();
       } catch (error) {
         console.error('Remove membership error:', error);

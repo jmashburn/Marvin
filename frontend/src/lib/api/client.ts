@@ -46,6 +46,23 @@ export function getAuthToken(cookies?: { get: (name: string) => { value?: string
 }
 
 /**
+ * Get authentication token from browser cookies (for client-side scripts)
+ * This extracts the token from document.cookie
+ */
+export function getAuthTokenFromBrowser(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'marvin.access_token') {
+      return decodeURIComponent(value);
+    }
+  }
+  return undefined;
+}
+
+/**
  * Main API client function with retry logic and improved error handling
  *
  * @param path - API endpoint path
