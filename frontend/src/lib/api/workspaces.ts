@@ -1,72 +1,74 @@
 /**
- * Workspace management API client
+ * Workspaces API client - SDK wrapper
+ * Migrated to use @inneropen/marvin-sdk
  */
 
-import { fetchApi } from "./client";
+import { createSdkClient } from '../sdk';
 import type {
-  GroupRead,
-  GroupCreate,
-  GroupAdminUpdate,
-  WorkspaceWithMembership,
-  WorkspaceActivationRequest,
-} from "./types";
+  PlatformWorkspace,
+  PlatformWorkspaceCreate,
+  PlatformWorkspaceUpdate,
+} from '@inneropen/marvin-sdk/platform';
+
+// Re-export SDK types with legacy names for backward compatibility
+export type WorkspaceRead = PlatformWorkspace;
+export type WorkspaceCreate = PlatformWorkspaceCreate;
+export type WorkspaceUpdate = PlatformWorkspaceUpdate;
 
 /**
- * Get the user's currently active workspace
+ * List all workspaces the current user can access
  */
-export async function getCurrentWorkspace(authToken?: string): Promise<GroupRead> {
-  return fetchApi<GroupRead>('/api/self/workspaces/current', {}, authToken);
+export async function listWorkspaces(authToken: string): Promise<WorkspaceRead[]> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.list();
 }
 
 /**
- * List all workspaces accessible to the current user
- * For SUPER_ADMIN: Returns all workspaces
- * For regular users: Returns only workspaces they're members of
+ * Get a single workspace by ID
  */
-export async function listWorkspaces(authToken?: string): Promise<WorkspaceWithMembership[]> {
-  return fetchApi<WorkspaceWithMembership[]>('/api/self/workspaces', {}, authToken);
+export async function getWorkspace(id: string, authToken: string): Promise<WorkspaceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.get(id);
 }
 
 /**
- * Activate a workspace (make it the current active workspace)
+ * Create a new workspace
  */
-export async function activateWorkspace(workspaceId: string, authToken?: string): Promise<GroupRead> {
-  const body: WorkspaceActivationRequest = { workspace_id: workspaceId };
-  return fetchApi<GroupRead>('/api/self/workspaces/current', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }, authToken);
+export async function createWorkspace(data: WorkspaceCreate, authToken: string): Promise<WorkspaceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.create(data);
 }
 
 /**
- * Create a new workspace (requires SUPER_ADMIN)
+ * Update an existing workspace
  */
-export async function createWorkspace(data: GroupCreate): Promise<GroupRead> {
-  return fetchApi<GroupRead>('/api/admin/groups', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+export async function updateWorkspace(id: string, data: WorkspaceUpdate, authToken: string): Promise<WorkspaceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.update(id, data);
 }
 
 /**
- * Update workspace settings (requires ADMIN or OWNER)
+ * Delete a workspace
  */
-export async function updateWorkspace(id: string, data: GroupAdminUpdate): Promise<GroupRead> {
-  return fetchApi<GroupRead>(`/api/admin/groups/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+export async function deleteWorkspace(id: string, authToken: string): Promise<void> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.delete(id);
 }
 
 /**
- * Delete a workspace (requires SUPER_ADMIN)
+ * Get the current active workspace
+ * Note: This is determined by server-side session state
  */
-export async function deleteWorkspace(id: string, force: boolean = false): Promise<void> {
-  const queryParams = force ? '?force=true' : '';
-  return fetchApi<void>(`/api/admin/groups/${id}${queryParams}`, {
-    method: 'DELETE',
-  });
+export async function getCurrentWorkspace(authToken: string): Promise<WorkspaceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.getCurrent();
+}
+
+/**
+ * Set the active workspace
+ * Note: This updates server-side session state
+ */
+export async function setActiveWorkspace(slug: string, authToken: string): Promise<WorkspaceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.setActive(slug);
 }

@@ -200,9 +200,9 @@ tasks:
       - sleep 2
       - echo "Cleaning development environment..."
       - task dev:clean
-      - echo "Starting services..."
-      - task docker:services:start
-      - sleep 3
+      - echo "Starting Marvin backend..."
+      - task py &
+      - sleep 5
       - echo "Seeding Mash & Burn Co. data..."
       - uv run scripts/seed_mashandburnco.py
-      - echo "✅ Reset complete! Ready to test."
+      - echo "✅ Reset complete! Marvin running with fresh data."

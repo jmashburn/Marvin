@@ -1,96 +1,66 @@
 /**
- * Workspace Members API - manage workspace access and roles
+ * Workspace Members API client - SDK wrapper
+ * Migrated to use @inneropen/marvin-sdk
  */
 
-import { fetchApi } from "./client";
-import type { WorkspaceMembershipRead, WorkspaceMemberCreate, WorkspaceMemberUpdate } from "./types";
+import { createSdkClient } from '../sdk';
+import type {
+  PlatformWorkspaceMember,
+  PlatformWorkspaceMemberCreate,
+  PlatformWorkspaceMemberUpdate,
+} from '@inneropen/marvin-sdk/platform';
+
+// Re-export SDK types with legacy names for backward compatibility
+export type WorkspaceMemberRead = PlatformWorkspaceMember;
+export type WorkspaceMemberCreate = PlatformWorkspaceMemberCreate;
+export type WorkspaceMemberUpdate = PlatformWorkspaceMemberUpdate;
 
 /**
  * List all members of a workspace
- * Auth: Workspace ADMIN/OWNER required
+ * Auth: Workspace member (any role)
  */
-export async function listWorkspaceMembers(
-  workspaceId: string,
-  authToken?: string
-): Promise<WorkspaceMembershipRead[]> {
-  return fetchApi<WorkspaceMembershipRead[]>(
-    `/api/platform/workspaces/${workspaceId}/members`,
-    {},
-    authToken
-  );
+export async function listWorkspaceMembers(workspaceId: string, authToken: string): Promise<WorkspaceMemberRead[]> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaceMembers.list(workspaceId);
 }
 
 /**
- * Add a user to a workspace with a specific role
- * Auth: Workspace ADMIN/OWNER required
+ * Get a single workspace member
+ * Auth: Workspace member (any role)
  */
-export async function addWorkspaceMember(
-  workspaceId: string,
-  data: WorkspaceMemberCreate,
-  authToken?: string
-): Promise<WorkspaceMembershipRead> {
-  return fetchApi<WorkspaceMembershipRead>(
-    `/api/platform/workspaces/${workspaceId}/members`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    },
-    authToken
-  );
+export async function getWorkspaceMember(workspaceId: string, userId: string, authToken: string): Promise<WorkspaceMemberRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaceMembers.get(workspaceId, userId);
 }
 
 /**
- * Get details of a specific workspace member
- * Auth: Any workspace member can view
+ * Add a member to a workspace
+ * Auth: Workspace ADMIN/OWNER required
  */
-export async function getWorkspaceMember(
-  workspaceId: string,
-  userId: string,
-  authToken?: string
-): Promise<WorkspaceMembershipRead> {
-  return fetchApi<WorkspaceMembershipRead>(
-    `/api/platform/workspaces/${workspaceId}/members/${userId}`,
-    {},
-    authToken
-  );
+export async function addWorkspaceMember(workspaceId: string, data: WorkspaceMemberCreate, authToken: string): Promise<WorkspaceMemberRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaceMembers.add(workspaceId, data);
 }
 
 /**
  * Update a workspace member's role
  * Auth: Workspace ADMIN/OWNER required
- * Restrictions: Cannot change own role, cannot demote last OWNER
  */
 export async function updateWorkspaceMemberRole(
   workspaceId: string,
   userId: string,
   data: WorkspaceMemberUpdate,
-  authToken?: string
-): Promise<WorkspaceMembershipRead> {
-  return fetchApi<WorkspaceMembershipRead>(
-    `/api/platform/workspaces/${workspaceId}/members/${userId}`,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    },
-    authToken
-  );
+  authToken: string
+): Promise<WorkspaceMemberRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaceMembers.updateRole(workspaceId, userId, data);
 }
 
 /**
- * Remove a user from a workspace
+ * Remove a member from a workspace
  * Auth: Workspace ADMIN/OWNER required
- * Restrictions: Cannot remove yourself, cannot remove last OWNER
  */
-export async function removeWorkspaceMember(
-  workspaceId: string,
-  userId: string,
-  authToken?: string
-): Promise<void> {
-  return fetchApi<void>(
-    `/api/platform/workspaces/${workspaceId}/members/${userId}`,
-    { method: 'DELETE' },
-    authToken
-  );
+export async function removeWorkspaceMember(workspaceId: string, userId: string, authToken: string): Promise<void> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaceMembers.remove(workspaceId, userId);
 }

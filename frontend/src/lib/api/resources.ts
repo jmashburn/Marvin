@@ -1,51 +1,70 @@
 /**
- * Resources API client
+ * Resources API client - SDK wrapper
+ * Migrated to use @inneropen/marvin-sdk
  */
 
-import { fetchApi } from "./client";
-import type { ResourceRead, ResourceCreate, ResourceUpdate } from "./types";
+import { createSdkClient } from '../sdk';
+import type {
+  PlatformResource,
+  PlatformResourceCreate,
+  PlatformResourceUpdate,
+  PlatformEntry,
+} from '@inneropen/marvin-sdk/platform';
+
+// Re-export SDK types with legacy names for backward compatibility
+export type ResourceRead = PlatformResource;
+export type ResourceCreate = PlatformResourceCreate;
+export type ResourceUpdate = PlatformResourceUpdate;
+export type EntryRead = PlatformEntry;
 
 /**
  * List all resources in the current workspace
  */
-export async function listResources(authToken?: string): Promise<ResourceRead[]> {
-  return fetchApi<ResourceRead[]>('/api/platform/resources', {}, authToken);
+export async function listResources(authToken: string): Promise<ResourceRead[]> {
+  const sdk = createSdkClient(authToken);
+  return sdk.resources.list();
 }
 
 /**
  * Get a single resource by ID
  */
-export async function getResource(id: string, authToken?: string): Promise<ResourceRead> {
-  return fetchApi<ResourceRead>(`/api/platform/resources/${id}`, {}, authToken);
+export async function getResource(id: string, authToken: string): Promise<ResourceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.resources.get(id);
 }
 
 /**
  * Create a new resource
  */
-export async function createResource(data: ResourceCreate, authToken?: string): Promise<ResourceRead> {
-  return fetchApi<ResourceRead>('/api/platform/resources', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function createResource(data: ResourceCreate, authToken: string): Promise<ResourceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.resources.create(data);
 }
 
 /**
  * Update an existing resource
  */
-export async function updateResource(id: string, data: ResourceUpdate, authToken?: string): Promise<ResourceRead> {
-  return fetchApi<ResourceRead>(`/api/platform/resources/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function updateResource(id: string, data: ResourceUpdate, authToken: string): Promise<ResourceRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.resources.update(id, data);
 }
 
 /**
  * Delete a resource
  */
-export async function deleteResource(id: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/platform/resources/${id}`, {
-    method: 'DELETE',
-  }, authToken);
+export async function deleteResource(id: string, authToken: string): Promise<void> {
+  const sdk = createSdkClient(authToken);
+  return sdk.resources.delete(id);
+}
+
+/**
+ * Get entries that reference this resource
+ * Note: This method is not yet available in the SDK
+ * TODO: Add to SDK or use a different approach
+ */
+export async function getResourceEntries(resourceId: string, authToken: string): Promise<EntryRead[]> {
+  // Temporary: Return empty array until SDK supports this
+  // const sdk = createSdkClient(authToken);
+  // return sdk.resources.getEntries(resourceId);
+  return [];
 }

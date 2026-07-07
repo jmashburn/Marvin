@@ -9,6 +9,9 @@ let workspaces;
 let error: string | null = null;
 
 try {
+  if (!authToken) {
+    throw new Error('Not authenticated');
+  }
   currentWorkspace = await getCurrentWorkspace(authToken);
   workspaces = await listWorkspaces(authToken);
 } catch (e) {

@@ -1,28 +1,33 @@
 /**
  * Platform API methods - Assets and API Clients (Site Clients)
- * Note: Entries are now accessed via entries.ts
+ * Migrated to use @inneropen/marvin-sdk
  */
 
-import { fetchApi } from "./client";
+import { createSdkClient } from '../sdk';
 import type {
-  ApiListResponse,
-  MarvinAsset,
-  APIClientRead,
-  APIClientCreate,
-  APIClientUpdate,
-  APIClientWithToken,
-  WorkspaceSiteInfo
-} from "./types";
+  PlatformAsset,
+  PlatformAPIClient,
+  PlatformAPIClientCreate,
+  PlatformAPIClientUpdate,
+  PlatformAPIClientWithToken,
+} from '@inneropen/marvin-sdk/platform';
 
-function unwrapList<T>(response: ApiListResponse<T> | T[]): T[] {
-  return Array.isArray(response) ? response : response.data;
-}
+// Re-export SDK types with legacy names for backward compatibility
+export type MarvinAsset = PlatformAsset;
+export type APIClientRead = PlatformAPIClient;
+export type APIClientCreate = PlatformAPIClientCreate;
+export type APIClientUpdate = PlatformAPIClientUpdate;
+export type APIClientWithToken = PlatformAPIClientWithToken;
+
+// WorkspaceSiteInfo type (for preview) - map to SDK type
+export type WorkspaceSiteInfo = PlatformAPIClient; // Preview returns the same structure
 
 /**
  * Get all assets in the current workspace
  */
-export async function getAssets(authToken?: string): Promise<MarvinAsset[]> {
-  return unwrapList(await fetchApi<ApiListResponse<MarvinAsset> | MarvinAsset[]>('/api/platform/assets', {}, authToken));
+export async function getAssets(authToken: string): Promise<MarvinAsset[]> {
+  const sdk = createSdkClient(authToken);
+  return sdk.assets.list();
 }
 
 // ===== API Client Management (Admin Operations) =====
@@ -31,8 +36,9 @@ export async function getAssets(authToken?: string): Promise<MarvinAsset[]> {
  * Get all API clients for the current workspace
  * Auth: Normal Marvin user session, workspace-scoped
  */
-export async function getSiteClients(authToken?: string): Promise<APIClientRead[]> {
-  return fetchApi<APIClientRead[]>('/api/platform/api-clients', {}, authToken);
+export async function getSiteClients(authToken: string): Promise<APIClientRead[]> {
+  const sdk = createSdkClient(authToken);
+  return sdk.apiClients.list();
 }
 
 /**
@@ -40,12 +46,9 @@ export async function getSiteClients(authToken?: string): Promise<APIClientRead[
  * Returns plaintext token ONCE - store securely
  * Auth: Workspace ADMIN/OWNER required
  */
-export async function createSiteClient(data: APIClientCreate, authToken?: string): Promise<APIClientWithToken> {
-  return fetchApi<APIClientWithToken>('/api/platform/api-clients', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function createSiteClient(data: APIClientCreate, authToken: string): Promise<APIClientWithToken> {
+  const sdk = createSdkClient(authToken);
+  return sdk.apiClients.create(data);
 }
 
 /**
@@ -54,30 +57,27 @@ export async function createSiteClient(data: APIClientCreate, authToken?: string
  * Returns new plaintext token ONCE - store securely
  * Auth: Workspace ADMIN/OWNER required
  */
-export async function rotateSiteClientToken(id: string, authToken?: string): Promise<APIClientWithToken> {
-  return fetchApi<APIClientWithToken>(`/api/platform/api-clients/${id}/rotate-token`, {
-    method: 'POST',
-  }, authToken);
+export async function rotateSiteClientToken(id: string, authToken: string): Promise<APIClientWithToken> {
+  const sdk = createSdkClient(authToken);
+  return sdk.apiClients.rotateToken(id);
 }
 
 /**
  * Update API client metadata (name, description, permissions, enabled status)
  * Auth: Workspace ADMIN/OWNER required
  */
-export async function updateSiteClient(id: string, data: APIClientUpdate, authToken?: string): Promise<APIClientRead> {
-  return fetchApi<APIClientRead>(`/api/platform/api-clients/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function updateSiteClient(id: string, data: APIClientUpdate, authToken: string): Promise<APIClientRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.apiClients.update(id, data);
 }
 
 /**
  * Delete an API client
  * Auth: Workspace ADMIN/OWNER required
  */
-export async function deleteSiteClient(id: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/platform/api-clients/${id}`, { method: 'DELETE' }, authToken);
+export async function deleteSiteClient(id: string, authToken: string): Promise<void> {
+  const sdk = createSdkClient(authToken);
+  return sdk.apiClients.delete(id);
 }
 
 /**
@@ -85,6 +85,7 @@ export async function deleteSiteClient(id: string, authToken?: string): Promise<
  * Shows what external consumers would receive WITHOUT needing a token
  * Auth: Normal Marvin user session (read access to workspace)
  */
-export async function previewPublishPayload(id: string, authToken?: string): Promise<WorkspaceSiteInfo> {
-  return fetchApi<WorkspaceSiteInfo>(`/api/platform/api-clients/${id}/preview`, {}, authToken);
+export async function previewPublishPayload(id: string, authToken: string): Promise<WorkspaceSiteInfo> {
+  const sdk = createSdkClient(authToken);
+  return sdk.apiClients.preview(id) as Promise<WorkspaceSiteInfo>;
 }

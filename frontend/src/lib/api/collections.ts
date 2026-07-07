@@ -1,55 +1,70 @@
 /**
- * Collections API client
+ * Collections API client - SDK wrapper
+ * Migrated to use @inneropen/marvin-sdk
  */
 
-import { fetchApi } from "./client";
+import { createSdkClient } from '../sdk';
 import type {
-  CollectionRead,
-  CollectionCreate,
-  CollectionUpdate,
-} from "./types";
+  PlatformCollection,
+  PlatformCollectionCreate,
+  PlatformCollectionUpdate,
+  PlatformEntry,
+} from '@inneropen/marvin-sdk/platform';
+
+// Re-export SDK types with legacy names for backward compatibility
+export type CollectionRead = PlatformCollection;
+export type CollectionCreate = PlatformCollectionCreate;
+export type CollectionUpdate = PlatformCollectionUpdate;
+export type EntryRead = PlatformEntry;
 
 /**
  * List all collections in the current workspace
  */
-export async function listCollections(authToken?: string): Promise<CollectionRead[]> {
-  return fetchApi<CollectionRead[]>('/api/platform/collections', {}, authToken);
+export async function listCollections(authToken: string): Promise<CollectionRead[]> {
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.list();
 }
 
 /**
  * Get a single collection by ID
  */
-export async function getCollection(id: string, authToken?: string): Promise<CollectionRead> {
-  return fetchApi<CollectionRead>(`/api/platform/collections/${id}`, {}, authToken);
+export async function getCollection(id: string, authToken: string): Promise<CollectionRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.get(id);
 }
 
 /**
  * Create a new collection
  */
-export async function createCollection(data: CollectionCreate, authToken?: string): Promise<CollectionRead> {
-  return fetchApi<CollectionRead>('/api/platform/collections', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function createCollection(data: CollectionCreate, authToken: string): Promise<CollectionRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.create(data);
 }
 
 /**
  * Update an existing collection
  */
-export async function updateCollection(id: string, data: CollectionUpdate, authToken?: string): Promise<CollectionRead> {
-  return fetchApi<CollectionRead>(`/api/platform/collections/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function updateCollection(id: string, data: CollectionUpdate, authToken: string): Promise<CollectionRead> {
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.update(id, data);
 }
 
 /**
  * Delete a collection
  */
-export async function deleteCollection(id: string, authToken?: string): Promise<void> {
-  return fetchApi<void>(`/api/platform/collections/${id}`, {
-    method: 'DELETE',
-  }, authToken);
+export async function deleteCollection(id: string, authToken: string): Promise<void> {
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.delete(id);
+}
+
+/**
+ * Get entries in a collection
+ * Note: This method is not yet available in the SDK
+ * TODO: Add to SDK or use a different approach
+ */
+export async function getCollectionEntries(collectionId: string, authToken: string): Promise<EntryRead[]> {
+  // Temporary: Return empty array until SDK supports this
+  // const sdk = createSdkClient(authToken);
+  // return sdk.collections.getEntries(collectionId);
+  return [];
 }
