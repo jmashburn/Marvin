@@ -104,14 +104,10 @@ try {
   import { createSdkClient } from '@/lib/sdk';
   import { getAuthTokenFromBrowser } from '@/lib/api/client';
 
-  // Helper to get SDK client with auth
-  function getSdk() {
-    const authToken = getAuthTokenFromBrowser();
-    if (!authToken) {
-      throw new Error('Not authenticated');
-    }
-    return createSdkClient(authToken);
-  }
+  // Get auth token from browser cookies (if available)
+  // If token is HttpOnly and can't be read, SDK will use cookies via credentials: 'include'
+  const authToken = getAuthTokenFromBrowser();
+  const sdk = createSdkClient(authToken);
 
   // Cleanup tokens
   document.getElementById('cleanup-tokens')?.addEventListener('click', async () => {

@@ -28,7 +28,7 @@ import { getApiUrl } from './api/config';
  * const entries = await sdk.entries.list();
  * ```
  */
-export function createSdkClient(authToken: string): PlatformClient {
+export function createSdkClient(authToken?: string): PlatformClient {
   // Get base API URL (strip any trailing path)
   const apiUrl = getApiUrl('');
   const baseUrl = (typeof apiUrl === 'string' ? apiUrl : apiUrl.toString()).replace(/\/+$/, '');
@@ -36,5 +36,6 @@ export function createSdkClient(authToken: string): PlatformClient {
   return createPlatformClient({
     apiUrl: baseUrl,
     userToken: authToken,
+    credentials: 'include', // Always include cookies for HttpOnly session
   });
 }

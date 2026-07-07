@@ -317,16 +317,12 @@ const authMethods = [
 </AdminLayout>
 
 <script define:vars={{ userId: user?.id }}>
-<script define:vars={{ userId: user?.id }}>
   import { createSdkClient } from '@/lib/sdk';
   import { getAuthTokenFromBrowser } from '@/lib/api/client';
 
   // Get auth token and SDK client for client-side requests
+  // If token is HttpOnly and can't be read, SDK will use cookies via credentials: 'include'
   const authToken = getAuthTokenFromBrowser();
-  if (!authToken) {
-    alert('Not authenticated');
-    window.location.href = '/login';
-  }
   const sdk = createSdkClient(authToken);
 
   // Update user form
