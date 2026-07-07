@@ -52,52 +52,6 @@ class AppInfo(_MarvinModel):
     enable_openai_image_services: bool  # Indicates if OpenAI image-related services are specifically enabled.
 
 
-class AppTheme(_MarvinModel):
-    """
-    Schema defining the complete color system for the application's light and dark themes.
-    Includes background, surface, text, border, and accent colors.
-    Actual color values are defined in core/settings/theme.py
-    """
-
-    # Light theme - Background & Surface
-    light_bg: str
-    light_panel: str
-    light_panel_secondary: str
-
-    # Light theme - Text & Borders
-    light_text: str
-    light_text_muted: str
-    light_border: str
-
-    # Light theme - Accent Colors
-    light_primary: str
-    light_accent: str
-    light_secondary: str
-    light_success: str
-    light_info: str
-    light_warning: str
-    light_error: str
-
-    # Dark theme - Background & Surface
-    dark_bg: str
-    dark_panel: str
-    dark_panel_secondary: str
-
-    # Dark theme - Text & Borders
-    dark_text: str
-    dark_text_muted: str
-    dark_border: str
-
-    # Dark theme - Accent Colors
-    dark_primary: str
-    dark_accent: str
-    dark_secondary: str
-    dark_success: str
-    dark_info: str
-    dark_warning: str
-    dark_error: str
-
-
 class AppStartupInfo(_MarvinModel):
     """
     Schema for information relevant to the application's startup state,
