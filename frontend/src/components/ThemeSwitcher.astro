@@ -97,6 +97,17 @@ try {
       const prefix = theme === 'dark' ? 'dark' : 'light';
       const root = document.documentElement.style;
 
+      // Background & Surface colors
+      root.setProperty('--bg', themeColors[`${prefix}Bg`]);
+      root.setProperty('--panel', themeColors[`${prefix}Panel`]);
+      root.setProperty('--panel-2', themeColors[`${prefix}PanelSecondary`]);
+
+      // Text & Border colors
+      root.setProperty('--ink', themeColors[`${prefix}Text`]);
+      root.setProperty('--muted', themeColors[`${prefix}TextMuted`]);
+      root.setProperty('--line', themeColors[`${prefix}Border`]);
+
+      // Accent colors
       root.setProperty('--theme-primary', themeColors[`${prefix}Primary`]);
       root.setProperty('--theme-accent', themeColors[`${prefix}Accent`]);
       root.setProperty('--theme-secondary', themeColors[`${prefix}Secondary`]);
