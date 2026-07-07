@@ -6,7 +6,7 @@ It provides endpoints to retrieve general application details (like version),
 startup configuration information, and theme settings.
 """
 
-from fastapi import Response  # APIRouter needed for router instantiation
+from fastapi import APIRouter, Response
 
 from marvin.core.config import get_app_settings
 from marvin.core.settings.static import APP_VERSION  # Current application version
@@ -16,6 +16,9 @@ from marvin.schemas.app import AppInfo, AppTheme  # Pydantic response models
 # APIRouter for "about" section, prefixed with /about and using UserAPIRouter for auth
 # All routes in this controller will be under /app/about due to UserAPIRouter in main app and this prefix.
 router = UserAPIRouter(prefix="/about")
+
+# Public router for theme endpoint (no auth required)
+public_router = APIRouter(prefix="/about")
 
 
 @router.get("", response_model=AppInfo, summary="Get Basic Application Information")
@@ -78,7 +81,7 @@ def get_startup_info():
     return {camelize(key.lower()): value for key, value in data.items()}
 
 
-@router.get("/theme", response_model=AppTheme, summary="Get Application Theme Settings")
+@public_router.get("/theme", response_model=AppTheme, summary="Get Application Theme Settings")
 def get_app_theme(resp: Response) -> AppTheme:
     """
     Retrieves the current application theme settings.
@@ -86,7 +89,7 @@ def get_app_theme(resp: Response) -> AppTheme:
     The theme settings are fetched from the application configuration.
     This endpoint also sets cache control headers to allow client-side caching
     of the theme information for a specified duration.
-    Accessible to any authenticated user.
+    Public endpoint - no authentication required.
 
     Args:
         resp (Response): The FastAPI Response object, used to set custom headers.
