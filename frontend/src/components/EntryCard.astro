@@ -11,7 +11,7 @@ const asset = entry.assets?.find((item) => item.role === "featured" || item.role
 
 <article class="card">
   <div class="media">
-    {asset?.url ? <img src={asset.url} alt={asset.alt_text ?? entry.title} style={`object-position: ${asset.focal_point ?? "50% 50%"}`} /> : null}
+    {asset?.url ? <img src={asset.url} alt={asset.altText ?? entry.title} style={`object-position: ${asset.focalPoint ?? "50% 50%"}`} /> : null}
   </div>
   <div class="card-body">
     <a href={`/workspace/entries/${entry.id}`} class="card-title-link">

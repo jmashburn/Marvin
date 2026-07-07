@@ -27,11 +27,14 @@ export interface MarvinAsset {
   placementMetadata?: Record<string, unknown> | null;
 }
 
+// MarvinEntry is for sample/test data - uses snake_case for legacy compatibility
 export interface MarvinEntry {
   id: string;
   slug: string;
   title: string;
-  entry_type: EntryType;
+  entry_type: string;
+  entryTypeId: string;
+  groupId: string;
   summary?: string | null;
   content_markdown?: string;
   frontmatter?: Record<string, unknown> | null;
@@ -43,345 +46,211 @@ export interface MarvinEntry {
   assets?: MarvinAsset[];
 }
 
+// EntryRead is from SDK - uses camelCase
+// Re-export from SDK for type compatibility
+import type { PlatformEntry } from '@inneropen/marvin-sdk/platform';
+export type EntryRead = PlatformEntry;
+
 export interface SiteClient {
   id: string;
   name: string;
   slug: string;
   is_active: boolean;
-  permissions: string[];
-  last_used_at?: string | null;
+  scopes?: string[];
+  created_at?: string;
 }
 
+// API List Response (pagination wrapper)
 export interface ApiListResponse<T> {
   data: T[];
-  meta?: {
-    total?: number;
-    page?: number;
-    page_size?: number;
-  };
+  total?: number;
+  page?: number;
+  pageSize?: number;
 }
 
-// ===== Workspace/Group Types =====
-
-export interface GroupPreferencesRead {
-  private_group: boolean;
-  first_day_of_week: number;
-  recipe_public: boolean;
-  recipe_show_nutrition: boolean;
-  recipe_show_assets: boolean;
-  recipe_landscape_view: boolean;
-  recipe_disable_comments: boolean;
-  recipe_disable_amount: boolean;
-
-  // Site/Workspace Configuration
-  site_title?: string | null;
-  site_tagline?: string | null;
-  site_description?: string | null;
-  site_canonical_url?: string | null;
-  site_logo?: string | null;
-  site_favicon?: string | null;
-  site_locale?: string | null;
-  site_timezone?: string | null;
-  site_contact_email?: string | null;
-  site_social_json?: Record<string, string> | null;
-  site_metadata_json?: Record<string, unknown> | null;
+// Collection types
+export interface CollectionRead {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
 }
 
-export interface GroupPreferencesUpdate extends Partial<GroupPreferencesRead> {}
+export interface CollectionCreate {
+  slug: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface CollectionUpdate {
+  slug?: string;
+  name?: string;
+  description?: string | null;
+}
+
+// Resource types
+export interface ResourceRead {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface ResourceCreate {
+  slug: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface ResourceUpdate {
+  slug?: string;
+  name?: string;
+  description?: string | null;
+}
+
+// Entry Type
+export interface EntryTypeRead {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  schema?: Record<string, unknown> | null;
+}
+
+export interface EntryTypeCreate {
+  slug: string;
+  name: string;
+  description?: string | null;
+  schema?: Record<string, unknown> | null;
+}
+
+export interface EntryTypeUpdate {
+  slug?: string;
+  name?: string;
+  description?: string | null;
+  schema?: Record<string, unknown> | null;
+}
+
+// Entry CRUD types
+export interface EntryCreate {
+  slug: string;
+  title: string;
+  entryTypeId: string;
+  summary?: string | null;
+  description?: string | null;
+  contentMarkdown?: string | null;
+  status?: string;
+  publishedAt?: string | null;
+  metadataJson?: Record<string, unknown> | null;
+}
+
+export interface EntryUpdate {
+  slug?: string;
+  title?: string;
+  summary?: string | null;
+  description?: string | null;
+  contentMarkdown?: string | null;
+  status?: string;
+  publishedAt?: string | null;
+  metadataJson?: Record<string, unknown> | null;
+}
+
+// API Client types
+export interface APIClientRead {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description?: string | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface APIClientCreate {
+  name: string;
+  description?: string | null;
+}
+
+export interface APIClientUpdate {
+  name?: string;
+  description?: string | null;
+  enabled?: boolean;
+}
+
+export interface APIClientWithToken extends APIClientRead {
+  token: string;
+}
+
+export interface WorkspaceSiteInfo {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
+// Workspace types
+export interface GroupRead {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+}
 
 export interface GroupCreate {
+  slug: string;
   name: string;
+  description?: string | null;
 }
 
 export interface GroupAdminUpdate {
-  id: string;
-  name: string;
-  preferences?: GroupPreferencesUpdate | null;
+  slug?: string;
+  name?: string;
+  description?: string | null;
 }
 
-export interface UserSummary {
-  id: string;
-  username: string;
-  email?: string | null;
-  fullName?: string | null;
-}
-
-export interface GroupRead {
-  id: string;
-  name: string;
-  slug?: string | null;
-  users?: UserSummary[] | null;
-  preferences?: GroupPreferencesRead | null;
-  webhooks?: unknown[];
+export interface WorkspaceWithMembership {
+  workspace: GroupRead;
+  role: WorkspaceRole;
 }
 
 export interface WorkspaceActivationRequest {
   workspace_id: string;
 }
 
-export interface WorkspaceWithMembership {
-  workspace: GroupRead;
-  role: WorkspaceRole;
-  is_active: boolean;
-}
-
-// ===== Entry Type Types =====
-
-export interface EntryTypeCreate {
-  name: string;
-  slug: string;
-  icon?: string | null;
-  color?: string | null;
-  description?: string | null;
-  sort_order?: number;
-  is_system?: boolean;
-}
-
-export interface EntryTypeUpdate {
-  name?: string;
-  slug?: string;
-  icon?: string | null;
-  color?: string | null;
-  description?: string | null;
-  sort_order?: number;
-  is_system?: boolean;
-}
-
-export interface EntryTypeRead {
-  id: string;
-  groupId: string;
-  name: string;
-  slug: string;
-  icon?: string | null;
-  color?: string | null;
-  description?: string | null;
-  sortOrder: number;
-  isSystem: boolean;
-  createdAt?: string | null;
-  updateAt?: string | null;
-}
-
-// ===== Collection Types =====
-
-export interface CollectionCreate {
-  name: string;
-  slug: string;
-  description?: string | null;
-  sort_order?: number;
-  icon?: string | null;
-  color?: string | null;
-  is_smart?: boolean;
-  smart_rules?: Record<string, unknown> | null;
-}
-
-export interface CollectionUpdate {
-  name?: string;
-  slug?: string;
-  description?: string | null;
-  sort_order?: number;
-  icon?: string | null;
-  color?: string | null;
-  is_smart?: boolean;
-  smart_rules?: Record<string, unknown> | null;
-}
-
-export interface CollectionRead {
-  id: string;
-  groupId: string;
-  name: string;
-  slug: string;
-  description?: string | null;
-  sortOrder: number;
-  icon?: string | null;
-  color?: string | null;
-  isSmart: boolean;
-  smartRules?: Record<string, unknown> | null;
-  createdAt?: string | null;
-  updateAt?: string | null;
-}
-
-// ===== Entry Types =====
-
-export interface ResourceSummary {
-  id: string;
-  name: string;
-  slug: string;
-  resourceType: string;
-  description?: string | null;
-  url?: string | null;
-  externalId?: string | null;
-}
-
-export interface ResourceCreate {
-  slug: string;
-  name: string;
-  resource_type: string;
-  description?: string | null;
-  url?: string | null;
-  external_id?: string | null;
-  metadata_?: Record<string, unknown> | null;
-}
-
-export interface ResourceUpdate {
-  id: string;
-  slug?: string;
-  name?: string;
-  resource_type?: string;
-  description?: string | null;
-  url?: string | null;
-  external_id?: string | null;
-  metadata_?: Record<string, unknown> | null;
-}
-
-export interface ResourceRead extends ResourceSummary {
-  metadata?: Record<string, unknown> | null;
-  createdBy: string;
-}
-
-export interface EntryCreate {
-  entry_type_id: string;
-  title: string;
-  slug: string;
-  summary?: string | null;
-  description?: string | null;
-  content_markdown?: string | null;
-  metadata_json?: Record<string, unknown> | null;
-  status?: EntryStatus;
-  published_at?: string | null;
-}
-
-export interface EntryUpdate {
-  entry_type_id?: string;
-  title?: string;
-  slug?: string;
-  summary?: string | null;
-  description?: string | null;
-  content_markdown?: string | null;
-  metadata_json?: Record<string, unknown> | null;
-  status?: EntryStatus;
-  published_at?: string | null;
-}
-
-export interface EntryRead {
-  id: string;
-  groupId: string;
-  entryTypeId: string;
-  title: string;
-  slug: string;
-  summary?: string | null;
-  description?: string | null;
-  contentMarkdown?: string | null;
-  metadataJson?: Record<string, unknown> | null;
-  status: EntryStatus;
-  publishedAt?: string | null;
-  createdBy?: string | null;
-  createdAt?: string | null;
-  updateAt?: string | null;
-  resources?: ResourceSummary[];
-  assets?: MarvinAsset[];
-  collections?: string[];
-}
-
-// Backwards compatibility with old interface
-export interface MarvinEntry extends EntryRead {
-  entryType?: string;
-  frontmatter?: Record<string, unknown> | null;
-}
-
-// ===== API Client Types (Site Clients) =====
-
-export interface APIClientCreate {
-  name: string;
-  slug?: string | null;
-  description?: string | null;
-  permissions?: Record<string, boolean> | null;
-}
-
-export interface APIClientUpdate {
-  name?: string | null;
-  description?: string | null;
-  permissions?: Record<string, boolean> | null;
-  enabled?: boolean | null;
-}
-
-export interface APIClientRead {
-  id: string;
-  group_id: string;
-  name: string;
-  slug: string;
-  description?: string | null;
-  permissions: Record<string, boolean>;
-  enabled: boolean;
-  last_used_at?: string | null;
-  created_at?: string | null;
-  update_at?: string | null;
-  revoked_at?: string | null;
-}
-
-export interface APIClientWithToken extends Omit<APIClientRead, 'update_at' | 'revoked_at'> {
-  token: string; // Plaintext token shown ONCE after creation/rotation
-}
-
-// ===== Publishing API Types =====
-
-export interface SiteConfiguration {
-  title?: string | null;
-  tagline?: string | null;
-  description?: string | null;
-  canonical_url?: string | null;
-  logo?: string | null;
-  favicon?: string | null;
-  locale: string;
-  timezone: string;
-  contact_email?: string | null;
-  social?: Record<string, string> | null;
-  metadata?: Record<string, unknown> | null;
-}
-
-export interface WorkspaceInfo {
-  slug: string;
-  name: string;
-}
-
-export interface WorkspaceSiteInfo {
-  workspace: WorkspaceInfo;
-  site: SiteConfiguration;
-}
-
-// ===== Workspace Members Types =====
-
+// Workspace Member types
 export interface WorkspaceMembershipRead {
-  id: string;
   userId: string;
-  groupId: string;
-  workspaceRole: WorkspaceRole;
-  user?: UserSummary; // Populated by backend when listing members
+  username: string;
+  email: string;
+  role: WorkspaceRole;
+  joinedAt: string;
 }
 
 export interface WorkspaceMemberCreate {
-  user_id: string;
-  workspace_role: WorkspaceRole;
+  userId: string;
+  role: WorkspaceRole;
 }
 
 export interface WorkspaceMemberUpdate {
-  workspace_role: WorkspaceRole;
+  role: WorkspaceRole;
 }
 
-// ===== Invite Token Types =====
-
-export interface InviteTokenCreate {
-  uses_left?: number;
-}
-
+// Invite types
 export interface InviteTokenRead {
   id: string;
   token: string;
-  uses_left: number;
-  group_id: string;
-  created_at?: string;
+  role: WorkspaceRole;
+  uses_remaining?: number | null;
+  expires_at?: string | null;
+  created_at: string;
+}
+
+export interface InviteTokenCreate {
+  role: WorkspaceRole;
+  uses_remaining?: number | null;
+  expires_at?: string | null;
 }
 
 export interface EmailInvitation {
   email: string;
-  token: string;
+  role: WorkspaceRole;
 }
