@@ -95,19 +95,19 @@ try {
     justify-content: space-between;
     width: 100%;
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--panel);
+    border: 1px solid var(--line);
     border-radius: var(--radius);
     font-size: 14px;
     font-weight: 600;
-    color: #fffaf0;
+    color: var(--ink);
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .workspace-button:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--panel-2);
+    border-color: var(--muted);
   }
 
   .workspace-button .workspace-name {
@@ -129,10 +129,10 @@ try {
     top: calc(100% + 8px);
     left: 0;
     right: 0;
-    background: #2a332f;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--panel);
+    border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
     z-index: 50;
     overflow: hidden;
   }
@@ -147,8 +147,8 @@ try {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: rgba(255, 250, 240, 0.5);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
   }
 
   .workspace-list {
@@ -178,19 +178,19 @@ try {
     border-radius: var(--radius);
     text-align: left;
     font-size: 14px;
-    color: rgba(255, 250, 240, 0.78);
+    color: var(--ink);
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .workspace-item:not(:disabled):hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fffaf0;
+    background: var(--panel-2);
+    color: var(--ink);
   }
 
   .workspace-item.active {
-    background: rgba(79, 156, 132, 0.15);
-    color: #4f9c84;
+    background: var(--color-primary-bg);
+    color: var(--accent);
     font-weight: 600;
     cursor: default;
   }
@@ -207,20 +207,20 @@ try {
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    background: #4f9c84;
+    background: var(--good);
     color: white;
     border-radius: 4px;
   }
 
   .workspace-role {
     font-size: 11px;
-    color: rgba(255, 250, 240, 0.5);
+    color: var(--muted);
     text-transform: capitalize;
   }
 
   .menu-footer {
     padding: 8px 14px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--line);
   }
 
   .create-workspace-link {
@@ -228,14 +228,14 @@ try {
     padding: 8px 10px;
     font-size: 13px;
     font-weight: 500;
-    color: #4f9c84;
+    color: var(--accent);
     text-decoration: none;
     border-radius: var(--radius);
     transition: background 0.2s;
   }
 
   .create-workspace-link:hover {
-    background: rgba(79, 156, 132, 0.1);
+    background: var(--color-primary-bg);
   }
 
   .workspace-switcher-error {

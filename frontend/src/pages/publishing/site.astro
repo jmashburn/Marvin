@@ -2,11 +2,11 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { fetchApi } from "@/lib/api/client";
-import type { WorkspaceWithMembership, GroupPreferencesRead } from "@/lib/api/types";
+import type { Workspace, GroupPreferencesRead } from "@/lib/api/types";
 
 const authToken = getAuthToken(Astro.cookies);
 
-let workspace: WorkspaceWithMembership | null = null;
+let workspace: Workspace | null = null;
 let preferences: GroupPreferencesRead | null = null;
 let error: string | null = null;
 let success: boolean = false;
@@ -21,12 +21,12 @@ if (urlParams.get('error')) {
 }
 
 try {
-  workspace = await fetchApi<WorkspaceWithMembership>('/api/self/workspaces/current', {}, authToken);
+  workspace = await fetchApi<Workspace>('/api/self/workspaces/current', {}, authToken);
 
-  if (workspace?.workspace?.id) {
+  if (workspace?.id) {
     // Get preferences for this workspace
     preferences = await fetchApi<GroupPreferencesRead>(
-      `/api/groups/${workspace.workspace.id}/preferences`,
+      `/api/groups/${workspace.id}/preferences`,
       {},
       authToken
     );
@@ -60,8 +60,8 @@ try {
     </div>
   )}
 
-  {workspace?.workspace?.id && preferences ? (
-    <form method="POST" data-workspace-id={workspace.workspace.id} class="site-form" id="site-form">
+  {workspace?.id && preferences ? (
+    <form method="POST" data-workspace-id={workspace.id} class="site-form" id="site-form">
       <section class="form-section">
         <h3>Identity</h3>
         <p class="section-description">How your site identifies itself to the world</p>
@@ -72,7 +72,7 @@ try {
               type="text"
               name="siteTitle"
               value={preferences.siteTitle || ""}
-              placeholder={workspace.workspace.name}
+              placeholder={workspace.name}
             />
             <small>Defaults to workspace name if not set</small>
           </label>
