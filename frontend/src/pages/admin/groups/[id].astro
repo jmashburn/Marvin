@@ -48,10 +48,12 @@ if (!id) {
     <>
       <div class="toolbar">
         <div>
-          <h2 style="margin:0;font-size:20px;">{group.name}</h2>
-          <p style="margin:4px 0 0;color:var(--muted);">Manage workspace settings and members</p>
+          <h2>{group.name}</h2>
+          <p>Manage workspace settings and members</p>
         </div>
-        <a class="button secondary" href="/admin/workspaces">Back</a>
+        <div class="toolbar-actions">
+          <a class="button secondary" href="/admin/workspaces">Back to Workspaces</a>
+        </div>
       </div>
 
       <div class="layout-grid">
@@ -170,6 +172,7 @@ if (!id) {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    margin-bottom: 2rem;
   }
 
   .error-banner p {
@@ -177,19 +180,45 @@ if (!id) {
     color: var(--color-error);
   }
 
+  .toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .toolbar-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
   .layout-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 20rem;
-    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 2rem;
   }
 
   .main-section {
     display: grid;
-    gap: 1.5rem;
+    gap: 2rem;
   }
 
   .panel {
-    padding: 1.5rem;
+    padding: 2rem;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -197,7 +226,7 @@ if (!id) {
 
   .panel h3 {
     margin: 0 0 1.5rem;
-    font-size: 1rem;
+    font-size: 18px;
     font-weight: 600;
   }
 
@@ -213,51 +242,60 @@ if (!id) {
 
   label {
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 14px;
     color: var(--ink);
   }
 
   input[type="text"] {
-    padding: 0.5rem 0.75rem;
+    padding: 10px 12px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--radius);
     background: var(--bg);
-    font-size: 0.875rem;
+    color: var(--ink);
+    font-size: 14px;
+  }
+
+  input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
   }
 
   .form-help {
     margin: 0;
-    font-size: 0.75rem;
+    font-size: 12px;
     color: var(--muted);
   }
 
   .form-actions {
+    display: flex;
+    gap: 12px;
     padding-top: 1rem;
     border-top: 1px solid var(--line);
   }
 
   .empty-message {
-    padding: 2rem;
+    padding: 3rem 2rem;
     text-align: center;
     color: var(--muted);
     background: var(--panel-2);
-    border-radius: 6px;
+    border-radius: var(--radius);
   }
 
   .role-badge {
     display: inline-block;
-    padding: 0.25rem 0.5rem;
+    padding: 4px 10px;
     background: var(--panel-2);
     border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
+    color: var(--muted);
   }
 
   .button.small {
     min-height: 32px;
-    padding: 6px 10px;
-    font-size: 0.875rem;
+    padding: 6px 12px;
+    font-size: 13px;
   }
 
   .button.danger {
@@ -277,12 +315,12 @@ if (!id) {
 
   .info-list {
     display: grid;
-    gap: 0.75rem;
+    gap: 1rem;
     margin: 0;
   }
 
   .info-list dt {
-    font-size: 0.75rem;
+    font-size: 11px;
     font-weight: 600;
     color: var(--muted);
     text-transform: uppercase;
@@ -291,7 +329,8 @@ if (!id) {
 
   .info-list dd {
     margin: 0;
-    font-size: 0.875rem;
+    font-size: 14px;
+    color: var(--ink);
   }
 
   @media (max-width: 1024px) {
