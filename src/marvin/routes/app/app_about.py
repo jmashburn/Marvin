@@ -21,6 +21,13 @@ router = UserAPIRouter(prefix="/about")
 public_router = APIRouter(prefix="/about")
 
 
+@public_router.post("/clear-cache", summary="Clear Settings Cache")
+def clear_settings_cache() -> dict:
+    """Clear the LRU cache for app settings (useful for development)."""
+    get_app_settings.cache_clear()
+    return {"message": "Settings cache cleared"}
+
+
 @router.get("", response_model=AppInfo, summary="Get Basic Application Information")
 def get_app_info() -> AppInfo:
     """
