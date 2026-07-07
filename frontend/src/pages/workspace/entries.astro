@@ -85,7 +85,11 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
       ) : (
         <section class="grid" aria-label="Entries">
           {entries.map((entry) => (
-            <div class="entry-wrapper" data-type={entry.entryTypeId} data-status={entry.status}>
+            <div class="entry-wrapper"
+              data-type={entry.entryTypeId}
+              data-status={entry.status}
+              data-title={entry.title.toLowerCase()}
+              data-summary={(entry.summary || '').toLowerCase()}>
               <EntryCard entry={entry} />
             </div>
           ))}
@@ -107,12 +111,12 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
     const wrappers = document.querySelectorAll('.entry-wrapper');
 
     wrappers.forEach(wrapper => {
-      const card = wrapper.querySelector('.entry-card');
-      const title = card?.querySelector('h3')?.textContent?.toLowerCase() || '';
+      const title = wrapper.getAttribute('data-title') || '';
+      const summary = wrapper.getAttribute('data-summary') || '';
       const type = wrapper.getAttribute('data-type') || '';
       const status = wrapper.getAttribute('data-status') || '';
 
-      const matchesSearch = !searchQuery || title.includes(searchQuery);
+      const matchesSearch = !searchQuery || title.includes(searchQuery) || summary.includes(searchQuery);
       const matchesType = !typeQuery || type === typeQuery;
       const matchesStatus = !statusQuery || status === statusQuery;
 
