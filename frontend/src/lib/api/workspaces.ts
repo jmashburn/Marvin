@@ -1,22 +1,16 @@
 /**
- * Workspace management API client
- * Note: SDK doesn't have workspaces module yet, using direct API calls
+ * Workspace management API client (migrated to SDK)
  */
 
-import { fetchApi } from "./client";
-import type {
-  GroupRead,
-  GroupCreate,
-  GroupAdminUpdate,
-  WorkspaceWithMembership,
-  WorkspaceActivationRequest,
-} from "./types";
+import { createSdkClient } from '../sdk';
+import type { Workspace, WorkspaceWithMembership, WorkspaceCreate, WorkspaceUpdate } from '@inneropen/marvin-sdk/platform';
 
 /**
  * Get the user's currently active workspace
  */
-export async function getCurrentWorkspace(authToken: string): Promise<GroupRead> {
-  return fetchApi<GroupRead>('/api/self/workspaces/current', {}, authToken);
+export async function getCurrentWorkspace(authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.getCurrent();
 }
 
 /**
@@ -25,74 +19,59 @@ export async function getCurrentWorkspace(authToken: string): Promise<GroupRead>
  * For regular users: Returns only workspaces they're members of
  */
 export async function listWorkspaces(authToken: string): Promise<WorkspaceWithMembership[]> {
-  return fetchApi<WorkspaceWithMembership[]>('/api/self/workspaces', {}, authToken);
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.list();
 }
 
 /**
  * Activate a workspace (make it the current active workspace)
+ * Accepts workspace ID or slug
  */
-export async function activateWorkspace(workspaceId: string, authToken: string): Promise<GroupRead> {
-  const body: WorkspaceActivationRequest = { workspace_id: workspaceId };
-  return fetchApi<GroupRead>('/api/self/workspaces/current', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }, authToken);
+export async function activateWorkspace(workspaceIdOrSlug: string, authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.setActive(workspaceIdOrSlug);
 }
 
 /**
  * Create a new workspace (requires SUPER_ADMIN)
  */
-export async function createWorkspace(data: GroupCreate, authToken: string): Promise<GroupRead> {
-  return fetchApi<GroupRead>('/api/admin/groups', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function createWorkspace(data: WorkspaceCreate, authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.create(data);
 }
 
 /**
  * Update workspace settings (requires ADMIN or OWNER)
  */
-export async function updateWorkspace(id: string, data: GroupAdminUpdate, authToken: string): Promise<GroupRead> {
-  return fetchApi<GroupRead>(`/api/admin/groups/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }, authToken);
+export async function updateWorkspace(id: string, data: WorkspaceUpdate, authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.update(id, data);
 }
 
 /**
  * Delete a workspace (requires SUPER_ADMIN)
  */
 export async function deleteWorkspace(id: string, authToken: string, force: boolean = false): Promise<void> {
-  const queryParams = force ? '?force=true' : '';
-  return fetchApi<void>(`/api/admin/groups/${id}${queryParams}`, {
-    method: 'DELETE',
-  }, authToken);
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.delete(id, force);
 }
-
-// Type re-exports for compatibility (these are not from SDK)
-export type WorkspaceRead = GroupRead;
-export type WorkspaceCreate = GroupCreate;
-export type WorkspaceUpdate = GroupAdminUpdate;
 
 /**
  * Get a single workspace by ID
  */
-export async function getWorkspace(id: string, authToken: string): Promise<WorkspaceRead> {
-  return fetchApi<GroupRead>(`/api/admin/groups/${id}`, {}, authToken);
+export async function getWorkspace(id: string, authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.get(id);
 }
 
 /**
- * Set the active workspace
+ * Set the active workspace by slug
  */
-export async function setActiveWorkspace(slug: string, authToken: string): Promise<WorkspaceRead> {
-  // This uses workspace ID, not slug - need to find workspace by slug first
-  const workspaces = await listWorkspaces(authToken);
-  const workspace = workspaces.find(w => w.workspace.slug === slug);
-  if (!workspace) {
-    throw new Error(`Workspace with slug "${slug}" not found`);
-  }
-  return activateWorkspace(workspace.workspace.id, authToken);
+export async function setActiveWorkspace(slug: string, authToken: string): Promise<Workspace> {
+  const sdk = createSdkClient(authToken);
+  return sdk.workspaces.setActive(slug);
 }
+
+// Type re-exports for backward compatibility
+export type WorkspaceRead = Workspace;
+export type { WorkspaceCreate, WorkspaceUpdate };
