@@ -59,12 +59,8 @@ export async function deleteCollection(id: string, authToken: string): Promise<v
 
 /**
  * Get entries in a collection
- * Note: This method is not yet available in the SDK
- * TODO: Add to SDK or use a different approach
  */
 export async function getCollectionEntries(collectionId: string, authToken: string): Promise<EntryRead[]> {
-  // Temporary: Return empty array until SDK supports this
-  // const sdk = createSdkClient(authToken);
-  // return sdk.collections.getEntries(collectionId);
-  return [];
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.getEntries(collectionId);
 }

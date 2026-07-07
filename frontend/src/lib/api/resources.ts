@@ -59,12 +59,8 @@ export async function deleteResource(id: string, authToken: string): Promise<voi
 
 /**
  * Get entries that reference this resource
- * Note: This method is not yet available in the SDK
- * TODO: Add to SDK or use a different approach
  */
 export async function getResourceEntries(resourceId: string, authToken: string): Promise<EntryRead[]> {
-  // Temporary: Return empty array until SDK supports this
-  // const sdk = createSdkClient(authToken);
-  // return sdk.resources.getEntries(resourceId);
-  return [];
+  const sdk = createSdkClient(authToken);
+  return sdk.resources.getEntries(resourceId);
 }
