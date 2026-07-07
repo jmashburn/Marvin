@@ -82,7 +82,11 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
               {systemTypes.map((type) => {
                 const count = entryCounts.get(type.id) || 0;
                 return (
-                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`} data-system="true">
+                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`}
+                    data-system="true"
+                    data-name={type.name.toLowerCase()}
+                    data-slug={type.slug.toLowerCase()}
+                    data-description={(type.description || '').toLowerCase()}>
                     <td>
                       {type.icon && (
                         <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
@@ -136,7 +140,11 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
               {customTypes.map((type) => {
                 const count = entryCounts.get(type.id) || 0;
                 return (
-                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`} data-system="false">
+                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`}
+                    data-system="false"
+                    data-name={type.name.toLowerCase()}
+                    data-slug={type.slug.toLowerCase()}
+                    data-description={(type.description || '').toLowerCase()}>
                     <td>
                       {type.icon && (
                         <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
@@ -184,9 +192,14 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
     const rows = document.querySelectorAll('.entry-type-row');
 
     rows.forEach(row => {
-      const name = row.querySelector('.type-name')?.textContent?.toLowerCase() || '';
+      const name = row.getAttribute('data-name') || '';
+      const slug = row.getAttribute('data-slug') || '';
+      const description = row.getAttribute('data-description') || '';
 
-      const matchesSearch = !searchQuery || name.includes(searchQuery);
+      const matchesSearch = !searchQuery ||
+        name.includes(searchQuery) ||
+        slug.includes(searchQuery) ||
+        description.includes(searchQuery);
 
       (row as HTMLElement).style.display = matchesSearch ? '' : 'none';
     });
