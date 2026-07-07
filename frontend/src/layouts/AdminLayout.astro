@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
 
 interface Props {
   title: string;
@@ -101,6 +102,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
           <slot />
         </section>
       </main>
+      <ThemeSwitcher />
     </div>
   </body>
 </html>
