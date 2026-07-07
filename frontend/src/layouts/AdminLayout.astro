@@ -108,30 +108,36 @@ function isActive(itemPath: string, currentPath: string): boolean {
 </html>
 
 <style>
-  /* Admin sidebar has different styling to distinguish it */
+  /* Admin sidebar has different styling to distinguish it from user sidebar */
   .admin-sidebar {
-    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    background: var(--panel);
+    border-right: 2px solid var(--accent);
   }
 
   .admin-sidebar .brand {
-    border-bottom-color: rgba(255, 255, 255, 0.1);
+    border-bottom-color: var(--line);
   }
 
   .admin-sidebar .nav-group-label {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--muted);
+    font-weight: 600;
   }
 
   .admin-sidebar .nav a {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink);
+    opacity: 0.8;
   }
 
   .admin-sidebar .nav a:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: var(--panel-2);
+    color: var(--ink);
+    opacity: 1;
   }
 
   .admin-sidebar .nav a[aria-current="page"] {
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
+    background: var(--color-primary-bg);
+    color: var(--accent);
+    opacity: 1;
+    font-weight: 600;
   }
 </style>
