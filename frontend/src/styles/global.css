@@ -279,18 +279,30 @@ select {
   gap: 8px;
   min-height: 38px;
   padding: 8px 12px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--accent);
   border-radius: var(--radius);
-  background: var(--ink);
-  color: #fffaf0;
+  background: var(--accent);
+  color: white;
   font-weight: 700;
   font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 .button.secondary {
   background: var(--panel);
   color: var(--ink);
   border-color: var(--line);
+}
+
+.button.secondary:hover {
+  background: var(--panel-2);
+  border-color: var(--muted);
 }
 
 .stats {
