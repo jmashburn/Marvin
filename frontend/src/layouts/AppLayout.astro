@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
+import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 interface Props {
@@ -145,6 +146,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
           <slot />
         </section>
       </main>
+      <ThemeSwitcher />
     </div>
   </body>
 </html>
