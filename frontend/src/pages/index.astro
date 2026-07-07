@@ -197,7 +197,7 @@ function getStatusClass(status: string): string {
               {recentWork.map((entry) => {
                 const entryType = entryTypes.find(t => t.id === entry.entryTypeId);
                 return (
-                  <a href={`/entries/${entry.id}`} class="recent-work-item">
+                  <a href={`/workspace/entries/${entry.id}`} class="recent-work-item">
                     <div class="recent-work-content">
                       <strong>{entry.title}</strong>
                       <div class="recent-work-meta">
@@ -250,7 +250,7 @@ function getStatusClass(status: string): string {
                 <div class="activity-icon">✓</div>
                 <div class="activity-content">
                   <strong>Last Published</strong>
-                  <a href={`/entries/${lastPublishedEntry.id}`}>{lastPublishedEntry.title}</a>
+                  <a href={`/workspace/entries/${lastPublishedEntry.id}`}>{lastPublishedEntry.title}</a>
                   <span class="activity-time">{formatRelativeTime(lastPublishedEntry.publishedAt)}</span>
                 </div>
               </div>
