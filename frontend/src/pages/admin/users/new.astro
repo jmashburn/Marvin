@@ -1,0 +1,285 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+// Check admin access
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  if (currentUser?.admin !== true) {
+    return Astro.redirect('/');
+  }
+} catch (e) {
+  return Astro.redirect('/');
+}
+
+let workspaces: any[] = [];
+let error: string | null = null;
+
+try {
+  // Fetch available workspaces for initial membership
+  const workspacesResponse = await fetchApi<any>('/api/admin/groups', {}, authToken);
+  workspaces = workspacesResponse.items || [];
+} catch (e) {
+  console.error('[admin/users/new] Error loading workspaces:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// Role options
+const platformRoles = [
+  { value: 'USER', label: 'User' },
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'SUPER_ADMIN', label: 'Super Admin' },
+];
+---
+
+<AdminLayout title="Create User">
+  <Breadcrumb items={[
+    { label: "Users", href: "/admin/users" },
+    { label: "Create User" }
+  ]} />
+
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error:</strong> {error}</p>
+      <a href="/admin/users" class="button secondary">Back to Users</a>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2>Create New User</h2>
+          <p>Add a new user to the platform</p>
+        </div>
+        <a href="/admin/users" class="button secondary">Cancel</a>
+      </div>
+
+      <form method="POST" action="/api/admin/users/create" id="create-user-form" class="form-container">
+        <section class="form-section">
+          <h3>Account Details</h3>
+
+          <div class="form-group">
+            <label for="email">Email *</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              placeholder="user@example.com"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="full_name">Full Name</label>
+            <input
+              type="text"
+              id="full_name"
+              name="full_name"
+              placeholder="John Doe"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password *</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              minlength="8"
+              placeholder="Minimum 8 characters"
+            />
+            <small>Minimum 8 characters required</small>
+          </div>
+
+          <div class="form-group">
+            <label for="password_confirm">Confirm Password *</label>
+            <input
+              type="password"
+              id="password_confirm"
+              name="password_confirm"
+              required
+              minlength="8"
+              placeholder="Re-enter password"
+            />
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3>Platform Role</h3>
+
+          <div class="form-group">
+            <label for="admin">Role</label>
+            <select id="admin" name="admin">
+              {platformRoles.map((role) => (
+                <option value={role.value} selected={role.value === 'USER'}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+            <small>Platform-level role (separate from workspace-specific roles)</small>
+          </div>
+        </section>
+
+        <div class="form-actions">
+          <button type="submit" class="button">Create User</button>
+          <a href="/admin/users" class="button secondary">Cancel</a>
+        </div>
+      </form>
+    </>
+  )}
+</AdminLayout>
+
+<script>
+  const form = document.getElementById('create-user-form') as HTMLFormElement;
+  const password = document.getElementById('password') as HTMLInputElement;
+  const passwordConfirm = document.getElementById('password_confirm') as HTMLInputElement;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Validate passwords match
+    if (password?.value !== passwordConfirm?.value) {
+      alert('Passwords do not match');
+      return;
+    }
+
+    const formData = new FormData(form);
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (key === 'password_confirm') return; // Don't send confirmation
+
+      if (key === 'admin') {
+        // Convert role to admin boolean
+        data.admin = value === 'ADMIN' || value === 'SUPER_ADMIN';
+      } else {
+        data[key] = value || null;
+      }
+    });
+
+    try {
+      const { fetchApi } = await import('@/lib/api/client');
+
+      const response = await fetchApi('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      // Redirect to the new user's edit page
+      window.location.href = `/admin/users/${response.id}`;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create user';
+      alert(`Error: ${errorMessage}`);
+    }
+  });
+</script>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    display: grid;
+    gap: 2rem;
+    max-width: 800px;
+  }
+
+  .form-section {
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0 0 1.5rem;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group:last-child {
+    margin-bottom: 0;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  select {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  input:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    padding-top: 1rem;
+  }
+</style>
