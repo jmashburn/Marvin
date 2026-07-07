@@ -269,8 +269,8 @@ select {
 }
 
 .segmented a[aria-current="page"] {
-  background: var(--ink);
-  color: #fffaf0;
+  background: var(--accent);
+  color: white;
 }
 
 .button {
