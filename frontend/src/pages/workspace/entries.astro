@@ -8,6 +8,10 @@ import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 
+// Get URL parameters for pre-filtering
+const statusParam = Astro.url.searchParams.get('status');
+const statusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : [];
+
 let entries: EntryRead[] = [];
 let entryTypes: EntryTypeRead[] = [];
 let error: string | null = null;
@@ -84,15 +88,20 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
         </div>
       ) : (
         <section class="grid" aria-label="Entries">
-          {entries.map((entry) => (
-            <div class="entry-wrapper"
-              data-type={entry.entryTypeId}
-              data-status={entry.status}
-              data-title={entry.title.toLowerCase()}
-              data-summary={(entry.summary || '').toLowerCase()}>
-              <EntryCard entry={entry} />
-            </div>
-          ))}
+          {entries.map((entry) => {
+            // Check if entry matches URL status filters
+            const matchesStatusFilter = statusFilters.length === 0 || statusFilters.includes(entry.status);
+            return (
+              <div class="entry-wrapper"
+                data-type={entry.entryTypeId}
+                data-status={entry.status}
+                data-title={entry.title.toLowerCase()}
+                data-summary={(entry.summary || '').toLowerCase()}
+                style={matchesStatusFilter ? '' : 'display: none;'}>
+                <EntryCard entry={entry} />
+              </div>
+            );
+          })}
         </section>
       )}
     </>
@@ -103,6 +112,11 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
   const searchInput = document.getElementById('filter-search') as HTMLInputElement;
   const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
   const statusFilter = document.getElementById('status-filter') as HTMLSelectElement;
+
+  // Get URL status filters
+  const urlParams = new URLSearchParams(window.location.search);
+  const statusParam = urlParams.get('status');
+  const urlStatusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : [];
 
   function filterEntries() {
     const searchQuery = searchInput?.value.toLowerCase() || '';
@@ -118,11 +132,23 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 
       const matchesSearch = !searchQuery || title.includes(searchQuery) || summary.includes(searchQuery);
       const matchesType = !typeQuery || type === typeQuery;
-      const matchesStatus = !statusQuery || status === statusQuery;
+
+      // Check both dropdown filter and URL filters
+      let matchesStatus = true;
+      if (statusQuery) {
+        // Dropdown has priority
+        matchesStatus = status === statusQuery;
+      } else if (urlStatusFilters.length > 0) {
+        // Fall back to URL filters if no dropdown selection
+        matchesStatus = urlStatusFilters.includes(status);
+      }
 
       (wrapper as HTMLElement).style.display = (matchesSearch && matchesType && matchesStatus) ? '' : 'none';
     });
   }
+
+  // Apply filters on page load
+  filterEntries();
 
   searchInput?.addEventListener('input', filterEntries);
   typeFilter?.addEventListener('change', filterEntries);
