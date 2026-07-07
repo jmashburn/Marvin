@@ -1,32 +1,30 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
-import type { PlatformWorkspaceMember } from "@inneropen/marvin-sdk/platform";
-
-// Group type based on GroupRead schema
-interface GroupRead {
-  id: string;
-  name: string;
-  slug?: string | null;
-}
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import type { Workspace, PlatformWorkspaceMember } from "@inneropen/marvin-sdk/platform";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
-let group: GroupRead | null = null;
+let group: Workspace | null = null;
 let members: PlatformWorkspaceMember[] = [];
 let error: string | null = null;
 
 if (!id) {
   error = "Group ID is required";
+} else if (!authToken) {
+  error = "Authentication required";
 } else {
   try {
-    // Get group details
-    group = await fetchApi(`/api/admin/groups/${id}`, {}, authToken);
+    const sdk = createSdkClient(authToken);
+
+    // Get workspace details
+    group = await sdk.workspaces.get(id);
 
     // Get workspace members
-    members = await fetchApi(`/api/admin/groups/${id}/members`, {}, authToken);
+    members = await sdk.workspaceMembers.list(id);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     console.error('[admin/groups] Failed to load:', error);
