@@ -58,7 +58,7 @@ class WorkspaceActivationController(BaseUserController):
         SUPER_ADMIN users can activate any workspace.
 
         Args:
-            request: The workspace activation request.
+            request: The workspace activation request (accepts slug or UUID).
 
         Returns:
             The newly activated workspace.
@@ -67,19 +67,19 @@ class WorkspaceActivationController(BaseUserController):
             HTTPException: 403 if user is not a member of the workspace (non-SUPER_ADMIN).
             HTTPException: 404 if workspace doesn't exist.
         """
-        # Verify workspace exists
-        workspace = self.repos.groups.get_one(request.workspace_id)
+        # Verify workspace exists (accepts slug or UUID)
+        workspace = self.repos.groups.get_by_slug_or_id(request.workspace)
         if not workspace:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Workspace {request.workspace_id} not found",
+                detail=f"Workspace '{request.workspace}' not found",
             )
 
         # Check membership (SUPER_ADMIN can access any workspace)
         if self.user.platform_role != PlatformRole.SUPER_ADMIN:
             is_member = self.repos.workspace_members.user_is_member(
                 user_id=self.user.id,
-                group_id=request.workspace_id,
+                group_id=workspace.id,
             )
             if not is_member:
                 raise HTTPException(
@@ -101,7 +101,7 @@ class WorkspaceActivationController(BaseUserController):
                 detail="User not found",
             )
 
-        user_model.active_group_id = request.workspace_id
+        user_model.active_group_id = workspace.id
         self.repos.session.commit()
 
         # Dispatch workspace.activated event

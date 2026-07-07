@@ -12,8 +12,8 @@ from marvin.schemas.group.group import GroupRead
 class WorkspaceActivationRequest(_MarvinModel):
     """Request to change active workspace."""
 
-    workspace_id: UUID4
-    """The workspace to activate."""
+    workspace: str | UUID4
+    """The workspace to activate (slug or UUID)."""
 
 
 class WorkspaceWithMembership(_MarvinModel):
