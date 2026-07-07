@@ -41,7 +41,7 @@ dependencies = [
 ]
 
 [project.scripts]
-marvin = "marvin.app:main"
+marvin-server = "marvin.app:main"
 #healthz = "marvin.scripts.healthcheck"
 
 [build-system]

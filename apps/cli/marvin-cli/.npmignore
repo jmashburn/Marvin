@@ -1,0 +1,18 @@
+# Source files (we ship dist/ only)
+src/
+tsconfig.json
+.env
+
+# Development files
+*.test.ts
+*.spec.ts
+__tests__/
+.vscode/
+.idea/
+
+# Build artifacts (dist/ is included)
+node_modules/
+
+# Git
+.git/
+.gitignore

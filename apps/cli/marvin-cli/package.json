@@ -1,10 +1,10 @@
 {
   "name": "marvin-cli",
-  "version": "0.2.0",
-  "description": "Small CLI for testing Marvin publish API / SDK access with formatted output.",
+  "version": "1.0.0",
+  "description": "Official CLI for Marvin CMS - interact with the Marvin Publishing API",
   "type": "module",
   "bin": {
-    "marvinctl": "./dist/index.js"
+    "marvin": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -23,5 +23,29 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "keywords": [
+    "marvin",
+    "cms",
+    "cli",
+    "publishing",
+    "headless-cms"
+  ],
+  "author": {
+    "name": "Marvin Project",
+    "email": "contact@inneropen.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/inneropen/marvin-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/inneropen/marvin-cli/issues"
+  },
+  "homepage": "https://github.com/inneropen/marvin-cli#readme",
+  "license": "MIT",
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ]
 }

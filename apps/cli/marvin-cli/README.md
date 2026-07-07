@@ -1,6 +1,6 @@
-# Marvin CLI (`marvinctl`)
+# Marvin CLI
 
-Command-line interface for interacting with the Marvin Publishing API. Query entries, collections, resources, and assets from your terminal.
+Official command-line interface for [Marvin CMS](https://github.com/jmashburn/Marvin) Publishing API.
 
 ## Features
 
@@ -55,7 +55,7 @@ npm run build
 
 ### 4. Link globally (optional)
 
-To use `marvinctl` from anywhere:
+To use `marvin` from anywhere:
 
 ```bash
 npm link
@@ -67,7 +67,7 @@ Or run directly without linking:
 npm start -- entries  # Run without linking
 ```
 
-After linking, you can run `marvinctl` from any directory.
+After linking, you can run `marvin` from any directory.
 
 ## Usage
 
@@ -75,52 +75,52 @@ After linking, you can run `marvinctl` from any directory.
 
 ```bash
 # Get workspace site configuration
-marvinctl site
+marvin site
 
 # List all published entries
-marvinctl entries
+marvin entries
 
 # Get a single entry
-marvinctl entry about
+marvin entry about
 
 # List collections
-marvinctl collections
+marvin collections
 
 # Get a collection with its entries
-marvinctl collection featured
+marvin collection featured
 
 # List entries in a collection
-marvinctl collection-entries featured
+marvin collection-entries featured
 
 # List all resources
-marvinctl resources
+marvin resources
 
 # Get a single resource
-marvinctl resource kuroki-s022
+marvin resource kuroki-s022
 
 # Get entries that use a resource
-marvinctl resource-entries kuroki-s022
+marvin resource-entries kuroki-s022
 
 # List all assets
-marvinctl assets
+marvin assets
 ```
 
 ### Filtering
 
 ```bash
 # Filter entries by type
-marvinctl entries --entry-type page
-marvinctl entries --entry-type project
+marvin entries --entry-type page
+marvin entries --entry-type project
 
 # Filter entries by collection
-marvinctl entries --collection featured
+marvin entries --collection featured
 
 # Limit results
-marvinctl entries --limit 10
+marvin entries --limit 10
 
 # Filter assets by MIME type
-marvinctl assets --type image
-marvinctl assets --type video
+marvin assets --type image
+marvin assets --type video
 ```
 
 ### Output Formats
@@ -130,7 +130,7 @@ The CLI supports four output formats:
 #### Table (default)
 
 ```bash
-marvinctl entries
+marvin entries
 ```
 
 Output:
@@ -146,9 +146,9 @@ Output:
 #### JSON
 
 ```bash
-marvinctl entries --json
+marvin entries --json
 # or
-marvinctl entries --output json
+marvin entries --output json
 ```
 
 Output:
@@ -167,7 +167,7 @@ Output:
 #### YAML
 
 ```bash
-marvinctl collections --yaml
+marvin collections --yaml
 ```
 
 Output:
@@ -181,7 +181,7 @@ Output:
 #### CSV
 
 ```bash
-marvinctl resources --csv > resources.csv
+marvin resources --csv > resources.csv
 ```
 
 Output:
@@ -195,28 +195,28 @@ Kuroki S022 Denim,kuroki-s022,fabric,Premium Japanese selvedge,https://kuroki.co
 Global options (use before the command):
 
 ```bash
-marvinctl --help                    # Show help
-marvinctl --version                 # Show version
-marvinctl --api-url <url>           # Override MARVIN_API_URL
-marvinctl --token <token>           # Override MARVIN_SITE_CLIENT_TOKEN
-marvinctl --workspace <slug>        # Override MARVIN_WORKSPACE_SLUG
-marvinctl --output <format>         # Set output format (table, json, yaml, csv)
-marvinctl --json                    # Shortcut for --output json
-marvinctl --yaml                    # Shortcut for --output yaml
-marvinctl --csv                     # Shortcut for --output csv
+marvin --help                    # Show help
+marvin --version                 # Show version
+marvin --api-url <url>           # Override MARVIN_API_URL
+marvin --token <token>           # Override MARVIN_SITE_CLIENT_TOKEN
+marvin --workspace <slug>        # Override MARVIN_WORKSPACE_SLUG
+marvin --output <format>         # Set output format (table, json, yaml, csv)
+marvin --json                    # Shortcut for --output json
+marvin --yaml                    # Shortcut for --output yaml
+marvin --csv                     # Shortcut for --output csv
 ```
 
 **Example:**
 
 ```bash
 # Use a different workspace
-marvinctl --workspace other-workspace entries
+marvin --workspace other-workspace entries
 
 # Output as JSON
-marvinctl entries --json
+marvin entries --json
 
 # Override API URL and output CSV
-marvinctl --api-url https://marvin.example.com assets --csv
+marvin --api-url https://marvin.example.com assets --csv
 ```
 
 ## Commands Reference
@@ -224,7 +224,7 @@ marvinctl --api-url https://marvin.example.com assets --csv
 ### Site
 
 ```bash
-marvinctl site [--json|--yaml]
+marvin site [--json|--yaml]
 ```
 
 Fetch workspace site configuration (title, tagline, logo, etc.).
@@ -232,7 +232,7 @@ Fetch workspace site configuration (title, tagline, logo, etc.).
 ### Entries
 
 ```bash
-marvinctl entries [options]
+marvin entries [options]
 ```
 
 **Options:**
@@ -242,16 +242,16 @@ marvinctl entries [options]
 
 **Examples:**
 ```bash
-marvinctl entries                          # All entries
-marvinctl entries --entry-type page        # Only pages
-marvinctl entries --collection featured    # Entries in "featured" collection
-marvinctl entries --limit 5                # First 5 entries
+marvin entries                          # All entries
+marvin entries --entry-type page        # Only pages
+marvin entries --collection featured    # Entries in "featured" collection
+marvin entries --limit 5                # First 5 entries
 ```
 
 ### Entry
 
 ```bash
-marvinctl entry <slug>
+marvin entry <slug>
 ```
 
 Fetch a single entry by slug.
@@ -259,7 +259,7 @@ Fetch a single entry by slug.
 ### Collections
 
 ```bash
-marvinctl collections
+marvin collections
 ```
 
 List all collections with entry counts.
@@ -267,7 +267,7 @@ List all collections with entry counts.
 ### Collection
 
 ```bash
-marvinctl collection <slug>
+marvin collection <slug>
 ```
 
 Fetch a single collection with metadata.
@@ -275,7 +275,7 @@ Fetch a single collection with metadata.
 ### Collection Entries
 
 ```bash
-marvinctl collection-entries <slug>
+marvin collection-entries <slug>
 ```
 
 List all entries in a collection.
@@ -283,7 +283,7 @@ List all entries in a collection.
 ### Resources
 
 ```bash
-marvinctl resources
+marvin resources
 ```
 
 List all resources (fabrics, tools, suppliers, etc.).
@@ -291,7 +291,7 @@ List all resources (fabrics, tools, suppliers, etc.).
 ### Resource
 
 ```bash
-marvinctl resource <slug>
+marvin resource <slug>
 ```
 
 Fetch a single resource by slug.
@@ -299,7 +299,7 @@ Fetch a single resource by slug.
 ### Resource Entries
 
 ```bash
-marvinctl resource-entries <slug>
+marvin resource-entries <slug>
 ```
 
 List all entries that reference a resource.
@@ -307,7 +307,7 @@ List all entries that reference a resource.
 ### Assets
 
 ```bash
-marvinctl assets [options]
+marvin assets [options]
 ```
 
 **Options:**
@@ -316,9 +316,9 @@ marvinctl assets [options]
 
 **Examples:**
 ```bash
-marvinctl assets                # All assets
-marvinctl assets --type image   # Only images
-marvinctl assets --type video   # Only videos
+marvin assets                # All assets
+marvin assets --type image   # Only images
+marvin assets --type video   # Only videos
 ```
 
 ## Scripting Examples
@@ -326,25 +326,25 @@ marvinctl assets --type video   # Only videos
 ### Export all entries to JSON
 
 ```bash
-marvinctl entries --json > entries.json
+marvin entries --json > entries.json
 ```
 
 ### Get entry count
 
 ```bash
-marvinctl entries --json | jq 'length'
+marvin entries --json | jq 'length'
 ```
 
 ### Export resources to CSV for spreadsheet
 
 ```bash
-marvinctl resources --csv > resources.csv
+marvin resources --csv > resources.csv
 ```
 
 ### Check if a specific entry exists
 
 ```bash
-if marvinctl entry about --json > /dev/null 2>&1; then
+if marvin entry about --json > /dev/null 2>&1; then
   echo "About page exists"
 else
   echo "About page not found"
@@ -354,7 +354,7 @@ fi
 ### List all image assets
 
 ```bash
-marvinctl assets --type image --json | jq -r '.[].name'
+marvin assets --type image --json | jq -r '.[].name'
 ```
 
 ## Troubleshooting
@@ -390,7 +390,7 @@ Check that:
 - The workspace slug is correct
 - The entry/collection/resource slug exists
 
-### "Command not found: marvinctl"
+### "Command not found: marvin"
 
 You need to link the CLI globally:
 
@@ -437,7 +437,7 @@ npm run dev
 Then in another terminal:
 
 ```bash
-marvinctl entries
+marvin entries
 ```
 
 ### Run tests

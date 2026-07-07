@@ -13,9 +13,9 @@ import { renderData, renderList, type OutputMode } from "./output.js";
 const program = new Command();
 
 program
-  .name("marvinctl")
-  .description("CLI for testing Marvin publish API endpoints")
-  .version("0.2.0")
+  .name("marvin")
+  .description("Official CLI for Marvin CMS Publishing API")
+  .version("1.0.0")
   .option("--api-url <url>", "Marvin API URL, overrides MARVIN_API_URL")
   .option("--token <token>", "Site client token, overrides MARVIN_SITE_CLIENT_TOKEN")
   .option("--workspace <slug>", "Workspace slug, overrides MARVIN_WORKSPACE_SLUG")
