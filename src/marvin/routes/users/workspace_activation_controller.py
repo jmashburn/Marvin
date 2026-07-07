@@ -109,7 +109,7 @@ class WorkspaceActivationController(BaseUserController):
 
         self.event_bus.dispatch(
             integration_id="workspace_activation",
-            group_id=request.workspace_id,
+            group_id=workspace.id,
             event_type=EventTypes.workspace_activated,
             document_data=None,
             message=f"User '{self.user.username}' activated workspace '{workspace.name}'",
