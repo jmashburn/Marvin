@@ -1,34 +1,23 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
-
-// Backend API returns snake_case fields
-interface AssetResponse {
-  id: string;
-  slug: string;
-  name: string;
-  file_path: string;
-  file_size: number;
-  mime_type: string;
-  width?: number;
-  height?: number;
-  alt_text?: string;
-  description?: string;
-  metadata_?: Record<string, unknown>;
-  uploaded_by: string;
-}
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
-let asset: AssetResponse | null = null;
+let asset: PlatformAsset | null = null;
 let error: string | null = null;
 
 if (!id) {
   error = "Asset ID is required";
+} else if (!authToken) {
+  error = "Authentication required";
 } else {
   try {
-    asset = await fetchApi<AssetResponse>(`/api/assets/${id}`, {}, authToken);
+    const sdk = createSdkClient(authToken);
+    asset = await sdk.assets.get(id);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     console.error('[Asset] Failed to load:', error);
@@ -87,12 +76,12 @@ if (!id) {
             </div>
 
             <div class="form-group">
-              <label for="alt_text">Alt Text</label>
+              <label for="altText">Alt Text</label>
               <input
                 type="text"
-                id="alt_text"
-                name="alt_text"
-                value={asset.alt_text || ""}
+                id="altText"
+                name="altText"
+                value={asset.altText || ""}
                 placeholder="Describe this image for accessibility"
               />
               <p class="form-help">Important for accessibility and SEO</p>
@@ -108,15 +97,15 @@ if (!id) {
             </div>
 
             <div class="form-group">
-              <label for="metadata_">Metadata (JSON)</label>
+              <label for="metadata">Metadata (JSON)</label>
               <p class="form-help">Custom metadata fields for this asset</p>
               <textarea
-                id="metadata_"
-                name="metadata_"
+                id="metadata"
+                name="metadata"
                 rows="6"
                 placeholder='{"key": "value"}'
                 class="metadata-editor"
-              >{asset.metadata_ ? JSON.stringify(asset.metadata_, null, 2) : ""}</textarea>
+              >{asset.metadata ? JSON.stringify(asset.metadata, null, 2) : ""}</textarea>
               <small style="font-size: 11px; color: var(--muted);">
                 Must be valid JSON. Example: {`{"photographer": "Jane", "license": "CC-BY"}`}
               </small>
@@ -132,16 +121,16 @@ if (!id) {
         <aside class="sidebar">
           <div class="sidebar-section">
             <h3>Preview</h3>
-            {asset.file_path && (
+            {asset.url && (
               <div class="asset-preview">
                 <img
-                  src={asset.file_path}
-                  alt={asset.alt_text || asset.name}
+                  src={asset.url}
+                  alt={asset.altText || asset.name}
                 />
               </div>
             )}
-            {asset.file_path && (
-              <a href={asset.file_path} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
+            {asset.url && (
+              <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
                 View Full Size ↗
               </a>
             )}
@@ -151,7 +140,7 @@ if (!id) {
             <h3>File Info</h3>
             <dl class="info-list">
               <dt>Type</dt>
-              <dd><code>{asset.mime_type}</code></dd>
+              <dd><code>{asset.mimeType}</code></dd>
 
               {asset.width && asset.height && (
                 <>
@@ -161,7 +150,7 @@ if (!id) {
               )}
 
               <dt>File Size</dt>
-              <dd>{(asset.file_size / 1024).toFixed(1)} KB</dd>
+              <dd>{(asset.fileSize / 1024).toFixed(1)} KB</dd>
             </dl>
           </div>
         </aside>
@@ -319,7 +308,7 @@ if (!id) {
 
 <script>
   // Validate metadata JSON
-  const metadataField = document.getElementById('metadata_') as HTMLTextAreaElement | null;
+  const metadataField = document.getElementById('metadata') as HTMLTextAreaElement | null;
 
   if (metadataField) {
     metadataField.addEventListener('blur', () => {
