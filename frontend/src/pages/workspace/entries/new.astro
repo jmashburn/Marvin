@@ -35,7 +35,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
       <div class="toolbar">
         <div>
           <h2 style="margin:0;font-size:20px;">Create Entry</h2>
-          <p style="margin:4px 0 0;color:var(--muted);">Create a new entry in your workspace.</p>
+          <p style="margin:4px 0 0;color:var(--muted);">Create a draft entry. Add content and publish from the editor.</p>
         </div>
         <a class="button secondary" href="/workspace/entries">Cancel</a>
       </div>
@@ -104,11 +104,8 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
             <select id="status" name="status">
               <option value="inbox">Inbox</option>
               <option value="draft" selected>Draft</option>
-              <option value="needs_review">Needs Review</option>
-              <option value="approved">Approved</option>
-              <option value="published">Published</option>
             </select>
-            <p class="form-help">Publication status</p>
+            <p class="form-help">New entries start as drafts. Add content and publish from the editor.</p>
           </div>
 
           <div class="form-actions">
