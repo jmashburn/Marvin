@@ -91,6 +91,48 @@ ADMIN_PASS=MyPassword \
 - Marvin backend running
 - Admin credentials
 
+### `test_invitations_cli.sh`
+
+**CLI-based end-to-end test for invitation system.**
+
+Alternative to `test_invitations.sh` that uses the `marvin` CLI instead of direct curl commands. Better for testing the complete CLI workflow.
+
+**Usage:**
+```bash
+./scripts/test_invitations_cli.sh
+
+# With custom CLI path
+MARVIN_CLI="marvin" ./scripts/test_invitations_cli.sh
+
+# With local development CLI
+MARVIN_CLI="node /path/to/marvin-cli/dist/index.js" ./scripts/test_invitations_cli.sh
+```
+
+**What it tests:**
+1. ✅ Authenticates with marvin CLI
+2. ✅ Creates invitation tokens using `marvin platform invites invite --role <ROLE> --json`
+3. ✅ Lists invitations using `marvin platform invites list --json`
+4. ✅ Validates CLI JSON output includes `workspaceRole` field
+5. ✅ Registers test users and verifies roles
+
+**Test users created:**
+- `viewer_cli_test` (VIEWER) - password: TestPass123!
+- `author_cli_test` (AUTHOR) - password: TestPass123!
+- `editor_cli_test` (EDITOR) - password: TestPass123!
+- `admin_cli_test` (ADMIN) - password: TestPass123!
+- `owner_cli_test` (OWNER) - password: TestPass123!
+
+**Environment variables:**
+- `MARVIN_URL` - Backend URL (default: `http://localhost:8080`)
+- `MARVIN_CLI` - CLI command or path (default: `marvin`)
+- `ADMIN_USER` - Admin username (default: `admin`)
+- `ADMIN_PASS` - Admin password (default: `MyPassword`)
+
+**Requirements:**
+- marvin CLI installed (`npm install -g @inneropen/marvin-cli@next`) or local build
+- `curl` and `jq` installed
+- Marvin backend running
+
 ---
 
 ## Future Scripts
