@@ -86,10 +86,9 @@ class GroupInvitationsController(BaseUserController):
         self.checks.can_invite()
 
         # Prepare the final token data for creation, generating a secure token string
-        # Note: The input `token_data` (InviteTokenCreate) has `uses`, but the model uses `uses_left`.
-        # Assuming `token_data.uses` is meant for `uses_left`.
         final_token_payload = InviteTokenCreate(
-            uses_left=token_data.uses_left,  # uses_left from input schema
+            uses_left=token_data.uses_left,
+            workspace_role=token_data.workspace_role,  # Role from input, defaults to EDITOR
         )
 
         save_data = cast(final_token_payload, InviteTokenSave, token=url_safe_token(), group_id=self.group_id)

@@ -105,7 +105,14 @@ class RegistrationService:
         # Add user to workspace_members with appropriate role
         from marvin.db.models.users.workspace_members import WorkspaceMembers
 
-        workspace_role = "OWNER" if is_new_group else "EDITOR"
+        # Determine role: OWNER for new group creators, otherwise use token's specified role
+        if is_new_group:
+            workspace_role = "OWNER"
+        else:
+            # Get role from the invitation token (stored in self.registration context)
+            # The token was fetched earlier in register_user, we need to pass it down
+            workspace_role = getattr(self, "_invite_token_role", "EDITOR")
+
         workspace_member = WorkspaceMembers(
             session=self.repos.session,
             user_id=created_user.id,
@@ -201,6 +208,9 @@ class RegistrationService:
             if target_group is None:  # Should not happen if token is valid and DB consistent
                 self.logger.error(f"Group ID {group_invite_token_entry.group_id} from token not found.")
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Group associated with token not found.")
+
+            # Store the token's workspace role for use when creating workspace membership
+            self._invite_token_role = group_invite_token_entry.workspace_role
 
         elif self.registration.group:  # User is specifying a new group name to create
             is_new_group_being_created = True
