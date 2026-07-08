@@ -161,3 +161,34 @@ class GroupInvitationsController(BaseUserController):
             error_message = str(e)
 
         return EmailInitationResponse(success=email_sent_successfully, error=error_message)
+
+    @router.delete("/{token_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete an Invite Token")
+    def delete_invite_token(self, token_id: str) -> None:
+        """
+        Deletes (revokes) an invitation token.
+
+        This allows administrators to manually revoke invitation tokens before they
+        are exhausted or expire. The token_id can be either the UUID or the token string.
+
+        Args:
+            token_id: The UUID or token string of the invitation to delete
+
+        Raises:
+            HTTPException (404 Not Found): If the token does not exist
+            HTTPException (403 Forbidden): If the user lacks permission to delete tokens
+        """
+        self.checks.can_invite()  # Ensure user has permission to manage invitations
+
+        # Try to find the token by ID first, then by token string
+        token = self.repos.group_invite_tokens.get_one(token_id)
+        if not token:
+            # Try by token string
+            token = self.repos.group_invite_tokens.get_one(token_id, "token")
+
+        if not token:
+            self.logger.warning(f"Attempt to delete non-existent token: {token_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation token not found")
+
+        # Delete the token
+        self.repos.group_invite_tokens.delete(token.token, match_key="token")
+        self.logger.info(f"Invite token {token.token} deleted by user {self.user.username}")
