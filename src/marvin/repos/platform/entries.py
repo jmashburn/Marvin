@@ -88,9 +88,17 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
-        # Auto-regenerate slug if title is being updated
-        if "title" in data_dict and data_dict.get("title"):
-            data_dict["slug"] = slugify(data_dict["title"])
+        # Get existing entry to check publish status
+        existing_entry = self.get_one(match_value, match_key=match_key)
+
+        # Only auto-regenerate slug for unpublished entries
+        # Published entries keep their slug stable to avoid breaking external URLs
+        if existing_entry.status != "published":
+            if "title" in data_dict and data_dict.get("title"):
+                data_dict["slug"] = slugify(data_dict["title"])
+        else:
+            # Published entry - don't regenerate slug even if title changes
+            data_dict.pop("slug", None)
 
         # Handle published_at based on status changes
         if "status" in data_dict:

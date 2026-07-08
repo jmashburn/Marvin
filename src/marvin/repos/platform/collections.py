@@ -53,14 +53,11 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
         return self.get_one(new_collection.id)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> CollectionRead:
-        from slugify import slugify
-
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
-        # Auto-regenerate slug if name is being updated
-        if "name" in data_dict and data_dict.get("name"):
-            data_dict["slug"] = slugify(data_dict["name"])
-
+        # Don't auto-regenerate slug on update - slugs should remain stable once created
+        # to avoid breaking references in Publishing API, external integrations, and bookmarks
+        data_dict.pop("slug", None)
         data_dict.pop("group_id", None)
 
         # Extract entry_ids before updating collection
