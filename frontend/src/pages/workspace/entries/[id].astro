@@ -971,15 +971,17 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
           contentMarkdown: contentMarkdown?.trim() || null,
           metadataJson: metadataJson,
           status,
-          collection_ids: collectionIds,  // Always send array
-          asset_ids: assetIds,            // Always send array
-          resource_ids: resourceIds,      // Always send array
+          collectionIds: collectionIds,  // Use camelCase for SDK
+          assetIds: assetIds,            // Use camelCase for SDK
+          resourceIds: resourceIds,      // Use camelCase for SDK
         };
 
         console.log('Update payload:', updateData);
         console.log('Collection IDs type:', typeof collectionIds, Array.isArray(collectionIds), collectionIds);
         console.log('Asset IDs type:', typeof assetIds, Array.isArray(assetIds), assetIds);
         console.log('Resource IDs type:', typeof resourceIds, Array.isArray(resourceIds), resourceIds);
+
+        console.log('Sending with camelCase field names:', updateData);
 
         await sdk.entries.update(entryId, updateData);
 
