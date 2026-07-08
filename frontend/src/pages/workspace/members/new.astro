@@ -51,7 +51,7 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : (
     <div class="form-container">
-      <form id="add-member-form" class="form">
+      <form id="add-member-form" class="form" data-workspace-id={workspace?.id}>
         <div class="form-section">
           <h3>Invitation Details</h3>
 
@@ -90,9 +90,11 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
   )}
 </AppLayout>
 
-<script define:vars={{ workspaceId: workspace?.id }}>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  const form = document.getElementById('add-member-form');
+<script>
+  import { fetchApi } from '@/lib/api/client';
+
+  const form = document.getElementById('add-member-form') as HTMLFormElement;
+  const workspaceId = form?.dataset.workspaceId;
 
   if (!workspaceId) {
     console.error('No workspace ID available');
@@ -106,9 +108,8 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
       return;
     }
 
-    const target = e.target;
-    const formData = new FormData(target);
-    const submitButton = target.querySelector('button[type="submit"]');
+    const formData = new FormData(form);
+    const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
 
     if (submitButton) {
       submitButton.disabled = true;
@@ -116,8 +117,6 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     }
 
     try {
-      const { fetchApi } = await import('@/lib/api/client');
-
       // Step 1: Create an invite token
       const tokenResponse = await fetchApi('/api/groups/invitations', {
         method: 'POST',
@@ -126,7 +125,7 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
           uses_left: 1, // Single-use token
           group_id: workspaceId,
         }),
-      });
+      }) as { token: string };
 
       // Step 2: Send email invitation with the token
       await fetchApi('/api/groups/invitations/email', {
