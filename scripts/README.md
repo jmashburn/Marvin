@@ -129,7 +129,7 @@ MARVIN_CLI="node /path/to/marvin-cli/dist/index.js" ./scripts/test_invitations_c
 - `ADMIN_PASS` - Admin password (default: `MyPassword`)
 
 **Requirements:**
-- marvin CLI installed (`npm install -g @inneropen/marvin-cli@next`) or local build
+- marvin CLI installed (`npm install -g @inneropen/marvin-cli@develop`) or local build
 - `curl` and `jq` installed
 - Marvin backend running
 

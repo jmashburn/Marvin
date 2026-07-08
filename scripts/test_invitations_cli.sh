@@ -2,6 +2,9 @@
 #
 # End-to-end test script for invitation system using marvin CLI
 #
+# Prerequisites:
+#   npm install -g @inneropen/marvin-cli@develop
+#
 # This script tests the complete invitation flow:
 # 1. Creates invitation tokens for each workspace role via CLI
 # 2. Validates CLI output includes workspace_role field
@@ -48,7 +51,7 @@ if [[ "$MARVIN_CLI" == *"node"* ]]; then
   fi
 elif ! command -v "$MARVIN_CLI" &> /dev/null; then
   echo -e "${RED}✗ marvin CLI not found${NC}"
-  echo "  Please install: npm install -g @inneropen/marvin-cli@next"
+  echo "  Please install: npm install -g @inneropen/marvin-cli@develop"
   exit 1
 fi
 
