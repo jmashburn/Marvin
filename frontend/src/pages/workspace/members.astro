@@ -169,7 +169,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
                 <strong>Invitation Token</strong>
                 <span class="invitation-meta">
                   {token.usesLeft} {token.usesLeft === 1 ? 'use' : 'uses'} remaining
-                  {token.createdAt && ` • Created ${new Date(token.createdAt).toLocaleDateString()}`}
+                  {(token.createdAt || token.created_at) && ` • Created ${new Date(token.createdAt || token.created_at).toLocaleDateString()}`}
                 </span>
               </div>
             </div>

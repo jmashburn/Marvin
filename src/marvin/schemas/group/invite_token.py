@@ -6,6 +6,8 @@ These schemas are used for creating, updating, and representing invitation token
 as well as for handling requests and responses for sending email invitations.
 """
 
+from datetime import datetime
+
 from pydantic import UUID4, ConfigDict  # Field can be used for more detailed field definitions if needed
 
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model
@@ -48,8 +50,12 @@ class InviteTokenSummary(InviteTokenCreate):
     Schema for a summary representation of a invite token .
     """
 
+    id: UUID4
+    """The unique identifier of the invitation token."""
     token: str
-    # """The token string"""
+    """The token string"""
+    created_at: datetime | None = None
+    """When the token was created."""
     model_config = ConfigDict(from_attributes=True)
 
 
