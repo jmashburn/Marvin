@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import UUID4
 
 from marvin.routes._base import BaseUserController, controller
-from marvin.schemas.platform import AssetCreate, AssetRead, AssetUpdate, AssetUploadRequest
+from marvin.schemas.platform import AssetRead, AssetUpdate, AssetUploadRequest
 from marvin.services.assets.asset_storage_service import AssetStorageService
 from marvin.services.event_bus_service.event_types import EventAssetData, EventTypes
 from marvin.services.storage.provider_factory import get_storage_provider
@@ -87,21 +87,6 @@ class AssetsController(BaseUserController):
         )
 
         return asset
-
-    @router.post("", response_model=AssetRead, status_code=status.HTTP_201_CREATED, summary="Create Asset Metadata")
-    def create_asset(self, data: AssetCreate) -> AssetRead:
-        """
-        Create asset metadata entry.
-
-        Note: This endpoint only creates the metadata record. File upload functionality
-        (multipart form-data) is planned for Phase 7. For testing, provide a file_path
-        that points to an existing file or use a placeholder path.
-        """
-        # Inject uploaded_by and group_id from authenticated user
-        data_dict = data.model_dump()
-        data_dict["uploaded_by"] = self.user.id
-        data_dict["group_id"] = self.group_id
-        return self.repos.assets.create(data_dict)
 
     @router.get("/{item_id}", response_model=AssetRead, summary="Get Asset")
     def get_asset(self, item_id: UUID4) -> AssetRead:

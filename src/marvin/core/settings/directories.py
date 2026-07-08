@@ -33,6 +33,7 @@ class AppDirectories:
         self.BACKUP_DIR = data_dir.joinpath("backups")
         self.TEMPLATE_DIR = data_dir.joinpath("templates")
         self.SEED_DIR = data_dir.joinpath("seeds")
+        self.ASSETS_DIR = data_dir.joinpath("assets")
         self._TEMP_DIR = data_dir.joinpath(".temp")
         self.ensure_directories()
 
@@ -47,6 +48,6 @@ class AppDirectories:
 
         Creates the directories if they don't already exist.
         """
-        required_dirs = [self.BACKUP_DIR, self.PLUGIN_DIR, self.TEMPLATE_DIR, self.SEED_DIR, self.TEMP_DIR]
+        required_dirs = [self.BACKUP_DIR, self.PLUGIN_DIR, self.TEMPLATE_DIR, self.SEED_DIR, self.ASSETS_DIR, self.TEMP_DIR]
         for dir_path in required_dirs:
             dir_path.mkdir(parents=True, exist_ok=True)
