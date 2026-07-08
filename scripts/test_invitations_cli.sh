@@ -220,8 +220,8 @@ for role in "${ROLES[@]}"; do
     continue
   fi
 
-  # Extract workspace role from CLI output (looking for "Workspace Role:" line)
-  actual_role=$(echo "$member_info" | grep -i "workspace role" | awk -F: '{print $2}' | xargs)
+  # Extract workspace role from CLI output (JavaScript object format: workspaceRole: 'ROLE')
+  actual_role=$(echo "$member_info" | grep "workspaceRole:" | sed "s/.*workspaceRole: *'\([^']*\)'.*/\1/")
 
   if [ "$actual_role" == "$role" ]; then
     echo -e "  ${GREEN}✓${NC} $username has correct role: $role"
@@ -253,7 +253,9 @@ for role in "${ROLES[@]}"; do
   before="${USES_LEFT_BEFORE[$idx]}"
 
   # Find the line with this token and extract Uses Left column (strip ANSI colors)
-  uses_left=$(echo "$token_list" | grep "$token_prefix" | sed 's/\x1b\[[0-9;]*m//g' | awk -F'│' '{print $3}' | xargs)
+  # Table format: (index) │ Token │ Role │ Uses Left │ Created
+  # Column 5 contains Uses Left (counting from left: empty, index, Token, Role, Uses Left)
+  uses_left=$(echo "$token_list" | grep "$token_prefix" | sed 's/\x1b\[[0-9;]*m//g' | awk -F'│' '{print $5}' | xargs)
 
   # Calculate expected value after one use
   if [ "$before" == "-1" ]; then
