@@ -56,18 +56,7 @@ import ImageCropper from "@/components/ImageCropper.astro";
       </div>
 
       <!-- Slug (Auto-generated, read-only) -->
-      <div class="form-group">
-        <label for="slug">Slug</label>
-        <input
-          type="text"
-          id="slug"
-          name="slug"
-          placeholder="Auto-generated from name"
-          disabled
-          style="background: var(--panel-2); color: var(--muted);"
-        />
-        <p class="form-help">Auto-generated URL-friendly identifier</p>
-      </div>
+      <SlugInput nameFieldId="name" />
 
       <!-- Alt Text -->
       <div class="form-group">
