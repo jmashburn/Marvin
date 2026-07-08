@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Test script for invitation system using marvin CLI
+# End-to-end test script for invitation system using marvin CLI
 #
-# This script tests invitation token creation via CLI:
+# This script tests the complete invitation flow:
 # 1. Creates invitation tokens for each workspace role via CLI
 # 2. Validates CLI output includes workspace_role field
 # 3. Lists invitations and verifies roles via CLI
-#
-# Note: This script focuses on CLI testing only. For end-to-end registration
-# testing, use test_invitations.sh instead.
+# 4. Registers test users with invitation tokens (via API - CLI doesn't support registration yet)
+# 5. Verifies users have correct workspace roles
+# 6. Confirms invitation tokens had uses_left decremented
 #
 
 set -e
@@ -29,6 +29,7 @@ ADMIN_PASS="${ADMIN_PASS:-MyPassword}"
 # Test data
 ROLES=("VIEWER" "AUTHOR" "EDITOR" "ADMIN" "OWNER")
 TOKENS=()
+USER_IDS=()
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}  Marvin CLI Invitation Test Suite${NC}"
@@ -49,7 +50,7 @@ elif ! command -v "$MARVIN_CLI" &> /dev/null; then
 fi
 
 # Step 1: Authenticate with marvin CLI
-echo -e "${YELLOW}[1/3] Authenticating with marvin CLI...${NC}"
+echo -e "${YELLOW}[1/6] Authenticating with marvin CLI...${NC}"
 
 # Get access token via API (CLI doesn't have username/password login)
 ADMIN_TOKEN=$(curl -s -X POST "$MARVIN_URL/api/auth/token" \
@@ -77,7 +78,7 @@ echo -e "${GREEN}✓ Authenticated successfully${NC}"
 echo ""
 
 # Step 2: Create invitation tokens for each role using CLI
-echo -e "${YELLOW}[2/3] Creating invitation tokens via CLI...${NC}"
+echo -e "${YELLOW}[2/6] Creating invitation tokens via CLI...${NC}"
 idx=0
 for role in "${ROLES[@]}"; do
   echo -n "  Creating $role invitation... "
@@ -112,7 +113,7 @@ done
 echo ""
 
 # Step 3: List tokens via CLI and validate roles
-echo -e "${YELLOW}[3/3] Validating invitation list via CLI...${NC}"
+echo -e "${YELLOW}[3/6] Validating invitation list via CLI...${NC}"
 
 # List all invitations
 list_output=$(MARVIN_API_URL="$MARVIN_URL" "$MARVIN_CLI" platform invites list 2>&1)
@@ -135,25 +136,123 @@ for role in "${ROLES[@]}"; do
 done
 echo ""
 
+# Step 4: Register users with invitation tokens
+echo -e "${YELLOW}[4/6] Registering test users (via API - CLI doesn't support registration yet)...${NC}"
+idx=0
+for role in "${ROLES[@]}"; do
+  username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test
+  token="${TOKENS[$idx]}"
+
+  echo -n "  Registering $username with $role role... "
+
+  response=$(curl -s -X POST "$MARVIN_URL/api/users/register" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"full_name\": \"CLI Test $role User\",
+      \"email\": \"${username}@test.com\",
+      \"username\": \"${username}\",
+      \"password\": \"TestPass123!\",
+      \"password_confirm\": \"TestPass123!\",
+      \"group_token\": \"${token}\",
+      \"group\": null,
+      \"advanced\": false,
+      \"private\": false,
+      \"seed_data\": false
+    }")
+
+  user_id=$(echo "$response" | jq -r '.id')
+
+  if [ "$user_id" == "null" ] || [ -z "$user_id" ]; then
+    echo -e "${RED}✗ Failed${NC}"
+    echo "Response: $response"
+    exit 1
+  fi
+
+  USER_IDS[$idx]=$user_id
+  echo -e "${GREEN}✓${NC} (id: ${user_id:0:8}...)"
+  idx=$((idx + 1))
+done
+echo ""
+
+# Step 5: Verify workspace roles
+echo -e "${YELLOW}[5/6] Verifying workspace roles...${NC}"
+
+# Get workspace ID (assuming default workspace)
+workspace_id=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$MARVIN_URL/api/admin/workspaces" | jq -r '.items[0].id')
+
+if [ "$workspace_id" == "null" ] || [ -z "$workspace_id" ]; then
+  echo -e "${RED}✗ Failed to get workspace ID${NC}"
+  exit 1
+fi
+
+all_correct=true
+idx=0
+for role in "${ROLES[@]}"; do
+  user_id="${USER_IDS[$idx]}"
+  username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test
+
+  # Get user's workspace membership
+  membership=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+    "$MARVIN_URL/api/platform/workspaces/$workspace_id/members/$user_id")
+
+  actual_role=$(echo "$membership" | jq -r '.workspaceRole')
+
+  if [ "$actual_role" == "$role" ]; then
+    echo -e "  ${GREEN}✓${NC} $username has correct role: $role"
+  else
+    echo -e "  ${RED}✗${NC} $username role mismatch! Expected $role, got $actual_role"
+    all_correct=false
+  fi
+  idx=$((idx + 1))
+done
+echo ""
+
+# Step 6: Verify invitation tokens were consumed
+echo -e "${YELLOW}[6/6] Verifying invitation tokens were consumed...${NC}"
+
+# Get updated token list
+token_list=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "$MARVIN_URL/api/groups/invitations?page=1&perPage=100")
+
+idx=0
+tokens_consumed=true
+for role in "${ROLES[@]}"; do
+  token="${TOKENS[$idx]}"
+  # Check uses_left for each token
+  uses_left=$(echo "$token_list" | jq -r ".items[] | select(.token == \"$token\") | .usesLeft")
+
+  if [ "$uses_left" == "0" ]; then
+    echo -e "  ${GREEN}✓${NC} $role token consumed (uses_left: 0)"
+  else
+    echo -e "  ${RED}✗${NC} $role token not consumed! (uses_left: $uses_left, expected: 0)"
+    tokens_consumed=false
+  fi
+  idx=$((idx + 1))
+done
+echo ""
+
 # Summary
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-if [ "$all_found" = true ]; then
-  echo -e "${GREEN}✓ All CLI tests passed!${NC}"
+if [ "$all_found" = true ] && [ "$all_correct" = true ] && [ "$tokens_consumed" = true ]; then
+  echo -e "${GREEN}✓ All end-to-end tests passed!${NC}"
   echo ""
   echo "Test Summary:"
   echo "  - 5 invitation tokens created via marvin CLI"
   echo "  - CLI JSON output validated (workspaceRole field present)"
-  echo "  - All roles verified in list output"
+  echo "  - All roles verified in CLI list output"
+  echo "  - 5 test users registered via API"
+  echo "  - All workspace roles correctly assigned"
+  echo "  - All invitation tokens consumed (uses_left: 0)"
   echo ""
   echo "CLI commands tested:"
   echo "  ✓ marvin platform invites invite --role <ROLE> --uses <N> --json"
   echo "  ✓ marvin platform invites list"
   echo ""
-  echo "Invitation tokens created (uses_left: 1):"
-  idx=0
+  echo "Test users created:"
   for role in "${ROLES[@]}"; do
-    echo "  - $role: ${TOKENS[$idx]}"
-    idx=$((idx + 1))
+    username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test
+    echo "  - $username (role: $role, password: TestPass123!)"
   done
 else
   echo -e "${RED}✗ Some tests failed${NC}"
