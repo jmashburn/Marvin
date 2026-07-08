@@ -102,12 +102,10 @@ try {
 
 <script>
   import { createSdkClient } from '@/lib/sdk';
-  import { getAuthTokenFromBrowser } from '@/lib/api/client';
 
-  // Get auth token from browser cookies (if available)
-  // If token is HttpOnly and can't be read, SDK will use cookies via credentials: 'include'
-  const authToken = getAuthTokenFromBrowser();
-  const sdk = createSdkClient(authToken);
+  // SDK uses cookie-based auth automatically via credentials: 'include'
+  // No need to extract the HttpOnly token - the browser sends it automatically
+  const sdk = createSdkClient();
 
   // Cleanup tokens
   document.getElementById('cleanup-tokens')?.addEventListener('click', async () => {
