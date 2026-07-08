@@ -2,17 +2,46 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 ---
 
-<AppLayout title="New Asset" eyebrow="Assets">
+<AppLayout title="Upload Asset" eyebrow="Assets">
   <div class="toolbar">
     <div>
-      <h2 style="margin:0;font-size:20px;">New Asset</h2>
-      <p style="margin:4px 0 0;color:var(--muted);">Upload a new media file or image</p>
+      <h2 style="margin:0;font-size:20px;">Upload Asset</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Upload images, videos, documents, and other files</p>
     </div>
     <a href="/workspace/assets" class="button secondary">Cancel</a>
   </div>
 
   <section class="form-section">
-    <form method="POST" action="/api/assets" class="form">
+    <form id="uploadForm" enctype="multipart/form-data" class="form">
+      <!-- File Upload Area -->
+      <div class="form-group">
+        <label for="file">File *</label>
+        <div class="file-upload-area" id="dropZone">
+          <input
+            type="file"
+            id="file"
+            name="file"
+            required
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+            hidden
+          />
+          <div class="upload-placeholder" id="uploadPlaceholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <p style="margin: 1rem 0 0.5rem; font-weight: 600;">Click to upload or drag and drop</p>
+            <p style="margin: 0; font-size: 0.875rem; color: var(--muted);">Images, videos, PDFs, documents</p>
+          </div>
+          <div class="upload-preview" id="uploadPreview" style="display: none;">
+            <div id="previewContent"></div>
+            <button type="button" class="button secondary small" id="removeFile">Change File</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Name Field (Auto-populated from filename) -->
       <div class="form-group">
         <label for="name">Name *</label>
         <input
@@ -20,10 +49,12 @@ import AppLayout from "@/layouts/AppLayout.astro";
           id="name"
           name="name"
           required
-          placeholder="e.g., Product Photo, Hero Image, Logo"
+          placeholder="e.g., Product Hero Image"
         />
+        <p class="form-help">Auto-populated from filename, edit as needed</p>
       </div>
 
+      <!-- Slug (Auto-generated, read-only) -->
       <div class="form-group">
         <label for="slug">Slug</label>
         <input
@@ -34,78 +65,22 @@ import AppLayout from "@/layouts/AppLayout.astro";
           disabled
           style="background: var(--panel-2); color: var(--muted);"
         />
-        <p class="form-help">Auto-generated from name</p>
+        <p class="form-help">Auto-generated URL-friendly identifier</p>
       </div>
 
-      <div class="form-group">
-        <label for="file_path">File Path *</label>
-        <input
-          type="text"
-          id="file_path"
-          name="file_path"
-          required
-          placeholder="/uploads/images/photo.jpg"
-        />
-        <p class="form-help">Path to the file in storage (file upload coming soon)</p>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="mime_type">MIME Type *</label>
-          <input
-            type="text"
-            id="mime_type"
-            name="mime_type"
-            required
-            placeholder="image/jpeg"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="file_size">File Size (bytes) *</label>
-          <input
-            type="number"
-            id="file_size"
-            name="file_size"
-            required
-            placeholder="102400"
-          />
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="width">Width (px)</label>
-          <input
-            type="number"
-            id="width"
-            name="width"
-            placeholder="1920"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="height">Height (px)</label>
-          <input
-            type="number"
-            id="height"
-            name="height"
-            placeholder="1080"
-          />
-        </div>
-      </div>
-
+      <!-- Alt Text -->
       <div class="form-group">
         <label for="alt_text">Alt Text</label>
         <input
           type="text"
           id="alt_text"
           name="alt_text"
-          placeholder="Describe this image for accessibility"
+          placeholder="Describe this asset for accessibility"
         />
-        <p class="form-help">Important for accessibility and SEO</p>
+        <p class="form-help">Important for accessibility and SEO (especially for images)</p>
       </div>
 
+      <!-- Description -->
       <div class="form-group">
         <label for="description">Description</label>
         <textarea
@@ -116,23 +91,33 @@ import AppLayout from "@/layouts/AppLayout.astro";
         ></textarea>
       </div>
 
+      <!-- Metadata (JSON) -->
       <div class="form-group">
-        <label for="metadata_">Metadata (JSON)</label>
-        <p class="form-help">Custom metadata fields for this asset</p>
+        <label for="metadata">Custom Metadata (JSON)</label>
         <textarea
-          id="metadata_"
-          name="metadata_"
+          id="metadata"
+          name="metadata"
           rows="6"
           placeholder='{"photographer": "Jane Doe", "license": "CC-BY"}'
           class="metadata-editor"
         ></textarea>
-        <small style="font-size: 11px; color: var(--muted);">
-          Must be valid JSON. Example: {`{"credit": "Photo by John", "license": "MIT"}`}
-        </small>
+        <p class="form-help">Optional custom metadata as JSON</p>
       </div>
 
+      <!-- Upload Progress -->
+      <div id="uploadProgress" style="display: none;">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p id="progressText" style="margin: 0.5rem 0 0; font-size: 0.875rem; color: var(--muted); text-align: center;">Uploading...</p>
+      </div>
+
+      <!-- Error Message -->
+      <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+      <!-- Form Actions -->
       <div class="form-actions">
-        <button type="submit" class="button">Create Asset</button>
+        <button type="submit" class="button" id="submitButton">Upload Asset</button>
         <a href="/workspace/assets" class="button secondary">Cancel</a>
       </div>
     </form>
@@ -158,12 +143,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
     gap: 0.5rem;
   }
 
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
   label {
     font-weight: 600;
     font-size: 0.875rem;
@@ -171,7 +150,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
   }
 
   input[type="text"],
-  input[type="number"],
   textarea {
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--line);
@@ -191,6 +169,81 @@ import AppLayout from "@/layouts/AppLayout.astro";
     color: var(--muted);
   }
 
+  .file-upload-area {
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+
+  .file-upload-area:hover {
+    border-color: var(--ink);
+    background: var(--panel-2);
+  }
+
+  .file-upload-area.dragover {
+    border-color: var(--brand);
+    background: var(--panel-2);
+  }
+
+  .upload-placeholder svg {
+    color: var(--muted);
+  }
+
+  .upload-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .upload-preview img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 6px;
+  }
+
+  .upload-preview .file-info {
+    text-align: center;
+  }
+
+  .upload-preview .file-name {
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .upload-preview .file-size {
+    font-size: 0.875rem;
+    color: var(--muted);
+    margin: 0.25rem 0 0;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--panel-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--brand);
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
+  .error-message {
+    padding: 1rem;
+    background: #fdecea;
+    border: 1px solid #f5c6cb;
+    border-radius: 6px;
+    color: #721c24;
+    font-size: 0.875rem;
+  }
+
   .form-actions {
     display: flex;
     gap: 0.75rem;
@@ -204,39 +257,222 @@ import AppLayout from "@/layouts/AppLayout.astro";
     line-height: 1.5;
     background: var(--panel-2);
   }
+
+  .button.small {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+  }
 </style>
 
 <script>
-  // Auto-generate slug from name
-  const nameInput = document.getElementById('name') as HTMLInputElement | null;
-  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
+  const form = document.getElementById('uploadForm') as HTMLFormElement;
+  const fileInput = document.getElementById('file') as HTMLInputElement;
+  const dropZone = document.getElementById('dropZone') as HTMLElement;
+  const uploadPlaceholder = document.getElementById('uploadPlaceholder') as HTMLElement;
+  const uploadPreview = document.getElementById('uploadPreview') as HTMLElement;
+  const previewContent = document.getElementById('previewContent') as HTMLElement;
+  const removeFileBtn = document.getElementById('removeFile') as HTMLButtonElement;
+  const nameInput = document.getElementById('name') as HTMLInputElement;
+  const slugInput = document.getElementById('slug') as HTMLInputElement;
+  const submitButton = document.getElementById('submitButton') as HTMLButtonElement;
+  const progressContainer = document.getElementById('uploadProgress') as HTMLElement;
+  const progressFill = document.getElementById('progressFill') as HTMLElement;
+  const progressText = document.getElementById('progressText') as HTMLElement;
+  const errorMessage = document.getElementById('errorMessage') as HTMLElement;
 
-  if (nameInput && slugInput) {
-    nameInput.addEventListener('input', () => {
-      const slug = nameInput.value
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/[\s_-]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-      slugInput.value = slug;
-    });
+  let selectedFile: File | null = null;
+
+  // Click to select file
+  dropZone.addEventListener('click', (e) => {
+    if (e.target !== removeFileBtn && !removeFileBtn.contains(e.target as Node)) {
+      fileInput.click();
+    }
+  });
+
+  // File selection handler
+  fileInput.addEventListener('change', (e) => {
+    const files = (e.target as HTMLInputElement).files;
+    if (files && files.length > 0) {
+      handleFile(files[0]);
+    }
+  });
+
+  // Drag and drop
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      fileInput.files = files;
+      handleFile(files[0]);
+    }
+  });
+
+  // Remove file
+  removeFileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectedFile = null;
+    fileInput.value = '';
+    uploadPlaceholder.style.display = 'block';
+    uploadPreview.style.display = 'none';
+    nameInput.value = '';
+    slugInput.value = '';
+  });
+
+  // Handle file selection
+  function handleFile(file: File) {
+    selectedFile = file;
+
+    // Auto-populate name from filename
+    const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+    nameInput.value = fileName.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    // Generate slug
+    updateSlug();
+
+    // Show preview
+    uploadPlaceholder.style.display = 'none';
+    uploadPreview.style.display = 'flex';
+
+    // Create preview content
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewContent.innerHTML = `<img src="${e.target?.result}" alt="Preview" />`;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      previewContent.innerHTML = `
+        <div class="file-info">
+          <p class="file-name">${file.name}</p>
+          <p class="file-size">${formatFileSize(file.size)}</p>
+          <p class="file-size">${file.type || 'Unknown type'}</p>
+        </div>
+      `;
+    }
   }
 
-  // Validate metadata JSON
-  const metadataField = document.getElementById('metadata_') as HTMLInputElement | null;
+  // Auto-generate slug from name
+  nameInput.addEventListener('input', updateSlug);
 
-  if (metadataField) {
-    metadataField.addEventListener('blur', () => {
-      const value = metadataField.value.trim();
-      if (!value) return;
+  function updateSlug() {
+    const slug = nameInput.value
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    slugInput.value = slug;
+  }
 
+  // Format file size
+  function formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  // Form submission
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (!selectedFile) {
+      showError('Please select a file to upload');
+      return;
+    }
+
+    // Hide error
+    errorMessage.style.display = 'none';
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('slug', slugInput.value);
+    formData.append('name', nameInput.value);
+
+    const altText = (document.getElementById('alt_text') as HTMLInputElement).value;
+    const description = (document.getElementById('description') as HTMLTextAreaElement).value;
+    const metadata = (document.getElementById('metadata') as HTMLTextAreaElement).value;
+
+    if (altText) formData.append('alt_text', altText);
+    if (description) formData.append('description', description);
+    if (metadata) {
       try {
-        JSON.parse(value);
-        metadataField.style.borderColor = 'var(--line)';
-      } catch (error) {
-        metadataField.style.borderColor = '#ef5350';
+        JSON.parse(metadata); // Validate JSON
+        formData.append('metadata', metadata);
+      } catch (e) {
+        showError('Invalid JSON in metadata field');
+        return;
       }
-    });
+    }
+
+    // Disable submit button and show progress
+    submitButton.disabled = true;
+    submitButton.textContent = 'Uploading...';
+    progressContainer.style.display = 'block';
+
+    try {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percent = (e.loaded / e.total) * 100;
+          progressFill.style.width = percent + '%';
+          progressText.textContent = `Uploading... ${Math.round(percent)}%`;
+        }
+      });
+
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          progressText.textContent = 'Upload complete! Redirecting...';
+          setTimeout(() => {
+            window.location.href = '/workspace/assets';
+          }, 1000);
+        } else {
+          const error = JSON.parse(xhr.responseText);
+          showError(error.detail || 'Upload failed');
+          resetForm();
+        }
+      });
+
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        showError('Network error during upload');
+        resetForm();
+      });
+
+      // Send request
+      xhr.open('POST', '/api/platform/assets/upload');
+      xhr.send(formData);
+    } catch (error) {
+      showError('Upload failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      resetForm();
+    }
+  });
+
+  function showError(message: string) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+  }
+
+  function resetForm() {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Upload Asset';
+    progressContainer.style.display = 'none';
+    progressFill.style.width = '0%';
   }
 </script>
