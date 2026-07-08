@@ -153,6 +153,7 @@ class AssetsController(BaseUserController):
         For S3 storage, redirects to the public URL or generates a signed URL.
         """
         from fastapi.responses import RedirectResponse
+        from marvin.core.settings import settings
 
         asset = self.repos.assets.get_one(item_id)
         if not asset:
@@ -160,7 +161,11 @@ class AssetsController(BaseUserController):
 
         # For local storage, redirect to the static file URL
         if asset.storage_provider == "local":
-            return RedirectResponse(url=f"/assets/{asset.storage_key}")
+            # Use absolute URL in development for CORS (frontend on different port)
+            asset_url = f"/assets/{asset.storage_key}"
+            if not settings.PRODUCTION:
+                asset_url = f"http://localhost:{settings.API_PORT}{asset_url}"
+            return RedirectResponse(url=asset_url)
 
         # For S3 or other providers, use the public_url if available
         if asset.public_url:
