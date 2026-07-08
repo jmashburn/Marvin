@@ -48,8 +48,21 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
             HTTPException(404): If the user is not found (from `_query_one`).
         """
         # Query user directly without group_id filtering (users exist across groups)
-        entry = self.session.query(self.model).filter_by(id=user_id).first()
+        # Convert UUID4 to string if needed for SQLAlchemy comparison
+        from uuid import UUID
+
+        user_uuid = UUID(str(user_id)) if not isinstance(user_id, UUID) else user_id
+
+        # Debug logging
+        self.logger.debug(f"Searching for user: user_id={user_id} (type={type(user_id)}), user_uuid={user_uuid} (type={type(user_uuid)})")
+
+        entry = self.session.query(self.model).filter_by(id=user_uuid).first()
+
         if not entry:
+            # Log all users to debug
+            all_users = self.session.query(self.model).all()
+            self.logger.error(f"User {user_uuid} not found. Available users: {[str(u.id) for u in all_users]}")
+
             from fastapi import HTTPException, status as http_status
             from marvin.schemas.response import ErrorResponse
 
