@@ -1,7 +1,7 @@
 """add workspace_role to invite_tokens
 
-Revision ID: add_workspace_role_invite
-Revises: 2026-07-08-06.00.00
+Revision ID: b5c6d7e8f9a0
+Revises: a3f8e9c4d2b1
 Create Date: 2026-07-08 11:37:44
 
 """
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = "add_workspace_role_invite"
-down_revision = "2026-07-08-06.00.00"
+revision = "b5c6d7e8f9a0"
+down_revision = "a3f8e9c4d2b1"
 branch_labels = None
 depends_on = None
 
