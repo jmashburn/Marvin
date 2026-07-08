@@ -576,21 +576,27 @@ async def list_published_assets(
     assets = query.order_by(Assets.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
-    data = [
-        PublishedAssetRead(
-            slug=asset.slug,
-            name=asset.name,
-            mime_type=asset.mime_type,
-            asset_type=asset.asset_type,
-            file_size=asset.file_size,
-            width=asset.width,
-            height=asset.height,
-            alt_text=asset.alt_text,
-            description=asset.description,
-            public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+    data = []
+    for asset in assets:
+        # Get published entry slugs that use this asset
+        entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
+        data.append(
+            PublishedAssetRead(
+                slug=asset.slug,
+                name=asset.name,
+                mime_type=asset.mime_type,
+                asset_type=asset.asset_type,
+                file_size=asset.file_size,
+                width=asset.width,
+                height=asset.height,
+                alt_text=asset.alt_text,
+                description=asset.description,
+                public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+                metadata=asset.metadata_,
+                entries=entry_slugs,
+            )
         )
-        for asset in assets
-    ]
 
     return PublishedAssetsResponse(
         data=data,
@@ -643,6 +649,9 @@ async def get_published_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
+    # Get published entry slugs that use this asset
+    entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
     return PublishedAssetRead(
         slug=asset.slug,
         name=asset.name,
@@ -654,6 +663,8 @@ async def get_published_asset(
         alt_text=asset.alt_text,
         description=asset.description,
         public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+        metadata=asset.metadata_,
+        entries=entry_slugs,
     )
 
 
@@ -754,18 +765,23 @@ async def list_published_resources(
     resources = query.order_by(Resources.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
-    data = [
-        PublishedResourceSummary(
-            slug=resource.slug,
-            name=resource.name,
-            resource_type=resource.resource_type,
-            description=resource.description,
-            url=resource.url,
-            external_id=resource.external_id,
-            metadata=resource.metadata_,
+    data = []
+    for resource in resources:
+        # Get published entry slugs that reference this resource
+        entry_slugs = [er.entry.slug for er in resource.entry_resources if er.entry and er.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
+        data.append(
+            PublishedResourceSummary(
+                slug=resource.slug,
+                name=resource.name,
+                resource_type=resource.resource_type,
+                description=resource.description,
+                url=resource.url,
+                external_id=resource.external_id,
+                metadata=resource.metadata_,
+                entries=entry_slugs,
+            )
         )
-        for resource in resources
-    ]
 
     return PublishedResourcesResponse(
         data=data,
@@ -815,6 +831,9 @@ async def get_published_resource(
     if not resource:
         raise HTTPException(status_code=404, detail="Resource not found")
 
+    # Get published entry slugs that reference this resource
+    entry_slugs = [er.entry.slug for er in resource.entry_resources if er.entry and er.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
     return PublishedResourceSummary(
         slug=resource.slug,
         name=resource.name,
@@ -823,6 +842,7 @@ async def get_published_resource(
         url=resource.url,
         external_id=resource.external_id,
         metadata=resource.metadata_,
+        entries=entry_slugs,
     )
 
 

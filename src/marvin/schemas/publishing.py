@@ -53,6 +53,9 @@ class PublishedAssetRead(_MarvinModel):
     metadata: dict | None = None
     """Custom metadata as JSON object."""
 
+    entries: list[str] = []
+    """List of entry slugs that use this asset."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -262,6 +265,9 @@ class PublishedResourceSummary(_MarvinModel):
 
     metadata: dict | None = None
     """Custom metadata as JSON object."""
+
+    entries: list[str] = []
+    """List of entry slugs that reference this resource."""
 
     model_config = ConfigDict(from_attributes=True)
 
