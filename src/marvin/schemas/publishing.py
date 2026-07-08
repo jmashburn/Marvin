@@ -50,6 +50,9 @@ class PublishedAssetRead(_MarvinModel):
     public_url: str
     """Public URL to access the asset file."""
 
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -169,6 +172,15 @@ class PublishedCollectionRead(_MarvinModel):
     description: str | None = None
     """Optional collection description."""
 
+    is_smart: bool = False
+    """Whether this is a smart collection with automatic rules."""
+
+    smart_rules: dict | None = None
+    """Smart collection rules (JSON object)."""
+
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
+
     entry_count: int
     """Number of published entries in this collection."""
 
@@ -191,6 +203,15 @@ class PublishedCollectionSummary(_MarvinModel):
 
     description: str | None = None
     """Optional collection description."""
+
+    is_smart: bool = False
+    """Whether this is a smart collection with automatic rules."""
+
+    smart_rules: dict | None = None
+    """Smart collection rules (JSON object)."""
+
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
 
     entry_count: int
     """Number of published entries in this collection."""
@@ -263,6 +284,9 @@ class PublishedResourceRead(_MarvinModel):
 
     external_id: str | None = None
     """External identifier (SKU, ISBN, etc)."""
+
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
 
     # Entry-specific placement fields from junction table
     role: str | None = None
