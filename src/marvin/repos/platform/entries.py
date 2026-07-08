@@ -126,6 +126,13 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         asset_ids = data_dict.pop("asset_ids", None)
         resource_ids = data_dict.pop("resource_ids", None)
 
+        print(f"\n{'='*80}")
+        print(f"DEBUG: Entry update - relationship arrays:")
+        print(f"  collection_ids: {collection_ids} (type: {type(collection_ids)})")
+        print(f"  asset_ids: {asset_ids} (type: {type(asset_ids)})")
+        print(f"  resource_ids: {resource_ids} (type: {type(resource_ids)})")
+        print(f"{'='*80}\n")
+
         # Update the entry
         entry = super().update(match_value, data_dict, match_key=match_key)
 
