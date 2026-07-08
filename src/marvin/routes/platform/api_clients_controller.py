@@ -29,9 +29,10 @@ class APIClientsController(BaseUserController):
 
         IMPORTANT: The token is returned ONCE. Store it securely.
         """
-        # Inject created_by field (current user)
+        # Inject created_by field (current user) and group_id
         data_dict = data.model_dump() if not isinstance(data, dict) else data
         data_dict["created_by"] = self.user.id
+        data_dict["group_id"] = self.group_id
         api_client = self.repos.api_clients.create(data_dict)
 
         # Emit event
