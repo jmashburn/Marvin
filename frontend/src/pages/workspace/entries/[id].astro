@@ -983,6 +983,11 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
 
         console.log('Sending with snake_case field names (like CLI):', updateData);
 
+        // Stringify first to see what's being sent
+        const bodyString = JSON.stringify(updateData);
+        console.log('JSON.stringify result:', bodyString);
+        console.log('Body string length:', bodyString.length);
+
         // Bypass SDK - use direct fetch to ensure proper JSON serialization
         const response = await fetch(`http://localhost:8080/api/platform/entries/${entryId}`, {
           method: 'PATCH',
@@ -990,7 +995,7 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
             'Content-Type': 'application/json',
           },
           credentials: 'include',  // Send cookies for auth
-          body: JSON.stringify(updateData),
+          body: bodyString,
         });
 
         if (!response.ok) {
