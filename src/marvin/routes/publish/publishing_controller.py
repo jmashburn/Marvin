@@ -399,7 +399,7 @@ async def list_published_collections(
                 description=collection.description,
                 is_smart=collection.is_smart,
                 smart_rules=collection.smart_rules,
-                metadata=collection.metadata_json,
+                metadata=None,
                 entry_count=entry_count,
                 sort_order=collection.sort_order,
                 icon=collection.icon,
@@ -493,7 +493,7 @@ async def get_published_collection(
         description=collection.description,
         is_smart=collection.is_smart,
         smart_rules=collection.smart_rules,
-        metadata=collection.metadata_json,
+        metadata=None,
         entry_count=len(entry_items),
         entries=entry_items,
     )
