@@ -27,6 +27,8 @@ class CollectionCreate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    entry_ids: list[UUID4] | None = None
+    """Optional list of entry IDs to add to this collection."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,6 +52,8 @@ class CollectionUpdate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    entry_ids: list[UUID4] | None = None
+    """Optional list of entry IDs to replace existing entries in this collection."""
 
     model_config = ConfigDict(from_attributes=True)
 
