@@ -38,7 +38,7 @@ try {
   {error ? (
     <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : user && (
-    <form id="profile-form" method="POST" action="/api/user/profile/update" class="profile-form">
+    <form id="profile-form" class="profile-form">
       <input type="hidden" name="user_id" value={user.id} />
       <section class="form-section">
         <h3>Account Details</h3>
@@ -75,13 +75,12 @@ try {
       e.preventDefault();
 
       const formData = new FormData(form);
-      const userId = formData.get('userId') as string;
 
       submitBtn.disabled = true;
       submitBtn.textContent = 'Saving...';
 
       const data = {
-        full_name: formData.get('fullName') as string,
+        full_name: formData.get('full_name') as string,
         email: formData.get('email') as string,
         username: formData.get('username') as string,
       };
