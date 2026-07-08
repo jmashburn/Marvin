@@ -144,6 +144,10 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         if resource_ids is not None:
             self._replace_resources(entry.id, resource_ids)
 
+        # Commit the relationship changes
+        if collection_ids is not None or asset_ids is not None or resource_ids is not None:
+            self.session.commit()
+
         # Refresh to get updated relationships
         if collection_ids is not None or asset_ids is not None or resource_ids is not None:
             self.session.refresh(self.session.get(Entries, entry.id))
