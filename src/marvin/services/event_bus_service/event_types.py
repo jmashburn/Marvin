@@ -108,6 +108,8 @@ class EventTypes(EventTypeBase):
     """Event dispatched when a workspace is deleted."""
     workspace_activated = auto()
     """Event dispatched when a user switches to a different workspace."""
+    workspace_settings_changed = auto()
+    """Event dispatched when workspace preferences/settings are modified."""
 
     # ==========================================================================
     # Workspace Member Events
@@ -466,6 +468,28 @@ class EventWorkspaceCreatedData(EventDocumentDataBase):
     """The user ID of the workspace creator."""
 
 
+class EventWorkspaceData(EventDocumentDataBase):
+    """Data payload for workspace-related events (updates, settings changes)."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.workspace
+    workspace_id: UUID4
+    """The unique identifier of the workspace."""
+    workspace_name: str
+    """The name of the workspace."""
+    workspace_slug: str
+    """The slug of the workspace."""
+
+
+class EventWorkspaceSettingsData(EventDocumentDataBase):
+    """Data payload for workspace settings/preferences change events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.workspace
+    workspace_id: UUID4
+    """The unique identifier of the workspace."""
+    changed_fields: list[str]
+    """List of preference fields that were modified (e.g., ['site_title', 'site_logo'])."""
+
+
 class EventWebhookData(EventDocumentDataBase):
     """
     Data payload specifically for `webhook_task` events.
@@ -758,6 +782,16 @@ class Event(_MarvinModel):
     """A unique identifier for this specific event instance."""
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     """Timestamp (UTC) of when the event object was created."""
+
+    # Core identifiers for audit and filtering
+    workspace_id: UUID4
+    """The workspace this event pertains to."""
+    user_id: UUID4 | None = None
+    """The user who triggered this event (None for system events)."""
+    entity_id: UUID4 | None = None
+    """The ID of the primary entity this event is about (entry, asset, etc.)."""
+    entity_type: str | None = None
+    """The type of the primary entity (entry, asset, workspace, etc.)."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """

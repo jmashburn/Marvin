@@ -87,6 +87,27 @@ class WorkspaceMembersController(BaseAdminController):
         # Add the member
         result = self.repos.workspace_members.add_member(user_id=data.user_id, workspace_id=workspace_id, role=data.workspace_role)
         self.session.commit()
+
+        # Dispatch member_added event
+        from marvin.services.event_bus_service.event_types import EventMemberData, EventOperation, EventTypes
+
+        self.event_bus.dispatch(
+            integration_id="workspace_management_admin",
+            group_id=workspace_id,
+            event_type=EventTypes.member_added,
+            document_data=EventMemberData(
+                operation=EventOperation.create,
+                workspace_id=workspace_id,
+                user_id=data.user_id,
+                username=user.username,
+                role=data.workspace_role.value,
+            ),
+            message=f"{user.username} added to workspace with {data.workspace_role.value} role",
+            user_id=current_user.id,
+            entity_id=data.user_id,
+            entity_type="member",
+        )
+
         return result
 
     @router.get("/{user_id}", response_model=WorkspaceMembershipRead)
@@ -168,6 +189,9 @@ class WorkspaceMembersController(BaseAdminController):
                     status_code=status.HTTP_403_FORBIDDEN, detail="Cannot demote the last OWNER. Promote another member to OWNER first."
                 )
 
+        # Store previous role for event
+        previous_role = membership.workspace_role
+
         # Update the role
         updated = self.repos.workspace_members.update_role(user_id=user_id, workspace_id=workspace_id, new_role=data.workspace_role)
 
@@ -176,6 +200,28 @@ class WorkspaceMembersController(BaseAdminController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found.")
 
         self.session.commit()
+
+        # Dispatch member_role_changed event
+        from marvin.services.event_bus_service.event_types import EventMemberData, EventOperation, EventTypes
+
+        self.event_bus.dispatch(
+            integration_id="workspace_management_admin",
+            group_id=workspace_id,
+            event_type=EventTypes.member_role_changed,
+            document_data=EventMemberData(
+                operation=EventOperation.update,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                username=updated.username,
+                role=data.workspace_role.value,
+                previous_role=previous_role.value,
+            ),
+            message=f"{updated.username} role changed from {previous_role.value} to {data.workspace_role.value}",
+            user_id=current_user.id,
+            entity_id=user_id,
+            entity_type="member",
+        )
+
         return updated
 
     @router.delete("/{user_id}")
@@ -224,6 +270,10 @@ class WorkspaceMembersController(BaseAdminController):
                     status_code=status.HTTP_403_FORBIDDEN, detail="Cannot remove the last OWNER. Promote another member to OWNER first."
                 )
 
+        # Store member info for event before removing
+        member_username = membership.username
+        member_role = membership.workspace_role
+
         # Remove the member
         removed = self.repos.workspace_members.remove_member(user_id, workspace_id)
 
@@ -232,4 +282,25 @@ class WorkspaceMembersController(BaseAdminController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found.")
 
         self.session.commit()
+
+        # Dispatch member_removed event
+        from marvin.services.event_bus_service.event_types import EventMemberData, EventOperation, EventTypes
+
+        self.event_bus.dispatch(
+            integration_id="workspace_management_admin",
+            group_id=workspace_id,
+            event_type=EventTypes.member_removed,
+            document_data=EventMemberData(
+                operation=EventOperation.delete,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                username=member_username,
+                role=member_role.value,
+            ),
+            message=f"{member_username} removed from workspace",
+            user_id=current_user.id,
+            entity_id=user_id,
+            entity_type="member",
+        )
+
         return {"status": "ok", "message": "Workspace member removed successfully"}

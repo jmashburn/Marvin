@@ -122,6 +122,7 @@ class GroupPreferencesController(BaseUserController):
 
         # Get or create preferences model from database
         from marvin.db.models.groups.preferences import GroupPreferencesModel
+
         preferences_model = self.session.query(GroupPreferencesModel).filter_by(group_id=group_id).first()
 
         if not preferences_model:
@@ -136,14 +137,15 @@ class GroupPreferencesController(BaseUserController):
         # Check if name is in the data and update the workspace (Groups model)
         # Auto-generate slug from name if name is being updated
         workspace_fields = {}
-        if 'name' in data_dict:
+        if "name" in data_dict:
             from slugify import slugify
-            workspace_fields['name'] = data_dict.pop('name')
-            workspace_fields['slug'] = slugify(workspace_fields['name'])
+
+            workspace_fields["name"] = data_dict.pop("name")
+            workspace_fields["slug"] = slugify(workspace_fields["name"])
 
         # Remove slug from data_dict if present (we auto-generate it)
-        if 'slug' in data_dict:
-            data_dict.pop('slug')
+        if "slug" in data_dict:
+            data_dict.pop("slug")
 
         # Update workspace fields if present
         if workspace_fields:
@@ -152,16 +154,42 @@ class GroupPreferencesController(BaseUserController):
 
         # Update preference fields from remaining data
         for field, value in data_dict.items():
-            if hasattr(preferences_model, field) and field not in ['id', 'group_id']:
+            if hasattr(preferences_model, field) and field not in ["id", "group_id"]:
                 setattr(preferences_model, field, value)
+
+        # Track which fields were changed for the event
+        changed_fields = list(data_dict.keys())
+        if workspace_fields:
+            changed_fields.extend(workspace_fields.keys())
 
         # Commit changes
         self.session.commit()
         self.session.refresh(preferences_model)
 
-        # Convert model to schema and return
+        # Convert model to schema for return
         from marvin.schemas.group.preferences import GroupPreferencesRead
-        return GroupPreferencesRead.model_validate(preferences_model)
+
+        result = GroupPreferencesRead.model_validate(preferences_model)
+
+        # Dispatch workspace_settings_changed event
+        from marvin.services.event_bus_service.event_types import EventWorkspaceSettingsData, EventOperation, EventTypes
+
+        self.event_bus.dispatch(
+            integration_id="workspace_preferences",
+            group_id=group_id,
+            event_type=EventTypes.workspace_settings_changed,
+            document_data=EventWorkspaceSettingsData(
+                operation=EventOperation.update,
+                workspace_id=group_id,
+                changed_fields=changed_fields,
+            ),
+            message=f"Workspace settings updated: {', '.join(changed_fields)}",
+            user_id=self.user.id if self.user else None,
+            entity_id=group_id,
+            entity_type="workspace",
+        )
+
+        return result
 
     def _user_has_workspace_access(self, group_id: UUID4) -> bool:
         """

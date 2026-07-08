@@ -50,6 +50,9 @@ class EntriesController(BaseUserController):
                     author_id=entry.created_by,
                 ),
                 message=f"Entry '{entry.title}' created",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
             )
         except Exception as e:
             # Log error but don't fail the request
@@ -94,11 +97,14 @@ class EntriesController(BaseUserController):
                     author_id=entry.created_by,
                 ),
                 message=f"Entry '{entry.title}' updated",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
             )
         except Exception as e:
             self.logger.error(f"Failed to dispatch entry_updated event: {e}", exc_info=True)
 
-        # Emit publish/unpublish events if status changed
+        # Emit status change events if status changed
         if old_entry.status != entry.status:
             try:
                 if entry.status == "published":
@@ -115,6 +121,9 @@ class EntriesController(BaseUserController):
                             author_id=entry.created_by,
                         ),
                         message=f"Entry '{entry.title}' published",
+                        user_id=self.user.id if self.user else None,
+                        entity_id=entry.id,
+                        entity_type="entry",
                     )
                 elif old_entry.status == "published":
                     self.event_bus.dispatch(
@@ -130,9 +139,50 @@ class EntriesController(BaseUserController):
                             author_id=entry.created_by,
                         ),
                         message=f"Entry '{entry.title}' unpublished",
+                        user_id=self.user.id if self.user else None,
+                        entity_id=entry.id,
+                        entity_type="entry",
+                    )
+
+                # Handle archived status
+                if entry.status == "archived":
+                    self.event_bus.dispatch(
+                        integration_id="entry_management",
+                        group_id=self.group_id,
+                        event_type=EventTypes.entry_archived,
+                        document_data=EventEntryData(
+                            operation=EventOperation.update,
+                            entry_id=entry.id,
+                            entry_title=entry.title,
+                            entry_type=entry_type_slug,
+                            workspace_id=entry.group_id,
+                            author_id=entry.created_by,
+                        ),
+                        message=f"Entry '{entry.title}' archived",
+                        user_id=self.user.id if self.user else None,
+                        entity_id=entry.id,
+                        entity_type="entry",
+                    )
+                elif old_entry.status == "archived":
+                    self.event_bus.dispatch(
+                        integration_id="entry_management",
+                        group_id=self.group_id,
+                        event_type=EventTypes.entry_restored,
+                        document_data=EventEntryData(
+                            operation=EventOperation.update,
+                            entry_id=entry.id,
+                            entry_title=entry.title,
+                            entry_type=entry_type_slug,
+                            workspace_id=entry.group_id,
+                            author_id=entry.created_by,
+                        ),
+                        message=f"Entry '{entry.title}' restored from archive",
+                        user_id=self.user.id if self.user else None,
+                        entity_id=entry.id,
+                        entity_type="entry",
                     )
             except Exception as e:
-                self.logger.error(f"Failed to dispatch entry publish/unpublish event: {e}", exc_info=True)
+                self.logger.error(f"Failed to dispatch entry status change event: {e}", exc_info=True)
 
         return entry
 
@@ -164,6 +214,9 @@ class EntriesController(BaseUserController):
                     author_id=entry.created_by,
                 ),
                 message=f"Entry '{entry.title}' deleted",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
             )
         except Exception as e:
             self.logger.error(f"Failed to dispatch entry_deleted event: {e}", exc_info=True)
@@ -244,6 +297,9 @@ class EntriesController(BaseUserController):
                 author_id=entry.created_by,
             ),
             message=f"Entry '{entry.title}' added to collection '{collection.name}'",
+            user_id=self.user.id if self.user else None,
+            entity_id=entry.id,
+            entity_type="entry",
         )
 
         return {"message": "Entry added to collection successfully"}
@@ -289,6 +345,9 @@ class EntriesController(BaseUserController):
                     author_id=entry.created_by,
                 ),
                 message=f"Entry '{entry.title}' removed from collection '{collection.name if collection else collection_id}'",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
             )
 
         return {"status": "ok", "message": "Entry removed from collection successfully"}

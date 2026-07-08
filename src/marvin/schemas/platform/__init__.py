@@ -35,6 +35,7 @@ from .entry_types import (
     EntryTypeSummary,
     EntryTypeUpdate,
 )
+from .event_log import EventLogRead, EventLogSummary
 from .resources import (
     ResourceCreate,
     ResourceRead,
@@ -68,6 +69,8 @@ __all__ = [
     "EntryTypeSummary",
     "EntryTypeUpdate",
     "EntryUpdate",
+    "EventLogRead",
+    "EventLogSummary",
     "ResourceCreate",
     "ResourceRead",
     "ResourceSummary",

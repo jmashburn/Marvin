@@ -382,48 +382,64 @@ class WebhookEventListener(EventListenerBase):
 
     def get_subscribers(self, event: Event) -> list[WebhookRead]:
         """
-        Retrieves a list of scheduled webhooks that match the event criteria.
+        Retrieves a list of webhooks that should receive this event.
 
-        This method is interested in `EventTypes.webhook_task` events. For such events,
-        it extracts the start and end datetime from `event.document_data` (expected
-        to be `EventWebhookData`) and fetches all enabled webhooks for the group
-        scheduled within that time range.
+        This method handles two types of webhook triggers:
+        1. Scheduled webhooks (`EventTypes.webhook_task`) - time-based triggers
+        2. Event-subscribed webhooks - webhooks that subscribe to specific event types
 
         Args:
             event (Event): The event to find subscribers for.
 
         Returns:
             list[WebhookRead]: A list of `WebhookRead` schemas for webhooks that
-                               should be triggered by this event. Returns an empty
-                               list if the event is not a relevant webhook task or
-                               if no webhooks are scheduled in the given time range.
+                               should be triggered by this event.
         """
-        # This listener only acts on `webhook_task` events carrying `EventWebhookData`
-        if not (event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData)):
-            return []  # Not a relevant event for this listener
+        # EXISTING: Handle scheduled webhook_task events
+        if event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData):
+            webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
+            scheduled_webhooks_list = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
+            return scheduled_webhooks_list
 
-        # Extract start and end datetime from event data to find matching scheduled webhooks
-        webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
-        scheduled_webhooks_list = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
-        return scheduled_webhooks_list
+        # NEW: Handle event-subscribed webhooks
+        # Find webhooks that have subscribed to this specific event type
+        with self.ensure_session() as session:
+            stmt = select(GroupWebhooksModel).where(
+                GroupWebhooksModel.enabled == True,  # noqa: E712 - SQLAlchemy specific comparison
+                GroupWebhooksModel.group_id == self.group_id,
+                # Match webhooks where subscribed_events array contains this event type
+                GroupWebhooksModel.subscribed_events.contains([event.event_type.value]),
+            )
+            db_webhooks = session.execute(stmt).scalars().all()
+            return [WebhookRead.model_validate(wh) for wh in db_webhooks]
 
     def publish_to_subscribers(self, event: Event, subscribers_webhooks: list[WebhookRead]) -> None:  # Renamed subscribers
         """
         Publishes the event data to the provided list of webhook configurations.
 
-        For each webhook, it may dynamically generate data by calling a registered
-        function based on `webhook.webhook_type` (if the event operation is 'info').
-        The (potentially dynamic) data is then included in the webhook payload.
+        Handles two types of webhooks:
+        1. Scheduled webhooks (webhook_task events) - uses dynamic payload generation
+        2. Event-subscribed webhooks - sends the full event payload
 
         Args:
-            event (Event): The event containing data to publish. `event.document_data`
-                           is expected to be `EventWebhookData`.
+            event (Event): The event containing data to publish.
             subscribers_webhooks (list[WebhookRead]): A list of `WebhookRead` schemas
                                                       representing the webhooks to trigger.
         """
-        # This method returns True in original code but is typed as None. Assuming None is correct.
-        # with self.ensure_repos(self.group_id) as repos: # `repos` is not used in this method
+        # Handle event-subscribed webhooks (non-webhook_task events)
+        if event.event_type != EventTypes.webhook_task:
+            # For event-subscribed webhooks, send the full event payload
+            for webhook_config in subscribers_webhooks:
+                self.publisher.publish(
+                    event,  # Send the complete event
+                    [webhook_config.url],  # Single webhook URL
+                    method=webhook_config.method.name,  # HTTP method
+                    webhook_id=webhook_config.id,  # For logging
+                    group_id=self.group_id,  # For logging
+                )
+            return
 
+        # Handle scheduled webhook_task events (existing logic)
         if not isinstance(event.document_data, EventWebhookData):
             self.logger.warning(f"WebhookEventListener received event with mismatched document_data type: {type(event.document_data)}")
             return
@@ -574,4 +590,53 @@ class ConsoleEventListener(EventListenerBase):
             subscribers (list[str]): List of subscribers (ignored, always logs to console).
         """
         # Use the ConsolePublisher to log the event
+        self.publisher.publish(event, subscribers)
+
+
+class AuditLogListener(EventListenerBase):
+    """
+    Event listener that persists all events to the database for audit trail.
+
+    This listener creates an immutable record of every event that occurs in Marvin,
+    enabling event history queries, entity timelines, and user activity tracking.
+    It should be registered first in the listener chain to ensure events are
+    persisted even if subsequent listeners fail.
+    """
+
+    def __init__(self, group_id: UUID4) -> None:
+        """
+        Initializes the AuditLogListener for a specific group.
+
+        Args:
+            group_id (UUID4): The ID of the group this listener is associated with.
+        """
+        from .publisher import AuditLogPublisher
+
+        super().__init__(group_id, AuditLogPublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """
+        Returns a list of subscribers for audit logging.
+
+        For AuditLogListener, we always return ["database"] to indicate
+        that all events should be persisted to the event_log table.
+
+        Args:
+            event (Event): The event to persist.
+
+        Returns:
+            list[str]: Always returns ["database"] to persist all events.
+        """
+        # Always persist all events to database
+        return ["database"]
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        """
+        Publishes the event to the audit log database.
+
+        Args:
+            event (Event): The event to persist.
+            subscribers (list[str]): List of subscribers (ignored, always persists to database).
+        """
+        # Use the AuditLogPublisher to persist the event
         self.publisher.publish(event, subscribers)

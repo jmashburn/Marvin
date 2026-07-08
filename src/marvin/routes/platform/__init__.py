@@ -19,6 +19,7 @@ from . import (
     collections_controller,
     entries_controller,
     entry_types_controller,
+    events_controller,
     resources_controller,
     workspace_members_controller,
 )
@@ -32,3 +33,4 @@ router.include_router(api_clients_controller.router, tags=["Platform: API Client
 router.include_router(resources_controller.router, tags=["Platform: Resources"])
 router.include_router(assets_controller.router, tags=["Platform: Assets"])
 router.include_router(workspace_members_controller.router, tags=["Platform: Workspace Members"])
+router.include_router(events_controller.router, tags=["Platform: Events"])

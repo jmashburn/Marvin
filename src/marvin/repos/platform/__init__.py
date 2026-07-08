@@ -5,6 +5,7 @@ from .assets import AssetsRepository
 from .collections import CollectionsRepository
 from .entries import EntriesRepository
 from .entry_types import EntryTypesRepository
+from .event_log import EventLogRepository
 from .resources import ResourcesRepository
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "CollectionsRepository",
     "EntriesRepository",
     "EntryTypesRepository",
+    "EventLogRepository",
     "ResourcesRepository",
 ]

@@ -319,3 +319,93 @@ class WebhookPublisher:
                         delay = _calculate_retry_delay(attempt)
                         self.logger.warning(f"Webhook to {url} failed (attempt {attempt + 1}/{MAX_RETRY_ATTEMPTS}). Retrying in {delay}s: {e}")
                         time.sleep(delay)
+
+
+class AuditLogPublisher:
+    """
+    Publishes events to the event_log database table for audit trail persistence.
+
+    This publisher creates an immutable record of every event that occurs in Marvin,
+    enabling event history queries, entity timelines, and user activity tracking.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the AuditLogPublisher."""
+        self.logger = get_logger("audit_log_publisher")
+
+    def publish(self, event: Event, notification_urls: list[str], **_: Any) -> None:
+        """
+        Persists an event to the event_log table.
+
+        Args:
+            event (Event): The event object to persist.
+            notification_urls (list[str]): Ignored for audit log publisher (always persists).
+            **_ (Any): Catches any additional keyword arguments (ignored).
+        """
+        try:
+            from marvin.db.models.platform.event_log import EventLogModel
+            from marvin.repos.repository_factory import AllRepositories
+
+            # Extract entity information from document_data
+            entity_id = None
+            entity_type = None
+            operation = None
+
+            if event.document_data:
+                # Extract entity_id from document_data if available
+                if hasattr(event.document_data, "entry_id"):
+                    entity_id = event.document_data.entry_id
+                    entity_type = "entry"
+                elif hasattr(event.document_data, "collection_id"):
+                    entity_id = event.document_data.collection_id
+                    entity_type = "collection"
+                elif hasattr(event.document_data, "asset_id"):
+                    entity_id = event.document_data.asset_id
+                    entity_type = "asset"
+                elif hasattr(event.document_data, "workspace_id") and hasattr(event.document_data, "document_type"):
+                    # For workspace-level events
+                    if event.document_data.document_type.value == "workspace":
+                        entity_id = event.document_data.workspace_id
+                        entity_type = "workspace"
+                elif hasattr(event.document_data, "api_client_id"):
+                    entity_id = event.document_data.api_client_id
+                    entity_type = "api_client"
+                elif hasattr(event.document_data, "user_id") and hasattr(event.document_data, "document_type"):
+                    if event.document_data.document_type.value == "member":
+                        entity_id = event.document_data.user_id
+                        entity_type = "member"
+
+                # Extract operation if available
+                if hasattr(event.document_data, "operation"):
+                    operation = event.document_data.operation.value
+
+            # Override with event-level entity_id and entity_type if set
+            if event.entity_id:
+                entity_id = event.entity_id
+            if event.entity_type:
+                entity_type = event.entity_type
+
+            with session_context() as session:
+                repos = AllRepositories(session=session, group_id=event.workspace_id)
+
+                log_entry = EventLogModel(
+                    event_id=event.event_id,
+                    event_type=event.event_type.value,
+                    occurred_at=event.timestamp,
+                    workspace_id=event.workspace_id,
+                    user_id=event.user_id,
+                    entity_id=entity_id,
+                    entity_type=entity_type,
+                    integration_id=event.integration_id,
+                    operation=operation,
+                    event_data=jsonable_encoder(event),
+                    message_title=event.message.title,
+                    message_body=event.message.body if event.message.body != "generic" else None,
+                )
+
+                session.add(log_entry)
+                session.commit()
+                self.logger.debug(f"Persisted event {event.event_id} ({event.event_type.value}) to audit log")
+
+        except Exception as e:
+            self.logger.error(f"Failed to persist event {event.event_id} to audit log: {e}", exc_info=True)

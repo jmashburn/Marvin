@@ -58,6 +58,7 @@ from .platform import (
     CollectionsRepository,
     EntriesRepository,
     EntryTypesRepository,
+    EventLogRepository,
     ResourcesRepository,
 )
 
@@ -133,6 +134,7 @@ class AllRepositories:
         - Usage tracking
         """
         from .users.long_live_tokens import LongLiveTokensRepository
+
         return LongLiveTokensRepository(self.session, PK_ID, LongLiveToken, LongLiveTokenRead)
 
     @cached_property
@@ -287,3 +289,8 @@ class AllRepositories:
             WorkspaceMembersModel,
             WorkspaceMembershipRead,
         )
+
+    @cached_property
+    def event_log(self) -> EventLogRepository:
+        """Provides access to workspace-scoped event log records."""
+        return EventLogRepository(self.session, self.group_id)

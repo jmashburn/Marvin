@@ -34,6 +34,9 @@ class CollectionsController(BaseUserController):
                 workspace_id=collection.group_id,
             ),
             message=f"Collection '{collection.name}' created",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
         )
 
         return collection
@@ -64,6 +67,9 @@ class CollectionsController(BaseUserController):
                 workspace_id=collection.group_id,
             ),
             message=f"Collection '{collection.name}' updated",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
         )
 
         return collection
@@ -86,6 +92,9 @@ class CollectionsController(BaseUserController):
                 workspace_id=collection.group_id,
             ),
             message=f"Collection '{collection.name}' deleted",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
         )
 
         self.repos.collections.delete(item_id)

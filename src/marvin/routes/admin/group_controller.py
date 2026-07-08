@@ -242,7 +242,29 @@ class AdminGroupManagementRoutes(BaseAdminController):
         # If repo.update already returns the schema, this explicit get might be redundant.
         # However, to ensure all changes (name, preferences via relationship) are reflected:
         self.session.refresh(group_model_instance)  # Refresh to capture potential relationship updates
-        return self.repo.schema.model_validate(group_model_instance)
+
+        result = self.repo.schema.model_validate(group_model_instance)
+
+        # Dispatch workspace_updated event
+        from marvin.services.event_bus_service.event_types import EventWorkspaceData, EventOperation, EventTypes
+
+        self.event_bus.dispatch(
+            integration_id="workspace_management_admin",
+            group_id=item_id,
+            event_type=EventTypes.workspace_updated,
+            document_data=EventWorkspaceData(
+                operation=EventOperation.update,
+                workspace_id=item_id,
+                workspace_name=result.name,
+                workspace_slug=result.slug,
+            ),
+            message=f"Workspace '{result.name}' updated",
+            user_id=None,  # Admin endpoints don't have current_user in this method
+            entity_id=item_id,
+            entity_type="workspace",
+        )
+
+        return result
 
     @router.delete("/{item_id}", summary="Delete a Group")
     def delete_one(self, item_id: UUID4, force: bool = False) -> dict:
