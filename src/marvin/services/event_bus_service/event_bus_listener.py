@@ -528,3 +528,50 @@ class WebhookEventListener(EventListenerBase):
             # Execute query and convert SQLAlchemy models to Pydantic schemas
             db_webhooks = session.execute(stmt).scalars().all()
             return [WebhookRead.model_validate(db_webhook) for db_webhook in db_webhooks]
+
+
+class ConsoleEventListener(EventListenerBase):
+    """
+    Event listener that logs all events to the console for debugging.
+
+    This listener is useful during development to see events in real-time
+    without needing to configure external webhooks or notification services.
+    """
+
+    def __init__(self, group_id: UUID4) -> None:
+        """
+        Initializes the ConsoleEventListener for a specific group.
+
+        Args:
+            group_id (UUID4): The ID of the group this listener is associated with.
+        """
+        from .publisher import ConsolePublisher
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """
+        Returns a list of subscribers for console logging.
+
+        For ConsoleEventListener, we always return ["console"] to indicate
+        that all events should be logged to the console.
+
+        Args:
+            event (Event): The event to log.
+
+        Returns:
+            list[str]: Always returns ["console"] to log all events.
+        """
+        # Always log all events to console
+        return ["console"]
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        """
+        Publishes the event to the console logger.
+
+        Args:
+            event (Event): The event to log.
+            subscribers (list[str]): List of subscribers (ignored, always logs to console).
+        """
+        # Use the ConsolePublisher to log the event
+        self.publisher.publish(event, subscribers)

@@ -24,6 +24,7 @@ from marvin.services import BaseService  # Base service class for common functio
 # Event listener implementations
 from marvin.services.event_bus_service.event_bus_listener import (
     AppriseEventListener,
+    ConsoleEventListener,
     EventListenerBase,
     WebhookEventListener,
 )
@@ -126,7 +127,7 @@ class EventBusService(BaseService):
         Retrieves a list of initialized event listeners for a given group ID.
 
         The order of listeners determines the order in which they might process events.
-        Currently, `WebhookEventListener` is followed by `AppriseEventListener`.
+        Currently: ConsoleEventListener (debug), WebhookEventListener, AppriseEventListener.
 
         Args:
             group_id (UUID4): The ID of the group for which to get listeners.
@@ -138,8 +139,9 @@ class EventBusService(BaseService):
         # The order of listeners can be significant if one listener's action
         # depends on another or if there's a desired notification priority.
         # Original comment: "Why would I send it to the Apprise listener frst? Chhanging the order"
-        # Current order: Webhook, then Apprise.
+        # Current order: Console (for debugging), Webhook, then Apprise.
         return [
+            ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
             AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.
         ]

@@ -164,6 +164,48 @@ def _calculate_retry_delay(attempt: int) -> float:
     return min(RETRY_BACKOFF_BASE**attempt, RETRY_BACKOFF_MAX)
 
 
+class ConsolePublisher:
+    """
+    Publishes events to console/logs for debugging.
+
+    This is a simple publisher that logs event information to the console,
+    useful for development and debugging without needing external webhooks
+    or notification services configured.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the ConsolePublisher."""
+        self.logger = get_logger("event_console")
+
+    def publish(self, event: Event, notification_urls: list[str], **_: Any) -> None:
+        """
+        Logs an event to the console.
+
+        Args:
+            event (Event): The event object to log.
+            notification_urls (list[str]): Ignored for console publisher (always logs).
+            **_ (Any): Catches any additional keyword arguments (ignored).
+        """
+        # Format the event nicely for console output
+        separator = "=" * 80
+        self.logger.info(separator)
+        self.logger.info(f"🔔 EVENT DISPATCHED: {event.event_type.value}")
+        self.logger.info(f"   Integration: {event.integration_id}")
+        self.logger.info(f"   Message: {event.message.title}")
+        if event.message.body and event.message.body != "generic":
+            self.logger.info(f"   Body: {event.message.body}")
+        if event.document_data:
+            # Convert to JSON for readable output
+            data_dict = jsonable_encoder(event.document_data)
+            self.logger.info(f"   Document Type: {data_dict.get('document_type', 'unknown')}")
+            self.logger.info(f"   Operation: {data_dict.get('operation', 'unknown')}")
+            # Log key fields (exclude metadata fields)
+            for key, value in data_dict.items():
+                if key not in ["document_type", "operation"]:
+                    self.logger.info(f"   {key}: {value}")
+        self.logger.info(separator)
+
+
 class WebhookPublisher:
     """
     Publishes events to specified URLs via HTTP requests (webhooks).
