@@ -925,23 +925,9 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       const metadataJsonStr = formData.get('metadata_json') as string;
 
       // Get IDs from checkboxes
-      console.log('FormData entries:');
-      for (let [key, value] of formData.entries()) {
-        console.log(`  ${key}: ${value}`);
-      }
-
-      const collectionIdsRaw = formData.getAll('collection_ids');
-      const assetIdsRaw = formData.getAll('asset_ids');
-      const resourceIdsRaw = formData.getAll('resource_ids');
-
-      console.log('Raw getAll results:');
-      console.log('  collection_ids:', collectionIdsRaw);
-      console.log('  asset_ids:', assetIdsRaw);
-      console.log('  resource_ids:', resourceIdsRaw);
-
-      const collectionIds = collectionIdsRaw as string[];
-      const assetIds = Array.isArray(assetIdsRaw) ? assetIdsRaw : [assetIdsRaw].filter(Boolean) as string[];
-      const resourceIds = Array.isArray(resourceIdsRaw) ? resourceIdsRaw : [resourceIdsRaw].filter(Boolean) as string[];
+      const collectionIds = formData.getAll('collection_ids') as string[];
+      const assetIds = formData.getAll('asset_ids') as string[];
+      const resourceIds = formData.getAll('resource_ids') as string[];
 
       // Parse metadata JSON
       let metadataJson = null;
@@ -976,26 +962,14 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
           resource_ids: resourceIds,      // Use snake_case like CLI
         };
 
-        console.log('Update payload:', updateData);
-        console.log('Collection IDs type:', typeof collectionIds, Array.isArray(collectionIds), collectionIds);
-        console.log('Asset IDs type:', typeof assetIds, Array.isArray(assetIds), assetIds);
-        console.log('Resource IDs type:', typeof resourceIds, Array.isArray(resourceIds), resourceIds);
-
-        console.log('Sending with snake_case field names (like CLI):', updateData);
-
-        // Stringify first to see what's being sent
-        const bodyString = JSON.stringify(updateData);
-        console.log('JSON.stringify result:', bodyString);
-        console.log('Body string length:', bodyString.length);
-
-        // Bypass SDK - use direct fetch to ensure proper JSON serialization
+        // Use direct fetch instead of SDK (SDK has array serialization bug)
         const response = await fetch(`http://localhost:8080/api/platform/entries/${entryId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',  // Send cookies for auth
-          body: bodyString,
+          credentials: 'include',
+          body: JSON.stringify(updateData),
         });
 
         if (!response.ok) {
@@ -1003,16 +977,10 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
           throw new Error(`${response.status}: ${JSON.stringify(errorData)}`);
         }
 
-        const result = await response.json();
-        console.log('Direct fetch result:', result);
-
-        console.log('✅ Update successful!');
-        alert('Update successful! Check console for logs.');
-        // window.location.href = '/workspace/entries';
+        window.location.href = '/workspace/entries';
       } catch (error: any) {
-        console.error('❌ Update failed:', error);
         const message = error?.message || error?.detail || 'Failed to update entry';
-        alert('ERROR: ' + message + '\n\nCheck console for details.');
+        alert(message);
         submitButton.disabled = false;
         submitButton.textContent = originalText!;
       }
