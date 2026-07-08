@@ -8,6 +8,8 @@ if (!authToken) {
   return Astro.redirect('/auth/login');
 }
 
+let error: string | null = null;
+
 // Handle form submission (server-side)
 if (Astro.request.method === 'POST') {
   try {
@@ -29,11 +31,13 @@ if (Astro.request.method === 'POST') {
       }
     });
 
+    console.log('[NewResource] Creating resource with data:', data);
     const resource = await createResource(data, authToken);
+    console.log('[NewResource] Resource created:', resource);
     return Astro.redirect(`/workspace/resources/${resource.id}`);
   } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
     console.error('[NewResource] Failed to create resource:', e);
-    // Error will be shown below
   }
 }
 ---
@@ -48,6 +52,11 @@ if (Astro.request.method === 'POST') {
   </div>
 
   <section class="form-section">
+    {error && (
+      <div class="error-banner" style="margin-bottom: 1rem;">
+        <p><strong>Error:</strong> {error}</p>
+      </div>
+    )}
     <form method="POST" class="form">
       <div class="form-group">
         <label for="name">Name *</label>
@@ -248,5 +257,13 @@ if (Astro.request.method === 'POST') {
     font-size: 12px;
     line-height: 1.5;
     background: var(--panel-2);
+  }
+
+  .error-banner {
+    padding: 1rem;
+    background: #fee;
+    border: 1px solid #c00;
+    border-radius: var(--radius);
+    color: #c00;
   }
 </style>
