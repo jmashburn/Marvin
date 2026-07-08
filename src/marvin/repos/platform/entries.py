@@ -89,7 +89,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
         # Get existing entry to check publish status
-        existing_entry = self.get_one(match_value, match_key=match_key)
+        existing_entry = self.get_one(match_value, key=match_key)
 
         # Only auto-regenerate slug for unpublished entries
         # Published entries keep their slug stable to avoid breaking external URLs
