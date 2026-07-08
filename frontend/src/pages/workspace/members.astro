@@ -260,7 +260,11 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
         // Show save button if role changed
         const saveBtn = document.querySelector(`.save-role-btn[data-user-id="${userId}"]`);
         if (saveBtn instanceof HTMLButtonElement) {
-          saveBtn.style.display = newRole !== currentRole ? 'block' : 'none';
+          if (newRole !== currentRole) {
+            saveBtn.style.display = 'inline-flex';
+          } else {
+            saveBtn.style.display = 'none';
+          }
         }
       });
     });
