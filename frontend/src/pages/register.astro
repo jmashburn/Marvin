@@ -1,6 +1,4 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
-
 // Get token from query params
 const token = Astro.url.searchParams.get('token');
 
@@ -11,17 +9,36 @@ if (existingAuth) {
 }
 ---
 
-<AppLayout title="Register" minimal={true}>
-  <div class="register-container">
-    <div class="register-card">
-      <div class="register-header">
-        <h1>Create Your Account</h1>
-        {token ? (
-          <p class="subtitle">You've been invited to join a workspace</p>
-        ) : (
-          <p class="subtitle">Sign up to get started</p>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register | Marvin</title>
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
+  <body class="register-page">
+    <div class="register-container">
+      <div class="register-card">
+        <div class="register-header">
+          <div class="brand-logo">
+            <strong>Marvin</strong>
+            <span>Content engine</span>
+          </div>
+          <h1>Create Your Account</h1>
+          {token ? (
+            <p>You've been invited to join a workspace</p>
+          ) : (
+            <p>Sign up to get started</p>
+          )}
+        </div>
+
+        {token && (
+          <div class="invitation-badge">
+            <span class="badge-label">🎟️ Invitation Token</span>
+            <code class="token-preview">{token.substring(0, 20)}...</code>
+          </div>
         )}
-      </div>
 
       <form id="register-form" class="register-form">
         {token && (
@@ -99,13 +116,16 @@ if (existingAuth) {
           Create Account
         </button>
 
-        <div class="login-link">
-          Already have an account? <a href="/login">Sign in</a>
+        <div class="register-footer">
+          <p class="help-text">
+            Already have an account? <a href="/login">Sign in</a>
+          </p>
         </div>
       </form>
     </div>
   </div>
-</AppLayout>
+  </body>
+</html>
 
 <script>
   const form = document.getElementById('register-form') as HTMLFormElement;
@@ -192,39 +212,89 @@ if (existingAuth) {
 </script>
 
 <style>
-  .register-container {
+  .register-page {
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #1e2725 0%, #2f4a47 100%);
     padding: 2rem;
-    background: var(--bg);
+  }
+
+  .register-container {
+    width: 100%;
+    max-width: 28rem;
   }
 
   .register-card {
-    width: 100%;
-    max-width: 480px;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 3rem;
+    border-radius: 12px;
+    padding: 2.5rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   }
 
   .register-header {
-    margin-bottom: 2rem;
     text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .brand-logo {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 2rem;
+  }
+
+  .brand-logo strong {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .brand-logo span {
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
   }
 
   .register-header h1 {
     margin: 0 0 0.5rem;
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 600;
+    color: var(--ink);
   }
 
-  .subtitle {
+  .register-header p {
     margin: 0;
     color: var(--muted);
-    font-size: 14px;
+    font-size: 15px;
+  }
+
+  .invitation-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  .badge-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .token-preview {
+    padding: 4px 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 11px;
+    color: var(--good);
   }
 
   .register-form {
@@ -238,24 +308,25 @@ if (existingAuth) {
   }
 
   .form-group label {
+    font-weight: 600;
     font-size: 14px;
-    font-weight: 500;
     color: var(--ink);
   }
 
   .form-group input {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.75rem 1rem;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: 8px;
     background: var(--bg);
-    font-size: 14px;
-    transition: border-color 0.2s;
+    font-size: 15px;
+    transition: all 0.2s;
   }
 
   .form-group input:focus {
     outline: none;
     border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(169, 77, 63, 0.1);
   }
 
   .form-group small {
@@ -264,54 +335,72 @@ if (existingAuth) {
   }
 
   .error-message {
-    padding: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
     background: var(--color-error-bg);
-    color: var(--color-error);
     border: 1px solid var(--color-error);
-    border-radius: var(--radius);
+    border-radius: 8px;
+    color: var(--color-error);
     font-size: 14px;
   }
 
   .button {
-    padding: 0.75rem 1.5rem;
+    padding: 0.875rem 1.5rem;
     border: none;
-    border-radius: var(--radius);
-    font-size: 14px;
-    font-weight: 500;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .button.primary {
+    width: 100%;
     background: var(--accent);
     color: white;
   }
 
   .button.primary:hover:not(:disabled) {
-    opacity: 0.9;
+    background: #8f3f31;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(169, 77, 63, 0.3);
+  }
+
+  .button.primary:active {
+    transform: translateY(0);
   }
 
   .button.primary:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
   }
 
-  .button.full-width {
-    width: 100%;
+  .register-footer {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
   }
 
-  .login-link {
+  .help-text {
+    margin: 0;
     text-align: center;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--muted);
   }
 
-  .login-link a {
+  .help-text a {
     color: var(--accent);
     text-decoration: none;
   }
 
-  .login-link a:hover {
+  .help-text a:hover {
     text-decoration: underline;
+  }
+
+  @media (max-width: 480px) {
+    .register-card {
+      padding: 2rem 1.5rem;
+    }
   }
 </style>
