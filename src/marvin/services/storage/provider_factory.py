@@ -41,6 +41,12 @@ def get_storage_provider(settings: AppSettings | None = None) -> BaseStorageProv
 
         public_url = getattr(settings, "STORAGE_LOCAL_PUBLIC_URL", "/assets")
 
+        # In development, prepend the full backend URL for CORS
+        # Frontend runs on different port (4321) than backend (8080)
+        if not settings.PRODUCTION and not public_url.startswith("http"):
+            # Construct full URL: http://localhost:{API_PORT}/assets
+            public_url = f"http://localhost:{settings.API_PORT}{public_url}"
+
         return LocalStorageProvider(root=root, public_base_url=public_url)
 
     elif provider == "s3":
