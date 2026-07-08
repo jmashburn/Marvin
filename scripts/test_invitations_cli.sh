@@ -195,11 +195,12 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Extract first workspace ID from table output (skip header, get first data row)
-workspace_id=$(echo "$workspace_list" | grep -v "^ID\|^--\|^$" | head -1 | awk '{print $1}')
+# Extract first workspace ID from output (look for "ID:" line)
+workspace_id=$(echo "$workspace_list" | grep "ID:" | head -1 | awk '{print $2}')
 
 if [ -z "$workspace_id" ]; then
   echo -e "${RED}✗ Failed to get workspace ID from CLI output${NC}"
+  echo "Output: $workspace_list"
   exit 1
 fi
 
