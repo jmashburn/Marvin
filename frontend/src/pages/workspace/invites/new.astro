@@ -78,9 +78,8 @@ try {
     const workspaceRole = formData.get('workspace_role') as string;
 
     try {
-      const { fetchApi } = await import('@/lib/api/client');
-
-      await fetchApi('/api/groups/invitations', {
+      // Use regular fetch to call frontend proxy (same-origin, no CORS)
+      const response = await fetch('/api/groups/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,9 +88,14 @@ try {
         }),
       });
 
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create invite');
+      }
+
       window.location.href = '/workspace/invites?created=true';
     } catch (error) {
-      alert('Failed to create invite. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to create invite. Please try again.');
       console.error('Error creating invite:', error);
     }
   });
