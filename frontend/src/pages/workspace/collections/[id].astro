@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import EmojiPicker from "@/components/EmojiPicker.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCollection } from "@/lib/api/collections";
 import { listEntries } from "@/lib/api/entries";
@@ -82,13 +83,7 @@ if (!authToken) {
           <div class="form-row">
             <div class="form-group">
               <label for="icon">Icon</label>
-              <input
-                type="text"
-                id="icon"
-                name="icon"
-                value={collection.icon || ""}
-                maxlength="4"
-              />
+              <EmojiPicker inputId="icon" value={collection.icon || ""} />
               <p class="form-help">Emoji or symbol</p>
             </div>
 
