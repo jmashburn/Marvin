@@ -847,6 +847,14 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   const metadataField = document.getElementById('metadata_json') as HTMLTextAreaElement | null;
 
   if (entryForm && metadataField) {
+    // Track which button was clicked
+    let clickedButton: HTMLButtonElement | null = null;
+    entryForm.addEventListener('click', (e) => {
+      if (e.target instanceof HTMLButtonElement && e.target.type === 'submit') {
+        clickedButton = e.target;
+      }
+    });
+
     entryForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -866,6 +874,12 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 
       // Build FormData
       const formData = new FormData(entryForm);
+
+      // Add clicked button's name/value if it exists
+      if (clickedButton && clickedButton.name && clickedButton.value) {
+        formData.set(clickedButton.name, clickedButton.value);
+      }
+
       const data: Record<string, any> = {};
 
       for (const [key, value] of formData.entries()) {
