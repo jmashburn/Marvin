@@ -84,11 +84,7 @@ async def get_site_configuration(
     # Get group preferences (includes site configuration)
     from marvin.db.models.groups import GroupPreferencesModel
 
-    prefs = (
-        session.query(GroupPreferencesModel)
-        .filter(GroupPreferencesModel.group_id == group.id)
-        .first()
-    )
+    prefs = session.query(GroupPreferencesModel).filter(GroupPreferencesModel.group_id == group.id).first()
 
     # Build site configuration from preferences (with sensible defaults)
     site_config = SiteConfiguration(
@@ -126,12 +122,7 @@ async def list_published_entries(
     collection: str | None = Query(None, description="Filter by collection slug"),
     slug: str | None = Query(None, description="Filter by specific slug(s), comma-separated"),
     updated_since: str | None = Query(None, description="Filter by entries updated since ISO datetime"),
-    limit: int = Query(
-        settings.PUBLISHING_DEFAULT_PAGE_SIZE,
-        ge=1,
-        le=settings.PUBLISHING_MAX_PAGE_SIZE,
-        description="Max results"
-    ),
+    limit: int = Query(settings.PUBLISHING_DEFAULT_PAGE_SIZE, ge=1, le=settings.PUBLISHING_MAX_PAGE_SIZE, description="Max results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
 ) -> PublishedEntriesResponse:
     """
@@ -170,11 +161,7 @@ async def list_published_entries(
     if entry_type:
         from marvin.db.models.platform import EntryTypes
 
-        entry_type_obj = (
-            session.query(EntryTypes)
-            .filter(EntryTypes.group_id == group.id, EntryTypes.slug == entry_type)
-            .first()
-        )
+        entry_type_obj = session.query(EntryTypes).filter(EntryTypes.group_id == group.id, EntryTypes.slug == entry_type).first()
 
         if not entry_type_obj:
             # Return empty list if entry type doesn't exist
@@ -195,11 +182,7 @@ async def list_published_entries(
         from marvin.db.models.platform import EntryCollections
 
         # Get collection
-        collection_obj = (
-            session.query(Collections)
-            .filter(Collections.group_id == group.id, Collections.slug == collection)
-            .first()
-        )
+        collection_obj = session.query(Collections).filter(Collections.group_id == group.id, Collections.slug == collection).first()
 
         if not collection_obj:
             # Return empty list if collection doesn't exist
@@ -224,6 +207,7 @@ async def list_published_entries(
     # Filter by updated_since if specified
     if updated_since:
         from datetime import datetime
+
         try:
             updated_dt = datetime.fromisoformat(updated_since.replace("Z", "+00:00"))
             query = query.filter(Entries.update_at >= updated_dt)
@@ -331,10 +315,13 @@ async def get_published_entry(
             slug=ea.asset.slug,
             name=ea.asset.name,
             mime_type=ea.asset.mime_type,
+            asset_type=ea.asset.asset_type,
+            file_size=ea.asset.file_size,
             width=ea.asset.width,
             height=ea.asset.height,
             alt_text=ea.asset.alt_text or ea.caption,  # Use caption if no alt_text
-            file_url=f"/api/publish/{group.slug}/assets/{ea.asset.slug}/file",
+            description=ea.asset.description,
+            public_url=ea.asset.public_url or f"/api/publish/{group.slug}/assets/{ea.asset.slug}/file",
         )
         for ea in entry.entry_assets
         if ea.asset  # Defensive check
@@ -362,12 +349,7 @@ async def get_published_entry(
 async def list_published_collections(
     context: tuple = Depends(get_publishing_context),
     session: Session = Depends(generate_session),
-    limit: int = Query(
-        settings.PUBLISHING_DEFAULT_PAGE_SIZE,
-        ge=1,
-        le=settings.PUBLISHING_MAX_PAGE_SIZE,
-        description="Max results"
-    ),
+    limit: int = Query(settings.PUBLISHING_DEFAULT_PAGE_SIZE, ge=1, le=settings.PUBLISHING_MAX_PAGE_SIZE, description="Max results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
 ) -> PublishedCollectionsResponse:
     """
@@ -382,11 +364,7 @@ async def list_published_collections(
     api_client, group = context
 
     # Get total count
-    total = (
-        session.query(Collections)
-        .filter(Collections.group_id == group.id)
-        .count()
-    )
+    total = session.query(Collections).filter(Collections.group_id == group.id).count()
 
     # Get paginated collections for this workspace
     collections = (
@@ -524,12 +502,7 @@ async def list_published_assets(
     context: tuple = Depends(get_publishing_context),
     session: Session = Depends(generate_session),
     type: str | None = Query(None, description="Filter by MIME type prefix (image, video, audio, application)"),
-    limit: int = Query(
-        settings.PUBLISHING_DEFAULT_PAGE_SIZE,
-        ge=1,
-        le=settings.PUBLISHING_MAX_PAGE_SIZE,
-        description="Max results"
-    ),
+    limit: int = Query(settings.PUBLISHING_DEFAULT_PAGE_SIZE, ge=1, le=settings.PUBLISHING_MAX_PAGE_SIZE, description="Max results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
 ) -> PublishedAssetsResponse:
     """
@@ -571,10 +544,13 @@ async def list_published_assets(
             slug=asset.slug,
             name=asset.name,
             mime_type=asset.mime_type,
+            asset_type=asset.asset_type,
+            file_size=asset.file_size,
             width=asset.width,
             height=asset.height,
             alt_text=asset.alt_text,
-            file_url=f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+            description=asset.description,
+            public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
         )
         for asset in assets
     ]
@@ -634,10 +610,13 @@ async def get_published_asset(
         slug=asset.slug,
         name=asset.name,
         mime_type=asset.mime_type,
+        asset_type=asset.asset_type,
+        file_size=asset.file_size,
         width=asset.width,
         height=asset.height,
         alt_text=asset.alt_text,
-        file_url=f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+        description=asset.description,
+        public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
     )
 
 
@@ -650,12 +629,7 @@ async def list_published_resources(
     context: tuple = Depends(get_publishing_context),
     session: Session = Depends(generate_session),
     resource_type: str | None = Query(None, description="Filter by resource type"),
-    limit: int = Query(
-        settings.PUBLISHING_DEFAULT_PAGE_SIZE,
-        ge=1,
-        le=settings.PUBLISHING_MAX_PAGE_SIZE,
-        description="Max results"
-    ),
+    limit: int = Query(settings.PUBLISHING_DEFAULT_PAGE_SIZE, ge=1, le=settings.PUBLISHING_MAX_PAGE_SIZE, description="Max results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
 ) -> PublishedResourcesResponse:
     """

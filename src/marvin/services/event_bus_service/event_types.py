@@ -514,16 +514,39 @@ class EventAssetData(EventDocumentDataBase):
     document_type: EventDocumentTypeBase = EventDocumentType.asset
     asset_id: UUID4
     """The unique identifier of the asset."""
-    asset_name: str
-    """The filename of the asset."""
-    asset_type: str | None = None
+    slug: str
+    """The asset slug."""
+    name: str
+    """The asset name."""
+    mime_type: str
     """The MIME type of the asset."""
-    asset_size: int | None = None
-    """The size of the asset in bytes."""
-    workspace_id: UUID4
-    """The workspace containing the asset."""
-    uploader_id: UUID4
-    """The user who uploaded the asset."""
+    asset_type: str
+    """The asset type classification (image, document, video, audio, archive, svg, other)."""
+    storage_key: str
+    """The storage key for the asset."""
+
+    @classmethod
+    def from_schema(cls, asset: "AssetRead") -> "EventAssetData":
+        """
+        Create EventAssetData from an AssetRead schema.
+
+        Args:
+            asset: AssetRead schema instance
+
+        Returns:
+            EventAssetData instance
+        """
+        from marvin.schemas.platform.assets import AssetRead
+
+        return cls(
+            operation=EventOperation.info,
+            asset_id=asset.id,
+            slug=asset.slug,
+            name=asset.name,
+            mime_type=asset.mime_type,
+            asset_type=asset.asset_type,
+            storage_key=asset.storage_key,
+        )
 
 
 class EventMemberData(EventDocumentDataBase):

@@ -27,11 +27,25 @@ class Assets(SqlAlchemyBase, BaseMixins):
     group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     slug: Mapped[str] = mapped_column(sa.String, nullable=False)
     name: Mapped[str] = mapped_column(sa.String, nullable=False)
-    file_path: Mapped[str] = mapped_column(sa.String, nullable=False)
+
+    original_filename: Mapped[str] = mapped_column(sa.String, nullable=False)
+    filename: Mapped[str] = mapped_column(sa.String, nullable=False)
+    extension: Mapped[str] = mapped_column(sa.String, nullable=False)
+
+    file_path: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     file_size: Mapped[int] = mapped_column(sa.Integer, nullable=False)
     mime_type: Mapped[str] = mapped_column(sa.String, nullable=False)
+    asset_type: Mapped[str] = mapped_column(sa.String, nullable=False, index=True)
+    checksum: Mapped[str] = mapped_column(sa.String, nullable=False)
+
     width: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    orientation: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+
+    storage_provider: Mapped[str] = mapped_column(sa.String, nullable=False)
+    storage_key: Mapped[str] = mapped_column(sa.String, nullable=False, unique=True)
+    public_url: Mapped[str | None] = mapped_column(sa.String, nullable=True)
+
     alt_text: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", sa.JSON, nullable=True)

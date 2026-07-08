@@ -1,18 +1,15 @@
 import type { APIRoute } from 'astro';
-import { fetchApi, getAuthToken } from '@/lib/api/client';
-import type { WorkspaceWithMembership } from '@/lib/api/types';
+import { createSdkClient } from '@/lib/sdk';
+import { getAuthToken } from '@/lib/api/client';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   try {
     const formData = await request.formData();
     const authToken = getAuthToken(cookies);
+    const sdk = createSdkClient(authToken);
 
     // Get current workspace
-    const workspace = await fetchApi<WorkspaceWithMembership>(
-      '/api/self/workspaces/current',
-      {},
-      authToken
-    );
+    const workspace = await sdk.workspaces.getCurrent();
 
     if (!workspace) {
       console.error('[site/update] No active workspace');
@@ -57,16 +54,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       site_metadata_json: metadataJson,
     };
 
-    // Update via backend API
-    await fetchApi(
-      `/api/groups/${workspace.workspace.id}/preferences`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      },
-      authToken
-    );
+    // Update via SDK
+    await sdk.workspaces.updatePreferences(workspace.id, updates);
 
     return redirect('/publishing/site?success=true', 303);
   } catch (error) {

@@ -9,9 +9,12 @@ from .api_clients import (
 )
 from .assets import (
     AssetCreate,
+    AssetCreateInternal,
     AssetPlacement,
     AssetRead,
     AssetSummary,
+    AssetUpdate,
+    AssetUploadRequest,
     EntryAssetRead,
 )
 from .collections import (
@@ -46,9 +49,12 @@ __all__ = [
     "APIClientUpdate",
     "APIClientWithToken",
     "AssetCreate",
+    "AssetCreateInternal",
     "AssetPlacement",
     "AssetRead",
     "AssetSummary",
+    "AssetUpdate",
+    "AssetUploadRequest",
     "CollectionCreate",
     "CollectionRead",
     "CollectionSummary",

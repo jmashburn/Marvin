@@ -243,6 +243,44 @@ class AppSettings(BaseSettings):
     """Fallback value when entry type is missing. Default: unknown"""
 
     # ===============================================
+    # Storage Configuration
+
+    STORAGE_PROVIDER: str = "local"
+    """Storage provider to use: 'local' or 's3'. Default: local"""
+
+    STORAGE_LOCAL_ROOT: Path | None = None
+    """Root directory for local file storage. Defaults to {DATA_DIR}/uploads"""
+
+    STORAGE_LOCAL_PUBLIC_URL: str = "/uploads"
+    """Base URL for accessing local files. Default: /uploads"""
+
+    STORAGE_S3_ENDPOINT: str | None = None
+    """S3-compatible endpoint URL (for R2, MinIO, etc). Optional for AWS S3."""
+
+    STORAGE_S3_BUCKET: str | None = None
+    """S3 bucket name. Required when STORAGE_PROVIDER=s3"""
+
+    STORAGE_S3_REGION: str = "auto"
+    """S3 region. Use 'auto' for Cloudflare R2. Default: auto"""
+
+    STORAGE_S3_ACCESS_KEY: str | None = None
+    """S3 access key ID. Required when STORAGE_PROVIDER=s3"""
+
+    STORAGE_S3_SECRET_KEY: MaskedNoneString | None = None
+    """S3 secret access key. Required when STORAGE_PROVIDER=s3. Masked in output."""
+
+    STORAGE_S3_PUBLIC_URL: str | None = None
+    """Public URL for S3 assets (CDN URL if using one). Optional."""
+
+    # Asset Upload Configuration
+
+    ASSET_MAX_FILE_SIZE: int = 100 * 1024 * 1024
+    """Maximum file size for asset uploads in bytes. Default: 100MB"""
+
+    ASSET_ALLOWED_MIME_TYPES: list[str] | None = None
+    """List of allowed MIME types for uploads. None = allow all. Default: None"""
+
+    # ===============================================
     # Testing Config
 
     TESTING: bool = False

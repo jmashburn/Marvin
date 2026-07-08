@@ -14,6 +14,7 @@ import uvicorn  # ASGI server for running FastAPI
 from fastapi import FastAPI  # The main FastAPI class
 from fastapi.middleware.cors import CORSMiddleware  # Middleware for CORS
 from fastapi.middleware.gzip import GZipMiddleware  # Middleware for GZip compression
+from fastapi.staticfiles import StaticFiles  # Static file serving
 
 # Marvin core components
 from marvin.core.config import get_app_settings  # Access application settings
@@ -209,6 +210,21 @@ def include_api_routers() -> None:  # Renamed from api_routers for clarity
 
 # Include all API routes from marvin.routes package
 include_api_routers()
+
+
+# Mount static files for local storage provider
+if settings.STORAGE_PROVIDER == "local":
+    from marvin.core.config import get_app_dirs
+
+    storage_root = settings.STORAGE_LOCAL_ROOT or (get_app_dirs().DATA_DIR / "uploads")
+    storage_root.mkdir(parents=True, exist_ok=True)
+
+    app.mount(
+        "/uploads",
+        StaticFiles(directory=str(storage_root)),
+        name="uploads",
+    )
+    logger.info(f"Static file serving enabled for local storage at {storage_root}")
 
 
 def main() -> None:

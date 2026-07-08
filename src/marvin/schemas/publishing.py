@@ -17,6 +17,7 @@ class PublishedAssetRead(_MarvinModel):
     Schema for published assets in the publishing API.
 
     Provides asset metadata for external sites to build proper media tags.
+    Read-only, does not expose internal fields like storage_key or uploaded_by.
     """
 
     slug: str
@@ -28,6 +29,12 @@ class PublishedAssetRead(_MarvinModel):
     mime_type: str
     """MIME type of the file (e.g., 'image/jpeg', 'application/pdf')."""
 
+    asset_type: str
+    """Asset type classification (image, document, video, audio, archive, svg, other)."""
+
+    file_size: int
+    """File size in bytes."""
+
     width: int | None = None
     """Width in pixels (for images)."""
 
@@ -37,8 +44,11 @@ class PublishedAssetRead(_MarvinModel):
     alt_text: str | None = None
     """Alt text for accessibility."""
 
-    file_url: str
-    """URL to download the asset file."""
+    description: str | None = None
+    """Optional description of the asset."""
+
+    public_url: str
+    """Public URL to access the asset file."""
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,14 +1,74 @@
 """Asset schemas."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_serializer, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
 
+class AssetUploadRequest(_MarvinModel):
+    """Skinny schema for asset upload - client provides editorial metadata only."""
+
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    """URL-friendly slug for the asset."""
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    """Name of the asset."""
+    alt_text: str | None = None
+    """Alt text for accessibility."""
+    description: str | None = None
+    """Optional description of the asset."""
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    """Optional asset metadata."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AssetCreateInternal(_MarvinModel):
+    """Internal schema for creating asset database record with all fields."""
+
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+    original_filename: str
+    filename: str
+    extension: str
+
+    file_path: str | None = None
+    file_size: int
+    mime_type: str
+    asset_type: Literal["image", "document", "video", "audio", "archive", "svg", "other"]
+    checksum: str
+
+    width: int | None = None
+    height: int | None = None
+    orientation: int | None = None
+
+    storage_provider: str
+    storage_key: str
+    public_url: str | None = None
+
+    alt_text: str | None = None
+    description: str | None = None
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AssetUpdate(_MarvinModel):
+    """Schema for updating editable asset fields."""
+
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    alt_text: str | None = None
+    description: str | None = None
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AssetCreate(_MarvinModel):
-    """Schema for creating a new asset."""
+    """Legacy schema for backwards compatibility - prefer AssetCreateInternal."""
 
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     """URL-friendly slug for the asset."""
@@ -54,12 +114,25 @@ class AssetSummary(_MarvinModel):
 class AssetRead(AssetSummary):
     """Full schema for reading an asset."""
 
+    original_filename: str
+    filename: str
+    extension: str
+
     file_size: int
     """Size of the file in bytes."""
+    asset_type: Literal["image", "document", "video", "audio", "archive", "svg", "other"]
+    checksum: str
+
     width: int | None = None
     """Width in pixels."""
     height: int | None = None
     """Height in pixels."""
+    orientation: int | None = None
+
+    storage_provider: str
+    storage_key: str
+    public_url: str | None = None
+
     description: str | None = None
     """Optional description."""
     metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata_"))
@@ -67,21 +140,21 @@ class AssetRead(AssetSummary):
     uploaded_by: UUID4
     """ID of user who uploaded the asset."""
 
-    @field_validator('metadata_', mode='before')
+    @field_validator("metadata_", mode="before")
     @classmethod
     def validate_metadata(cls, value: Any) -> dict | None:
         """Ensure metadata is a dict, not SQLAlchemy MetaData."""
         if value is None:
             return None
         # If it's a SQLAlchemy MetaData object, return None instead
-        if hasattr(value, '__class__') and value.__class__.__name__ == 'MetaData':
+        if hasattr(value, "__class__") and value.__class__.__name__ == "MetaData":
             return None
         # If it's not a dict, try to convert or return None
         if not isinstance(value, dict):
             return None
         return value
 
-    @field_serializer('metadata_')
+    @field_serializer("metadata_")
     def serialize_metadata(self, value: dict | None, _info) -> dict | None:
         """Ensure metadata is serialized as dict."""
         return value if isinstance(value, dict) else None
@@ -108,14 +181,14 @@ class AssetPlacement(_MarvinModel):
     )
     """Optional placement metadata."""
 
-    @field_validator('placement_metadata', mode='before')
+    @field_validator("placement_metadata", mode="before")
     @classmethod
     def validate_placement_metadata(cls, value: Any) -> dict | None:
         """Ensure placement_metadata is a dict, not SQLAlchemy MetaData."""
         if value is None:
             return None
         # If it's a SQLAlchemy MetaData object, return None instead
-        if hasattr(value, '__class__') and value.__class__.__name__ == 'MetaData':
+        if hasattr(value, "__class__") and value.__class__.__name__ == "MetaData":
             return None
         # If it's not a dict, try to convert or return None
         if not isinstance(value, dict):
