@@ -1,5 +1,50 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { createCollection } from "@/lib/api/collections";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/auth/login');
+}
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (value !== '') {
+        // Handle checkbox
+        if (key === 'is_smart') {
+          data[key] = value === 'true';
+        }
+        // Handle JSON fields
+        else if (key === 'query' || key === 'metadata') {
+          try {
+            data[key] = JSON.parse(value as string);
+          } catch (e) {
+            // Invalid JSON, skip it
+          }
+        }
+        // Handle number fields
+        else if (key === 'sort_order') {
+          data[key] = parseInt(value as string, 10);
+        }
+        else {
+          data[key] = value;
+        }
+      }
+    });
+
+    const collection = await createCollection(data, authToken);
+    return Astro.redirect(`/workspace/collections/${collection.id}`);
+  } catch (e) {
+    console.error('[NewCollection] Failed to create collection:', e);
+    // Error will be shown below
+  }
+}
 ---
 
 <AppLayout title="Create Collection">
@@ -12,7 +57,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
   </div>
 
   <section class="form-section">
-    <form method="POST" action="/api/collections/create" class="form">
+    <form method="POST" class="form">
       <div class="form-group">
         <label for="name">Name *</label>
         <input
