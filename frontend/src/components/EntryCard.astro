@@ -1,11 +1,17 @@
 ---
-import type { EntryRead } from "@/lib/api/types";
+import type { EntryRead, CollectionRead } from "@/lib/api/types";
 
 interface Props {
   entry: EntryRead;
+  collectionsMap?: Map<string, CollectionRead>;
 }
 
-const { entry } = Astro.props;
+const { entry, collectionsMap } = Astro.props;
+
+// Get collections for this entry
+const entryCollections = entry.collections
+  ?.map(id => collectionsMap?.get(id))
+  .filter(Boolean) as CollectionRead[] | undefined;
 const asset = entry.assets?.find((item) => item.role === "featured" || item.role === "hero") ?? entry.assets?.[0];
 
 // Format relative time
@@ -41,6 +47,12 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
     <div class="card-footer">
       <div class="meta">
         <span class={`pill ${entry.status}`}>{entry.status}</span>
+        {entryCollections && entryCollections.length > 0 && entryCollections.map(collection => (
+          <span class="pill collection" style={`background-color: ${collection.color || '#a94d3f'}15; color: ${collection.color || '#a94d3f'};`}>
+            {collection.icon && <span class="collection-icon">{collection.icon}</span>}
+            {collection.name}
+          </span>
+        ))}
         {entry.assets && entry.assets.length > 0 && (
           <span class="pill secondary">{entry.assets.length} asset{entry.assets.length === 1 ? '' : 's'}</span>
         )}
@@ -205,6 +217,18 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
     background: var(--panel-2);
     color: var(--muted);
     font-size: 10px;
+  }
+
+  .pill.collection {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .collection-icon {
+    font-size: 12px;
+    line-height: 1;
   }
 
   .timestamp {
