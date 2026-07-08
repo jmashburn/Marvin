@@ -307,11 +307,22 @@ if (!id) {
 <script>
   import { createSdkClient } from '@/lib/sdk';
 
+  console.log('[Asset Edit] Script loading...');
+
   const sdk = createSdkClient();
   const form = document.getElementById('asset-form') as HTMLFormElement;
   const metadataField = document.getElementById('metadata') as HTMLTextAreaElement;
-  const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+  const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
   const deleteButton = document.getElementById('delete-button') as HTMLButtonElement;
+
+  console.log('[Asset Edit] Elements found:', { form, submitButton, deleteButton, metadataField });
+
+  if (!form) {
+    console.error('[Asset Edit] Form not found!');
+  }
+  if (!submitButton) {
+    console.error('[Asset Edit] Submit button not found!');
+  }
 
   // Validate metadata JSON
   if (metadataField) {
@@ -350,8 +361,10 @@ if (!id) {
   });
 
   // Handle form submission via SDK
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      console.log('[Asset Edit] Form submitted');
 
     const formData = new FormData(form);
     const name = formData.get('name') as string;
@@ -399,5 +412,8 @@ if (!id) {
       submitButton.disabled = false;
       submitButton.textContent = 'Save Changes';
     }
-  });
+    });
+  } else {
+    console.error('[Asset Edit] Cannot add submit handler - form not found');
+  }
 </script>
