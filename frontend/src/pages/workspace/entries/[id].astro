@@ -1186,61 +1186,6 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       }
     });
 
-    entryForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const metadataValue = metadataField.value.trim();
-      let metadataObject = null;
-
-      // If metadata is not empty, validate and parse it
-      if (metadataValue) {
-        try {
-          metadataObject = JSON.parse(metadataValue);
-        } catch (error) {
-          alert('Metadata must be valid JSON. Please check your syntax.');
-          metadataField.focus();
-          return;
-        }
-      }
-
-      // Build FormData (status is already set by button click handler)
-      const formData = new FormData(entryForm);
-      const data: Record<string, any> = {};
-
-      for (const [key, value] of formData.entries()) {
-        // Skip metadata_json as we'll add it separately
-        if (key === 'metadata_json') continue;
-
-        // Handle collection checkboxes
-        if (key === 'collection_ids') {
-          if (!data.collection_ids) data.collection_ids = [];
-          data.collection_ids.push(value);
-        } else {
-          data[key] = value;
-        }
-      }
-
-      // Add parsed metadata
-      if (metadataObject !== null) {
-        data.metadata_json = metadataObject;
-      }
-
-      // Submit via SDK
-      try {
-        const { createSdkClient } = await import('@/lib/sdk');
-        const sdk = createSdkClient(); // Uses HttpOnly cookie auth
-        const entryId = window.location.pathname.split('/').pop() || '';
-
-        await sdk.entries.update(entryId, data);
-
-        // Success - stay on page and reload
-        window.location.reload();
-      } catch (error) {
-        console.error('Update error:', error);
-        alert(error instanceof Error ? error.message : 'Failed to update entry');
-      }
-    });
-
     // Add syntax highlighting on blur (basic validation feedback)
     metadataField.addEventListener('blur', () => {
       const value = metadataField.value.trim();
