@@ -56,8 +56,8 @@ const returnPath = Astro.url.searchParams.get('return');
           </div>
 
           <div class="form-group">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-              <label for="password" style="margin:0;">Password</label>
+            <div class="label-row">
+              <label for="password">Password</label>
               <a href="/forgot-password" class="forgot-link">Forgot password?</a>
             </div>
             <input
@@ -171,6 +171,12 @@ const returnPath = Astro.url.searchParams.get('return');
   .form-group {
     display: grid;
     gap: 0.5rem;
+  }
+
+  .label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
   }
 
   .form-group label {
