@@ -193,6 +193,8 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 </style>
 
 <script>
+  import { createEntry } from '@/lib/api/entries';
+
   // Auto-generate slug from title (unless user manually edits it)
   const titleInput = document.getElementById('title') as HTMLInputElement | null;
   const slugInput = document.getElementById('slug') as HTMLInputElement | null;
@@ -233,27 +235,19 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
       });
 
       try {
-        const response = await fetch('/api/platform/entries', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-          credentials: 'include',
-        });
+        // Get auth token from cookie
+        const authToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('marvin.access_token='))
+          ?.split('=')[1];
 
-        if (!response.ok) {
-          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-          try {
-            const error = await response.json();
-            errorMessage = error.detail || errorMessage;
-          } catch (e) {
-            // Response wasn't JSON
-          }
-          throw new Error(errorMessage);
+        if (!authToken) {
+          throw new Error('Not authenticated');
         }
 
-        const entry = await response.json();
+        // Use SDK to create entry
+        const entry = await createEntry(data, authToken);
+
         // Redirect to the entry editor
         window.location.href = `/workspace/entries/${entry.id}`;
       } catch (error) {
