@@ -1,7 +1,7 @@
-"""initial schema with events table
+"""initial schema
 
 Revision ID: a16b222bf920
-Revises: e892f171275c
+Revises:
 Create Date: 2026-07-07 21:11:49.465338
 
 """
@@ -14,7 +14,7 @@ import marvin.db.migration_types
 
 # revision identifiers, used by Alembic.
 revision: str = "a16b222bf920"
-down_revision: Union[str, None] = "e892f171275c"
+down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
