@@ -178,12 +178,19 @@ echo ""
 # Step 5: Verify workspace roles
 echo -e "${YELLOW}[5/6] Verifying workspace roles...${NC}"
 
-# Get workspace ID (assuming default workspace/group)
-workspace_id=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$MARVIN_URL/api/admin/groups" | jq -r '.items[0].id')
+# Get workspace ID using marvin CLI
+workspace_list=$(MARVIN_API_URL="$MARVIN_URL" "$MARVIN_CLI" workspace list 2>&1)
+if [ $? -ne 0 ]; then
+  echo -e "${RED}✗ Failed to list workspaces via CLI${NC}"
+  echo "Output: $workspace_list"
+  exit 1
+fi
 
-if [ "$workspace_id" == "null" ] || [ -z "$workspace_id" ]; then
-  echo -e "${RED}✗ Failed to get workspace ID${NC}"
+# Extract first workspace ID from table output (skip header, get first data row)
+workspace_id=$(echo "$workspace_list" | grep -v "^ID\|^--\|^$" | head -1 | awk '{print $1}')
+
+if [ -z "$workspace_id" ]; then
+  echo -e "${RED}✗ Failed to get workspace ID from CLI output${NC}"
   exit 1
 fi
 
@@ -193,11 +200,18 @@ for role in "${ROLES[@]}"; do
   user_id="${USER_IDS[$idx]}"
   username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test_${TIMESTAMP}
 
-  # Get user's workspace membership
-  membership=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-    "$MARVIN_URL/api/platform/workspaces/$workspace_id/members/$user_id")
+  # Get user's workspace membership via marvin CLI
+  member_info=$(MARVIN_API_URL="$MARVIN_URL" "$MARVIN_CLI" platform workspace-members get "$workspace_id" "$user_id" 2>&1)
 
-  actual_role=$(echo "$membership" | jq -r '.workspaceRole')
+  if [ $? -ne 0 ]; then
+    echo -e "  ${RED}✗${NC} Failed to get membership for $username"
+    all_correct=false
+    idx=$((idx + 1))
+    continue
+  fi
+
+  # Extract workspace role from CLI output (looking for "Workspace Role:" line)
+  actual_role=$(echo "$member_info" | grep -i "workspace role" | awk -F: '{print $2}' | xargs)
 
   if [ "$actual_role" == "$role" ]; then
     echo -e "  ${GREEN}✓${NC} $username has correct role: $role"
