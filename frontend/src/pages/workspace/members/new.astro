@@ -42,8 +42,8 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 <AppLayout title="Add Member" eyebrow="Workspace">
   <div class="page-header">
     <div>
-      <h2>Add Workspace Member</h2>
-      <p>Add a user to {workspace?.name || 'this workspace'}</p>
+      <h2>Invite Workspace Member</h2>
+      <p>Send an email invitation to join {workspace?.name || 'this workspace'}</p>
     </div>
   </div>
 
@@ -53,37 +53,36 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     <div class="form-container">
       <form id="add-member-form" class="form">
         <div class="form-section">
-          <h3>Member Details</h3>
+          <h3>Invitation Details</h3>
 
           <label class="form-field">
-            <span class="label">User ID *</span>
+            <span class="label">Email Address *</span>
             <input
-              type="text"
-              name="user_id"
-              id="user_id"
+              type="email"
+              name="email"
+              id="email"
               required
-              placeholder="e.g., a26f9570-5607-466d-aa23-7be3d7ce610e"
-              class="input input-uuid"
-              pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+              placeholder="user@example.com"
+              class="input"
             />
-            <small class="hint" id="uuid-hint">Enter the UUID of the user you want to add. You can find user IDs in the admin panel or from the user's profile.</small>
+            <small class="hint">The person will receive an email with a registration link to join this workspace</small>
           </label>
 
           <label class="form-field">
-            <span class="label">Role *</span>
-            <select name="workspace_role" required class="input">
+            <span class="label">Default Role</span>
+            <select name="workspace_role" class="input">
               {Object.entries(roleLabels).map(([role, label]) => (
-                <option value={role}>
+                <option value={role} selected={role === 'VIEWER'}>
                   {label} - {roleDescriptions[role as WorkspaceRole]}
                 </option>
               ))}
             </select>
-            <small class="hint">Choose the level of access for this member</small>
+            <small class="hint">Initial role when they join (can be changed later)</small>
           </label>
         </div>
 
         <div class="form-actions">
-          <button type="submit" class="button">Add Member</button>
+          <button type="submit" class="button">Send Invitation</button>
           <a href="/workspace/members" class="button secondary">Cancel</a>
         </div>
       </form>
@@ -99,29 +98,6 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     console.error('No workspace ID available');
   }
 
-  // UUID validation
-  const userIdInput = document.getElementById('user_id');
-  const uuidHint = document.getElementById('uuid-hint');
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-  userIdInput?.addEventListener('input', (e) => {
-    const value = e.target.value.trim();
-
-    if (!value) {
-      uuidHint.textContent = 'Enter the UUID of the user you want to add. You can find user IDs in the admin panel or from the user\'s profile.';
-      uuidHint.style.color = '';
-      userIdInput.style.borderColor = '';
-    } else if (uuidRegex.test(value)) {
-      uuidHint.textContent = '✓ Valid UUID format';
-      uuidHint.style.color = 'var(--good)';
-      userIdInput.style.borderColor = 'var(--good)';
-    } else {
-      uuidHint.textContent = '⚠ Invalid UUID format (expected: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)';
-      uuidHint.style.color = 'var(--warn)';
-      userIdInput.style.borderColor = 'var(--warn)';
-    }
-  });
-
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -132,23 +108,44 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 
     const target = e.target;
     const formData = new FormData(target);
+    const submitButton = target.querySelector('button[type="submit"]');
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Sending...';
+    }
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
 
-      await fetchApi(`/api/workspaces/${workspaceId}/members`, {
+      // Step 1: Create an invite token
+      const tokenResponse = await fetchApi('/api/groups/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: formData.get('user_id'),
-          workspace_role: formData.get('workspace_role'),
+          uses_left: 1, // Single-use token
+          group_id: workspaceId,
         }),
       });
 
-      window.location.href = '/workspace/members?added=true';
+      // Step 2: Send email invitation with the token
+      await fetchApi('/api/groups/invitations/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.get('email'),
+          token: tokenResponse.token,
+        }),
+      });
+
+      window.location.href = '/workspace/members?invited=true';
     } catch (error) {
-      console.error('Add member error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to add member');
+      console.error('Invitation error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to send invitation');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Send Invitation';
+      }
     }
   });
 </script>
@@ -212,18 +209,6 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     border: 1px solid var(--line);
     border-radius: var(--radius);
     font-size: 14px;
-  }
-
-  .input-uuid {
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-    letter-spacing: 0.02em;
-  }
-
-  .input-uuid::placeholder {
-    font-family: ui-monospace, monospace;
-    color: var(--muted);
-    opacity: 0.7;
   }
 
   .hint {
