@@ -132,6 +132,7 @@ node_modules/
 
 # Development data
 src/dev/data/scheduler_state.json
+src/dev/data/assets/
 
 .run/
 .task/*
