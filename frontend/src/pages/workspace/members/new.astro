@@ -88,6 +88,27 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
       </form>
     </div>
   )}
+
+  <!-- Invitation Link Modal -->
+  <dialog id="invitation-modal" class="modal">
+    <div class="modal-content">
+      <h3>Invitation Link Created</h3>
+      <p class="modal-description">Share this link with the person you want to invite. They can use it to register and join your workspace.</p>
+
+      <div class="link-display-wrapper">
+        <code class="link-display" id="invitation-link"></code>
+        <button class="copy-button" id="copy-link" title="Copy to clipboard">
+          <span class="copy-icon">📋</span>
+        </button>
+      </div>
+
+      <div id="email-status" class="email-status"></div>
+
+      <div class="modal-actions">
+        <button class="button" id="close-modal">Done</button>
+      </div>
+    </div>
+  </dialog>
 </AppLayout>
 
 <script>
@@ -127,24 +148,86 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
         }),
       }) as { token: string };
 
-      // Step 2: Send email invitation with the token
-      await fetchApi('/api/groups/invitations/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.get('email'),
-          token: tokenResponse.token,
-        }),
-      });
+      // Build the invitation URL
+      const invitationUrl = `${window.location.origin}/register?token=${tokenResponse.token}`;
 
-      window.location.href = '/workspace/members?invited=true';
-    } catch (error) {
-      console.error('Invitation error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to send invitation');
+      // Step 2: Try to send email invitation
+      let emailSuccess = false;
+      let emailError = '';
+
+      try {
+        const emailResponse = await fetchApi('/api/groups/invitations/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.get('email'),
+            token: tokenResponse.token,
+          }),
+        }) as { success: boolean; error?: string };
+
+        emailSuccess = emailResponse.success;
+        emailError = emailResponse.error || '';
+      } catch (e) {
+        emailError = e instanceof Error ? e.message : 'Email service unavailable';
+      }
+
+      // Show the invitation link modal
+      const modal = document.getElementById('invitation-modal') as HTMLDialogElement;
+      const linkDisplay = document.getElementById('invitation-link');
+      const emailStatus = document.getElementById('email-status');
+
+      if (linkDisplay) {
+        linkDisplay.textContent = invitationUrl;
+      }
+
+      if (emailStatus) {
+        if (emailSuccess) {
+          emailStatus.innerHTML = '<p class="status-success">✓ Email sent successfully to ' + formData.get('email') + '</p>';
+        } else {
+          emailStatus.innerHTML = '<p class="status-error">⚠ Email failed to send: ' + emailError + '<br>Please share the link above manually.</p>';
+        }
+      }
+
+      if (modal) {
+        modal.showModal();
+      }
+
+      // Reset form
+      form.reset();
       if (submitButton) {
         submitButton.disabled = false;
         submitButton.textContent = 'Send Invitation';
       }
+    } catch (error) {
+      console.error('Invitation error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to create invitation');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Send Invitation';
+      }
+    }
+  });
+
+  // Copy link to clipboard
+  document.getElementById('copy-link')?.addEventListener('click', async () => {
+    const linkValue = document.getElementById('invitation-link')?.textContent;
+    if (linkValue) {
+      await navigator.clipboard.writeText(linkValue);
+      const button = document.getElementById('copy-link');
+      if (button) {
+        button.innerHTML = '<span class="copy-icon">✓</span>';
+        setTimeout(() => {
+          button.innerHTML = '<span class="copy-icon">📋</span>';
+        }, 2000);
+      }
+    }
+  });
+
+  // Close modal
+  document.getElementById('close-modal')?.addEventListener('click', () => {
+    const modal = document.getElementById('invitation-modal') as HTMLDialogElement;
+    if (modal) {
+      modal.close();
     }
   });
 </script>
@@ -230,5 +313,107 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     background: var(--color-error-bg);
     color: var(--color-error);
     border: 1px solid var(--color-error);
+  }
+
+  /* Modal Styles */
+  .modal {
+    border: none;
+    border-radius: var(--radius);
+    padding: 0;
+    max-width: 600px;
+    width: 90vw;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.15);
+  }
+
+  .modal::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .modal-content {
+    padding: 24px;
+    background: var(--panel);
+  }
+
+  .modal h3 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .modal-description {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .link-display-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .link-display {
+    display: block;
+    padding: 16px 50px 16px 16px;
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    border-radius: var(--radius);
+    word-break: break-all;
+    user-select: all;
+    line-height: 1.5;
+  }
+
+  .copy-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 0.2s;
+  }
+
+  .copy-button:hover {
+    background: var(--panel-2);
+  }
+
+  .copy-icon {
+    display: block;
+  }
+
+  .email-status {
+    margin-bottom: 20px;
+  }
+
+  .status-success {
+    margin: 0;
+    padding: 12px;
+    background: rgb(53 122 85 / 0.1);
+    color: var(--good);
+    border: 1px solid var(--good);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .status-error {
+    margin: 0;
+    padding: 12px;
+    background: rgb(169 99 47 / 0.1);
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    border-radius: var(--radius);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
   }
 </style>
