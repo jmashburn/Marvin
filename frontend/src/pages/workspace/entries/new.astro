@@ -1,11 +1,32 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
+import { createEntry } from "@/lib/api/entries";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 if (!authToken) {
   return Astro.redirect('/auth/login');
+}
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (value !== '') {
+        data[key] = value;
+      }
+    });
+
+    const entry = await createEntry(data, authToken);
+    return Astro.redirect(`/workspace/entries/${entry.id}`);
+  } catch (e) {
+    console.error('[NewEntry] Failed to create entry:', e);
+    // Error will be shown below
+  }
 }
 
 // Get pre-selected type from query parameter (e.g., from Quick Create)
@@ -41,7 +62,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
       </div>
 
       <section class="form-section">
-        <form method="POST" action="/api/platform/entries" class="form" id="entryForm">
+        <form method="POST" class="form">
           <div class="form-group">
             <label for="entry_type_id">Entry Type *</label>
             <select id="entry_type_id" name="entry_type_id" required>
@@ -193,8 +214,6 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 </style>
 
 <script>
-  import { createEntry } from '@/lib/api/entries';
-
   // Auto-generate slug from title (unless user manually edits it)
   const titleInput = document.getElementById('title') as HTMLInputElement | null;
   const slugInput = document.getElementById('slug') as HTMLInputElement | null;
@@ -216,44 +235,6 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
     // Track if user manually edits slug field
     slugInput.addEventListener('input', () => {
       slugInput.dataset.manuallyEdited = 'true';
-    });
-  }
-
-  // Handle form submission
-  const form = document.getElementById('entryForm') as HTMLFormElement | null;
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const formData = new FormData(form);
-      const data: Record<string, any> = {};
-
-      formData.forEach((value, key) => {
-        if (value !== '') {
-          data[key] = value;
-        }
-      });
-
-      try {
-        // Get auth token from cookie
-        const authToken = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('marvin.access_token='))
-          ?.split('=')[1];
-
-        if (!authToken) {
-          throw new Error('Not authenticated');
-        }
-
-        // Use SDK to create entry
-        const entry = await createEntry(data, authToken);
-
-        // Redirect to the entry editor
-        window.location.href = `/workspace/entries/${entry.id}`;
-      } catch (error) {
-        console.error('Error creating entry:', error);
-        alert(error instanceof Error ? error.message : 'Failed to create entry');
-      }
     });
   }
 </script>
