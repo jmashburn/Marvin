@@ -300,6 +300,21 @@
         "enabled": true
     },
     {
+        "name": "API Client Token Rotated",
+        "description": "Notification when an API client token is rotated",
+        "enabled": true
+    },
+    {
+        "name": "API Client Enabled",
+        "description": "Notification when an API client is enabled",
+        "enabled": false
+    },
+    {
+        "name": "API Client Disabled",
+        "description": "Notification when an API client is disabled",
+        "enabled": true
+    },
+    {
         "name": "Resource Created",
         "description": "Notification when a new resource is created",
         "enabled": false
