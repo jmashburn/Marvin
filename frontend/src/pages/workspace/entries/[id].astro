@@ -120,6 +120,20 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
               <small style="font-size: 11px; color: var(--muted);">
                 Must be valid JSON. Example: {`{"seo_title": "My Title", "featured": true}`}
               </small>
+
+              {entry.metadataJson && Object.keys(entry.metadataJson).length > 0 && (
+                <div class="metadata-preview">
+                  <p class="metadata-preview-title">Current Metadata:</p>
+                  <dl class="metadata-preview-list">
+                    {Object.entries(entry.metadataJson).map(([key, value]) => (
+                      <div class="metadata-preview-item">
+                        <dt>{key}</dt>
+                        <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
             </div>
 
             <div class="form-actions">
@@ -680,6 +694,51 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   .collection-checkbox input {
     margin: 0;
     cursor: pointer;
+  }
+
+  .metadata-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-preview-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metadata-preview-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .metadata-preview-item {
+    padding: 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .metadata-preview-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-preview-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
   }
 
   @media (max-width: 1024px) {
