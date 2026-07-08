@@ -288,8 +288,23 @@ async def get_published_entry(
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
 
-    # Get collection slugs
-    collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+    # Get collections with full details
+    collections = [
+        PublishedCollectionSummary(
+            slug=ec.collection.slug,
+            name=ec.collection.name,
+            description=ec.collection.description,
+            is_smart=ec.collection.is_smart,
+            smart_rules=ec.collection.smart_rules,
+            metadata=ec.collection.metadata_json,
+            entry_count=0,  # Not needed in entry context
+            sort_order=ec.collection.sort_order,
+            icon=ec.collection.icon,
+            color=ec.collection.color,
+        )
+        for ec in entry.entry_collections
+        if ec.collection
+    ]
 
     # Get resources for this entry
     resources = [
@@ -335,7 +350,7 @@ async def get_published_entry(
         content_markdown=entry.content_markdown,
         published_at=entry.published_at,
         metadata=entry.metadata_json,
-        collections=collection_slugs,
+        collections=collections,
         resources=resources,
         assets=assets,
     )

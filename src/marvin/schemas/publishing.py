@@ -85,8 +85,8 @@ class PublishedEntryRead(_MarvinModel):
     metadata: dict | None = None
     """Custom frontmatter/metadata as JSON object."""
 
-    collections: list[str] = []
-    """List of collection slugs this entry belongs to."""
+    collections: list["PublishedCollectionSummary"] = []
+    """Collections this entry belongs to."""
 
     resources: list["PublishedResourceRead"] = []
     """Resources referenced by this entry."""
