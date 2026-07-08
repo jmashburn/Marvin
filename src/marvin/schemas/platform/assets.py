@@ -60,11 +60,11 @@ class AssetUpdate(_MarvinModel):
 
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
-    alt_text: str | None = None
+    alt_text: str | None = Field(default=None, validation_alias=AliasChoices("alt_text", "altText"))
     description: str | None = None
     metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class AssetCreate(_MarvinModel):
