@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import ImageCropper from "@/components/ImageCropper.astro";
 ---
 
 <AppLayout title="Upload Asset" eyebrow="Assets">
@@ -122,6 +123,8 @@ import AppLayout from "@/layouts/AppLayout.astro";
       </div>
     </form>
   </section>
+
+  <ImageCropper />
 </AppLayout>
 
 <style>
@@ -335,8 +338,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
   // Handle file selection
   function handleFile(file: File) {
-    selectedFile = file;
-
     // Auto-populate name from filename
     const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
     nameInput.value = fileName.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -344,6 +345,21 @@ import AppLayout from "@/layouts/AppLayout.astro";
     // Generate slug
     updateSlug();
 
+    // Show cropper for images
+    if (file.type.startsWith('image/')) {
+      const cropper = new (window as any).ImageCropper();
+      cropper.show(file, (blob: Blob) => {
+        // Create a new File from the cropped blob
+        selectedFile = new File([blob], file.name, { type: 'image/jpeg' });
+        showPreview(selectedFile);
+      });
+    } else {
+      selectedFile = file;
+      showPreview(file);
+    }
+  }
+
+  function showPreview(file: File) {
     // Show preview
     uploadPlaceholder.style.display = 'none';
     uploadPreview.style.display = 'flex';
