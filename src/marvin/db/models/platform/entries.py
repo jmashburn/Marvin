@@ -53,6 +53,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "EntryCollections",
         foreign_keys="EntryCollections.entry_id",
         overlaps="collections,entries",
+        cascade="all, delete-orphan",
         doc="Direct access to entry-collection associations",
     )
 
@@ -67,6 +68,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "EntryResources",
         foreign_keys="EntryResources.entry_id",
         overlaps="entries,resources",
+        cascade="all, delete-orphan",
         doc="Direct access to entry-resource associations with placement info",
     )
 
@@ -81,6 +83,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "EntryAssets",
         foreign_keys="EntryAssets.entry_id",
         overlaps="assets,entries",
+        cascade="all, delete-orphan",
         doc="Direct access to entry-asset associations with placement info",
     )
 
