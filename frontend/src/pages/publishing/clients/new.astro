@@ -139,16 +139,11 @@ import AppLayout from "@/layouts/AppLayout.astro";
       };
 
       try {
-        const { getAuthToken } = await import('@/lib/api/client');
-        const { createSiteClient } = await import('@/lib/api/platform');
+        const { createSdkClient } = await import('@/lib/sdk');
 
-        const authToken = getAuthToken(document.cookie);
-        if (!authToken) {
-          alert('Authentication required');
-          return;
-        }
-
-        const result = await createSiteClient(data, authToken);
+        // SDK uses cookie-based auth automatically via credentials: 'include'
+        const sdk = createSdkClient();
+        const result = await sdk.apiClients.create(data);
 
         console.log('API Client created:', result);
         console.log('Token:', result.token);
