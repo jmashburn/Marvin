@@ -48,6 +48,51 @@ uv run scripts/seed_mashandburnco.py
 
 ---
 
+## Test Scripts
+
+### `test_invitations.sh`
+
+**End-to-end test for invitation system with workspace roles.**
+
+Tests the complete invitation flow from token creation through user registration and role verification.
+
+**Usage:**
+```bash
+./scripts/test_invitations.sh
+
+# Or with custom settings
+MARVIN_URL=http://localhost:8080 \
+ADMIN_USER=admin \
+ADMIN_PASS=MyPassword \
+./scripts/test_invitations.sh
+```
+
+**What it tests:**
+1. ✅ Creates invitation tokens for all 5 workspace roles
+2. ✅ Validates API responses include `workspaceRole` field
+3. ✅ Lists tokens and verifies roles
+4. ✅ Registers test users with invitation tokens
+5. ✅ Verifies workspace role assignment
+
+**Test users created:**
+- `viewer_test` (VIEWER) - password: TestPass123!
+- `author_test` (AUTHOR) - password: TestPass123!
+- `editor_test` (EDITOR) - password: TestPass123!
+- `admin_test` (ADMIN) - password: TestPass123!
+- `owner_test` (OWNER) - password: TestPass123!
+
+**Environment variables:**
+- `MARVIN_URL` - Backend URL (default: `http://localhost:8080`)
+- `ADMIN_USER` - Admin username (default: `admin`)
+- `ADMIN_PASS` - Admin password (default: `MyPassword`)
+
+**Requirements:**
+- `curl` and `jq` installed
+- Marvin backend running
+- Admin credentials
+
+---
+
 ## Future Scripts
 
 Additional seed scripts can be added here for:
