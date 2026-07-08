@@ -197,7 +197,9 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 
 <script>
   // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
 
   // Copy token to clipboard
   document.getElementById('copy-token')?.addEventListener('click', async () => {
@@ -237,7 +239,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       }
 
       try {
-        const data = await fetchApi(`/api/api-clients/${clientSlug}/preview`, {});
+        const data = await sdk.apiClients.preview(clientSlug);
         const modal = document.getElementById('preview-modal');
         const subtitle = document.getElementById('preview-subtitle');
         const content = document.getElementById('preview-content');
@@ -300,9 +302,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
         }
 
         try {
-          const result = await fetchApi(`/api/api-clients/${clientSlug}/rotate-token`, {
-            method: 'POST',
-          }) as { token: string };
+          const result = await sdk.apiClients.rotateToken(clientSlug);
 
           // Redirect with token in query (will be shown in modal)
           window.location.href = `/publishing/clients?token=${encodeURIComponent(result.token)}&client_name=${encodeURIComponent(clientName)}`;
@@ -324,11 +324,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       if (!clientSlug) return;
 
       try {
-        await fetchApi(`/api/api-clients/${clientSlug}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: !currentEnabled })
-        });
+        await sdk.apiClients.update(clientSlug, { enabled: !currentEnabled });
 
         // Reload page
         window.location.reload();
