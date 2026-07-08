@@ -155,9 +155,12 @@ function getMimeCategory(mimeType: string): string {
 
   searchInput?.addEventListener('input', filterAssets);
   typeFilter?.addEventListener('change', filterAssets);
+</script>
 
+<script>
   // Handle delete button clicks
   import { createSdkClient } from '@/lib/sdk';
+
   const sdk = createSdkClient();
 
   document.querySelectorAll('.delete-asset-btn').forEach(button => {
