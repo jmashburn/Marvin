@@ -29,7 +29,11 @@ class UserRegistrationCreate(_MarvinModel):
     @field_validator("group_token")
     @classmethod
     def group_or_token(cls, value, info: ValidationInfo):
-        if not bool(value) and not bool(info.data["group"]):
+        # Either group_token OR group must be provided (both can be None/empty, but not both)
+        has_token = value is not None and value.strip() != ""
+        has_group = "group" in info.data and info.data["group"] is not None and info.data["group"].strip() != ""
+
+        if not has_token and not has_group:
             raise ValueError("group or group_token must be provided")
 
         return value
