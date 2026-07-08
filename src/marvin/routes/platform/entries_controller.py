@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import CollectionRead, EntryCreate, EntryRead, EntryUpdate
+from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/entries")
 
@@ -25,7 +26,25 @@ class EntriesController(BaseUserController):
         # Inject created_by from authenticated user
         data_dict = data.model_dump()
         data_dict["created_by"] = self.user.id
-        return self.repos.entries.create(data_dict)
+        entry = self.repos.entries.create(data_dict)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="entry_management",
+            group_id=self.group_id,
+            event_type=EventTypes.entry_created,
+            document_data=EventEntryData(
+                operation=EventOperation.create,
+                entry_id=entry.id,
+                entry_title=entry.title,
+                entry_type=entry.entryType.slug if entry.entryType else None,
+                workspace_id=entry.groupId,
+                author_id=entry.createdBy,
+            ),
+            message=f"Entry '{entry.title}' created",
+        )
+
+        return entry
 
     @router.get("/{item_id}", response_model=EntryRead, summary="Get Entry")
     def get_entry(self, item_id: UUID4) -> EntryRead:
@@ -36,14 +55,85 @@ class EntriesController(BaseUserController):
 
     @router.patch("/{item_id}", response_model=EntryRead, summary="Update Entry")
     def update_entry(self, item_id: UUID4, data: EntryUpdate) -> EntryRead:
-        if not self.repos.entries.get_one(item_id):
+        old_entry = self.repos.entries.get_one(item_id)
+        if not old_entry:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
-        return self.repos.entries.update(item_id, data)
+
+        entry = self.repos.entries.update(item_id, data)
+
+        # Emit update event
+        self.event_bus.dispatch(
+            integration_id="entry_management",
+            group_id=self.group_id,
+            event_type=EventTypes.entry_updated,
+            document_data=EventEntryData(
+                operation=EventOperation.update,
+                entry_id=entry.id,
+                entry_title=entry.title,
+                entry_type=entry.entryType.slug if entry.entryType else None,
+                workspace_id=entry.groupId,
+                author_id=entry.createdBy,
+            ),
+            message=f"Entry '{entry.title}' updated",
+        )
+
+        # Emit publish/unpublish events if status changed
+        if old_entry.status != entry.status:
+            if entry.status == "published":
+                self.event_bus.dispatch(
+                    integration_id="entry_management",
+                    group_id=self.group_id,
+                    event_type=EventTypes.entry_published,
+                    document_data=EventEntryData(
+                        operation=EventOperation.update,
+                        entry_id=entry.id,
+                        entry_title=entry.title,
+                        entry_type=entry.entryType.slug if entry.entryType else None,
+                        workspace_id=entry.groupId,
+                        author_id=entry.createdBy,
+                    ),
+                    message=f"Entry '{entry.title}' published",
+                )
+            elif old_entry.status == "published":
+                self.event_bus.dispatch(
+                    integration_id="entry_management",
+                    group_id=self.group_id,
+                    event_type=EventTypes.entry_unpublished,
+                    document_data=EventEntryData(
+                        operation=EventOperation.update,
+                        entry_id=entry.id,
+                        entry_title=entry.title,
+                        entry_type=entry.entryType.slug if entry.entryType else None,
+                        workspace_id=entry.groupId,
+                        author_id=entry.createdBy,
+                    ),
+                    message=f"Entry '{entry.title}' unpublished",
+                )
+
+        return entry
 
     @router.delete("/{item_id}", summary="Delete Entry")
     def delete_entry(self, item_id: UUID4) -> dict:
-        if not self.repos.entries.get_one(item_id):
+        entry = self.repos.entries.get_one(item_id)
+        if not entry:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
+
+        # Emit event before deletion
+        self.event_bus.dispatch(
+            integration_id="entry_management",
+            group_id=self.group_id,
+            event_type=EventTypes.entry_deleted,
+            document_data=EventEntryData(
+                operation=EventOperation.delete,
+                entry_id=entry.id,
+                entry_title=entry.title,
+                entry_type=entry.entryType.slug if entry.entryType else None,
+                workspace_id=entry.groupId,
+                author_id=entry.createdBy,
+            ),
+            message=f"Entry '{entry.title}' deleted",
+        )
+
         self.repos.entries.delete(item_id)
         return {"status": "ok", "message": "Entry deleted successfully"}
 
@@ -99,11 +189,31 @@ class EntriesController(BaseUserController):
         self.session.add(junction)
         self.session.commit()
 
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="entry_management",
+            group_id=self.group_id,
+            event_type=EventTypes.entry_added_to_collection,
+            document_data=EventEntryData(
+                operation=EventOperation.update,
+                entry_id=entry.id,
+                entry_title=entry.title,
+                entry_type=entry.entryType.slug if entry.entryType else None,
+                workspace_id=entry.groupId,
+                author_id=entry.createdBy,
+            ),
+            message=f"Entry '{entry.title}' added to collection '{collection.name}'",
+        )
+
         return {"message": "Entry added to collection successfully"}
 
     @router.delete("/{entry_id}/collections/{collection_id}", summary="Remove Entry from Collection")
     def remove_entry_from_collection(self, entry_id: UUID4, collection_id: UUID4) -> dict:
         """Remove an entry from a collection."""
+        # Get entry and collection before deletion for event
+        entry = self.repos.entries.get_one(entry_id)
+        collection = self.repos.collections.get_one(collection_id)
+
         # Delete junction record
         deleted = (
             self.session.query(EntryCollections)
@@ -115,4 +225,22 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry is not in this collection.")
 
         self.session.commit()
+
+        # Emit event if we have entry data
+        if entry:
+            self.event_bus.dispatch(
+                integration_id="entry_management",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_removed_from_collection,
+                document_data=EventEntryData(
+                    operation=EventOperation.update,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    entry_type=entry.entryType.slug if entry.entryType else None,
+                    workspace_id=entry.groupId,
+                    author_id=entry.createdBy,
+                ),
+                message=f"Entry '{entry.title}' removed from collection '{collection.name if collection else collection_id}'",
+            )
+
         return {"status": "ok", "message": "Entry removed from collection successfully"}

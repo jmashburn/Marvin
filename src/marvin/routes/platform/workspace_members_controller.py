@@ -18,6 +18,7 @@ from marvin.db.models.users.roles import WorkspaceRole
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.user.user import PrivateUser, WorkspaceMembershipRead
 from marvin.schemas.workspace import WorkspaceMemberCreate, WorkspaceMemberUpdate
+from marvin.services.event_bus_service.event_types import EventMemberData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/members")
 
@@ -88,6 +89,22 @@ class WorkspaceMembersController(BaseUserController):
         # Add the member
         result = self.repos.workspace_members.add_member(user_id=data.user_id, workspace_id=workspace_id, role=data.workspace_role)
         self.session.commit()
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="workspace_management",
+            group_id=workspace_id,
+            event_type=EventTypes.member_added,
+            document_data=EventMemberData(
+                operation=EventOperation.create,
+                workspace_id=workspace_id,
+                user_id=data.user_id,
+                username=user.username,
+                role=data.workspace_role.value,
+            ),
+            message=f"User {user.username} added to workspace with role {data.workspace_role.value}",
+        )
+
         return result
 
     @router.get("/{user_id}", response_model=WorkspaceMembershipRead, summary="Get Workspace Member")
@@ -177,6 +194,23 @@ class WorkspaceMembersController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found.")
 
         self.session.commit()
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="workspace_management",
+            group_id=workspace_id,
+            event_type=EventTypes.member_role_changed,
+            document_data=EventMemberData(
+                operation=EventOperation.update,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                username=updated.user.username if updated.user else str(user_id),
+                role=data.workspace_role.value,
+                previous_role=membership.workspace_role.value,
+            ),
+            message=f"User {updated.user.username if updated.user else user_id} role changed from {membership.workspace_role.value} to {data.workspace_role.value}",
+        )
+
         return updated
 
     @router.delete("/{user_id}", summary="Remove Workspace Member")
@@ -224,6 +258,21 @@ class WorkspaceMembersController(BaseUserController):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail="Cannot remove the last OWNER. Promote another member to OWNER first."
                 )
+
+        # Emit event before removal
+        self.event_bus.dispatch(
+            integration_id="workspace_management",
+            group_id=workspace_id,
+            event_type=EventTypes.member_removed,
+            document_data=EventMemberData(
+                operation=EventOperation.delete,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                username=membership.user.username if membership.user else str(user_id),
+                role=membership.workspace_role.value,
+            ),
+            message=f"User {membership.user.username if membership.user else user_id} removed from workspace",
+        )
 
         # Remove the member
         removed = self.repos.workspace_members.remove_member(user_id, workspace_id)
