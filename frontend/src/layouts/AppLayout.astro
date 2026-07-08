@@ -28,8 +28,9 @@ try {
       admin: isAdmin,
       superAdmin: isSuperAdmin,
       platformRole: currentUser?.platformRole,
-      full_user: currentUser,
+      workspaceMemberships: currentUser?.workspaceMemberships,
     });
+    console.log('[AppLayout] Full user object:', currentUser);
   }
 } catch (e) {
   // Not logged in or error
