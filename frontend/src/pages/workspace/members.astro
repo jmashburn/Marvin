@@ -272,8 +272,8 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
 </AppLayout>
 
 <script define:vars={{ workspaceId: workspace?.id, canManage }}>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
 
   // Role change - show save button when changed
   if (canManage) {
@@ -317,10 +317,8 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
         target.textContent = 'Saving...';
 
         try {
-          await fetchApi(`/api/workspaces/${workspaceId}/members/${userId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspace_role: newRole }),
+          await sdk.workspaceMembers.updateRole(workspaceId, userId, {
+            workspaceRole: newRole,
           });
 
           window.location.reload();
@@ -367,10 +365,7 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
     if (!userToRemove) return;
 
     try {
-      await fetchApi(`/api/workspaces/${workspaceId}/members/${userToRemove}`, {
-        method: 'DELETE',
-      });
-
+      await sdk.workspaceMembers.remove(workspaceId, userToRemove);
       window.location.reload();
     } catch (error) {
       console.error('Remove member error:', error);
@@ -452,10 +447,7 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
       }
 
       try {
-        await fetchApi(`/api/groups/invitations/${tokenId}`, {
-          method: 'DELETE',
-        });
-
+        await sdk.invites.delete(tokenId);
         window.location.reload();
       } catch (error) {
         console.error('Revoke invitation error:', error);
