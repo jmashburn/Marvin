@@ -95,7 +95,8 @@ class GroupInvitationsController(BaseUserController):
         # Create the token using the group_invite_tokens repository
         created_token = self.repos.group_invite_tokens.create(save_data)
         self.logger.info(f"Invite token created by user {self.user.username} for group {self.group_id}")
-        return created_token
+        # Cast to InviteTokenSummary for proper JSON serialization
+        return cast(created_token, InviteTokenSummary)
 
     @router.post("/email", response_model=EmailInitationResponse, summary="Send Email Invitation")
     def email_invitation(
