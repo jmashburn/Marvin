@@ -36,20 +36,24 @@ class EntriesController(BaseUserController):
                 entry_type_slug = entry_type.slug
 
         # Emit event
-        self.event_bus.dispatch(
-            integration_id="entry_management",
-            group_id=self.group_id,
-            event_type=EventTypes.entry_created,
-            document_data=EventEntryData(
-                operation=EventOperation.create,
-                entry_id=entry.id,
-                entry_title=entry.title,
-                entry_type=entry_type_slug,
-                workspace_id=entry.group_id,
-                author_id=entry.created_by,
-            ),
-            message=f"Entry '{entry.title}' created",
-        )
+        try:
+            self.event_bus.dispatch(
+                integration_id="entry_management",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_created,
+                document_data=EventEntryData(
+                    operation=EventOperation.create,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    entry_type=entry_type_slug,
+                    workspace_id=entry.group_id,
+                    author_id=entry.created_by,
+                ),
+                message=f"Entry '{entry.title}' created",
+            )
+        except Exception as e:
+            # Log error but don't fail the request
+            self.logger.error(f"Failed to dispatch entry_created event: {e}", exc_info=True)
 
         return entry
 
@@ -76,53 +80,59 @@ class EntriesController(BaseUserController):
                 entry_type_slug = entry_type.slug
 
         # Emit update event
-        self.event_bus.dispatch(
-            integration_id="entry_management",
-            group_id=self.group_id,
-            event_type=EventTypes.entry_updated,
-            document_data=EventEntryData(
-                operation=EventOperation.update,
-                entry_id=entry.id,
-                entry_title=entry.title,
-                entry_type=entry_type_slug,
-                workspace_id=entry.group_id,
-                author_id=entry.created_by,
-            ),
-            message=f"Entry '{entry.title}' updated",
-        )
+        try:
+            self.event_bus.dispatch(
+                integration_id="entry_management",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_updated,
+                document_data=EventEntryData(
+                    operation=EventOperation.update,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    entry_type=entry_type_slug,
+                    workspace_id=entry.group_id,
+                    author_id=entry.created_by,
+                ),
+                message=f"Entry '{entry.title}' updated",
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch entry_updated event: {e}", exc_info=True)
 
         # Emit publish/unpublish events if status changed
         if old_entry.status != entry.status:
-            if entry.status == "published":
-                self.event_bus.dispatch(
-                    integration_id="entry_management",
-                    group_id=self.group_id,
-                    event_type=EventTypes.entry_published,
-                    document_data=EventEntryData(
-                        operation=EventOperation.update,
-                        entry_id=entry.id,
-                        entry_title=entry.title,
-                        entry_type=entry_type_slug,
-                        workspace_id=entry.group_id,
-                        author_id=entry.created_by,
-                    ),
-                    message=f"Entry '{entry.title}' published",
-                )
-            elif old_entry.status == "published":
-                self.event_bus.dispatch(
-                    integration_id="entry_management",
-                    group_id=self.group_id,
-                    event_type=EventTypes.entry_unpublished,
-                    document_data=EventEntryData(
-                        operation=EventOperation.update,
-                        entry_id=entry.id,
-                        entry_title=entry.title,
-                        entry_type=entry_type_slug,
-                        workspace_id=entry.group_id,
-                        author_id=entry.created_by,
-                    ),
-                    message=f"Entry '{entry.title}' unpublished",
-                )
+            try:
+                if entry.status == "published":
+                    self.event_bus.dispatch(
+                        integration_id="entry_management",
+                        group_id=self.group_id,
+                        event_type=EventTypes.entry_published,
+                        document_data=EventEntryData(
+                            operation=EventOperation.update,
+                            entry_id=entry.id,
+                            entry_title=entry.title,
+                            entry_type=entry_type_slug,
+                            workspace_id=entry.group_id,
+                            author_id=entry.created_by,
+                        ),
+                        message=f"Entry '{entry.title}' published",
+                    )
+                elif old_entry.status == "published":
+                    self.event_bus.dispatch(
+                        integration_id="entry_management",
+                        group_id=self.group_id,
+                        event_type=EventTypes.entry_unpublished,
+                        document_data=EventEntryData(
+                            operation=EventOperation.update,
+                            entry_id=entry.id,
+                            entry_title=entry.title,
+                            entry_type=entry_type_slug,
+                            workspace_id=entry.group_id,
+                            author_id=entry.created_by,
+                        ),
+                        message=f"Entry '{entry.title}' unpublished",
+                    )
+            except Exception as e:
+                self.logger.error(f"Failed to dispatch entry publish/unpublish event: {e}", exc_info=True)
 
         return entry
 
@@ -140,20 +150,23 @@ class EntriesController(BaseUserController):
                 entry_type_slug = entry_type.slug
 
         # Emit event before deletion
-        self.event_bus.dispatch(
-            integration_id="entry_management",
-            group_id=self.group_id,
-            event_type=EventTypes.entry_deleted,
-            document_data=EventEntryData(
-                operation=EventOperation.delete,
-                entry_id=entry.id,
-                entry_title=entry.title,
-                entry_type=entry_type_slug,
-                workspace_id=entry.group_id,
-                author_id=entry.created_by,
-            ),
-            message=f"Entry '{entry.title}' deleted",
-        )
+        try:
+            self.event_bus.dispatch(
+                integration_id="entry_management",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_deleted,
+                document_data=EventEntryData(
+                    operation=EventOperation.delete,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    entry_type=entry_type_slug,
+                    workspace_id=entry.group_id,
+                    author_id=entry.created_by,
+                ),
+                message=f"Entry '{entry.title}' deleted",
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch entry_deleted event: {e}", exc_info=True)
 
         self.repos.entries.delete(item_id)
         return {"status": "ok", "message": "Entry deleted successfully"}
