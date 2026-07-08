@@ -115,11 +115,13 @@ function getMimeCategory(mimeType: string): string {
                   <div class="actions">
                     <a href={`/workspace/assets/${asset.id}/view`} class="button secondary small">View</a>
                     <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
-                    <form method="POST" action={`/api/assets/${asset.id}/delete`} style="display:inline;">
-                      <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this asset?')">
-                        Delete
-                      </button>
-                    </form>
+                    <button
+                      class="button secondary small danger delete-asset-btn"
+                      data-asset-id={asset.id}
+                      data-asset-name={asset.name}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -153,6 +155,41 @@ function getMimeCategory(mimeType: string): string {
 
   searchInput?.addEventListener('input', filterAssets);
   typeFilter?.addEventListener('change', filterAssets);
+
+  // Handle delete button clicks
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
+
+  document.querySelectorAll('.delete-asset-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const btn = e.target as HTMLButtonElement;
+      const assetId = btn.dataset.assetId;
+      const assetName = btn.dataset.assetName;
+
+      if (!assetId) return;
+
+      if (!confirm(`Delete "${assetName}"? This cannot be undone.`)) {
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+
+      try {
+        await sdk.assets.delete(assetId);
+        // Remove the row from the table
+        const row = btn.closest('tr');
+        if (row) {
+          row.remove();
+        }
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to delete asset';
+        alert(message);
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+      }
+    });
+  });
 </script>
 
 <style>
