@@ -966,7 +966,9 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
         const body = JSON.stringify(updateData);
         console.log('Sending to server:', body);
 
-        const response = await fetch(`http://localhost:8080/api/platform/entries/${entryId}`, {
+        // Import API config to get proper base URL
+        const { API_BASE_URL } = await import('@/lib/api/config');
+        const response = await fetch(`${API_BASE_URL}/api/platform/entries/${entryId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
