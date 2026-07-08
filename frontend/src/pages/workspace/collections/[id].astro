@@ -181,6 +181,12 @@ if (!authToken) {
             <a href="/workspace/collections" class="button secondary">Cancel</a>
           </div>
         </form>
+
+        <form method="POST" action={`/api/collections/${collectionId}/delete`} style="margin-top:2rem;">
+          <button type="submit" class="button secondary danger" onclick="return confirm('Delete this collection? This cannot be undone.')">
+            Delete Collection
+          </button>
+        </form>
       </section>
 
       <section class="entries-section">
