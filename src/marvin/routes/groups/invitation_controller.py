@@ -26,6 +26,7 @@ from marvin.schemas.group.invite_token import (  # Pydantic schemas for invite t
 from marvin.schemas.mapper import cast  # Utility for casting between schema types
 from marvin.schemas.response.pagination import PaginationQuery  # For pagination parameters
 from marvin.services.email.email_service import EmailService  # Service for sending emails
+from marvin.services.event_bus_service.event_types import EventInvitationData, EventOperation, EventTypes
 
 # APIRouter for group invitations, prefixed accordingly.
 # All routes here will be under /groups/invitations based on router prefix in main app and this.
@@ -95,6 +96,22 @@ class GroupInvitationsController(BaseUserController):
         # Create the token using the group_invite_tokens repository
         created_token = self.repos.group_invite_tokens.create(save_data)
         self.logger.info(f"Invite token created by user {self.user.username} for group {self.group_id}")
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="invitation_management",
+            group_id=self.group_id,
+            event_type=EventTypes.invitation_created,
+            document_data=EventInvitationData(
+                operation=EventOperation.create,
+                invitation_id=created_token.token,
+                workspace_id=self.group_id,
+                inviter_id=self.user.id,
+                uses_left=created_token.uses_left,
+            ),
+            message=f"Invitation token created with {created_token.uses_left} uses",
+        )
+
         # Cast to InviteTokenSummary for proper JSON serialization
         return cast(created_token, InviteTokenSummary)
 
@@ -150,6 +167,22 @@ class GroupInvitationsController(BaseUserController):
             email_sent_successfully = email_service.send_invitation(recipient_address=invite_data.email, invitation_url=registration_url)
             if email_sent_successfully:
                 self.logger.info(f"Invitation email sent to {invite_data.email} with token {invite_data.token}")
+
+                # Emit event for successful email send
+                self.event_bus.dispatch(
+                    integration_id="invitation_management",
+                    group_id=self.group_id,
+                    event_type=EventTypes.invitation_sent,
+                    document_data=EventInvitationData(
+                        operation=EventOperation.info,
+                        invitation_id=invite_data.token,
+                        workspace_id=self.group_id,
+                        inviter_id=self.user.id,
+                        invitee_email=invite_data.email,
+                        uses_left=token.uses_left,
+                    ),
+                    message=f"Invitation sent to {invite_data.email}",
+                )
             else:
                 # If service returns False without an exception
                 error_message = "Email service reported failure to send invitation without raising an exception."
@@ -188,6 +221,21 @@ class GroupInvitationsController(BaseUserController):
         if not token:
             self.logger.warning(f"Attempt to delete non-existent token: {token_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation token not found")
+
+        # Emit event before deletion
+        self.event_bus.dispatch(
+            integration_id="invitation_management",
+            group_id=self.group_id,
+            event_type=EventTypes.invitation_revoked,
+            document_data=EventInvitationData(
+                operation=EventOperation.delete,
+                invitation_id=token.token,
+                workspace_id=self.group_id,
+                inviter_id=self.user.id,
+                uses_left=token.uses_left,
+            ),
+            message=f"Invitation token revoked",
+        )
 
         # Delete the token
         self.repos.group_invite_tokens.delete(token.token, match_key="token")
