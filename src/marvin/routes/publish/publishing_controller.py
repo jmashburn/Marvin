@@ -227,6 +227,12 @@ async def list_published_entries(
         # Get collection slugs
         collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
 
+        # Get asset slugs
+        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+
+        # Get resource slugs
+        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
         data.append(
             PublishedEntryListItem(
                 slug=entry.slug,
@@ -235,6 +241,8 @@ async def list_published_entries(
                 summary=entry.summary,
                 published_at=entry.published_at,
                 collections=collection_slugs,
+                assets=asset_slugs,
+                resources=resource_slugs,
             )
         )
 
@@ -491,6 +499,12 @@ async def get_published_collection(
         # Get collection slugs for each entry
         collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
 
+        # Get asset slugs
+        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+
+        # Get resource slugs
+        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
         entry_items.append(
             PublishedEntryListItem(
                 slug=entry.slug,
@@ -499,6 +513,8 @@ async def get_published_collection(
                 summary=entry.summary,
                 published_at=entry.published_at,
                 collections=collection_slugs,
+                assets=asset_slugs,
+                resources=resource_slugs,
             )
         )
 
@@ -870,6 +886,12 @@ async def get_resource_entries(
         # Get collection slugs for each entry
         collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
 
+        # Get asset slugs
+        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+
+        # Get resource slugs
+        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
         entry_items.append(
             PublishedEntryListItem(
                 slug=entry.slug,
@@ -878,6 +900,8 @@ async def get_resource_entries(
                 summary=entry.summary,
                 published_at=entry.published_at,
                 collections=collection_slugs,
+                assets=asset_slugs,
+                resources=resource_slugs,
             )
         )
 
