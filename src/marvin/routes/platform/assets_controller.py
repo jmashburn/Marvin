@@ -141,3 +141,28 @@ class AssetsController(BaseUserController):
         )
 
         return {"status": "ok", "message": "Asset deleted successfully"}
+
+    @router.get("/{item_id}/file", summary="Serve Asset File")
+    def serve_asset_file(self, item_id: UUID4):
+        """
+        Serve the actual asset file content.
+
+        For local storage, redirects to the static file path.
+        For S3 storage, redirects to the public URL or generates a signed URL.
+        """
+        from fastapi.responses import RedirectResponse
+
+        asset = self.repos.assets.get_one(item_id)
+        if not asset:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+
+        # For local storage, redirect to the static file URL
+        if asset.storage_provider == "local":
+            return RedirectResponse(url=f"/assets/{asset.storage_key}")
+
+        # For S3 or other providers, use the public_url if available
+        if asset.public_url:
+            return RedirectResponse(url=asset.public_url)
+
+        # Fallback error
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asset file URL not available")

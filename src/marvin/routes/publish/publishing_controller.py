@@ -621,6 +621,57 @@ async def get_published_asset(
 
 
 @router.get(
+    "/{workspace_slug}/assets/{asset_slug}/file",
+    summary="Serve Asset File",
+)
+async def serve_asset_file(
+    asset_slug: str,
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+):
+    """
+    Serve the actual asset file content.
+
+    This endpoint proxies through to the storage provider to serve the asset file.
+    For local storage, it redirects to the static file path.
+    For S3 storage, it could generate a signed URL or proxy the content.
+
+    **Use case**: Browsers fetching images, PDFs, videos via their public URL.
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+
+    **Raises:**
+    - 404: Asset not found
+    """
+    from fastapi.responses import RedirectResponse
+
+    api_client, group = context
+
+    asset = (
+        session.query(Assets)
+        .filter(
+            Assets.group_id == group.id,
+            Assets.slug == asset_slug,
+        )
+        .first()
+    )
+
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # For local storage, redirect to the static file URL
+    if asset.storage_provider == "local":
+        return RedirectResponse(url=f"/assets/{asset.storage_key}")
+
+    # For S3 or other providers, use the public_url if available
+    if asset.public_url:
+        return RedirectResponse(url=asset.public_url)
+
+    # Fallback error
+    raise HTTPException(status_code=500, detail="Asset file URL not available")
+
+
+@router.get(
     "/{workspace_slug}/resources",
     response_model=PublishedResourcesResponse,
     summary="List Resources",
