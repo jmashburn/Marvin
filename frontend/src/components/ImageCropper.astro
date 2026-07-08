@@ -12,16 +12,18 @@
 
     <div class="cropper-body">
       <div class="canvas-container">
-        <canvas id="cropCanvas"></canvas>
-        <div class="crop-box" id="cropBox">
-          <div class="crop-handle nw"></div>
-          <div class="crop-handle ne"></div>
-          <div class="crop-handle sw"></div>
-          <div class="crop-handle se"></div>
-          <div class="crop-handle n"></div>
-          <div class="crop-handle s"></div>
-          <div class="crop-handle e"></div>
-          <div class="crop-handle w"></div>
+        <div class="canvas-wrapper">
+          <canvas id="cropCanvas"></canvas>
+          <div class="crop-box" id="cropBox">
+            <div class="crop-handle nw"></div>
+            <div class="crop-handle ne"></div>
+            <div class="crop-handle sw"></div>
+            <div class="crop-handle se"></div>
+            <div class="crop-handle n"></div>
+            <div class="crop-handle s"></div>
+            <div class="crop-handle e"></div>
+            <div class="crop-handle w"></div>
+          </div>
         </div>
       </div>
 
@@ -133,6 +135,11 @@
     padding: 2rem;
   }
 
+  .canvas-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+
   #cropCanvas {
     display: block;
     max-width: 100%;
@@ -145,6 +152,7 @@
     border: 2px solid #fff;
     box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
     cursor: move;
+    pointer-events: auto;
   }
 
   .crop-handle {
@@ -297,12 +305,33 @@
     }
 
     private resetCrop() {
-      const padding = 40;
+      // Get max dimensions from controls
+      const maxWidth = parseInt((document.getElementById('maxWidth') as HTMLInputElement).value);
+      const maxHeight = parseInt((document.getElementById('maxHeight') as HTMLInputElement).value);
+
+      // Calculate crop size based on max dimensions while maintaining aspect ratio
+      const scaleToCanvas = Math.min(
+        this.canvas.width / maxWidth,
+        this.canvas.height / maxHeight,
+        1 // Don't make crop box bigger than canvas
+      );
+
+      let cropWidth = maxWidth * scaleToCanvas;
+      let cropHeight = maxHeight * scaleToCanvas;
+
+      // If crop is bigger than canvas, fit it inside with padding
+      if (cropWidth > this.canvas.width - 40 || cropHeight > this.canvas.height - 40) {
+        const padding = 20;
+        cropWidth = this.canvas.width - padding * 2;
+        cropHeight = this.canvas.height - padding * 2;
+      }
+
+      // Center the crop box
       this.crop = {
-        x: padding,
-        y: padding,
-        width: this.canvas.width - padding * 2,
-        height: this.canvas.height - padding * 2
+        x: (this.canvas.width - cropWidth) / 2,
+        y: (this.canvas.height - cropHeight) / 2,
+        width: cropWidth,
+        height: cropHeight
       };
       this.updateCropBox();
     }
