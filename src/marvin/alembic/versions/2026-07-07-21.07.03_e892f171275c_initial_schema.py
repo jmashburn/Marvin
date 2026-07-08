@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 15e6cb654551
+Revision ID: e892f171275c
 Revises:
-Create Date: 2026-07-07 21:00:53.105561
+Create Date: 2026-07-07 21:07:03.818902
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 import marvin.db.migration_types
 
 # revision identifiers, used by Alembic.
-revision: str = "15e6cb654551"
+revision: str = "e892f171275c"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
