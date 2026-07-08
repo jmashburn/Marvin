@@ -1,5 +1,41 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { createResource } from "@/lib/api/resources";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/auth/login');
+}
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (value !== '') {
+        // Handle JSON metadata field
+        if (key === 'metadata_') {
+          try {
+            data[key] = JSON.parse(value as string);
+          } catch (e) {
+            // Invalid JSON, skip it
+          }
+        } else {
+          data[key] = value;
+        }
+      }
+    });
+
+    const resource = await createResource(data, authToken);
+    return Astro.redirect(`/workspace/resources/${resource.id}`);
+  } catch (e) {
+    console.error('[NewResource] Failed to create resource:', e);
+    // Error will be shown below
+  }
+}
 ---
 
 <AppLayout title="New Resource" eyebrow="Resources">
@@ -12,7 +48,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
   </div>
 
   <section class="form-section">
-    <form method="POST" action="/api/resources" class="form">
+    <form method="POST" class="form">
       <div class="form-group">
         <label for="name">Name *</label>
         <input
