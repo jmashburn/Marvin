@@ -947,7 +947,9 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
 
       try {
         const entryId = window.location.pathname.split('/').pop()!;
-        await sdk.entries.update(entryId, {
+
+        // Build update payload - always send arrays to properly update relationships
+        const updateData: any = {
           entryTypeId,
           title,
           summary: summary?.trim() || null,
@@ -955,10 +957,12 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
           contentMarkdown: contentMarkdown?.trim() || null,
           metadataJson: metadataJson,
           status,
-          collection_ids: collectionIds,
-          asset_ids: assetIds,
-          resource_ids: resourceIds,
-        });
+          collection_ids: collectionIds,  // Always send array
+          asset_ids: assetIds,            // Always send array
+          resource_ids: resourceIds,      // Always send array
+        };
+
+        await sdk.entries.update(entryId, updateData);
 
         window.location.href = '/workspace/entries';
       } catch (error: any) {
