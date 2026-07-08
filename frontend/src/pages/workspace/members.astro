@@ -10,6 +10,7 @@ const authToken = getAuthToken(Astro.cookies);
 
 let workspace = null;
 let members: WorkspaceMemberRead[] = [];
+let inviteTokens: any[] = [];
 let error: string | null = null;
 let currentUserRole: WorkspaceRole | null = null;
 
@@ -27,6 +28,14 @@ if (!authToken) {
       if (currentUser) {
         const currentMembership = members.find(m => m.userId === currentUser.id);
         currentUserRole = currentMembership?.workspaceRole || null;
+      }
+
+      // Fetch invite tokens for this workspace
+      try {
+        inviteTokens = await fetchApi<any[]>('/api/groups/invitations', {}, authToken) || [];
+      } catch (e) {
+        console.error('[members] Error loading invite tokens:', e);
+        // Don't fail the whole page if invite tokens fail to load
       }
     }
   } catch (e) {
@@ -145,6 +154,55 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
     </div>
   )}
 
+  <!-- Pending Invitations Section -->
+  {canManage && inviteTokens.length > 0 && (
+    <div class="invitations-section">
+      <h3>Pending Invitations ({inviteTokens.length})</h3>
+      <p class="section-description">Invitation links that haven't been used yet</p>
+
+      <div class="invitations-list">
+        {inviteTokens.map((token) => (
+          <div class="invitation-card">
+            <div class="invitation-info">
+              <div class="invitation-icon">📧</div>
+              <div class="invitation-details">
+                <strong>Invitation Token</strong>
+                <span class="invitation-meta">
+                  {token.usesLeft} {token.usesLeft === 1 ? 'use' : 'uses'} remaining
+                  {token.createdAt && ` • Created ${new Date(token.createdAt).toLocaleDateString()}`}
+                </span>
+              </div>
+            </div>
+
+            <div class="invitation-actions">
+              <button
+                class="button secondary small copy-invitation-btn"
+                data-token={token.token}
+                title="Copy invitation link"
+              >
+                Copy Link
+              </button>
+              <button
+                class="button secondary small resend-invitation-btn"
+                data-token={token.token}
+                title="Resend invitation email"
+              >
+                Resend Email
+              </button>
+              <button
+                class="button secondary small danger revoke-invitation-btn"
+                data-token-id={token.id}
+                title="Revoke this invitation"
+              >
+                Revoke
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
   <!-- Confirm Remove Modal -->
   <dialog id="confirm-remove-modal" class="modal">
     <div class="modal-content">
@@ -154,6 +212,24 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
         <button type="button" class="button" id="confirm-remove">Remove</button>
         <button type="button" class="button secondary" id="cancel-remove">Cancel</button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- Resend Email Modal -->
+  <dialog id="resend-email-modal" class="modal">
+    <div class="modal-content">
+      <h3>Resend Invitation Email</h3>
+      <p class="modal-subtitle">Enter the email address to send the invitation to</p>
+      <form id="resend-email-form">
+        <label>
+          <span>Email Address</span>
+          <input type="email" name="email" required placeholder="user@example.com" />
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="button">Send Email</button>
+          <button type="button" class="button secondary" id="cancel-resend">Cancel</button>
+        </div>
+      </form>
     </div>
   </dialog>
 </AppLayout>
@@ -232,6 +308,91 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
       alert(error instanceof Error ? error.message : 'Failed to remove member');
       confirmRemoveModal?.close();
     }
+  });
+
+  // Copy invitation link
+  document.querySelectorAll('.copy-invitation-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const token = btn.dataset.token;
+      if (token) {
+        const invitationUrl = `${window.location.origin}/register?token=${token}`;
+        await navigator.clipboard.writeText(invitationUrl);
+
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      }
+    });
+  });
+
+  // Resend invitation email
+  const resendEmailModal = document.getElementById('resend-email-modal');
+  const resendEmailForm = document.getElementById('resend-email-form');
+  const cancelResendBtn = document.getElementById('cancel-resend');
+  let tokenToResend = null;
+
+  document.querySelectorAll('.resend-invitation-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tokenToResend = btn.dataset.token;
+      resendEmailModal?.showModal();
+    });
+  });
+
+  cancelResendBtn?.addEventListener('click', () => {
+    resendEmailModal?.close();
+    tokenToResend = null;
+  });
+
+  resendEmailForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!tokenToResend) return;
+
+    const formData = new FormData(resendEmailForm);
+    const email = formData.get('email');
+
+    try {
+      await fetchApi('/api/groups/invitations/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          token: tokenToResend,
+        }),
+      });
+
+      alert(`Invitation email sent to ${email}`);
+      resendEmailModal?.close();
+      tokenToResend = null;
+      resendEmailForm.reset();
+    } catch (error) {
+      console.error('Resend email error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to send email');
+    }
+  });
+
+  // Revoke invitation
+  document.querySelectorAll('.revoke-invitation-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const tokenId = btn.dataset.tokenId;
+      if (!tokenId) return;
+
+      if (!confirm('Revoke this invitation? The link will stop working immediately.')) {
+        return;
+      }
+
+      try {
+        await fetchApi(`/api/groups/invitations/${tokenId}`, {
+          method: 'DELETE',
+        });
+
+        window.location.reload();
+      } catch (error) {
+        console.error('Revoke invitation error:', error);
+        alert(error instanceof Error ? error.message : 'Failed to revoke invitation');
+      }
+    });
   });
 </script>
 
@@ -486,5 +647,85 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
     gap: 12px;
     justify-content: flex-end;
     margin-top: 8px;
+  }
+
+  /* Invitations Section */
+  .invitations-section {
+    margin-top: 48px;
+  }
+
+  .invitations-section h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .invitations-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .invitation-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .invitation-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .invitation-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--panel-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .invitation-details {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .invitation-details strong {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .invitation-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .invitation-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .invitation-actions .button {
+    padding: 6px 12px;
+    font-size: 13px;
+    white-space: nowrap;
   }
 </style>
