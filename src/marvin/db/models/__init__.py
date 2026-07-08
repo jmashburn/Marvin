@@ -33,3 +33,4 @@ class BaseMixins:
 from .groups import *  # noqa: E402, F401, F403
 from .users import *  # noqa: E402, F401, F403
 from .platform import APIClients, Collections, EntryCollections, Entries, EntryTypes  # noqa: E402, F401
+from .events import EventNotifierOptionsModel  # noqa: E402, F401
