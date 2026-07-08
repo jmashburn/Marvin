@@ -344,6 +344,23 @@ class UserCreate(_MarvinModel):
             return v
 
 
+class UserProfileUpdate(_MarvinModel):
+    """
+    Schema for updating a user's profile information (without password).
+    All fields are optional for partial updates.
+    Used by the /api/self endpoint for users updating their own profile.
+    """
+
+    username: str | None = None
+    """Updated username."""
+    email: str | None = None
+    """Updated email address."""
+    full_name: str | None = None
+    """Updated full name."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserUpdate(UserCreate):
     """
     Schema likely used internally for saving a user to the database,
