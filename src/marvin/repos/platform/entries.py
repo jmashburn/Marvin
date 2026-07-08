@@ -25,9 +25,13 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         )
 
     def _get_base_query(self):
-        """Override to eagerly load collections, assets, and resources relationships."""
+        """Override to eagerly load collections, assets (with junction data), and resources relationships."""
         query = super()._get_base_query()
-        return query.options(joinedload(Entries.collections), joinedload(Entries.assets), joinedload(Entries.resources))
+        return query.options(
+            joinedload(Entries.collections),
+            joinedload(Entries.entry_assets).joinedload(EntryAssets.asset),  # Load junction + asset details
+            joinedload(Entries.resources),
+        )
 
     def _entry_type_exists(self, entry_type_id: UUID4) -> bool:
         query = select(EntryTypes.id).filter_by(id=entry_type_id)
