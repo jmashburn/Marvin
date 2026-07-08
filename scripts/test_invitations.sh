@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Test script for invitation system with workspace roles
 #
@@ -24,10 +24,10 @@ FRONTEND_URL="${FRONTEND_URL:-http://localhost:4321}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_PASS="${ADMIN_PASS:-MyPassword}"
 
-# Test data
+# Test data - store as parallel arrays instead of associative arrays
 ROLES=("VIEWER" "AUTHOR" "EDITOR" "ADMIN" "OWNER")
-declare -A TOKENS
-declare -A USER_IDS
+TOKENS=()
+USER_IDS=()
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}  Marvin Invitation System Test Suite${NC}"
@@ -49,6 +49,7 @@ echo ""
 
 # Step 2: Create invitation tokens for each role
 echo -e "${YELLOW}[2/5] Creating invitation tokens for each role...${NC}"
+idx=0
 for role in "${ROLES[@]}"; do
   echo -n "  Creating $role invitation... "
 
@@ -71,8 +72,9 @@ for role in "${ROLES[@]}"; do
     exit 1
   fi
 
-  TOKENS[$role]=$token
+  TOKENS[$idx]=$token
   echo -e "${GREEN}✓${NC} (token: ${token:0:20}...)"
+  idx=$((idx + 1))
 done
 echo ""
 
@@ -81,8 +83,9 @@ echo -e "${YELLOW}[3/5] Validating invitation list...${NC}"
 token_list=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
   "$MARVIN_URL/api/groups/invitations?page=1&perPage=100")
 
+idx=0
 for role in "${ROLES[@]}"; do
-  token="${TOKENS[$role]}"
+  token="${TOKENS[$idx]}"
   # Check if token exists in list with correct role
   found_role=$(echo "$token_list" | jq -r ".items[] | select(.token == \"$token\") | .workspaceRole")
 
@@ -92,14 +95,16 @@ for role in "${ROLES[@]}"; do
     echo -e "  ${RED}✗${NC} $role token not found or role mismatch (got: $found_role)"
     exit 1
   fi
+  idx=$((idx + 1))
 done
 echo ""
 
 # Step 4: Register users with invitation tokens
 echo -e "${YELLOW}[4/5] Registering test users...${NC}"
+idx=0
 for role in "${ROLES[@]}"; do
   username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_test
-  token="${TOKENS[$role]}"
+  token="${TOKENS[$idx]}"
 
   echo -n "  Registering $username with $role role... "
 
@@ -126,8 +131,9 @@ for role in "${ROLES[@]}"; do
     exit 1
   fi
 
-  USER_IDS[$role]=$user_id
+  USER_IDS[$idx]=$user_id
   echo -e "${GREEN}✓${NC} (id: ${user_id:0:8}...)"
+  idx=$((idx + 1))
 done
 echo ""
 
@@ -144,8 +150,9 @@ if [ "$workspace_id" == "null" ] || [ -z "$workspace_id" ]; then
 fi
 
 all_correct=true
+idx=0
 for role in "${ROLES[@]}"; do
-  user_id="${USER_IDS[$role]}"
+  user_id="${USER_IDS[$idx]}"
   username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_test
 
   # Get user's workspace membership
@@ -160,6 +167,7 @@ for role in "${ROLES[@]}"; do
     echo -e "  ${RED}✗${NC} $username role mismatch! Expected $role, got $actual_role"
     all_correct=false
   fi
+  idx=$((idx + 1))
 done
 echo ""
 
