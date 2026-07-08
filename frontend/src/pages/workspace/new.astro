@@ -1,0 +1,232 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { createWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/login');
+}
+
+let error: string | null = null;
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+
+    const data = {
+      name: formData.get('name') as string,
+      slug: (formData.get('slug') as string) || null,
+      description: (formData.get('description') as string) || null,
+    };
+
+    const workspace = await createWorkspace(data, authToken);
+
+    // Redirect to workspace settings or activate the new workspace
+    return Astro.redirect(`/workspace/settings`);
+  } catch (e) {
+    error = e instanceof Error ? e.message : 'Failed to create workspace';
+    console.error('[NewWorkspace] Error:', error);
+  }
+}
+---
+
+<AppLayout title="Create Workspace" eyebrow="Workspaces">
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <h2>Create a New Workspace</h2>
+        <p>Set up a workspace to organize your content</p>
+      </div>
+    </div>
+
+    {error && (
+      <div class="alert alert-error">
+        <strong>Error:</strong> {error}
+      </div>
+    )}
+
+    <div class="form-container">
+      <form method="POST" class="form">
+        <section class="form-section">
+          <h3>Workspace Details</h3>
+
+          <div class="form-group">
+            <label for="name">Workspace Name *</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              required
+              placeholder="My Workspace"
+              autofocus
+            />
+            <small>A friendly name for your workspace</small>
+          </div>
+
+          <div class="form-group">
+            <label for="slug">Slug (Optional)</label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              placeholder="my-workspace"
+              pattern="[a-z0-9\-]+"
+              title="Lowercase letters, numbers, and hyphens only"
+            />
+            <small>URL-friendly identifier (lowercase, hyphens allowed). Leave blank to auto-generate.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description (Optional)</label>
+            <textarea
+              id="description"
+              name="description"
+              rows="3"
+              placeholder="What is this workspace for?"
+            ></textarea>
+            <small>A brief description of the workspace purpose</small>
+          </div>
+        </section>
+
+        <div class="form-actions">
+          <button type="submit" class="button primary">Create Workspace</button>
+          <a href="/" class="button secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</AppLayout>
+
+<style>
+  .page-container {
+    max-width: 800px;
+  }
+
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .alert-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .form-container {
+    max-width: 600px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 20px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .form-group small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+  }
+
+  .button.primary {
+    background: var(--accent);
+    color: white;
+  }
+
+  .button.primary:hover {
+    background: #8f3f31;
+  }
+
+  .button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line);
+  }
+
+  .button.secondary:hover {
+    background: var(--panel-2);
+  }
+</style>
