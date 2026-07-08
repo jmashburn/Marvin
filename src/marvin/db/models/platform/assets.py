@@ -64,6 +64,7 @@ class Assets(SqlAlchemyBase, BaseMixins):
         foreign_keys="EntryAssets.asset_id",
         back_populates="asset",
         cascade="all, delete-orphan",
+        overlaps="entries",
         doc="Junction records for entries using this asset",
     )
 

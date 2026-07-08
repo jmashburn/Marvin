@@ -76,6 +76,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "Assets",
         secondary="entry_assets",
         back_populates="entries",
+        overlaps="entry_assets",
         doc="Assets included in this entry",
     )
 

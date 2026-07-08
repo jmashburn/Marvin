@@ -48,6 +48,7 @@ class Resources(SqlAlchemyBase, BaseMixins):
         foreign_keys="EntryResources.resource_id",
         back_populates="resource",
         cascade="all, delete-orphan",
+        overlaps="entries,resources",
         doc="Junction records for entries using this resource",
     )
 
