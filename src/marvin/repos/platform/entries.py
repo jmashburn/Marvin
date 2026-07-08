@@ -59,23 +59,24 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         asset_ids = data_dict.pop("asset_ids", None)
         resource_ids = data_dict.pop("resource_ids", None)
 
-        # Create the entry
-        entry = super().create(data_dict)
+        # Create entry model instance but don't commit yet
+        new_entry = self.model(session=self.session, **data_dict)
+        self.session.add(new_entry)
+        self.session.flush()  # Flush to get the entry ID
 
         # Attach relationships if provided
         if collection_ids:
-            self._attach_collections(entry.id, collection_ids)
+            self._attach_collections(new_entry.id, collection_ids)
         if asset_ids:
-            self._attach_assets(entry.id, asset_ids)
+            self._attach_assets(new_entry.id, asset_ids)
         if resource_ids:
-            self._attach_resources(entry.id, resource_ids)
+            self._attach_resources(new_entry.id, resource_ids)
 
-        # Refresh to get relationships
-        if collection_ids or asset_ids or resource_ids:
-            self.session.refresh(self.session.get(Entries, entry.id))
-            entry = self.get_one(entry.id)
+        # Now commit everything together
+        self.session.commit()
 
-        return entry
+        # Return via get_one to get all relationships loaded
+        return self.get_one(new_entry.id)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryRead:
         from datetime import datetime, timezone
