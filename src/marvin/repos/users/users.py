@@ -49,13 +49,13 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
         """
         entry = self._query_one(match_value=user_id)  # Fetches the SQLAlchemy User model instance
         if not entry:
-            # This case should ideally be handled by _query_one raising an error
-            # or returning None, which should then be checked.
-            # Assuming _query_one raises if not found, or this check is for robustness.
-            # For now, let's rely on _query_one's behavior (likely raises or get_one used before).
-            # If _query_one can return None, a check is needed here.
-            # Based on RepositoryGeneric._query_one, it calls .one() which raises if not found.
-            pass
+            from fastapi import HTTPException, status as http_status
+            from marvin.schemas.response import ErrorResponse
+
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse.respond(f"User with ID {user_id} not found"),
+            )
 
         if settings.IS_DEMO:
             # In demo mode, prevent password updates for the default user.

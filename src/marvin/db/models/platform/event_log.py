@@ -29,7 +29,7 @@ class EventLogModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "event_log"
 
     # Primary identifiers
-    id: Mapped[GUID] = mapped_column(GUID, primary_key=True)
+    id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
     event_id: Mapped[GUID] = mapped_column(GUID, unique=True, index=True, nullable=False)
     """Unique event ID from the original Event object."""
 
