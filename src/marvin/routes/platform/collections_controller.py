@@ -31,7 +31,7 @@ class CollectionsController(BaseUserController):
                 operation=EventOperation.create,
                 collection_id=collection.id,
                 collection_name=collection.name,
-                workspace_id=collection.groupId,
+                workspace_id=collection.group_id,
             ),
             message=f"Collection '{collection.name}' created",
         )
@@ -61,7 +61,7 @@ class CollectionsController(BaseUserController):
                 operation=EventOperation.update,
                 collection_id=collection.id,
                 collection_name=collection.name,
-                workspace_id=collection.groupId,
+                workspace_id=collection.group_id,
             ),
             message=f"Collection '{collection.name}' updated",
         )
@@ -83,7 +83,7 @@ class CollectionsController(BaseUserController):
                 operation=EventOperation.delete,
                 collection_id=collection.id,
                 collection_name=collection.name,
-                workspace_id=collection.groupId,
+                workspace_id=collection.group_id,
             ),
             message=f"Collection '{collection.name}' deleted",
         )
