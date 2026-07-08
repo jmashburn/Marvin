@@ -182,16 +182,24 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
     def _replace_assets(self, entry_id: UUID4, asset_ids: list[UUID4]) -> None:
         """Replace all assets for an entry."""
+        print(f"_replace_assets called: entry_id={entry_id}, asset_ids={asset_ids}")
         # Delete existing
-        self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id).delete()
+        deleted_count = self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id).delete()
+        print(f"  Deleted {deleted_count} existing asset relationships")
         # Add new
         if asset_ids:
+            print(f"  Adding {len(asset_ids)} new asset relationships")
             self._attach_assets(entry_id, asset_ids)
+            print(f"  Asset relationships attached successfully")
 
     def _replace_resources(self, entry_id: UUID4, resource_ids: list[UUID4]) -> None:
         """Replace all resources for an entry."""
+        print(f"_replace_resources called: entry_id={entry_id}, resource_ids={resource_ids}")
         # Delete existing
-        self.session.query(EntryResources).filter(EntryResources.entry_id == entry_id).delete()
+        deleted_count = self.session.query(EntryResources).filter(EntryResources.entry_id == entry_id).delete()
+        print(f"  Deleted {deleted_count} existing resource relationships")
         # Add new
         if resource_ids:
+            print(f"  Adding {len(resource_ids)} new resource relationships")
             self._attach_resources(entry_id, resource_ids)
+            print(f"  Resource relationships attached successfully")
