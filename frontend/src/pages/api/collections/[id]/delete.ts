@@ -10,7 +10,7 @@ export const POST: APIRoute = async ({ params, redirect, cookies }) => {
     if (!id) throw new Error('Collection ID required');
 
     await deleteCollection(id, authToken);
-    return redirect('/collections', 303);
+    return redirect('/workspace/collections', 303);
   } catch (error) {
     console.error('[collections/delete] Error:', error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to delete collection' }), {
