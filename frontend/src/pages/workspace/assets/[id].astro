@@ -404,8 +404,10 @@ if (!id) {
       await sdk.assets.update(assetId, updateData);
       console.log('Update successful');
 
-      // Redirect back to assets list
-      window.location.href = '/workspace/assets';
+      // Redirect back to assets list after a brief delay to see logs
+      setTimeout(() => {
+        window.location.href = '/workspace/assets';
+      }, 500);
     } catch (error: any) {
       const message = error?.message || error?.detail || 'Failed to update asset';
       alert(message);
