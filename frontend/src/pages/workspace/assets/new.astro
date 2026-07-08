@@ -468,7 +468,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
       progressFill.style.width = progress + '%';
       progressText.textContent = `Uploading... ${Math.round(progress)}%`;
     }, 200);
-  });
+  }
 
   function showError(message: string) {
     errorMessage.textContent = message;
