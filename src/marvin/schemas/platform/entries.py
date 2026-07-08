@@ -51,18 +51,18 @@ class EntryCreate(_MarvinModel):
 class EntryUpdate(_MarvinModel):
     """Schema for patching an entry."""
 
-    entry_type_id: UUID4 | None = None
+    entry_type_id: UUID4 | None = Field(default=None, validation_alias=AliasChoices("entry_type_id", "entryTypeId"))
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     summary: str | None = None
     description: str | None = None
-    content_markdown: str | None = None
+    content_markdown: str | None = Field(default=None, validation_alias=AliasChoices("content_markdown", "contentMarkdown"))
     status: str | None = None
-    published_at: datetime | None = None
-    metadata_json: dict | None = None
-    collection_ids: list[UUID4] | None = None
-    asset_ids: list[UUID4] | None = None
-    resource_ids: list[UUID4] | None = None
+    published_at: datetime | None = Field(default=None, validation_alias=AliasChoices("published_at", "publishedAt"))
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata_json", "metadataJson"))
+    collection_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("collection_ids", "collectionIds"))
+    asset_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("asset_ids", "assetIds"))
+    resource_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("resource_ids", "resourceIds"))
 
     @field_validator("status")
     @classmethod
@@ -79,7 +79,7 @@ class EntryUpdate(_MarvinModel):
             return None
         return value
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class EntryRead(_MarvinModel):
