@@ -116,18 +116,27 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
 
             <div class="member-role-section">
               {canManage ? (
-                <select
-                  class="role-select"
-                  data-member-id={member.id}
-                  data-user-id={member.userId}
-                  data-current-role={member.workspaceRole}
-                >
-                  {Object.entries(roleLabels).map(([role, label]) => (
-                    <option value={role} selected={member.workspaceRole === role}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                <div class="role-control">
+                  <select
+                    class="role-select"
+                    data-member-id={member.id}
+                    data-user-id={member.userId}
+                    data-current-role={member.workspaceRole}
+                  >
+                    {Object.entries(roleLabels).map(([role, label]) => (
+                      <option value={role} selected={member.workspaceRole === role}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    class="button small save-role-btn"
+                    data-user-id={member.userId}
+                    style="display: none;"
+                  >
+                    Save
+                  </button>
+                </div>
               ) : (
                 <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
                   {roleLabels[member.workspaceRole]}
@@ -238,17 +247,42 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
   // HttpOnly cookie is automatically sent with credentials: 'include'
   import { fetchApi } from '@/lib/api/client';
 
-  // Role change
+  // Role change - show save button when changed
   if (canManage) {
     document.querySelectorAll('.role-select').forEach(select => {
-      select.addEventListener('change', async (e) => {
+      select.addEventListener('change', (e) => {
         const target = e.target;
         if (!(target instanceof HTMLSelectElement)) return;
         const userId = target.dataset.userId;
         const currentRole = target.dataset.currentRole;
         const newRole = target.value;
 
+        // Show save button if role changed
+        const saveBtn = document.querySelector(`.save-role-btn[data-user-id="${userId}"]`);
+        if (saveBtn instanceof HTMLButtonElement) {
+          saveBtn.style.display = newRole !== currentRole ? 'block' : 'none';
+        }
+      });
+    });
+
+    // Save role button click
+    document.querySelectorAll('.save-role-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLButtonElement)) return;
+
+        const userId = target.dataset.userId;
+        const selectElement = document.querySelector(`.role-select[data-user-id="${userId}"]`);
+        if (!(selectElement instanceof HTMLSelectElement)) return;
+
+        const currentRole = selectElement.dataset.currentRole;
+        const newRole = selectElement.value;
+
         if (!userId || newRole === currentRole) return;
+
+        const originalText = target.textContent;
+        target.disabled = true;
+        target.textContent = 'Saving...';
 
         try {
           await fetchApi(`/api/workspaces/${workspaceId}/members/${userId}`, {
@@ -261,7 +295,10 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
         } catch (error) {
           console.error('Update role error:', error);
           alert(error instanceof Error ? error.message : 'Failed to update role');
-          target.value = currentRole || ''; // Revert on error
+          selectElement.value = currentRole || ''; // Revert on error
+          target.disabled = false;
+          target.textContent = originalText;
+          target.style.display = 'none';
         }
       });
     });
@@ -517,7 +554,14 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
     min-width: 200px;
   }
 
+  .role-control {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
   .role-select {
+    flex: 1;
     padding: 6px 10px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -530,6 +574,12 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
   .role-select:focus {
     outline: none;
     border-color: var(--accent);
+  }
+
+  .save-role-btn {
+    padding: 6px 16px;
+    font-size: 13px;
+    white-space: nowrap;
   }
 
   .role-badge {
