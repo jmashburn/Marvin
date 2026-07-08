@@ -103,7 +103,7 @@ if (!id) {
                 rows="6"
                 placeholder='{"key": "value"}'
                 class="metadata-editor"
-              >{asset.metadata ? JSON.stringify(asset.metadata, null, 2) : ""}</textarea>
+              >{asset.metadata_ ? JSON.stringify(asset.metadata_, null, 2) : ""}</textarea>
               <small style="font-size: 11px; color: var(--muted);">
                 Must be valid JSON. Example: {`{"photographer": "Jane", "license": "CC-BY"}`}
               </small>
