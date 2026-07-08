@@ -845,13 +845,13 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   // Handle form submission with JSON metadata parsing
   const entryForm = document.getElementById('entry-form') as HTMLFormElement | null;
   const metadataField = document.getElementById('metadata_json') as HTMLTextAreaElement | null;
+  const statusField = document.getElementById('status') as HTMLSelectElement | null;
 
-  if (entryForm && metadataField) {
-    // Track which button was clicked
-    let clickedButton: HTMLButtonElement | null = null;
+  if (entryForm && metadataField && statusField) {
+    // Set status dropdown value when Save Draft or Publish button is clicked
     entryForm.addEventListener('click', (e) => {
-      if (e.target instanceof HTMLButtonElement && e.target.type === 'submit') {
-        clickedButton = e.target;
+      if (e.target instanceof HTMLButtonElement && e.target.type === 'submit' && e.target.name === 'status') {
+        statusField.value = e.target.value; // Set dropdown to "draft" or "published"
       }
     });
 
@@ -872,14 +872,8 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
         }
       }
 
-      // Build FormData
+      // Build FormData (status is already set by button click handler)
       const formData = new FormData(entryForm);
-
-      // Add clicked button's name/value if it exists
-      if (clickedButton && clickedButton.name && clickedButton.value) {
-        formData.set(clickedButton.name, clickedButton.value);
-      }
-
       const data: Record<string, any> = {};
 
       for (const [key, value] of formData.entries()) {
