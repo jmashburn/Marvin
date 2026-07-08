@@ -105,7 +105,9 @@ class AssetsController(BaseUserController):
         if not self.repos.assets.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
 
-        updated_asset = self.repos.assets.update(item_id, data.model_dump(exclude_unset=True))
+        # Use exclude_none=False to allow explicit null values to clear fields
+        # exclude_unset=True only excludes fields not sent in the request
+        updated_asset = self.repos.assets.update(item_id, data.model_dump(exclude_unset=True, exclude_none=False))
 
         # Emit event
         self.event_bus.dispatch(
