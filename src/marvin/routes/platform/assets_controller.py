@@ -147,27 +147,29 @@ class AssetsController(BaseUserController):
     @router.get("/{item_id}/file", summary="Serve Asset File")
     def serve_asset_file(self, item_id: UUID4):
         """
-        Serve the actual asset file content.
+        Serve the actual asset file content directly.
 
-        For local storage, redirects to the static file path.
-        For S3 storage, redirects to the public URL or generates a signed URL.
+        For local storage, serves the file from disk.
+        For S3 storage, redirects to the public URL or signed URL.
         """
-        from fastapi.responses import RedirectResponse
-        from marvin.core.settings import settings
+        from fastapi.responses import FileResponse, RedirectResponse
+        from pathlib import Path
 
         asset = self.repos.assets.get_one(item_id)
         if not asset:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
 
-        # For local storage, redirect to the static file URL
+        # For local storage, serve file directly
         if asset.storage_provider == "local":
-            # Use absolute URL in development for CORS (frontend on different port)
-            asset_url = f"/assets/{asset.storage_key}"
-            if not settings.PRODUCTION:
-                asset_url = f"http://localhost:{settings.API_PORT}{asset_url}"
-            return RedirectResponse(url=asset_url)
+            storage_provider = get_storage_provider()
+            file_path = Path(storage_provider.root) / asset.storage_key
 
-        # For S3 or other providers, use the public_url if available
+            if not file_path.exists():
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset file not found on disk.")
+
+            return FileResponse(path=str(file_path), media_type=asset.mime_type or "application/octet-stream", filename=asset.original_filename)
+
+        # For S3 or other providers, redirect to public URL
         if asset.public_url:
             return RedirectResponse(url=asset.public_url)
 
