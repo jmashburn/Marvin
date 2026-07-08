@@ -109,7 +109,7 @@ class RegistrationService:
         workspace_member = WorkspaceMembers(
             session=self.repos.session,
             user_id=created_user.id,
-            workspace_id=target_group.id,
+            group_id=target_group.id,
             workspace_role=workspace_role,
         )
         self.repos.session.add(workspace_member)
