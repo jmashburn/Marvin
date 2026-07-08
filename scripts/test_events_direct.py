@@ -4,10 +4,20 @@ Direct Event Dispatcher Test
 
 Directly uses the event bus to dispatch test events, bypassing the API.
 This verifies that the event system is wired up correctly.
+
+Usage:
+    source .venv/bin/activate && python scripts/test_events_direct.py
+    OR
+    ./scripts/test_events_direct.py (when virtual env is activated)
 """
 
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
+
+# Add src directory to path for imports when running directly
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from fastapi import BackgroundTasks
 
