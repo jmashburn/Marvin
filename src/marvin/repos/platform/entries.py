@@ -126,13 +126,6 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         asset_ids = data_dict.pop("asset_ids", None)
         resource_ids = data_dict.pop("resource_ids", None)
 
-        print(f"\n{'='*80}")
-        print(f"DEBUG: Entry update - relationship arrays:")
-        print(f"  collection_ids: {collection_ids} (type: {type(collection_ids)})")
-        print(f"  asset_ids: {asset_ids} (type: {type(asset_ids)})")
-        print(f"  resource_ids: {resource_ids} (type: {type(resource_ids)})")
-        print(f"{'='*80}\n")
-
         # Update the entry
         entry = super().update(match_value, data_dict, match_key=match_key)
 
@@ -186,24 +179,16 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
     def _replace_assets(self, entry_id: UUID4, asset_ids: list[UUID4]) -> None:
         """Replace all assets for an entry."""
-        print(f"_replace_assets called: entry_id={entry_id}, asset_ids={asset_ids}")
         # Delete existing
-        deleted_count = self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id).delete()
-        print(f"  Deleted {deleted_count} existing asset relationships")
+        self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id).delete()
         # Add new
         if asset_ids:
-            print(f"  Adding {len(asset_ids)} new asset relationships")
             self._attach_assets(entry_id, asset_ids)
-            print(f"  Asset relationships attached successfully")
 
     def _replace_resources(self, entry_id: UUID4, resource_ids: list[UUID4]) -> None:
         """Replace all resources for an entry."""
-        print(f"_replace_resources called: entry_id={entry_id}, resource_ids={resource_ids}")
         # Delete existing
-        deleted_count = self.session.query(EntryResources).filter(EntryResources.entry_id == entry_id).delete()
-        print(f"  Deleted {deleted_count} existing resource relationships")
+        self.session.query(EntryResources).filter(EntryResources.entry_id == entry_id).delete()
         # Add new
         if resource_ids:
-            print(f"  Adding {len(resource_ids)} new resource relationships")
             self._attach_resources(entry_id, resource_ids)
-            print(f"  Resource relationships attached successfully")

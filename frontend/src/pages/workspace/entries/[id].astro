@@ -963,9 +963,6 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
         };
 
         // Use direct fetch instead of SDK (SDK has array serialization bug)
-        const body = JSON.stringify(updateData);
-        console.log('Sending to server:', body);
-
         // Import API config to get proper base URL
         const { API_BASE_URL } = await import('@/lib/api/config');
         const response = await fetch(`${API_BASE_URL}/api/platform/entries/${entryId}`, {
@@ -974,7 +971,7 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: body,
+          body: JSON.stringify(updateData),
         });
 
         if (!response.ok) {
