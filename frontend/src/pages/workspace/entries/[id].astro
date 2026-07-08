@@ -962,6 +962,11 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
           resource_ids: resourceIds,      // Always send array
         };
 
+        console.log('Update payload:', updateData);
+        console.log('Collection IDs type:', typeof collectionIds, Array.isArray(collectionIds), collectionIds);
+        console.log('Asset IDs type:', typeof assetIds, Array.isArray(assetIds), assetIds);
+        console.log('Resource IDs type:', typeof resourceIds, Array.isArray(resourceIds), resourceIds);
+
         await sdk.entries.update(entryId, updateData);
 
         window.location.href = '/workspace/entries';
