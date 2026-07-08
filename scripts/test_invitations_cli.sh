@@ -30,6 +30,8 @@ ADMIN_PASS="${ADMIN_PASS:-MyPassword}"
 ROLES=("VIEWER" "AUTHOR" "EDITOR" "ADMIN" "OWNER")
 TOKENS=()
 USER_IDS=()
+USES_LEFT_BEFORE=()
+USES_LEFT_AFTER=()
 TIMESTAMP=$(date +%s)
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -82,10 +84,14 @@ echo ""
 echo -e "${YELLOW}[2/6] Creating invitation tokens via CLI...${NC}"
 idx=0
 for role in "${ROLES[@]}"; do
-  echo -n "  Creating $role invitation... "
+  # Generate random uses_left between -1 and 10
+  # -1 means unlimited, 0-10 are specific counts
+  uses_left=$((RANDOM % 12 - 1))
+
+  echo -n "  Creating $role invitation (uses: $uses_left)... "
 
   # Create invitation using CLI with JSON output
-  output=$(MARVIN_API_URL="$MARVIN_URL" "$MARVIN_CLI" platform invites invite --uses 1 --role "$role" --json 2>&1)
+  output=$(MARVIN_API_URL="$MARVIN_URL" "$MARVIN_CLI" platform invites invite --uses "$uses_left" --role "$role" --json 2>&1)
 
   if [ $? -ne 0 ]; then
     echo -e "${RED}✗ Failed${NC}"
@@ -107,8 +113,10 @@ for role in "${ROLES[@]}"; do
     exit 1
   fi
 
+  # Store token and initial uses_left
   TOKENS[$idx]=$token
-  echo -e "${GREEN}✓${NC} (workspaceRole: $api_role)"
+  USES_LEFT_BEFORE[$idx]=$uses_left
+  echo -e "${GREEN}✓${NC} (workspaceRole: $api_role, uses: $uses_left)"
   idx=$((idx + 1))
 done
 echo ""
@@ -223,8 +231,8 @@ for role in "${ROLES[@]}"; do
 done
 echo ""
 
-# Step 6: Verify invitation tokens were consumed
-echo -e "${YELLOW}[6/6] Verifying invitation tokens were consumed...${NC}"
+# Step 6: Verify invitation tokens were consumed correctly
+echo -e "${YELLOW}[6/6] Verifying invitation tokens were consumed correctly...${NC}"
 
 # Get updated token list via marvin CLI
 token_list=$(MARVIN_API_URL="$MARVIN_URL" "$MARVIN_CLI" platform invites list 2>&1)
@@ -236,37 +244,68 @@ if [ $? -ne 0 ]; then
 fi
 
 idx=0
-tokens_consumed=true
+tokens_correct=true
 for role in "${ROLES[@]}"; do
   token="${TOKENS[$idx]}"
-  # Extract the token prefix (first 20 chars) for matching in table output
   token_prefix="${token:0:20}"
+  before="${USES_LEFT_BEFORE[$idx]}"
 
   # Find the line with this token and extract Uses Left column (strip ANSI colors)
   uses_left=$(echo "$token_list" | grep "$token_prefix" | sed 's/\x1b\[[0-9;]*m//g' | awk -F'│' '{print $3}' | xargs)
 
-  if [ "$uses_left" == "0" ]; then
-    echo -e "  ${GREEN}✓${NC} $role token consumed (uses_left: 0)"
+  # Calculate expected value after one use
+  if [ "$before" == "-1" ]; then
+    expected="-1"  # Unlimited tokens stay at -1
+  elif [ "$before" == "0" ]; then
+    expected="deleted"  # Token with 0 uses should be deleted
   else
-    echo -e "  ${RED}✗${NC} $role token not consumed! (uses_left: $uses_left, expected: 0)"
-    tokens_consumed=false
+    expected=$((before - 1))
+    if [ "$expected" == "0" ]; then
+      expected="deleted"  # Token should be deleted when it hits 0
+    fi
   fi
+
+  # Check if token exists or was deleted
+  if [ -z "$uses_left" ]; then
+    # Token not found - it was deleted
+    if [ "$expected" == "deleted" ]; then
+      echo -e "  ${GREEN}✓${NC} $role token deleted (was: $before, expected: deleted)"
+    else
+      echo -e "  ${RED}✗${NC} $role token deleted unexpectedly! (was: $before, expected: $expected)"
+      tokens_correct=false
+    fi
+  else
+    # Token still exists
+    if [ "$expected" == "deleted" ]; then
+      echo -e "  ${RED}✗${NC} $role token should be deleted! (was: $before, now: $uses_left)"
+      tokens_correct=false
+    elif [ "$uses_left" == "$expected" ]; then
+      echo -e "  ${GREEN}✓${NC} $role token decremented correctly (was: $before, now: $uses_left)"
+    else
+      echo -e "  ${RED}✗${NC} $role token mismatch! (was: $before, now: $uses_left, expected: $expected)"
+      tokens_correct=false
+    fi
+  fi
+
   idx=$((idx + 1))
 done
 echo ""
 
 # Summary
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-if [ "$all_found" = true ] && [ "$all_correct" = true ] && [ "$tokens_consumed" = true ]; then
+if [ "$all_found" = true ] && [ "$all_correct" = true ] && [ "$tokens_correct" = true ]; then
   echo -e "${GREEN}✓ All end-to-end tests passed!${NC}"
   echo ""
   echo "Test Summary:"
-  echo "  - 5 invitation tokens created via marvin CLI"
+  echo "  - 5 invitation tokens created via marvin CLI (random uses: -1 to 10)"
   echo "  - CLI JSON output validated (workspaceRole field present)"
   echo "  - All roles verified in CLI list output"
   echo "  - 5 test users registered via API"
   echo "  - All workspace roles correctly assigned"
-  echo "  - All invitation tokens consumed (uses_left: 0)"
+  echo "  - All invitation tokens consumed correctly:"
+  echo "    • -1 (unlimited) stayed at -1"
+  echo "    • 0 tokens were deleted"
+  echo "    • 1-10 tokens decremented by 1 (or deleted if reaching 0)"
   echo ""
   echo "CLI commands tested:"
   echo "  ✓ marvin platform invites invite --role <ROLE> --uses <N> --json"
