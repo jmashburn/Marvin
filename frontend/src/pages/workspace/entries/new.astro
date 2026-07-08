@@ -8,6 +8,9 @@ if (!authToken) {
   return Astro.redirect('/auth/login');
 }
 
+// Get pre-selected type from query parameter (e.g., from Quick Create)
+const preSelectedTypeId = Astro.url.searchParams.get('type');
+
 let entryTypes: EntryTypeRead[] = [];
 let error: string | null = null;
 
@@ -44,7 +47,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
             <select id="entry_type_id" name="entry_type_id" required>
               <option value="">Select an entry type...</option>
               {sortedTypes.map((type) => (
-                <option value={type.id}>
+                <option value={type.id} selected={type.id === preSelectedTypeId}>
                   {type.icon && `${type.icon} `}{type.name}
                 </option>
               ))}
