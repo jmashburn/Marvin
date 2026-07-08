@@ -5,7 +5,7 @@ import { getUserProfile, updateUserProfile, changePassword } from "@/lib/api/use
 
 const authToken = getAuthToken(Astro.cookies);
 if (!authToken) {
-  return Astro.redirect('/auth/login');
+  return Astro.redirect('/login');
 }
 
 let error: string | null = null;
