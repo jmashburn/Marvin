@@ -323,7 +323,7 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
 
         try {
           await sdk.workspaceMembers.updateRole(workspaceId, userId, {
-            workspaceRole: newRole,
+            workspace_role: newRole,
           });
 
           window.location.reload();
