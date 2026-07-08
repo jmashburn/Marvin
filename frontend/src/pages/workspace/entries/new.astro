@@ -243,8 +243,14 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to create entry');
+          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          try {
+            const error = await response.json();
+            errorMessage = error.detail || errorMessage;
+          } catch (e) {
+            // Response wasn't JSON
+          }
+          throw new Error(errorMessage);
         }
 
         const entry = await response.json();
