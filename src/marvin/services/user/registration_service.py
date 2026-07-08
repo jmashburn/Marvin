@@ -101,6 +101,21 @@ class RegistrationService:
         # For now, assuming it works with UserCreate or a compatible dict.
         created_user = self.repos.users.create(new_user_data)  # type: ignore
         self.logger.info(f"User '{created_user.username}' created successfully in group '{target_group.name}'.")
+
+        # Add user to workspace_members with appropriate role
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+
+        workspace_role = "OWNER" if is_new_group else "EDITOR"
+        workspace_member = WorkspaceMembers(
+            session=self.repos.session,
+            user_id=created_user.id,
+            workspace_id=target_group.id,
+            workspace_role=workspace_role,
+        )
+        self.repos.session.add(workspace_member)
+        self.repos.session.commit()
+        self.logger.info(f"User '{created_user.username}' added to workspace '{target_group.name}' with role '{workspace_role}'.")
+
         return created_user
 
     def _register_new_group(self) -> GroupRead:
