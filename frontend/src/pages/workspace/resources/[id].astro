@@ -157,14 +157,19 @@ if (!id) {
 <script>
   import { createSdkClient } from '@/lib/sdk';
 
+  console.log('[Resources] Script loading...');
+
   const sdk = createSdkClient();
   const form = document.getElementById('resource-form') as HTMLFormElement;
   const metadataField = document.getElementById('metadata_') as HTMLTextAreaElement;
   const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
   const deleteButton = document.getElementById('delete-button') as HTMLButtonElement;
 
+  console.log('[Resources] Elements:', { form, deleteButton, submitButton });
+
   // Handle delete via SDK
   if (deleteButton) {
+    console.log('[Resources] Attaching delete handler');
     deleteButton.addEventListener('click', async () => {
       if (!confirm('Delete this resource? This cannot be undone.')) {
         return;
@@ -175,7 +180,9 @@ if (!id) {
 
       try {
         const resourceId = window.location.pathname.split('/').pop()!;
+        console.log('[Resources] Deleting resource:', resourceId);
         await sdk.resources.delete(resourceId);
+        console.log('[Resources] Delete successful');
         window.location.href = '/workspace/resources';
       } catch (error: any) {
         const message = error?.message || error?.detail || 'Failed to delete resource';
