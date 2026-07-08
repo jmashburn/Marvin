@@ -36,6 +36,7 @@ class EntryResources(SqlAlchemyBase):
     resource: Mapped["Resources"] = orm.relationship(
         "Resources",
         foreign_keys=[resource_id],
+        back_populates="entry_resources",
         overlaps="entries,resources,entry_resources",
     )
 
