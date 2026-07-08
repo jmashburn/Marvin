@@ -41,7 +41,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
       </div>
 
       <section class="form-section">
-        <form method="POST" action="/api/platform/entries" class="form">
+        <form method="POST" action="/api/platform/entries" class="form" id="entryForm">
           <div class="form-group">
             <label for="entry_type_id">Entry Type *</label>
             <select id="entry_type_id" name="entry_type_id" required>
@@ -214,6 +214,46 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
     // Track if user manually edits slug field
     slugInput.addEventListener('input', () => {
       slugInput.dataset.manuallyEdited = 'true';
+    });
+  }
+
+  // Handle form submission
+  const form = document.getElementById('entryForm') as HTMLFormElement | null;
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const data: Record<string, any> = {};
+
+      formData.forEach((value, key) => {
+        if (value !== '') {
+          data[key] = value;
+        }
+      });
+
+      try {
+        const response = await fetch('/api/platform/entries', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to create entry');
+        }
+
+        const entry = await response.json();
+        // Redirect to the entry editor
+        window.location.href = `/workspace/entries/${entry.id}`;
+      } catch (error) {
+        console.error('Error creating entry:', error);
+        alert(error instanceof Error ? error.message : 'Failed to create entry');
+      }
     });
   }
 </script>
