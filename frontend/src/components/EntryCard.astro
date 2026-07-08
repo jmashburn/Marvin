@@ -1,6 +1,5 @@
 ---
 import type { EntryRead } from "@/lib/api/types";
-import { API_BASE_URL } from "@/lib/api/config";
 
 interface Props {
   entry: EntryRead;
@@ -8,13 +7,6 @@ interface Props {
 
 const { entry } = Astro.props;
 const asset = entry.assets?.find((item) => item.role === "featured" || item.role === "hero") ?? entry.assets?.[0];
-
-// Build absolute image URL
-const imageUrl = asset
-  ? (asset.publicUrl
-      ? `${API_BASE_URL}${asset.publicUrl}`
-      : `${API_BASE_URL}/api/assets/${asset.id}/file`)
-  : null;
 
 // Format relative time
 function formatRelativeTime(timestamp: string | null | undefined): string {
@@ -35,8 +27,8 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
 
 <a href={`/workspace/entries/${entry.id}`} class="card">
   <div class="media">
-    {imageUrl ? (
-      <img src={imageUrl} alt={asset?.altText ?? entry.title} style={`object-position: ${asset?.focalPoint ?? "50% 50%"}`} />
+    {asset?.publicUrl ? (
+      <img src={asset.publicUrl} alt={asset.altText ?? entry.title} style={`object-position: ${asset.focalPoint ?? "50% 50%"}`} />
     ) : (
       <div class="media-placeholder">
         <span class="placeholder-icon">📄</span>
