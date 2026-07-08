@@ -963,13 +963,16 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
         };
 
         // Use direct fetch instead of SDK (SDK has array serialization bug)
+        const body = JSON.stringify(updateData);
+        console.log('Sending to server:', body);
+
         const response = await fetch(`http://localhost:8080/api/platform/entries/${entryId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          body: JSON.stringify(updateData),
+          body: body,
         });
 
         if (!response.ok) {
