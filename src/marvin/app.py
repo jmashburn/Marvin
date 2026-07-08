@@ -216,15 +216,15 @@ include_api_routers()
 if settings.STORAGE_PROVIDER == "local":
     from marvin.core.config import get_app_dirs
 
-    storage_root = settings.STORAGE_LOCAL_ROOT or (get_app_dirs().DATA_DIR / "uploads")
+    storage_root = settings.STORAGE_LOCAL_ROOT or get_app_dirs().ASSETS_DIR
     storage_root.mkdir(parents=True, exist_ok=True)
 
     app.mount(
-        "/uploads",
+        settings.STORAGE_LOCAL_PUBLIC_URL,
         StaticFiles(directory=str(storage_root)),
-        name="uploads",
+        name="assets",
     )
-    logger.info(f"Static file serving enabled for local storage at {storage_root}")
+    logger.info(f"Static file serving enabled for local storage at {storage_root} (public URL: {settings.STORAGE_LOCAL_PUBLIC_URL})")
 
 
 def main() -> None:
