@@ -360,7 +360,7 @@ if (!id) {
     const metadataStr = formData.get('metadata') as string;
 
     // Parse metadata JSON
-    let metadata;
+    let metadata = null;
     if (metadataStr?.trim()) {
       try {
         metadata = JSON.parse(metadataStr);
@@ -378,9 +378,9 @@ if (!id) {
       const assetId = window.location.pathname.split('/').pop()!;
       await sdk.assets.update(assetId, {
         name,
-        altText: altText || undefined,
-        description: description || undefined,
-        metadata: metadata || undefined,
+        altText: altText?.trim() || null,
+        description: description?.trim() || null,
+        metadata: metadata,
       });
 
       // Redirect back to assets list
