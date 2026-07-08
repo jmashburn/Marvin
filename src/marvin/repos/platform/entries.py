@@ -27,11 +27,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
     def _get_base_query(self):
         """Override to eagerly load collections, assets, and resources relationships."""
         query = super()._get_base_query()
-        return query.options(
-            joinedload(Entries.collections),
-            joinedload(Entries.assets),
-            joinedload(Entries.resources)
-        )
+        return query.options(joinedload(Entries.collections), joinedload(Entries.assets), joinedload(Entries.resources))
 
     def _entry_type_exists(self, entry_type_id: UUID4) -> bool:
         query = select(EntryTypes.id).filter_by(id=entry_type_id)
@@ -40,6 +36,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         return self.session.scalar(query) is not None
 
     def create(self, data: Any) -> EntryRead:
+        from datetime import datetime, timezone
         from slugify import slugify
 
         data_dict = data if isinstance(data, dict) else data.model_dump()
@@ -50,11 +47,16 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         if not data_dict.get("slug") and data_dict.get("title"):
             data_dict["slug"] = slugify(data_dict["title"])
 
+        # Auto-set published_at when creating with status 'published'
+        if data_dict.get("status") == "published" and not data_dict.get("published_at"):
+            data_dict["published_at"] = datetime.now(timezone.utc)
+
         if not self._entry_type_exists(data_dict["entry_type_id"]):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry type does not exist in this group.")
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryRead:
+        from datetime import datetime, timezone
         from slugify import slugify
 
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
@@ -62,6 +64,19 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         # Auto-regenerate slug if title is being updated
         if "title" in data_dict and data_dict.get("title"):
             data_dict["slug"] = slugify(data_dict["title"])
+
+        # Handle published_at based on status changes
+        if "status" in data_dict:
+            if data_dict["status"] == "published":
+                # Only set published_at if not already provided (first publish)
+                if "published_at" not in data_dict:
+                    # Get current entry to check if it was already published
+                    current_entry = self.get_one(match_value, key=match_key)
+                    if current_entry and not current_entry.published_at:
+                        data_dict["published_at"] = datetime.now(timezone.utc)
+            else:
+                # If unpublishing (changing to draft/etc), clear published_at
+                data_dict["published_at"] = None
 
         entry_type_id = data_dict.get("entry_type_id")
         if entry_type_id and not self._entry_type_exists(entry_type_id):
