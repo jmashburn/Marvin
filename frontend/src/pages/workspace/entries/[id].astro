@@ -983,7 +983,23 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
 
         console.log('Sending with camelCase field names:', updateData);
 
-        await sdk.entries.update(entryId, updateData);
+        // Bypass SDK - use direct fetch to ensure proper JSON serialization
+        const response = await fetch(`http://localhost:8080/api/platform/entries/${entryId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',  // Send cookies for auth
+          body: JSON.stringify(updateData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`${response.status}: ${JSON.stringify(errorData)}`);
+        }
+
+        const result = await response.json();
+        console.log('Direct fetch result:', result);
 
         console.log('✅ Update successful!');
         alert('Update successful! Check console for logs.');
