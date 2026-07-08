@@ -238,6 +238,12 @@ class EventTypes(EventTypeBase):
     """Event dispatched when an API client is updated."""
     api_client_deleted = auto()
     """Event dispatched when an API client is deleted."""
+    api_client_token_rotated = auto()
+    """Event dispatched when an API client token is rotated."""
+    api_client_enabled = auto()
+    """Event dispatched when an API client is enabled."""
+    api_client_disabled = auto()
+    """Event dispatched when an API client is disabled."""
 
     # ==========================================================================
     # Resource Events
@@ -363,6 +369,12 @@ class EventDocumentType(EventDocumentTypeBase):
     """Indicates the event data pertains to an invitation."""
     api_token = "api_token"
     """Indicates the event data pertains to an API token."""
+    api_client = "api_client"
+    """Indicates the event data pertains to an API client."""
+    entry_type = "entry_type"
+    """Indicates the event data pertains to an entry type."""
+    resource = "resource"
+    """Indicates the event data pertains to a resource."""
     deployment = "deployment"
     """Indicates the event data pertains to a site deployment."""
 
@@ -611,6 +623,60 @@ class EventDeploymentData(EventDocumentDataBase):
     """The status of the deployment (started, completed, failed)."""
     error_message: str | None = None
     """Error message if deployment failed."""
+
+
+class EventAPIClientData(EventDocumentDataBase):
+    """Data payload for API client events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.api_client
+    api_client_id: UUID4
+    """The unique identifier of the API client."""
+    api_client_name: str
+    """The name of the API client."""
+    api_client_slug: str
+    """The slug of the API client."""
+    workspace_id: UUID4
+    """The workspace the API client belongs to."""
+    permissions: dict
+    """The permissions granted to the API client."""
+    enabled: bool
+    """Whether the API client is enabled."""
+    token_prefix: str | None = None
+    """The prefix of the token (for token rotation events)."""
+
+
+class EventEntryTypeData(EventDocumentDataBase):
+    """Data payload for entry type events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.entry_type
+    entry_type_id: UUID4
+    """The unique identifier of the entry type."""
+    entry_type_name: str
+    """The name of the entry type."""
+    entry_type_slug: str
+    """The slug of the entry type."""
+    workspace_id: UUID4
+    """The workspace the entry type belongs to."""
+    description: str | None = None
+    """The description of the entry type."""
+
+
+class EventResourceData(EventDocumentDataBase):
+    """Data payload for resource events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.resource
+    resource_id: UUID4
+    """The unique identifier of the resource."""
+    resource_name: str
+    """The name of the resource."""
+    resource_slug: str
+    """The slug of the resource."""
+    resource_type: str
+    """The type of resource (fabric, tool, supplier, etc.)."""
+    workspace_id: UUID4
+    """The workspace the resource belongs to."""
+    url: str | None = None
+    """The external URL of the resource."""
 
 
 class EventBusMessage(_MarvinModel):

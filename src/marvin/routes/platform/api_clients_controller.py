@@ -8,6 +8,7 @@ from marvin.db.db_setup import generate_session
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import APIClientCreate, APIClientRead, APIClientUpdate, APIClientWithToken
 from marvin.schemas.publishing import SiteConfiguration, WorkspaceInfo, WorkspaceSiteInfo
+from marvin.services.event_bus_service.event_types import EventAPIClientData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/api-clients")
 
@@ -31,7 +32,27 @@ class APIClientsController(BaseUserController):
         # Inject created_by field (current user)
         data_dict = data.model_dump() if not isinstance(data, dict) else data
         data_dict["created_by"] = self.user.id
-        return self.repos.api_clients.create(data_dict)
+        api_client = self.repos.api_clients.create(data_dict)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="api_client_management",
+            group_id=self.group_id,
+            event_type=EventTypes.api_client_created,
+            document_data=EventAPIClientData(
+                operation=EventOperation.create,
+                api_client_id=api_client.id,
+                api_client_name=api_client.name,
+                api_client_slug=api_client.slug,
+                workspace_id=api_client.groupId,
+                permissions=api_client.permissions,
+                enabled=api_client.enabled,
+                token_prefix=api_client.token[:20] if api_client.token else None,
+            ),
+            message=f"API client '{api_client.name}' created",
+        )
+
+        return api_client
 
     @router.get("/{item_id}", response_model=APIClientRead, summary="Get API Client")
     def get_api_client(
@@ -85,7 +106,49 @@ class APIClientsController(BaseUserController):
 
         if not api_client:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
-        return self.repos.api_clients.update(api_client.id, data)
+
+        # Track old enabled state for conditional event
+        old_enabled = api_client.enabled
+
+        updated_client = self.repos.api_clients.update(api_client.id, data)
+
+        # Emit update event
+        self.event_bus.dispatch(
+            integration_id="api_client_management",
+            group_id=self.group_id,
+            event_type=EventTypes.api_client_updated,
+            document_data=EventAPIClientData(
+                operation=EventOperation.update,
+                api_client_id=updated_client.id,
+                api_client_name=updated_client.name,
+                api_client_slug=updated_client.slug,
+                workspace_id=updated_client.groupId,
+                permissions=updated_client.permissions,
+                enabled=updated_client.enabled,
+            ),
+            message=f"API client '{updated_client.name}' updated",
+        )
+
+        # Emit enabled/disabled event if status changed
+        if old_enabled != updated_client.enabled:
+            event_type = EventTypes.api_client_enabled if updated_client.enabled else EventTypes.api_client_disabled
+            self.event_bus.dispatch(
+                integration_id="api_client_management",
+                group_id=self.group_id,
+                event_type=event_type,
+                document_data=EventAPIClientData(
+                    operation=EventOperation.update,
+                    api_client_id=updated_client.id,
+                    api_client_name=updated_client.name,
+                    api_client_slug=updated_client.slug,
+                    workspace_id=updated_client.groupId,
+                    permissions=updated_client.permissions,
+                    enabled=updated_client.enabled,
+                ),
+                message=f"API client '{updated_client.name}' {'enabled' if updated_client.enabled else 'disabled'}",
+            )
+
+        return updated_client
 
     @router.delete("/{item_id}", summary="Delete API Client")
     def delete_api_client(
@@ -111,6 +174,24 @@ class APIClientsController(BaseUserController):
 
         if not api_client:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
+
+        # Emit event before deletion
+        self.event_bus.dispatch(
+            integration_id="api_client_management",
+            group_id=self.group_id,
+            event_type=EventTypes.api_client_deleted,
+            document_data=EventAPIClientData(
+                operation=EventOperation.delete,
+                api_client_id=api_client.id,
+                api_client_name=api_client.name,
+                api_client_slug=api_client.slug,
+                workspace_id=api_client.groupId,
+                permissions=api_client.permissions,
+                enabled=api_client.enabled,
+            ),
+            message=f"API client '{api_client.name}' deleted",
+        )
+
         self.repos.api_clients.delete(api_client.id)
         return {"status": "ok", "message": "API client deleted successfully"}
 
@@ -144,7 +225,27 @@ class APIClientsController(BaseUserController):
         if not api_client:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
 
-        return self.repos.api_clients.rotate_token(api_client.id)
+        rotated_client = self.repos.api_clients.rotate_token(api_client.id)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="api_client_management",
+            group_id=self.group_id,
+            event_type=EventTypes.api_client_token_rotated,
+            document_data=EventAPIClientData(
+                operation=EventOperation.update,
+                api_client_id=rotated_client.id,
+                api_client_name=rotated_client.name,
+                api_client_slug=rotated_client.slug,
+                workspace_id=rotated_client.groupId,
+                permissions=rotated_client.permissions,
+                enabled=rotated_client.enabled,
+                token_prefix=rotated_client.token[:20] if rotated_client.token else None,
+            ),
+            message=f"API client '{rotated_client.name}' token rotated",
+        )
+
+        return rotated_client
 
     @router.get("/{item_id}/preview", response_model=WorkspaceSiteInfo, summary="Preview Publishing API Payload")
     def preview_publish_payload(
