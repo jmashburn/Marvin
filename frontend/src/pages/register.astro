@@ -128,6 +128,8 @@ if (existingAuth) {
 </html>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
+
   const form = document.getElementById('register-form') as HTMLFormElement;
   const errorMessage = document.getElementById('error-message') as HTMLElement;
 
@@ -166,41 +168,30 @@ if (existingAuth) {
     errorMessage.style.display = 'none';
 
     try {
-      const response = await fetch('http://localhost:8080/api/register', {
+      // Register via backend proxy
+      const user = await fetchApi('/api/users/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Registration failed');
-      }
+      // Registration successful - now log in via form POST (sets cookies correctly)
+      const loginForm = document.createElement('form');
+      loginForm.method = 'POST';
+      loginForm.action = '/api/auth/login?return=/workspace';
+      loginForm.style.display = 'none';
 
-      const user = await response.json();
+      const usernameInput = document.createElement('input');
+      usernameInput.name = 'username';
+      usernameInput.value = data.username as string;
+      loginForm.appendChild(usernameInput);
 
-      // Registration successful - now log in
-      const loginResponse = await fetch('http://localhost:8080/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        credentials: 'include',
-        body: new URLSearchParams({
-          username: data.username as string,
-          password: data.password as string,
-        }),
-      });
+      const passwordInput = document.createElement('input');
+      passwordInput.name = 'password';
+      passwordInput.value = data.password as string;
+      loginForm.appendChild(passwordInput);
 
-      if (loginResponse.ok) {
-        // Redirect to workspace
-        window.location.href = '/workspace';
-      } else {
-        // Registration succeeded but login failed - redirect to login page
-        window.location.href = '/login?registered=true';
-      }
+      document.body.appendChild(loginForm);
+      loginForm.submit();
     } catch (error) {
       console.error('Registration error:', error);
       errorMessage.textContent = error instanceof Error ? error.message : 'Registration failed. Please try again.';
