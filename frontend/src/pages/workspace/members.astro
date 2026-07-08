@@ -72,6 +72,7 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
 ---
 
 <AppLayout title="Workspace Members" eyebrow="Workspace">
+  <div data-workspace-id={workspace?.id} data-can-manage={canManage ? 'true' : 'false'} style="display:none;"></div>
   <Breadcrumb items={[
     { label: "Workspace Settings", href: "/workspace/settings?tab=members" },
     { label: "Team Members" }
@@ -271,9 +272,13 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
   </dialog>
 </AppLayout>
 
-<script define:vars={{ workspaceId: workspace?.id, canManage }}>
+<script>
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
+
+  // Get workspace ID from page context
+  const workspaceId = document.querySelector('[data-workspace-id]')?.getAttribute('data-workspace-id');
+  const canManage = document.querySelector('[data-can-manage]')?.getAttribute('data-can-manage') === 'true';
 
   // Role change - show save button when changed
   if (canManage) {
