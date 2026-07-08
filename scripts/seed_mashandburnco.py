@@ -10,6 +10,7 @@ Usage:
 
 Source: iWobble/mashandburnco (develop branch)
 """
+
 import sys
 from pathlib import Path
 
@@ -38,10 +39,7 @@ from marvin.db.models.platform import (
 )
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 settings = get_app_settings()
@@ -53,324 +51,324 @@ settings = get_app_settings()
 
 PROJECTS_DATA = [
     {
-        'id': 'project-008',
-        'slug': 'leather-tricorn-hat',
-        'projectNumber': 'Project 008',
-        'title': 'Leather Tricorn Hat',
-        'category': 'Historical Wear',
-        'material': 'Vegetable-Tanned Leather',
-        'status': 'prototype',
-        'notes': 'A period-inspired tricorn shaped for structure, weather, and workshop practicality.',
-        'shortDescription': 'A leather historical-wear experiment built around shape, stiffness, and age.',
-        'story': [
-            'The Leather Tricorn Hat started as a study in how much structure a simple piece of leather can hold.',
-            'The goal is not costume gloss. It is a useful period form made with honest material, clean edges, and enough restraint to feel made rather than theatrical.',
-            'This one is on the bench as a prototype while the brim shape, crown height, and finish are being tuned.',
+        "id": "project-008",
+        "slug": "leather-tricorn-hat",
+        "projectNumber": "Project 008",
+        "title": "Leather Tricorn Hat",
+        "category": "Historical Wear",
+        "material": "Vegetable-Tanned Leather",
+        "status": "prototype",
+        "notes": "A period-inspired tricorn shaped for structure, weather, and workshop practicality.",
+        "shortDescription": "A leather historical-wear experiment built around shape, stiffness, and age.",
+        "story": [
+            "The Leather Tricorn Hat started as a study in how much structure a simple piece of leather can hold.",
+            "The goal is not costume gloss. It is a useful period form made with honest material, clean edges, and enough restraint to feel made rather than theatrical.",
+            "This one is on the bench as a prototype while the brim shape, crown height, and finish are being tuned.",
         ],
-        'designIntent': [
-            'Translate a historical shape through durable workshop materials.',
-            'Keep the form recognizable while letting the leather earn character with use.',
+        "designIntent": [
+            "Translate a historical shape through durable workshop materials.",
+            "Keep the form recognizable while letting the leather earn character with use.",
         ],
-        'materialsList': [
-            'Vegetable-Tanned Leather',
-            'Hand-Shaped Brim',
-            'Burnished Edge Work',
-            'Waxed Thread',
-            'Made in Raleigh, NC',
+        "materialsList": [
+            "Vegetable-Tanned Leather",
+            "Hand-Shaped Brim",
+            "Burnished Edge Work",
+            "Waxed Thread",
+            "Made in Raleigh, NC",
         ],
-        'workshopVerdict': 'Built Because I Could.',
-        'started': 'Shape Study',
-        'buildStage': 'Prototype',
-        'leadTime': 'Not Released',
-        'madeIn': 'Raleigh, NC',
-        'care': 'Brush clean. Condition sparingly. Keep its shape.',
-        'details': [
-            {'label': 'Leather', 'value': 'Vegetable-Tanned'},
-            {'label': 'Build Stage', 'value': 'Prototype'},
-            {'label': 'Made In', 'value': 'Raleigh, NC'},
+        "workshopVerdict": "Built Because I Could.",
+        "started": "Shape Study",
+        "buildStage": "Prototype",
+        "leadTime": "Not Released",
+        "madeIn": "Raleigh, NC",
+        "care": "Brush clean. Condition sparingly. Keep its shape.",
+        "details": [
+            {"label": "Leather", "value": "Vegetable-Tanned"},
+            {"label": "Build Stage", "value": "Prototype"},
+            {"label": "Made In", "value": "Raleigh, NC"},
         ],
-        'image': {
-            'alt': 'Leather tricorn hat on a workshop table',
-            'tone': 'leather',
+        "image": {
+            "alt": "Leather tricorn hat on a workshop table",
+            "tone": "leather",
         },
-        'href': '/projects/leather-tricorn-hat',
+        "href": "/projects/leather-tricorn-hat",
     },
     {
-        'id': 'project-007',
-        'slug': '18th-century-frock-coat',
-        'projectNumber': 'Project 007',
-        'title': '18th Century Frock Coat',
-        'category': 'Historical Wear',
-        'material': 'Wool Broadcloth',
-        'status': 'in-progress',
-        'notes': 'A long-skirted historical coat built around proportion, movement, and hand-finished details.',
-        'shortDescription': 'A historical-wear build exploring period structure through durable cloth and careful tailoring.',
-        'story': [
-            'The 18th Century Frock Coat is a deeper study in shape than most workshop projects.',
-            'Long skirts, structured fronts, cuffs, and period proportion all have to work together without turning the piece into a fragile display object.',
-            'The build is still being worked through at the bench, with fit and movement leading the decisions.',
+        "id": "project-007",
+        "slug": "18th-century-frock-coat",
+        "projectNumber": "Project 007",
+        "title": "18th Century Frock Coat",
+        "category": "Historical Wear",
+        "material": "Wool Broadcloth",
+        "status": "in-progress",
+        "notes": "A long-skirted historical coat built around proportion, movement, and hand-finished details.",
+        "shortDescription": "A historical-wear build exploring period structure through durable cloth and careful tailoring.",
+        "story": [
+            "The 18th Century Frock Coat is a deeper study in shape than most workshop projects.",
+            "Long skirts, structured fronts, cuffs, and period proportion all have to work together without turning the piece into a fragile display object.",
+            "The build is still being worked through at the bench, with fit and movement leading the decisions.",
         ],
-        'designIntent': [
-            'Study historical tailoring through the lens of a working modern shop.',
-            'Balance period silhouette with construction that can survive handling, movement, and wear.',
+        "designIntent": [
+            "Study historical tailoring through the lens of a working modern shop.",
+            "Balance period silhouette with construction that can survive handling, movement, and wear.",
         ],
-        'materialsList': [
-            'Wool Broadcloth',
-            'Linen Canvas Structure',
-            'Hand-Finished Buttonholes',
-            'Period-Inspired Cuffs',
-            'Made in Raleigh, NC',
+        "materialsList": [
+            "Wool Broadcloth",
+            "Linen Canvas Structure",
+            "Hand-Finished Buttonholes",
+            "Period-Inspired Cuffs",
+            "Made in Raleigh, NC",
         ],
-        'workshopVerdict': 'Refused to Stay on Paper.',
-        'started': 'Pattern Draft',
-        'buildStage': 'Pattern & Fit',
-        'leadTime': 'In Progress',
-        'madeIn': 'Raleigh, NC',
-        'care': 'Brush after wear. Spot clean. Store shaped.',
-        'details': [
-            {'label': 'Cloth', 'value': 'Wool Broadcloth'},
-            {'label': 'Build Stage', 'value': 'Pattern & Fit'},
-            {'label': 'Made In', 'value': 'Raleigh, NC'},
+        "workshopVerdict": "Refused to Stay on Paper.",
+        "started": "Pattern Draft",
+        "buildStage": "Pattern & Fit",
+        "leadTime": "In Progress",
+        "madeIn": "Raleigh, NC",
+        "care": "Brush after wear. Spot clean. Store shaped.",
+        "details": [
+            {"label": "Cloth", "value": "Wool Broadcloth"},
+            {"label": "Build Stage", "value": "Pattern & Fit"},
+            {"label": "Made In", "value": "Raleigh, NC"},
         ],
-        'image': {
-            'alt': '18th century frock coat pattern and wool on a cutting table',
-            'tone': 'historical',
+        "image": {
+            "alt": "18th century frock coat pattern and wool on a cutting table",
+            "tone": "historical",
         },
-        'href': '/projects/18th-century-frock-coat',
+        "href": "/projects/18th-century-frock-coat",
     },
     {
-        'id': 'project-006',
-        'slug': 'foundry-jacket',
-        'projectNumber': 'Project 006',
-        'title': 'The Foundry Jacket',
-        'category': 'Jackets',
-        'material': '12oz Japanese Selvedge Denim',
-        'status': 'current',
-        'availability': 'Available',
-        'notes': 'Built for the long haul. Reinforced where it matters.',
-        'shortDescription': 'Made one at a time in the workshop.',
-        'story': [
-            'The Foundry Jacket started as a simple idea: a work jacket that could handle real work and still look better with time.',
-            'I built it from 12oz Japanese selvedge denim and reinforced it in all the right places. Every detail is considered. Every stitch is intentional.',
-            'Built in small batches in the workshop. Built to last.',
+        "id": "project-006",
+        "slug": "foundry-jacket",
+        "projectNumber": "Project 006",
+        "title": "The Foundry Jacket",
+        "category": "Jackets",
+        "material": "12oz Japanese Selvedge Denim",
+        "status": "current",
+        "availability": "Available",
+        "notes": "Built for the long haul. Reinforced where it matters.",
+        "shortDescription": "Made one at a time in the workshop.",
+        "story": [
+            "The Foundry Jacket started as a simple idea: a work jacket that could handle real work and still look better with time.",
+            "I built it from 12oz Japanese selvedge denim and reinforced it in all the right places. Every detail is considered. Every stitch is intentional.",
+            "Built in small batches in the workshop. Built to last.",
         ],
-        'designIntent': [
-            'Keep the shape useful, restrained, and familiar.',
-            'Let the denim, reinforcement, and wear pattern tell the story over time.',
+        "designIntent": [
+            "Keep the shape useful, restrained, and familiar.",
+            "Let the denim, reinforcement, and wear pattern tell the story over time.",
         ],
-        'materialsList': [
-            '12oz Japanese Selvedge Denim',
-            'Yarn-Dyed Herringbone Twill Lining',
-            'Brass Button & Copper Rivets',
-            'Triple Needle Felled Seams',
-            'Reinforced Elbows',
-            'Inside Pocket',
-            'Made in Raleigh, NC',
+        "materialsList": [
+            "12oz Japanese Selvedge Denim",
+            "Yarn-Dyed Herringbone Twill Lining",
+            "Brass Button & Copper Rivets",
+            "Triple Needle Felled Seams",
+            "Reinforced Elbows",
+            "Inside Pocket",
+            "Made in Raleigh, NC",
         ],
-        'workshopVerdict': 'Probably Overbuilt.',
-        'started': 'Pattern Draft',
-        'buildStage': 'Current Build',
-        'leadTime': '2-3 Weeks',
-        'madeIn': 'Raleigh, NC',
-        'care': 'Wash cold. Hang dry. Wear often.',
-        'details': [
-            {'label': 'Lining', 'value': 'Yarn-Dyed Herringbone Twill'},
-            {'label': 'Hardware', 'value': 'Brass Button & Copper Rivets'},
-            {'label': 'Made In', 'value': 'Raleigh, NC'},
-            {'label': 'Lead Time', 'value': '2-3 Weeks'},
+        "workshopVerdict": "Probably Overbuilt.",
+        "started": "Pattern Draft",
+        "buildStage": "Current Build",
+        "leadTime": "2-3 Weeks",
+        "madeIn": "Raleigh, NC",
+        "care": "Wash cold. Hang dry. Wear often.",
+        "details": [
+            {"label": "Lining", "value": "Yarn-Dyed Herringbone Twill"},
+            {"label": "Hardware", "value": "Brass Button & Copper Rivets"},
+            {"label": "Made In", "value": "Raleigh, NC"},
+            {"label": "Lead Time", "value": "2-3 Weeks"},
         ],
-        'featured': True,
-        'image': {
-            'alt': 'The Foundry Jacket laid on a workshop table',
-            'tone': 'foundry',
+        "featured": True,
+        "image": {
+            "alt": "The Foundry Jacket laid on a workshop table",
+            "tone": "foundry",
         },
-        'href': '/projects/foundry-jacket',
+        "href": "/projects/foundry-jacket",
     },
     {
-        'id': 'project-005',
-        'slug': 'chore-coat',
-        'projectNumber': 'Project 005',
-        'title': 'Chore Coat',
-        'category': 'Jackets',
-        'material': 'Herringbone Twill',
-        'status': 'available',
-        'availability': 'Available',
-        'notes': 'A utility coat cut for movement and hard daily wear.',
-        'shortDescription': 'A simple outer layer for shop days, errands, and honest abuse.',
-        'story': [
-            'The Chore Coat is the sort of piece I reach for when I do not want to think too hard about what I am wearing.',
-            'The shape is straightforward, the pockets are useful, and the fabric is chosen to take marks instead of pretending work is clean.',
-            'It is quiet by design. The kind of jacket that earns its keep slowly.',
+        "id": "project-005",
+        "slug": "chore-coat",
+        "projectNumber": "Project 005",
+        "title": "Chore Coat",
+        "category": "Jackets",
+        "material": "Herringbone Twill",
+        "status": "available",
+        "availability": "Available",
+        "notes": "A utility coat cut for movement and hard daily wear.",
+        "shortDescription": "A simple outer layer for shop days, errands, and honest abuse.",
+        "story": [
+            "The Chore Coat is the sort of piece I reach for when I do not want to think too hard about what I am wearing.",
+            "The shape is straightforward, the pockets are useful, and the fabric is chosen to take marks instead of pretending work is clean.",
+            "It is quiet by design. The kind of jacket that earns its keep slowly.",
         ],
-        'designIntent': [
-            'Build a daily outer layer that works hard without shouting.',
-            'Keep the pocketing generous and the silhouette easy to live in.',
+        "designIntent": [
+            "Build a daily outer layer that works hard without shouting.",
+            "Keep the pocketing generous and the silhouette easy to live in.",
         ],
-        'materialsList': [
-            'Herringbone Twill',
-            'Reinforced Patch Pockets',
-            'Bar-Tacked Stress Points',
-            'Cotton Binding',
-            'Made in Raleigh, NC',
+        "materialsList": [
+            "Herringbone Twill",
+            "Reinforced Patch Pockets",
+            "Bar-Tacked Stress Points",
+            "Cotton Binding",
+            "Made in Raleigh, NC",
         ],
-        'workshopVerdict': 'Built One at a Time.',
-        'started': 'Cutting Table',
-        'buildStage': 'Available',
-        'leadTime': 'Ready To Ship',
-        'madeIn': 'Raleigh, NC',
-        'care': 'Wash cold. Hang dry. Beat it up.',
-        'details': [
-            {'label': 'Pockets', 'value': 'Oversized Patch Pockets'},
-            {'label': 'Construction', 'value': 'Reinforced Stress Points'},
-            {'label': 'Made In', 'value': 'Raleigh, NC'},
-            {'label': 'Lead Time', 'value': 'Ready To Ship'},
+        "workshopVerdict": "Built One at a Time.",
+        "started": "Cutting Table",
+        "buildStage": "Available",
+        "leadTime": "Ready To Ship",
+        "madeIn": "Raleigh, NC",
+        "care": "Wash cold. Hang dry. Beat it up.",
+        "details": [
+            {"label": "Pockets", "value": "Oversized Patch Pockets"},
+            {"label": "Construction", "value": "Reinforced Stress Points"},
+            {"label": "Made In", "value": "Raleigh, NC"},
+            {"label": "Lead Time", "value": "Ready To Ship"},
         ],
-        'image': {
-            'alt': 'Chore coat on a wooden workshop bench',
-            'tone': 'olive',
+        "image": {
+            "alt": "Chore coat on a wooden workshop bench",
+            "tone": "olive",
         },
-        'href': '/projects/chore-coat',
+        "href": "/projects/chore-coat",
     },
     {
-        'id': 'project-004',
-        'slug': 'standard-issue-jean',
-        'projectNumber': 'Project 004',
-        'title': 'Standard Issue Jean',
-        'category': 'Other',
-        'material': '14oz Selvedge Denim',
-        'status': 'in-progress',
-        'notes': 'Straightforward denim built to soften slowly.',
-        'shortDescription': 'A no-nonsense jean built around fabric, fit, and patience.',
-        'story': [
-            'The Standard Issue Jean is my answer to denim that tries too hard.',
-            'The fabric does the work here: 14oz selvedge denim with enough structure to last and enough give to become personal over time.',
-            'This project is still being tuned at the bench. Fit first, then details.',
+        "id": "project-004",
+        "slug": "standard-issue-jean",
+        "projectNumber": "Project 004",
+        "title": "Standard Issue Jean",
+        "category": "Other",
+        "material": "14oz Selvedge Denim",
+        "status": "in-progress",
+        "notes": "Straightforward denim built to soften slowly.",
+        "shortDescription": "A no-nonsense jean built around fabric, fit, and patience.",
+        "story": [
+            "The Standard Issue Jean is my answer to denim that tries too hard.",
+            "The fabric does the work here: 14oz selvedge denim with enough structure to last and enough give to become personal over time.",
+            "This project is still being tuned at the bench. Fit first, then details.",
         ],
-        'designIntent': [
-            'Make denim that feels ordinary in the best possible way.',
-            'Prioritize fit, fabric behavior, and long-term wear over novelty.',
+        "designIntent": [
+            "Make denim that feels ordinary in the best possible way.",
+            "Prioritize fit, fabric behavior, and long-term wear over novelty.",
         ],
-        'materialsList': [
-            '14oz Selvedge Denim',
-            'Copper Rivets',
-            'Chain-Stitched Hem',
-            'Leather Patch',
-            'Made in Raleigh, NC',
+        "materialsList": [
+            "14oz Selvedge Denim",
+            "Copper Rivets",
+            "Chain-Stitched Hem",
+            "Leather Patch",
+            "Made in Raleigh, NC",
         ],
-        'workshopVerdict': 'Worth the Extra Stitch.',
-        'started': 'Fit Block',
-        'buildStage': 'Fit Tuning',
-        'leadTime': 'In Progress',
-        'madeIn': 'Raleigh, NC',
-        'care': 'Wash cold when needed. Hang dry.',
-        'details': [
-            {'label': 'Denim', 'value': '14oz Selvedge'},
-            {'label': 'Hardware', 'value': 'Copper Rivets'},
-            {'label': 'Build Stage', 'value': 'Fit Tuning'},
-            {'label': 'Made In', 'value': 'Raleigh, NC'},
+        "workshopVerdict": "Worth the Extra Stitch.",
+        "started": "Fit Block",
+        "buildStage": "Fit Tuning",
+        "leadTime": "In Progress",
+        "madeIn": "Raleigh, NC",
+        "care": "Wash cold when needed. Hang dry.",
+        "details": [
+            {"label": "Denim", "value": "14oz Selvedge"},
+            {"label": "Hardware", "value": "Copper Rivets"},
+            {"label": "Build Stage", "value": "Fit Tuning"},
+            {"label": "Made In", "value": "Raleigh, NC"},
         ],
-        'image': {
-            'alt': 'Folded selvedge denim jeans with label detail',
-            'tone': 'denim',
+        "image": {
+            "alt": "Folded selvedge denim jeans with label detail",
+            "tone": "denim",
         },
-        'href': '/projects/standard-issue-jean',
+        "href": "/projects/standard-issue-jean",
     },
     {
-        'id': 'project-003',
-        'slug': 'field-tote',
-        'projectNumber': 'Project 003',
-        'title': 'Field Tote',
-        'category': 'Totes & Bags',
-        'material': 'Waxed Canvas & Leather',
-        'status': 'prototype',
-        'notes': 'A carryall for patterns, tools, and daily workshop clutter.',
-        'shortDescription': 'A workshop tote built for useful messes.',
-        'story': [
-            'The Field Tote started as a place to put the things that never seem to have a place.',
-            'Patterns, tools, notebooks, fabric scraps, coffee, errands. The bag needed to handle all of it without becoming precious.',
-            'The prototype is about proportion: enough structure to stand up, enough softness to get out of the way.',
+        "id": "project-003",
+        "slug": "field-tote",
+        "projectNumber": "Project 003",
+        "title": "Field Tote",
+        "category": "Totes & Bags",
+        "material": "Waxed Canvas & Leather",
+        "status": "prototype",
+        "notes": "A carryall for patterns, tools, and daily workshop clutter.",
+        "shortDescription": "A workshop tote built for useful messes.",
+        "story": [
+            "The Field Tote started as a place to put the things that never seem to have a place.",
+            "Patterns, tools, notebooks, fabric scraps, coffee, errands. The bag needed to handle all of it without becoming precious.",
+            "The prototype is about proportion: enough structure to stand up, enough softness to get out of the way.",
         ],
-        'designIntent': [
-            'Make a carryall that can handle the real mess of a working day.',
-            'Balance structure, access, and materials that look better with use.',
+        "designIntent": [
+            "Make a carryall that can handle the real mess of a working day.",
+            "Balance structure, access, and materials that look better with use.",
         ],
-        'materialsList': [
-            'Waxed Canvas',
-            'Vegetable-Tanned Leather Handles',
-            'Bound Interior Seams',
-            'Reinforced Bottom Panel',
-            'Made in Raleigh, NC',
+        "materialsList": [
+            "Waxed Canvas",
+            "Vegetable-Tanned Leather Handles",
+            "Bound Interior Seams",
+            "Reinforced Bottom Panel",
+            "Made in Raleigh, NC",
         ],
-        'workshopVerdict': 'Prototype Worth Keeping.',
-        'started': 'Bench Prototype',
-        'buildStage': 'Prototype',
-        'leadTime': 'Not Released',
-        'madeIn': 'Raleigh, NC',
-        'care': 'Brush clean. Spot clean. Re-wax as needed.',
-        'details': [
-            {'label': 'Canvas', 'value': 'Waxed Cotton Canvas'},
-            {'label': 'Handles', 'value': 'Vegetable-Tanned Leather'},
-            {'label': 'Build Stage', 'value': 'Prototype'},
-            {'label': 'Made In', 'value': 'Raleigh, NC'},
+        "workshopVerdict": "Prototype Worth Keeping.",
+        "started": "Bench Prototype",
+        "buildStage": "Prototype",
+        "leadTime": "Not Released",
+        "madeIn": "Raleigh, NC",
+        "care": "Brush clean. Spot clean. Re-wax as needed.",
+        "details": [
+            {"label": "Canvas", "value": "Waxed Cotton Canvas"},
+            {"label": "Handles", "value": "Vegetable-Tanned Leather"},
+            {"label": "Build Stage", "value": "Prototype"},
+            {"label": "Made In", "value": "Raleigh, NC"},
         ],
-        'image': {
-            'alt': 'Waxed canvas field tote with leather handles',
-            'tone': 'canvas',
+        "image": {
+            "alt": "Waxed canvas field tote with leather handles",
+            "tone": "canvas",
         },
-        'href': '/projects/field-tote',
+        "href": "/projects/field-tote",
     },
     {
-        'id': 'project-002',
-        'slug': 'watch-cap',
-        'projectNumber': 'Project 002',
-        'title': 'Watch Cap',
-        'category': 'Accessories',
-        'material': 'Merino Wool',
-        'status': 'small-run',
-        'notes': 'Warm, simple, and meant to disappear into daily use.',
-        'shortDescription': 'A small-run cap for cold mornings and long shop days.',
-        'story': [
-            'The Watch Cap is intentionally plain.',
-            'Good wool, useful shape, no extra ceremony. It is made to be worn hard enough that you stop noticing it.',
-            'Small runs keep the project manageable and let the details stay close.',
+        "id": "project-002",
+        "slug": "watch-cap",
+        "projectNumber": "Project 002",
+        "title": "Watch Cap",
+        "category": "Accessories",
+        "material": "Merino Wool",
+        "status": "small-run",
+        "notes": "Warm, simple, and meant to disappear into daily use.",
+        "shortDescription": "A small-run cap for cold mornings and long shop days.",
+        "story": [
+            "The Watch Cap is intentionally plain.",
+            "Good wool, useful shape, no extra ceremony. It is made to be worn hard enough that you stop noticing it.",
+            "Small runs keep the project manageable and let the details stay close.",
         ],
-        'designIntent': [
-            'Keep warmth and simplicity ahead of branding.',
-            'Make a small object that disappears into daily use.',
+        "designIntent": [
+            "Keep warmth and simplicity ahead of branding.",
+            "Make a small object that disappears into daily use.",
         ],
-        'materialsList': [
-            'Merino Wool',
-            'Rib Knit Construction',
-            'Small Woven Mark',
-            'Finished in Raleigh, NC',
+        "materialsList": [
+            "Merino Wool",
+            "Rib Knit Construction",
+            "Small Woven Mark",
+            "Finished in Raleigh, NC",
         ],
-        'workshopVerdict': 'Would Build Again.',
-        'started': 'Small Run',
-        'buildStage': 'Small Run',
-        'leadTime': 'Limited Availability',
-        'madeIn': 'Raleigh, NC',
-        'care': 'Hand wash cold. Dry flat.',
-        'details': [
-            {'label': 'Fiber', 'value': 'Merino Wool'},
-            {'label': 'Run', 'value': 'Small Batch'},
-            {'label': 'Build Stage', 'value': 'Small Run'},
-            {'label': 'Finished In', 'value': 'Raleigh, NC'},
+        "workshopVerdict": "Would Build Again.",
+        "started": "Small Run",
+        "buildStage": "Small Run",
+        "leadTime": "Limited Availability",
+        "madeIn": "Raleigh, NC",
+        "care": "Hand wash cold. Dry flat.",
+        "details": [
+            {"label": "Fiber", "value": "Merino Wool"},
+            {"label": "Run", "value": "Small Batch"},
+            {"label": "Build Stage", "value": "Small Run"},
+            {"label": "Finished In", "value": "Raleigh, NC"},
         ],
-        'image': {
-            'alt': 'Rib knit merino watch cap with small woven mark',
-            'tone': 'wool',
+        "image": {
+            "alt": "Rib knit merino watch cap with small woven mark",
+            "tone": "wool",
         },
-        'href': '/projects/watch-cap',
+        "href": "/projects/watch-cap",
     },
 ]
 
 PAGES_DATA = [
     {
-        'slug': 'home',
-        'title': 'Home',
-        'route': '/',
-        'order': 1,
-        'content': '''# Mash & Burn Co.
+        "slug": "home",
+        "title": "Home",
+        "route": "/",
+        "order": 1,
+        "content": """# Mash & Burn Co.
 
 Unnecessarily well-made.
 
@@ -389,28 +387,28 @@ Built in small batches with purpose.
 
 ### Built to Last
 Workwear that wears in, not out.
-''',
+""",
     },
     {
-        'slug': 'projects',
-        'title': 'Projects',
-        'route': '/projects',
-        'order': 2,
-        'content': '''# Projects
+        "slug": "projects",
+        "title": "Projects",
+        "route": "/projects",
+        "order": 2,
+        "content": """# Projects
 
 Browse our collection of well-made pieces.
 
 Each project is built one at a time in the workshop, with care given to materials, construction, and longevity.
 
 From work jackets to accessories, every piece is designed to earn its keep over time.
-''',
+""",
     },
     {
-        'slug': 'workshop',
-        'title': 'Workshop',
-        'route': '/workshop',
-        'order': 3,
-        'content': '''# The Workshop
+        "slug": "workshop",
+        "title": "Workshop",
+        "route": "/workshop",
+        "order": 3,
+        "content": """# The Workshop
 
 A small shop in Raleigh, NC where every piece is built.
 
@@ -428,14 +426,14 @@ The workshop is where ideas move from paper to pattern, from pattern to prototyp
 - **Historical Wear**: Period-inspired builds with modern durability
 
 Every piece is made in small batches or one at a time, ensuring quality never gets lost in volume.
-''',
+""",
     },
     {
-        'slug': 'about',
-        'title': 'About',
-        'route': '/about',
-        'order': 4,
-        'content': '''# About Mash & Burn Co.
+        "slug": "about",
+        "title": "About",
+        "route": "/about",
+        "order": 4,
+        "content": """# About Mash & Burn Co.
 
 Mash & Burn Co. is a small workshop in Raleigh, NC making well-considered pieces that get better with time.
 
@@ -458,14 +456,14 @@ Have questions about a project? Want to inquire about custom work?
 Email: hello@mashandburnco.com
 
 An iWobble Labs Project
-''',
+""",
     },
     {
-        'slug': 'contact',
-        'title': 'Contact',
-        'route': '/contact',
-        'order': 5,
-        'content': '''# Get in Touch
+        "slug": "contact",
+        "title": "Contact",
+        "route": "/contact",
+        "order": 5,
+        "content": """# Get in Touch
 
 ## Project Inquiries
 
@@ -492,7 +490,7 @@ Follow us:
 - [Facebook](https://www.facebook.com/jaredmashburn)
 - [Pinterest](https://www.pinterest.com/mashandburnco/)
 - [YouTube](https://www.youtube.com/@mashandburnco)
-''',
+""",
     },
 ]
 
@@ -501,9 +499,10 @@ Follow us:
 # Helper Functions
 # ============================================================================
 
+
 def slugify_for_resource_type(text: str) -> str:
     """Convert text to a resource type slug."""
-    return text.lower().replace(' ', '-').replace('&', 'and')
+    return text.lower().replace(" ", "-").replace("&", "and")
 
 
 def generate_markdown_from_project(project: dict) -> str:
@@ -511,35 +510,35 @@ def generate_markdown_from_project(project: dict) -> str:
     parts = []
 
     # Story
-    if project.get('story'):
+    if project.get("story"):
         parts.append("## Story\n")
-        for paragraph in project['story']:
+        for paragraph in project["story"]:
             parts.append(f"{paragraph}\n")
         parts.append("\n")
 
     # Design Intent
-    if project.get('designIntent'):
+    if project.get("designIntent"):
         parts.append("## Design Intent\n")
-        for item in project['designIntent']:
+        for item in project["designIntent"]:
             parts.append(f"- {item}\n")
         parts.append("\n")
 
     # Materials
-    if project.get('materialsList'):
+    if project.get("materialsList"):
         parts.append("## Materials & Construction\n")
-        for item in project['materialsList']:
+        for item in project["materialsList"]:
             parts.append(f"- {item}\n")
         parts.append("\n")
 
     # Details
-    if project.get('details'):
+    if project.get("details"):
         parts.append("## Specifications\n")
-        for detail in project['details']:
+        for detail in project["details"]:
             parts.append(f"**{detail['label']}**: {detail['value']}  \n")
         parts.append("\n")
 
     # Care
-    if project.get('care'):
+    if project.get("care"):
         parts.append(f"## Care\n{project['care']}\n\n")
 
     return "".join(parts)
@@ -579,9 +578,7 @@ def upsert_site_configuration(session, workspace: Groups) -> None:
     from marvin.db.models.groups import GroupPreferencesModel
 
     # Get or create preferences for this workspace
-    prefs = session.query(GroupPreferencesModel).filter(
-        GroupPreferencesModel.group_id == workspace.id
-    ).first()
+    prefs = session.query(GroupPreferencesModel).filter(GroupPreferencesModel.group_id == workspace.id).first()
 
     if not prefs:
         prefs = GroupPreferencesModel(
@@ -631,40 +628,37 @@ def upsert_site_configuration(session, workspace: Groups) -> None:
 def upsert_entry_types(session, workspace: Groups) -> dict:
     """Create or update entry types. Returns dict of slug -> model."""
     entry_types_data = [
-        {'slug': 'page', 'name': 'Page', 'description': 'Static site pages'},
-        {'slug': 'project', 'name': 'Project', 'description': 'Workshop projects and products'},
-        {'slug': 'bench-note', 'name': 'Bench Note', 'description': 'Workshop notes and updates'},
-        {'slug': 'product', 'name': 'Product', 'description': 'Available products'},
-        {'slug': 'guide', 'name': 'Guide', 'description': 'How-to guides and resources'},
+        {"slug": "page", "name": "Page", "description": "Static site pages"},
+        {"slug": "project", "name": "Project", "description": "Workshop projects and products"},
+        {"slug": "bench-note", "name": "Bench Note", "description": "Workshop notes and updates"},
+        {"slug": "product", "name": "Product", "description": "Available products"},
+        {"slug": "guide", "name": "Guide", "description": "How-to guides and resources"},
     ]
 
     entry_types = {}
 
     for data in entry_types_data:
-        entry_type = session.query(EntryTypes).filter(
-            EntryTypes.group_id == workspace.id,
-            EntryTypes.slug == data['slug']
-        ).first()
+        entry_type = session.query(EntryTypes).filter(EntryTypes.group_id == workspace.id, EntryTypes.slug == data["slug"]).first()
 
         if entry_type:
             logger.info(f"  ✓ Entry type '{data['slug']}' exists")
-            entry_type.name = data['name']
-            entry_type.description = data.get('description')
+            entry_type.name = data["name"]
+            entry_type.description = data.get("description")
             session.commit()
         else:
             entry_type = EntryTypes(
                 id=uuid4().hex,
                 group_id=workspace.id,
-                slug=data['slug'],
-                name=data['name'],
-                description=data.get('description'),
+                slug=data["slug"],
+                name=data["name"],
+                description=data.get("description"),
                 session=session,
             )
             session.add(entry_type)
             session.commit()
             logger.info(f"  ✓ Created entry type '{data['slug']}'")
 
-        entry_types[data['slug']] = entry_type
+        entry_types[data["slug"]] = entry_type
 
     return entry_types
 
@@ -672,100 +666,87 @@ def upsert_entry_types(session, workspace: Groups) -> dict:
 def upsert_collections(session, workspace: Groups) -> dict:
     """Create or update collections. Returns dict of slug -> model."""
     collections_data = [
-        {'slug': 'site-pages', 'name': 'Site Pages', 'description': 'Main site pages', 'sort_order': 1},
-        {'slug': 'projects', 'name': 'Projects', 'description': 'All workshop projects', 'sort_order': 2},
-        {'slug': 'featured', 'name': 'Featured', 'description': 'Featured projects', 'sort_order': 3},
-        {'slug': 'current-project', 'name': 'Current Project', 'description': 'Currently available project', 'sort_order': 4},
-        {'slug': 'on-the-bench', 'name': 'On the Bench', 'description': 'Projects in progress', 'sort_order': 5},
-        {'slug': 'jackets', 'name': 'Jackets', 'description': 'Work jackets and coats', 'sort_order': 6, 'icon': 'work-jacket'},
-        {'slug': 'totes-and-bags', 'name': 'Totes & Bags', 'description': 'Bags and carryalls', 'sort_order': 7, 'icon': 'field-tote'},
-        {'slug': 'accessories', 'name': 'Accessories', 'description': 'Small goods and accessories', 'sort_order': 8, 'icon': 'watch-cap'},
-        {'slug': 'historical-wear', 'name': 'Historical Wear', 'description': 'Period-inspired pieces', 'sort_order': 9, 'icon': 'historical-wear'},
-        {'slug': 'other', 'name': 'Other', 'description': 'Miscellaneous projects', 'sort_order': 10},
+        {"slug": "site-pages", "name": "Site Pages", "description": "Main site pages", "sort_order": 1},
+        {"slug": "projects", "name": "Projects", "description": "All workshop projects", "sort_order": 2},
+        {"slug": "featured", "name": "Featured", "description": "Featured projects", "sort_order": 3},
+        {"slug": "current-project", "name": "Current Project", "description": "Currently available project", "sort_order": 4},
+        {"slug": "on-the-bench", "name": "On the Bench", "description": "Projects in progress", "sort_order": 5},
+        {"slug": "jackets", "name": "Jackets", "description": "Work jackets and coats", "sort_order": 6, "icon": "work-jacket"},
+        {"slug": "totes-and-bags", "name": "Totes & Bags", "description": "Bags and carryalls", "sort_order": 7, "icon": "field-tote"},
+        {"slug": "accessories", "name": "Accessories", "description": "Small goods and accessories", "sort_order": 8, "icon": "watch-cap"},
+        {"slug": "historical-wear", "name": "Historical Wear", "description": "Period-inspired pieces", "sort_order": 9, "icon": "historical-wear"},
+        {"slug": "other", "name": "Other", "description": "Miscellaneous projects", "sort_order": 10},
     ]
 
     collections = {}
 
     for data in collections_data:
-        collection = session.query(Collections).filter(
-            Collections.group_id == workspace.id,
-            Collections.slug == data['slug']
-        ).first()
+        collection = session.query(Collections).filter(Collections.group_id == workspace.id, Collections.slug == data["slug"]).first()
 
         if collection:
             logger.info(f"  ✓ Collection '{data['slug']}' exists")
-            collection.name = data['name']
-            collection.description = data.get('description')
-            collection.sort_order = data.get('sort_order')
-            collection.icon = data.get('icon')
+            collection.name = data["name"]
+            collection.description = data.get("description")
+            collection.sort_order = data.get("sort_order")
+            collection.icon = data.get("icon")
             session.commit()
         else:
             collection = Collections(
                 id=uuid4().hex,
                 group_id=workspace.id,
-                slug=data['slug'],
-                name=data['name'],
-                description=data.get('description'),
-                sort_order=data.get('sort_order'),
-                icon=data.get('icon'),
+                slug=data["slug"],
+                name=data["name"],
+                description=data.get("description"),
+                sort_order=data.get("sort_order"),
+                icon=data.get("icon"),
                 session=session,
             )
             session.add(collection)
             session.commit()
             logger.info(f"  ✓ Created collection '{data['slug']}'")
 
-        collections[data['slug']] = collection
+        collections[data["slug"]] = collection
 
     return collections
 
 
-def upsert_project_entry(
-    session,
-    workspace: Groups,
-    project_data: dict,
-    entry_types: dict,
-    collections: dict,
-    admin_user_id: str
-) -> Entries:
+def upsert_project_entry(session, workspace: Groups, project_data: dict, entry_types: dict, collections: dict, admin_user_id: str) -> Entries:
     """Create or update a project entry with all relationships."""
 
     # Check if entry exists
-    entry = session.query(Entries).filter(
-        Entries.group_id == workspace.id,
-        Entries.slug == project_data['slug']
-    ).first()
+    entry = session.query(Entries).filter(Entries.group_id == workspace.id, Entries.slug == project_data["slug"]).first()
 
     # Prepare entry data
-    summary = project_data.get('shortDescription') or project_data.get('notes')
-    description = project_data.get('notes')
+    summary = project_data.get("shortDescription") or project_data.get("notes")
+    description = project_data.get("notes")
     content_markdown = generate_markdown_from_project(project_data)
 
     # Metadata preservation
     metadata_json = {
-        'id': project_data['id'],
-        'projectNumber': project_data['projectNumber'],
-        'category': project_data['category'],
-        'material': project_data['material'],
-        'projectStatus': project_data['status'],
-        'availability': project_data.get('availability'),
-        'workshopVerdict': project_data.get('workshopVerdict'),
-        'started': project_data.get('started'),
-        'completed': project_data.get('completed'),
-        'hours': project_data.get('hours'),
-        'series': project_data.get('series'),
-        'buildStage': project_data.get('buildStage'),
-        'leadTime': project_data.get('leadTime'),
-        'madeIn': project_data.get('madeIn'),
-        'care': project_data.get('care'),
-        'details': project_data.get('details'),
-        'imageTone': project_data.get('image', {}).get('tone'),
-        'href': project_data['href'],
-        'featured': project_data.get('featured', False),
+        "id": project_data["id"],
+        "projectNumber": project_data["projectNumber"],
+        "category": project_data["category"],
+        "material": project_data["material"],
+        "projectStatus": project_data["status"],
+        "availability": project_data.get("availability"),
+        "workshopVerdict": project_data.get("workshopVerdict"),
+        "started": project_data.get("started"),
+        "completed": project_data.get("completed"),
+        "hours": project_data.get("hours"),
+        "series": project_data.get("series"),
+        "buildStage": project_data.get("buildStage"),
+        "leadTime": project_data.get("leadTime"),
+        "madeIn": project_data.get("madeIn"),
+        "care": project_data.get("care"),
+        "details": project_data.get("details"),
+        "imageTone": project_data.get("image", {}).get("tone"),
+        "href": project_data["href"],
+        "featured": project_data.get("featured", False),
     }
 
     if entry:
         logger.info(f"  ✓ Updating project entry '{project_data['slug']}'")
-        entry.title = project_data['title']
+        entry.title = project_data["title"]
         entry.summary = summary
         entry.description = description
         entry.content_markdown = content_markdown
@@ -775,13 +756,13 @@ def upsert_project_entry(
         entry = Entries(
             id=uuid4().hex,
             group_id=workspace.id,
-            entry_type_id=entry_types['project'].id,
-            slug=project_data['slug'],
-            title=project_data['title'],
+            entry_type_id=entry_types["project"].id,
+            slug=project_data["slug"],
+            title=project_data["title"],
             summary=summary,
             description=description,
             content_markdown=content_markdown,
-            status='published',
+            status="published",
             published_at=datetime.now(UTC),
             metadata_json=metadata_json,
             created_by=admin_user_id,
@@ -792,16 +773,16 @@ def upsert_project_entry(
         logger.info(f"  ✓ Created project entry '{project_data['slug']}'")
 
     # Attach to collections
-    collection_slugs = ['projects']  # Every project goes to Projects
+    collection_slugs = ["projects"]  # Every project goes to Projects
 
     # Featured project
-    if project_data.get('featured'):
-        collection_slugs.extend(['featured', 'current-project'])
+    if project_data.get("featured"):
+        collection_slugs.extend(["featured", "current-project"])
     else:
-        collection_slugs.append('on-the-bench')
+        collection_slugs.append("on-the-bench")
 
     # Category collection
-    category_slug = project_data['category'].lower().replace(' ', '-').replace('&', 'and')
+    category_slug = project_data["category"].lower().replace(" ", "-").replace("&", "and")
     collection_slugs.append(category_slug)
 
     # Remove existing collection associations
@@ -837,34 +818,38 @@ def upsert_project_resources(session, workspace: Groups, entry: Entries, project
     resources_to_create = []
 
     # Primary material
-    if project_data.get('material'):
-        resources_to_create.append({
-            'name': project_data['material'],
-            'resource_type': 'material',
-            'role': 'primary-material',
-            'position': 1,
-        })
+    if project_data.get("material"):
+        resources_to_create.append(
+            {
+                "name": project_data["material"],
+                "resource_type": "material",
+                "role": "primary-material",
+                "position": 1,
+            }
+        )
 
     # Materials list
-    if project_data.get('materialsList'):
-        for idx, material in enumerate(project_data['materialsList'], start=2):
+    if project_data.get("materialsList"):
+        for idx, material in enumerate(project_data["materialsList"], start=2):
             # Determine resource type
             material_lower = material.lower()
-            if 'rivet' in material_lower or 'button' in material_lower or 'hardware' in material_lower:
-                resource_type = 'hardware'
-            elif 'made in' in material_lower or 'finished in' in material_lower:
-                resource_type = 'location'
-            elif any(word in material_lower for word in ['stitch', 'seam', 'construction', 'tacked']):
-                resource_type = 'construction'
+            if "rivet" in material_lower or "button" in material_lower or "hardware" in material_lower:
+                resource_type = "hardware"
+            elif "made in" in material_lower or "finished in" in material_lower:
+                resource_type = "location"
+            elif any(word in material_lower for word in ["stitch", "seam", "construction", "tacked"]):
+                resource_type = "construction"
             else:
-                resource_type = 'material'
+                resource_type = "material"
 
-            resources_to_create.append({
-                'name': material,
-                'resource_type': resource_type,
-                'role': 'component',
-                'position': idx,
-            })
+            resources_to_create.append(
+                {
+                    "name": material,
+                    "resource_type": resource_type,
+                    "role": "component",
+                    "position": idx,
+                }
+            )
 
     # Track which resources we've already linked to avoid duplicates
     linked_resource_ids = set()
@@ -872,12 +857,9 @@ def upsert_project_resources(session, workspace: Groups, entry: Entries, project
     # Create/link resources
     for res_data in resources_to_create:
         # Find or create resource
-        resource_slug = slugify_for_resource_type(res_data['name'])
+        resource_slug = slugify_for_resource_type(res_data["name"])
 
-        resource = session.query(Resources).filter(
-            Resources.group_id == workspace.id,
-            Resources.slug == resource_slug
-        ).first()
+        resource = session.query(Resources).filter(Resources.group_id == workspace.id, Resources.slug == resource_slug).first()
 
         if not resource:
             resource = Resources(
@@ -885,8 +867,8 @@ def upsert_project_resources(session, workspace: Groups, entry: Entries, project
                 id=uuid4().hex,
                 group_id=workspace.id,
                 slug=resource_slug,
-                name=res_data['name'],
-                resource_type=res_data['resource_type'],
+                name=res_data["name"],
+                resource_type=res_data["resource_type"],
                 created_by=admin_user_id,
             )
             session.add(resource)
@@ -903,8 +885,8 @@ def upsert_project_resources(session, workspace: Groups, entry: Entries, project
             id=uuid4().hex,
             entry_id=entry.id,
             resource_id=resource.id,
-            role=res_data.get('role'),
-            position=res_data.get('position'),
+            role=res_data.get("role"),
+            position=res_data.get("position"),
         )
         session.add(entry_resource)
 
@@ -920,52 +902,63 @@ def upsert_project_assets(session, workspace: Groups, entry: Entries, project_da
     assets_to_create = []
 
     # Featured image
-    if project_data.get('featuredImage'):
-        assets_to_create.append({
-            'name': f"{project_data['title']} - Hero Image",
-            'role': 'hero',
-            'alt_text': project_data['featuredImage'].get('alt', project_data['image']['alt']),
-            'position': 1,
-        })
+    if project_data.get("featuredImage"):
+        assets_to_create.append(
+            {
+                "name": f"{project_data['title']} - Hero Image",
+                "role": "hero",
+                "alt_text": project_data["featuredImage"].get("alt", project_data["image"]["alt"]),
+                "position": 1,
+            }
+        )
     else:
         # Placeholder from image.alt
-        assets_to_create.append({
-            'name': f"{project_data['title']} - Hero Image",
-            'role': 'hero',
-            'alt_text': project_data['image']['alt'],
-            'position': 1,
-        })
+        assets_to_create.append(
+            {
+                "name": f"{project_data['title']} - Hero Image",
+                "role": "hero",
+                "alt_text": project_data["image"]["alt"],
+                "position": 1,
+            }
+        )
 
     # Support images
-    if project_data.get('supportImages'):
-        for idx, support_img in enumerate(project_data['supportImages'], start=2):
-            assets_to_create.append({
-                'name': f"{project_data['title']} - {support_img['usage'].title()}",
-                'role': support_img['usage'],
-                'alt_text': support_img.get('alt', ''),
-                'position': idx,
-            })
+    if project_data.get("supportImages"):
+        for idx, support_img in enumerate(project_data["supportImages"], start=2):
+            assets_to_create.append(
+                {
+                    "name": f"{project_data['title']} - {support_img['usage'].title()}",
+                    "role": support_img["usage"],
+                    "alt_text": support_img.get("alt", ""),
+                    "position": idx,
+                }
+            )
 
     # Create assets
     for asset_data in assets_to_create:
-        asset_slug = slugify_for_resource_type(asset_data['name'])
+        asset_slug = slugify_for_resource_type(asset_data["name"])
 
-        asset = session.query(Assets).filter(
-            Assets.group_id == workspace.id,
-            Assets.slug == asset_slug
-        ).first()
+        asset = session.query(Assets).filter(Assets.group_id == workspace.id, Assets.slug == asset_slug).first()
 
         if not asset:
+            filename = f"{asset_slug}.jpg"
             asset = Assets(
                 session=session,
                 id=uuid4().hex,
                 group_id=workspace.id,
                 slug=asset_slug,
-                name=asset_data['name'],
-                file_path=f"/placeholder/{asset_slug}.jpg",  # Placeholder path
+                name=asset_data["name"],
+                original_filename=filename,
+                filename=filename,
+                extension="jpg",
+                file_path=f"/placeholder/{filename}",  # Placeholder path
                 file_size=0,  # Placeholder size
-                mime_type='image/jpeg',  # Placeholder
-                alt_text=asset_data['alt_text'],
+                mime_type="image/jpeg",  # Placeholder
+                asset_type="image",
+                checksum="placeholder",
+                storage_provider="local",
+                storage_key=f"placeholder/{filename}",
+                alt_text=asset_data["alt_text"],
                 uploaded_by=admin_user_id,
             )
             session.add(asset)
@@ -976,8 +969,8 @@ def upsert_project_assets(session, workspace: Groups, entry: Entries, project_da
             id=uuid4().hex,
             entry_id=entry.id,
             asset_id=asset.id,
-            role=asset_data['role'],
-            position=asset_data['position'],
+            role=asset_data["role"],
+            position=asset_data["position"],
         )
         session.add(entry_asset)
 
@@ -990,19 +983,18 @@ def create_api_client_for_workspace(session, workspace: Groups, admin_user_id: s
     import secrets
 
     # Check if API client already exists
-    existing_client = session.query(APIClients).filter(
-        APIClients.group_id == workspace.id,
-        APIClients.slug == "publishing-api-client"
-    ).first()
+    existing_client = session.query(APIClients).filter(APIClients.group_id == workspace.id, APIClients.slug == "publishing-api-client").first()
 
     if existing_client:
         logger.info(f"  ✓ API client already exists: {existing_client.name}")
+
         # We can't return the plaintext token for existing clients
         # User will need to rotate the token if they lost it
         class ExistingClient:
             def __init__(self, name, note):
                 self.name = name
                 self.token = f"<existing - rotate token to get new one>"
+
         return ExistingClient(existing_client.name, "Token not available for existing clients")
 
     # Generate new token
@@ -1035,41 +1027,31 @@ def create_api_client_for_workspace(session, workspace: Groups, admin_user_id: s
     return APIClientWithToken(api_client.name, plaintext_token)
 
 
-def upsert_page_entry(
-    session,
-    workspace: Groups,
-    page_data: dict,
-    entry_types: dict,
-    collections: dict,
-    admin_user_id: str
-) -> Entries:
+def upsert_page_entry(session, workspace: Groups, page_data: dict, entry_types: dict, collections: dict, admin_user_id: str) -> Entries:
     """Create or update a page entry."""
 
-    entry = session.query(Entries).filter(
-        Entries.group_id == workspace.id,
-        Entries.slug == page_data['slug']
-    ).first()
+    entry = session.query(Entries).filter(Entries.group_id == workspace.id, Entries.slug == page_data["slug"]).first()
 
     metadata_json = {
-        'route': page_data['route'],
-        'order': page_data['order'],
+        "route": page_data["route"],
+        "order": page_data["order"],
     }
 
     if entry:
         logger.info(f"  ✓ Updating page entry '{page_data['slug']}'")
-        entry.title = page_data['title']
-        entry.content_markdown = page_data['content']
+        entry.title = page_data["title"]
+        entry.content_markdown = page_data["content"]
         entry.metadata_json = metadata_json
         session.commit()
     else:
         entry = Entries(
             id=uuid4().hex,
             group_id=workspace.id,
-            entry_type_id=entry_types['page'].id,
-            slug=page_data['slug'],
-            title=page_data['title'],
-            content_markdown=page_data['content'],
-            status='published',
+            entry_type_id=entry_types["page"].id,
+            slug=page_data["slug"],
+            title=page_data["title"],
+            content_markdown=page_data["content"],
+            status="published",
             published_at=datetime.now(UTC),
             metadata_json=metadata_json,
             created_by=admin_user_id,
@@ -1085,7 +1067,7 @@ def upsert_page_entry(
     ec = EntryCollections(
         id=uuid4().hex,
         entry_id=entry.id,
-        collection_id=collections['site-pages'].id,
+        collection_id=collections["site-pages"].id,
     )
     session.add(ec)
     session.commit()
@@ -1096,6 +1078,7 @@ def upsert_page_entry(
 # ============================================================================
 # Main Seed Function
 # ============================================================================
+
 
 def seed_mashandburnco():
     """Main seed function."""
@@ -1111,6 +1094,7 @@ def seed_mashandburnco():
     try:
         # Get admin user (assume first admin)
         from marvin.db.models.users import Users
+
         admin_user = session.query(Users).filter(Users.admin == True).first()
 
         if not admin_user:
@@ -1130,18 +1114,12 @@ def seed_mashandburnco():
         from marvin.db.models.users.workspace_members import WorkspaceMembers
         from marvin.db.models.users.roles import WorkspaceRole
 
-        existing_membership = session.query(WorkspaceMembers).filter(
-            WorkspaceMembers.user_id == admin_user_id,
-            WorkspaceMembers.group_id == workspace.id
-        ).first()
+        existing_membership = (
+            session.query(WorkspaceMembers).filter(WorkspaceMembers.user_id == admin_user_id, WorkspaceMembers.group_id == workspace.id).first()
+        )
 
         if not existing_membership:
-            admin_membership = WorkspaceMembers(
-                session=session,
-                user_id=admin_user_id,
-                group_id=workspace.id,
-                workspace_role=WorkspaceRole.OWNER
-            )
+            admin_membership = WorkspaceMembers(session=session, user_id=admin_user_id, group_id=workspace.id, workspace_role=WorkspaceRole.OWNER)
             session.add(admin_membership)
             session.commit()
             logger.info("  ✓ Added admin as workspace OWNER")
@@ -1163,27 +1141,13 @@ def seed_mashandburnco():
         # 4. Upsert project entries
         logger.info(f"4. Importing {len(PROJECTS_DATA)} projects...")
         for project_data in PROJECTS_DATA:
-            upsert_project_entry(
-                session,
-                workspace,
-                project_data,
-                entry_types,
-                collections,
-                admin_user_id
-            )
+            upsert_project_entry(session, workspace, project_data, entry_types, collections, admin_user_id)
         logger.info("")
 
         # 5. Upsert page entries
         logger.info(f"5. Importing {len(PAGES_DATA)} pages...")
         for page_data in PAGES_DATA:
-            upsert_page_entry(
-                session,
-                workspace,
-                page_data,
-                entry_types,
-                collections,
-                admin_user_id
-            )
+            upsert_page_entry(session, workspace, page_data, entry_types, collections, admin_user_id)
         logger.info("")
 
         # 6. Create API client for this workspace
