@@ -119,6 +119,20 @@ const isPdf = asset?.mimeType?.includes('pdf');
           </div>
         )}
 
+        {asset.metadata_ && Object.keys(asset.metadata_).length > 0 && (
+          <div class="custom-metadata-panel">
+            <h4>File Metadata</h4>
+            <dl class="metadata-list">
+              {Object.entries(asset.metadata_).map(([key, value]) => (
+                <div class="metadata-item">
+                  <dt>{key}</dt>
+                  <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
         <div class="metadata-panel">
           <dl class="info-list">
             <dt>File Size</dt>
@@ -247,7 +261,8 @@ const isPdf = asset?.mimeType?.includes('pdf');
   }
 
   .description-panel,
-  .metadata-panel {
+  .metadata-panel,
+  .custom-metadata-panel {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -255,7 +270,8 @@ const isPdf = asset?.mimeType?.includes('pdf');
   }
 
   .description-panel h4,
-  .metadata-panel h4 {
+  .metadata-panel h4,
+  .custom-metadata-panel h4 {
     margin: 0 0 1rem;
     font-size: 1rem;
   }
@@ -263,6 +279,35 @@ const isPdf = asset?.mimeType?.includes('pdf');
   .description-panel p {
     margin: 0;
     line-height: 1.6;
+  }
+
+  .metadata-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+  }
+
+  .metadata-item {
+    padding: 0.75rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
   }
 
   .info-list {
