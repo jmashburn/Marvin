@@ -44,6 +44,18 @@ try {
             />
             <small class="hint">Set to -1 for unlimited uses</small>
           </label>
+
+          <label class="form-field">
+            <span class="label">Workspace Role</span>
+            <select name="workspace_role" class="input" required>
+              <option value="VIEWER">Viewer - Read-only access</option>
+              <option value="AUTHOR">Author - Create and edit own content</option>
+              <option value="EDITOR" selected>Editor - Create and edit all content</option>
+              <option value="ADMIN">Admin - Manage settings and members</option>
+              <option value="OWNER">Owner - Full control</option>
+            </select>
+            <small class="hint">The role invited users will receive</small>
+          </label>
         </div>
 
         <div class="form-actions">
@@ -63,6 +75,7 @@ try {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const usesLeft = parseInt(formData.get('uses_left') as string);
+    const workspaceRole = formData.get('workspace_role') as string;
 
     try {
       const { fetchApi } = await import('@/lib/api/client');
@@ -70,7 +83,10 @@ try {
       await fetchApi('/api/groups/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uses_left: usesLeft }),
+        body: JSON.stringify({
+          uses_left: usesLeft,
+          workspace_role: workspaceRole,
+        }),
       });
 
       window.location.href = '/workspace/invites?created=true';
