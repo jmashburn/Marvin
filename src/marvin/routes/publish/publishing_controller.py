@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from marvin.core.config import get_app_settings
 from marvin.core.dependencies import get_publishing_context
+from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
 from marvin.db.models.platform import APIClients, Assets, Collections, Entries, Resources
 from marvin.repos.all_repositories import get_repositories
@@ -47,8 +48,12 @@ async def get_workspace_info(
     Returns basic workspace metadata for site consumption.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries (minimal permission to access publishing API)
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require at least one publishing permission to access workspace info
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "workspace information")
 
     return WorkspaceInfo(
         slug=group.slug,
@@ -78,8 +83,12 @@ async def get_site_configuration(
     **Use case**: Astro site initialization, meta tags, social links, contact forms.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries (minimal permission to access publishing API)
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require at least one publishing permission to access site configuration
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "site configuration")
 
     # Get group preferences (includes site configuration)
     from marvin.db.models.groups import GroupPreferencesModel
@@ -145,8 +154,12 @@ async def list_published_entries(
     - `?updated_since=2026-07-01T00:00:00Z` - Incremental builds
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries OR read:all_entries
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read entries
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "published entries")
 
     # Get repositories scoped to this workspace
     repos = get_repositories(session, group_id=group.id)
@@ -276,11 +289,15 @@ async def get_published_entry(
     - Only returns entry if `status = 'published'`
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries OR read:all_entries
 
     **Raises:**
     - 404: Entry not found or not published
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read entries
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "published entry")
 
     # Query published entry
     entry = (
@@ -383,8 +400,12 @@ async def list_published_collections(
     **Use case**: Building navigation menus, collection indexes.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:collections
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read collections
+    perms.require_permission(Permissions.READ_COLLECTIONS, "collections")
 
     # Get total count
     total = session.query(Collections).filter(Collections.group_id == group.id).count()
@@ -460,11 +481,15 @@ async def get_published_collection(
     - Only includes entries with `status = 'published'`
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:collections
 
     **Raises:**
     - 404: Collection not found
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read collections
+    perms.require_permission(Permissions.READ_COLLECTIONS, "collection")
 
     # Get collection
     collection = (
@@ -557,8 +582,12 @@ async def list_published_assets(
     - Build asset galleries, media libraries
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:assets
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read assets
+    perms.require_permission(Permissions.READ_ASSETS, "assets")
 
     # Build query for assets
     query = session.query(Assets).filter(
@@ -629,13 +658,17 @@ async def get_published_asset(
     dimensions and alt text.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:assets
 
     **Raises:**
     - 404: Asset not found
 
     **Note**: Actual file serving (GET /assets/{slug}/file) is deferred to Phase 7.
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read assets
+    perms.require_permission(Permissions.READ_ASSETS, "asset")
 
     asset = (
         session.query(Assets)
@@ -687,13 +720,17 @@ async def serve_asset_file(
     **Use case**: Browsers fetching images, PDFs, videos via their public URL.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:assets
 
     **Raises:**
     - 404: Asset not found
     """
     from fastapi.responses import RedirectResponse
 
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to access asset files
+    perms.require_permission(Permissions.READ_ASSETS, "asset file")
 
     asset = (
         session.query(Assets)
@@ -746,8 +783,12 @@ async def list_published_resources(
     - Build resource directories, material libraries
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:resources
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read resources
+    perms.require_permission(Permissions.READ_RESOURCES, "resources")
 
     # Build query for resources
     query = session.query(Resources).filter(
@@ -812,11 +853,15 @@ async def get_published_resource(
     **Use case**: Resource detail pages, material information displays.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:resources
 
     **Raises:**
     - 404: Resource not found
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read resources
+    perms.require_permission(Permissions.READ_RESOURCES, "resource")
 
     # Query resource
     resource = (
@@ -867,11 +912,15 @@ async def get_resource_entries(
     **Use case**: "View projects using this fabric" links on resource pages.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:resources
 
     **Raises:**
     - 404: Resource not found
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read resources
+    perms.require_permission(Permissions.READ_RESOURCES, "resource entries")
 
     # Get resource
     resource = (
