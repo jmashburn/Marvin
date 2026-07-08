@@ -140,9 +140,9 @@ echo ""
 # Step 5: Verify workspace roles
 echo -e "${YELLOW}[5/5] Verifying workspace roles...${NC}"
 
-# Get workspace ID (assuming default workspace)
+# Get workspace ID (assuming default workspace/group)
 workspace_id=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$MARVIN_URL/api/admin/workspaces" | jq -r '.items[0].id')
+  "$MARVIN_URL/api/admin/groups" | jq -r '.items[0].id')
 
 if [ "$workspace_id" == "null" ] || [ -z "$workspace_id" ]; then
   echo -e "${RED}✗ Failed to get workspace ID${NC}"
