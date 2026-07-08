@@ -60,11 +60,13 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
             <input
               type="text"
               name="user_id"
+              id="user_id"
               required
-              placeholder="User UUID"
-              class="input"
+              placeholder="e.g., a26f9570-5607-466d-aa23-7be3d7ce610e"
+              class="input input-uuid"
+              pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
             />
-            <small class="hint">Enter the user's ID to add them to the workspace</small>
+            <small class="hint" id="uuid-hint">Enter the UUID of the user you want to add. You can find user IDs in the admin panel or from the user's profile.</small>
           </label>
 
           <label class="form-field">
@@ -96,6 +98,29 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
   if (!workspaceId) {
     console.error('No workspace ID available');
   }
+
+  // UUID validation
+  const userIdInput = document.getElementById('user_id');
+  const uuidHint = document.getElementById('uuid-hint');
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  userIdInput?.addEventListener('input', (e) => {
+    const value = e.target.value.trim();
+
+    if (!value) {
+      uuidHint.textContent = 'Enter the UUID of the user you want to add. You can find user IDs in the admin panel or from the user\'s profile.';
+      uuidHint.style.color = '';
+      userIdInput.style.borderColor = '';
+    } else if (uuidRegex.test(value)) {
+      uuidHint.textContent = '✓ Valid UUID format';
+      uuidHint.style.color = 'var(--good)';
+      userIdInput.style.borderColor = 'var(--good)';
+    } else {
+      uuidHint.textContent = '⚠ Invalid UUID format (expected: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)';
+      uuidHint.style.color = 'var(--warn)';
+      userIdInput.style.borderColor = 'var(--warn)';
+    }
+  });
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -187,6 +212,18 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
     border: 1px solid var(--line);
     border-radius: var(--radius);
     font-size: 14px;
+  }
+
+  .input-uuid {
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+
+  .input-uuid::placeholder {
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    opacity: 0.7;
   }
 
   .hint {
