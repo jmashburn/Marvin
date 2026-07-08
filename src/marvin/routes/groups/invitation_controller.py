@@ -60,7 +60,7 @@ class GroupInvitationsController(BaseUserController):
         # `self.repo` is already group-scoped.
         paginated_response = self.repos.group_invite_tokens.page_all(
             pagination=q,
-            override_schema=InviteTokenRead,  # Serialize items using InviteTokenPagination
+            override_schema=InviteTokenSummary,  # Serialize items using InviteTokenSummary
         )
         # Set HATEOAS pagination guide URLs
         paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
