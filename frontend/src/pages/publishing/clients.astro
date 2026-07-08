@@ -65,7 +65,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   ) : (
     <div class="clients-grid">
       {clients.map((client) => (
-        <article class="client-card">
+        <article class={`client-card ${!client.enabled ? "disabled" : ""}`}>
           <div class="client-header">
             <div>
               <h3>{client.name}</h3>
@@ -416,6 +416,17 @@ function formatLastUsed(timestamp: string | null | undefined): string {
     padding: 20px;
     display: grid;
     gap: 16px;
+    transition: opacity 0.2s;
+  }
+
+  .client-card.disabled {
+    opacity: 0.6;
+    background: var(--panel-2);
+  }
+
+  .client-card.disabled h3,
+  .client-card.disabled .meta-value {
+    color: var(--muted);
   }
 
   .client-header {
