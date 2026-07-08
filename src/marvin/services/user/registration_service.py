@@ -113,7 +113,7 @@ class RegistrationService:
             workspace_role=workspace_role,
         )
         self.repos.session.add(workspace_member)
-        self.repos.session.commit()
+        self.repos.session.flush()  # Flush to get any DB-generated values, but don't commit yet
         self.logger.info(f"User '{created_user.username}' added to workspace '{target_group.name}' with role '{workspace_role}'.")
 
         return created_user
