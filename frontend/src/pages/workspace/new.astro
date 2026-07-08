@@ -66,16 +66,16 @@ if (Astro.request.method === 'POST') {
           </div>
 
           <div class="form-group">
-            <label for="slug">Slug (Optional)</label>
+            <label for="slug">Slug</label>
             <input
               type="text"
               id="slug"
               name="slug"
-              placeholder="my-workspace"
-              pattern="[a-z0-9\-]+"
-              title="Lowercase letters, numbers, and hyphens only"
+              placeholder="Auto-generated from name"
+              disabled
+              style="background: var(--panel-2); color: var(--muted);"
             />
-            <small>URL-friendly identifier (lowercase, hyphens allowed). Leave blank to auto-generate.</small>
+            <small>Auto-generated from name</small>
           </div>
 
           <div class="form-group">
