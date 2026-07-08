@@ -140,9 +140,7 @@ class AdminGroupManagementRoutes(BaseAdminController):
         from marvin.db.models.groups import Groups
         from sqlalchemy import select
 
-        group_model = self.repos.session.execute(
-            select(Groups).where(Groups.id == group.id)
-        ).scalar_one()
+        group_model = self.repos.session.execute(select(Groups).where(Groups.id == group.id)).scalar_one()
 
         # Bootstrap with default content and memberships
         WorkspaceBootstrapService.bootstrap(
@@ -246,8 +244,8 @@ class AdminGroupManagementRoutes(BaseAdminController):
         self.session.refresh(group_model_instance)  # Refresh to capture potential relationship updates
         return self.repo.schema.model_validate(group_model_instance)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a Group")
-    def delete_one(self, item_id: UUID4, force: bool = False) -> None:
+    @router.delete("/{item_id}", summary="Delete a Group")
+    def delete_one(self, item_id: UUID4, force: bool = False) -> dict:
         """
         Deletes a workspace by its unique ID.
 
@@ -290,24 +288,18 @@ class AdminGroupManagementRoutes(BaseAdminController):
             if member_count > 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=ErrorResponse.respond(
-                        message=f"Workspace has {member_count} members. Use force=true to delete anyway."
-                    ),
+                    detail=ErrorResponse.respond(message=f"Workspace has {member_count} members. Use force=true to delete anyway."),
                 )
 
             # Check for entries
             from marvin.db.models.entries import Entries
             from sqlalchemy import select, func
 
-            entry_count = self.repos.session.execute(
-                select(func.count(Entries.id)).where(Entries.group_id == item_id)
-            ).scalar()
+            entry_count = self.repos.session.execute(select(func.count(Entries.id)).where(Entries.group_id == item_id)).scalar()
             if entry_count and entry_count > 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=ErrorResponse.respond(
-                        message=f"Workspace has {entry_count} entries. Use force=true to delete anyway."
-                    ),
+                    detail=ErrorResponse.respond(message=f"Workspace has {entry_count} entries. Use force=true to delete anyway."),
                 )
 
         # Dispatch workspace.deleted event before deletion
@@ -322,4 +314,4 @@ class AdminGroupManagementRoutes(BaseAdminController):
         # Proceed with deletion
         self.mixins.delete_one(item_id)
         self.repos.session.commit()
-        return None
+        return {"status": "ok", "message": "Workspace deleted successfully"}

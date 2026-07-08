@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
+from .._model_utils.datetime import NaiveDateTime
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     content_markdown: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     status: Mapped[str] = mapped_column(sa.String, nullable=False, default="inbox", server_default="inbox")
-    published_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column("metadata_json", sa.JSON, nullable=True)
     created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 

@@ -72,33 +72,20 @@ class WorkspaceMembersController(BaseAdminController):
         # Verify user exists
         user = self.repos.users.get_one(data.user_id)
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with ID {data.user_id} not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with ID {data.user_id} not found.")
 
         # Verify workspace exists
         workspace = self.repos.groups.get_one(workspace_id)
         if not workspace:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Workspace with ID {workspace_id} not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Workspace with ID {workspace_id} not found.")
 
         # Check if user is already a member
         existing = self.repos.workspace_members.get_membership(data.user_id, workspace_id)
         if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"User {user.username} is already a member of this workspace."
-            )
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"User {user.username} is already a member of this workspace.")
 
         # Add the member
-        result = self.repos.workspace_members.add_member(
-            user_id=data.user_id,
-            workspace_id=workspace_id,
-            role=data.workspace_role
-        )
+        result = self.repos.workspace_members.add_member(user_id=data.user_id, workspace_id=workspace_id, role=data.workspace_role)
         self.session.commit()
         return result
 
@@ -127,10 +114,7 @@ class WorkspaceMembersController(BaseAdminController):
         """
         membership = self.repos.workspace_members.get_membership(user_id, workspace_id)
         if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_id} is not a member of workspace {workspace_id}."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} is not a member of workspace {workspace_id}.")
 
         return membership
 
@@ -168,16 +152,12 @@ class WorkspaceMembersController(BaseAdminController):
         # Verify membership exists
         membership = self.repos.workspace_members.get_membership(user_id, workspace_id)
         if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_id} is not a member of workspace {workspace_id}."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} is not a member of workspace {workspace_id}.")
 
         # Prevent changing your own role (self-lockout protection)
         if user_id == current_user.id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You cannot change your own role. Ask another admin to update your permissions."
+                status_code=status.HTTP_403_FORBIDDEN, detail="You cannot change your own role. Ask another admin to update your permissions."
             )
 
         # If demoting an OWNER, check that there's at least one other OWNER
@@ -185,34 +165,26 @@ class WorkspaceMembersController(BaseAdminController):
             owner_count = self.repos.workspace_members.count_workspace_owners(workspace_id)
             if owner_count <= 1:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Cannot demote the last OWNER. Promote another member to OWNER first."
+                    status_code=status.HTTP_403_FORBIDDEN, detail="Cannot demote the last OWNER. Promote another member to OWNER first."
                 )
 
         # Update the role
-        updated = self.repos.workspace_members.update_role(
-            user_id=user_id,
-            workspace_id=workspace_id,
-            new_role=data.workspace_role
-        )
+        updated = self.repos.workspace_members.update_role(user_id=user_id, workspace_id=workspace_id, new_role=data.workspace_role)
 
         if not updated:
             # This shouldn't happen since we checked above, but handle defensively
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Membership not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found.")
 
         self.session.commit()
         return updated
 
-    @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+    @router.delete("/{user_id}")
     def remove_workspace_member(
         self,
         workspace_id: UUID4,
         user_id: UUID4,
         current_user: PrivateUser = Depends(require_workspace_admin()),
-    ) -> None:
+    ) -> dict:
         """
         Remove a user from a workspace.
 
@@ -235,16 +207,13 @@ class WorkspaceMembersController(BaseAdminController):
         # Verify membership exists
         membership = self.repos.workspace_members.get_membership(user_id, workspace_id)
         if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_id} is not a member of workspace {workspace_id}."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User {user_id} is not a member of workspace {workspace_id}.")
 
         # Prevent removing yourself (self-lockout protection)
         if user_id == current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You cannot remove yourself from the workspace. Use the 'leave workspace' endpoint instead."
+                detail="You cannot remove yourself from the workspace. Use the 'leave workspace' endpoint instead.",
             )
 
         # If removing an OWNER, check that there's at least one other OWNER
@@ -252,8 +221,7 @@ class WorkspaceMembersController(BaseAdminController):
             owner_count = self.repos.workspace_members.count_workspace_owners(workspace_id)
             if owner_count <= 1:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Cannot remove the last OWNER. Promote another member to OWNER first."
+                    status_code=status.HTTP_403_FORBIDDEN, detail="Cannot remove the last OWNER. Promote another member to OWNER first."
                 )
 
         # Remove the member
@@ -261,9 +229,7 @@ class WorkspaceMembersController(BaseAdminController):
 
         if not removed:
             # This shouldn't happen since we checked above, but handle defensively
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Membership not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found.")
 
         self.session.commit()
+        return {"status": "ok", "message": "Workspace member removed successfully"}

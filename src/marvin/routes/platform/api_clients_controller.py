@@ -21,12 +21,7 @@ class APIClientsController(BaseUserController):
         """List all API clients for the current workspace."""
         return self.repos.api_clients.get_all(order_by="name")
 
-    @router.post(
-        "",
-        response_model=APIClientWithToken,
-        status_code=status.HTTP_201_CREATED,
-        summary="Create API Client"
-    )
+    @router.post("", response_model=APIClientWithToken, status_code=status.HTTP_201_CREATED, summary="Create API Client")
     def create_api_client(self, data: APIClientCreate) -> APIClientWithToken:
         """
         Create a new API client.
@@ -45,21 +40,16 @@ class APIClientsController(BaseUserController):
             ...,
             description="API client UUID or slug",
             openapi_examples={
-                "uuid": {
-                    "summary": "UUID",
-                    "value": "123e4567-e89b-12d3-a456-426614174000"
-                },
-                "slug": {
-                    "summary": "Slug",
-                    "value": "my-site-client"
-                }
-            }
-        )
+                "uuid": {"summary": "UUID", "value": "123e4567-e89b-12d3-a456-426614174000"},
+                "slug": {"summary": "Slug", "value": "my-site-client"},
+            },
+        ),
     ) -> APIClientRead:
         """Get a specific API client by ID or slug."""
         # Try UUID first, then slug
         try:
             from uuid import UUID
+
             UUID(item_id)
             api_client = self.repos.api_clients.get_one(item_id)
         except (ValueError, AttributeError):
@@ -67,10 +57,7 @@ class APIClientsController(BaseUserController):
             api_client = self.repos.api_clients.get_by_slug(item_id)
 
         if not api_client:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API client not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
         return api_client
 
     @router.patch("/{item_id}", response_model=APIClientRead, summary="Update API Client")
@@ -80,89 +67,64 @@ class APIClientsController(BaseUserController):
             ...,
             description="API client UUID or slug",
             openapi_examples={
-                "uuid": {
-                    "summary": "UUID",
-                    "value": "123e4567-e89b-12d3-a456-426614174000"
-                },
-                "slug": {
-                    "summary": "Slug",
-                    "value": "my-site-client"
-                }
-            }
+                "uuid": {"summary": "UUID", "value": "123e4567-e89b-12d3-a456-426614174000"},
+                "slug": {"summary": "Slug", "value": "my-site-client"},
+            },
         ),
-        data: APIClientUpdate = ...
+        data: APIClientUpdate = ...,
     ) -> APIClientRead:
         """Update an API client by ID or slug."""
         # Try UUID first, then slug
         try:
             from uuid import UUID
+
             UUID(item_id)
             api_client = self.repos.api_clients.get_one(item_id)
         except (ValueError, AttributeError):
             api_client = self.repos.api_clients.get_by_slug(item_id)
 
         if not api_client:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API client not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
         return self.repos.api_clients.update(api_client.id, data)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete API Client")
+    @router.delete("/{item_id}", summary="Delete API Client")
     def delete_api_client(
         self,
         item_id: str = Path(
             ...,
             description="API client UUID or slug",
             openapi_examples={
-                "uuid": {
-                    "summary": "UUID",
-                    "value": "123e4567-e89b-12d3-a456-426614174000"
-                },
-                "slug": {
-                    "summary": "Slug",
-                    "value": "my-site-client"
-                }
-            }
-        )
-    ) -> None:
+                "uuid": {"summary": "UUID", "value": "123e4567-e89b-12d3-a456-426614174000"},
+                "slug": {"summary": "Slug", "value": "my-site-client"},
+            },
+        ),
+    ) -> dict:
         """Delete an API client by ID or slug."""
         # Try UUID first, then slug
         try:
             from uuid import UUID
+
             UUID(item_id)
             api_client = self.repos.api_clients.get_one(item_id)
         except (ValueError, AttributeError):
             api_client = self.repos.api_clients.get_by_slug(item_id)
 
         if not api_client:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API client not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
         self.repos.api_clients.delete(api_client.id)
+        return {"status": "ok", "message": "API client deleted successfully"}
 
-    @router.post(
-        "/{item_id}/rotate-token",
-        response_model=APIClientWithToken,
-        summary="Rotate API Client Token"
-    )
+    @router.post("/{item_id}/rotate-token", response_model=APIClientWithToken, summary="Rotate API Client Token")
     def rotate_api_client_token(
         self,
         item_id: str = Path(
             ...,
             description="API client UUID or slug",
             openapi_examples={
-                "uuid": {
-                    "summary": "UUID",
-                    "value": "123e4567-e89b-12d3-a456-426614174000"
-                },
-                "slug": {
-                    "summary": "Slug",
-                    "value": "my-site-client"
-                }
-            }
-        )
+                "uuid": {"summary": "UUID", "value": "123e4567-e89b-12d3-a456-426614174000"},
+                "slug": {"summary": "Slug", "value": "my-site-client"},
+            },
+        ),
     ) -> APIClientWithToken:
         """
         Rotate/regenerate the token for an API client by ID or slug.
@@ -173,41 +135,29 @@ class APIClientsController(BaseUserController):
         # Try UUID first, then slug
         try:
             from uuid import UUID
+
             UUID(item_id)
             api_client = self.repos.api_clients.get_one(item_id)
         except (ValueError, AttributeError):
             api_client = self.repos.api_clients.get_by_slug(item_id)
 
         if not api_client:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API client not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
 
         return self.repos.api_clients.rotate_token(api_client.id)
 
-    @router.get(
-        "/{item_id}/preview",
-        response_model=WorkspaceSiteInfo,
-        summary="Preview Publishing API Payload"
-    )
+    @router.get("/{item_id}/preview", response_model=WorkspaceSiteInfo, summary="Preview Publishing API Payload")
     def preview_publish_payload(
         self,
         item_id: str = Path(
             ...,
             description="API client UUID or slug",
             openapi_examples={
-                "uuid": {
-                    "summary": "UUID",
-                    "value": "123e4567-e89b-12d3-a456-426614174000"
-                },
-                "slug": {
-                    "summary": "Slug",
-                    "value": "my-site-client"
-                }
-            }
+                "uuid": {"summary": "UUID", "value": "123e4567-e89b-12d3-a456-426614174000"},
+                "slug": {"summary": "Slug", "value": "my-site-client"},
+            },
         ),
-        session: Session = Depends(generate_session)
+        session: Session = Depends(generate_session),
     ) -> WorkspaceSiteInfo:
         """
         Preview what external consumer would receive from publishing API.
@@ -231,33 +181,24 @@ class APIClientsController(BaseUserController):
         # Try UUID first, then slug
         try:
             from uuid import UUID
+
             UUID(item_id)
             api_client = self.repos.api_clients.get_one(item_id)
         except (ValueError, AttributeError):
             api_client = self.repos.api_clients.get_by_slug(item_id)
 
         if not api_client:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API client not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
 
         # Get the workspace for this API client
         from marvin.db.models.groups import Groups, GroupPreferencesModel
 
         group = session.query(Groups).filter(Groups.id == api_client.group_id).first()
         if not group:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Workspace not found for this API client."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found for this API client.")
 
         # Get group preferences (includes site configuration)
-        prefs = (
-            session.query(GroupPreferencesModel)
-            .filter(GroupPreferencesModel.group_id == group.id)
-            .first()
-        )
+        prefs = session.query(GroupPreferencesModel).filter(GroupPreferencesModel.group_id == group.id).first()
 
         # Build site configuration from preferences (with sensible defaults)
         site_config = SiteConfiguration(

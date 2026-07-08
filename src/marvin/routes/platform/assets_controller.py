@@ -133,8 +133,8 @@ class AssetsController(BaseUserController):
 
         return updated_asset
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Asset")
-    def delete_asset(self, item_id: UUID4) -> None:
+    @router.delete("/{item_id}", summary="Delete Asset")
+    def delete_asset(self, item_id: UUID4) -> dict:
         """Delete asset from storage and database."""
         asset = self.repos.assets.get_one(item_id)
         if not asset:
@@ -154,3 +154,5 @@ class AssetsController(BaseUserController):
             document_data=EventAssetData.from_schema(AssetRead.model_validate(asset)),
             message=f"Asset {asset.name} deleted",
         )
+
+        return {"status": "ok", "message": "Asset deleted successfully"}

@@ -34,8 +34,9 @@ class EntryTypesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry type not found.")
         return self.repos.entry_types.update(item_id, data)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Entry Type")
-    def delete_entry_type(self, item_id: UUID4) -> None:
+    @router.delete("/{item_id}", summary="Delete Entry Type")
+    def delete_entry_type(self, item_id: UUID4) -> dict:
         if not self.repos.entry_types.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry type not found.")
         self.repos.entry_types.delete(item_id)
+        return {"status": "ok", "message": "Entry type deleted successfully"}

@@ -67,16 +67,27 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
         # Handle published_at based on status changes
         if "status" in data_dict:
+            print(f"\n{'='*80}")
+            print(f"DEBUG: Status change detected: {data_dict['status']}")
             if data_dict["status"] == "published":
                 # Only set published_at if not already provided (first publish)
                 if "published_at" not in data_dict:
                     # Get current entry to check if it was already published
                     current_entry = self.get_one(match_value, key=match_key)
+                    print(f"Current entry published_at: {current_entry.published_at if current_entry else 'None'}")
                     if current_entry and not current_entry.published_at:
-                        data_dict["published_at"] = datetime.now(timezone.utc)
+                        new_timestamp = datetime.now(timezone.utc)
+                        data_dict["published_at"] = new_timestamp
+                        print(f"Setting published_at to: {new_timestamp}")
+                    else:
+                        print(f"Not setting published_at (already has value or entry not found)")
+                else:
+                    print(f"published_at already in data_dict: {data_dict['published_at']}")
             else:
                 # If unpublishing (changing to draft/etc), clear published_at
                 data_dict["published_at"] = None
+                print(f"Clearing published_at (status changed to {data_dict['status']})")
+            print(f"{'='*80}\n")
 
         entry_type_id = data_dict.get("entry_type_id")
         if entry_type_id and not self._entry_type_exists(entry_type_id):

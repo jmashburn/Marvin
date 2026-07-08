@@ -38,8 +38,9 @@ class ResourcesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found.")
         return self.repos.resources.update(item_id, data)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Resource")
-    def delete_resource(self, item_id: UUID4) -> None:
+    @router.delete("/{item_id}", summary="Delete Resource")
+    def delete_resource(self, item_id: UUID4) -> dict:
         if not self.repos.resources.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found.")
         self.repos.resources.delete(item_id)
+        return {"status": "ok", "message": "Resource deleted successfully"}

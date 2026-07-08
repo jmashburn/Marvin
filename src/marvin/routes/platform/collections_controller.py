@@ -34,8 +34,9 @@ class CollectionsController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
         return self.repos.collections.update(item_id, data)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Collection")
-    def delete_collection(self, item_id: UUID4) -> None:
+    @router.delete("/{item_id}", summary="Delete Collection")
+    def delete_collection(self, item_id: UUID4) -> dict:
         if not self.repos.collections.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
         self.repos.collections.delete(item_id)
+        return {"status": "ok", "message": "Collection deleted successfully"}

@@ -40,11 +40,12 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
         return self.repos.entries.update(item_id, data)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Entry")
-    def delete_entry(self, item_id: UUID4) -> None:
+    @router.delete("/{item_id}", summary="Delete Entry")
+    def delete_entry(self, item_id: UUID4) -> dict:
         if not self.repos.entries.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
         self.repos.entries.delete(item_id)
+        return {"status": "ok", "message": "Entry deleted successfully"}
 
     @router.get("/{entry_id}/collections", response_model=list[CollectionRead], summary="List Entry Collections")
     def list_entry_collections(self, entry_id: UUID4) -> list[CollectionRead]:
@@ -100,8 +101,8 @@ class EntriesController(BaseUserController):
 
         return {"message": "Entry added to collection successfully"}
 
-    @router.delete("/{entry_id}/collections/{collection_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Remove Entry from Collection")
-    def remove_entry_from_collection(self, entry_id: UUID4, collection_id: UUID4) -> None:
+    @router.delete("/{entry_id}/collections/{collection_id}", summary="Remove Entry from Collection")
+    def remove_entry_from_collection(self, entry_id: UUID4, collection_id: UUID4) -> dict:
         """Remove an entry from a collection."""
         # Delete junction record
         deleted = (
@@ -114,3 +115,4 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry is not in this collection.")
 
         self.session.commit()
+        return {"status": "ok", "message": "Entry removed from collection successfully"}
