@@ -143,10 +143,10 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
             </div>
 
             <div class="form-actions">
-              <button type="submit" name="status" value="draft" class="button secondary">
-                Save Draft
+              <button type="submit" id="save-button" class="button">
+                Save
               </button>
-              <button type="submit" name="status" value="published" class="button">
+              <button type="button" id="publish-button" class="button secondary">
                 Publish
               </button>
             </div>
@@ -896,6 +896,17 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
   const titleInput = document.getElementById('title') as HTMLInputElement;
   const slugInput = document.getElementById('slug') as HTMLInputElement;
   const statusSelect = document.getElementById('status') as HTMLSelectElement;
+  const saveButton = document.getElementById('save-button') as HTMLButtonElement;
+  const publishButton = document.getElementById('publish-button') as HTMLButtonElement;
+
+  // Status labels for button text
+  const statusLabels: Record<string, string> = {
+    inbox: 'Inbox',
+    draft: 'Draft',
+    needs_review: 'Needs Review',
+    approved: 'Approved',
+    published: 'Published',
+  };
 
   function updateSlugField() {
     const isPublished = statusSelect?.value === 'published';
@@ -903,6 +914,14 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       slugInput.disabled = isPublished;
       slugInput.style.background = isPublished ? 'var(--panel-2)' : '';
       slugInput.style.color = isPublished ? 'var(--muted)' : '';
+    }
+  }
+
+  function updateSaveButton() {
+    if (saveButton && statusSelect) {
+      const status = statusSelect.value;
+      const label = statusLabels[status] || 'Save';
+      saveButton.textContent = `Save as ${label}`;
     }
   }
 
@@ -925,9 +944,24 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       slugInput.dataset.manuallyEdited = 'true';
     });
 
-    // Update slug field enabled/disabled state when status changes
-    statusSelect.addEventListener('change', updateSlugField);
+    // Update slug field and save button when status changes
+    statusSelect.addEventListener('change', () => {
+      updateSlugField();
+      updateSaveButton();
+    });
+
     updateSlugField();
+    updateSaveButton();
+  }
+
+  // Publish button - resets status to published and submits
+  if (publishButton && statusSelect) {
+    publishButton.addEventListener('click', () => {
+      statusSelect.value = 'published';
+      updateSlugField();
+      updateSaveButton();
+      form.requestSubmit(saveButton);
+    });
   }
 
   // Handle delete button
@@ -959,7 +993,7 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       e.preventDefault();
 
       const formData = new FormData(form);
-      const status = (e.submitter as HTMLButtonElement)?.value || 'draft';
+      const status = formData.get('status') as string || 'draft';
 
       // Get all form fields
       const entryTypeId = formData.get('entry_type_id') as string;
@@ -989,7 +1023,8 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       const submitButton = e.submitter as HTMLButtonElement;
       submitButton.disabled = true;
       const originalText = submitButton.textContent;
-      submitButton.textContent = status === 'published' ? 'Publishing...' : 'Saving...';
+      const statusLabel = statusLabels[status] || 'Saving';
+      submitButton.textContent = status === 'published' ? 'Publishing...' : `Saving as ${statusLabel}...`;
 
       try {
         const entryId = window.location.pathname.split('/').pop()!;
