@@ -128,8 +128,6 @@ if (existingAuth) {
 </html>
 
 <script>
-  import { fetchApi } from '@/lib/api/client';
-
   const form = document.getElementById('register-form') as HTMLFormElement;
   const errorMessage = document.getElementById('error-message') as HTMLElement;
 
@@ -168,11 +166,21 @@ if (existingAuth) {
     errorMessage.style.display = 'none';
 
     try {
-      // Register via backend proxy
-      const user = await fetchApi('/api/users/register', {
+      // Register via frontend proxy (same-origin, no CORS)
+      const response = await fetch('/api/users/register', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(data),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Registration failed');
+      }
+
+      const user = await response.json();
 
       // Registration successful - now log in via form POST (sets cookies correctly)
       const loginForm = document.createElement('form');
