@@ -969,7 +969,8 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
 
         await sdk.entries.update(entryId, updateData);
 
-        window.location.href = '/workspace/entries';
+        alert('Update successful! Check console for logs.');
+        // window.location.href = '/workspace/entries';
       } catch (error: any) {
         const message = error?.message || error?.detail || 'Failed to update entry';
         alert(message);
