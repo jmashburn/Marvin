@@ -99,6 +99,8 @@ class InviteTokenRead(_MarvinModel):
     """The unique token string."""
     uses_left: int
     """The remaining number of times this token can be used."""
+    workspace_role: WorkspaceRole
+    """The role that invited users will receive."""
     group_id: UUID4
     """The unique identifier of the group this token belongs to."""
 
