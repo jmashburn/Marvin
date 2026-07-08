@@ -51,9 +51,9 @@ def test_event_dispatching():
     print(f"✅ Using workspace: {workspace.name} (ID: {workspace.id})")
     print()
 
-    # Create event bus service
-    bg_tasks = BackgroundTasks()
-    event_bus = EventBusService(session=session, bg_tasks=bg_tasks)
+    # Create event bus service WITHOUT background tasks
+    # This ensures events are published synchronously so we can see the console output
+    event_bus = EventBusService(session=session, bg_tasks=None)
 
     # Test 1: Dispatch API Client Created Event
     print("Test 1: Dispatching api_client_created event...")
