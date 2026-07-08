@@ -47,7 +47,8 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
         Raises:
             HTTPException(404): If the user is not found (from `_query_one`).
         """
-        entry = self._query_one(match_value=user_id)  # Fetches the SQLAlchemy User model instance
+        # Query user directly without group_id filtering (users exist across groups)
+        entry = self.session.query(self.model).filter_by(id=user_id).first()
         if not entry:
             from fastapi import HTTPException, status as http_status
             from marvin.schemas.response import ErrorResponse
