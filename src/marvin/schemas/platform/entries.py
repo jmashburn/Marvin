@@ -34,6 +34,9 @@ class EntryCreate(_MarvinModel):
     status: str = "inbox"
     published_at: datetime | None = None
     metadata_json: dict | None = None
+    collection_ids: list[UUID4] | None = None
+    asset_ids: list[UUID4] | None = None
+    resource_ids: list[UUID4] | None = None
 
     @field_validator("status")
     @classmethod
@@ -57,6 +60,9 @@ class EntryUpdate(_MarvinModel):
     status: str | None = None
     published_at: datetime | None = None
     metadata_json: dict | None = None
+    collection_ids: list[UUID4] | None = None
+    asset_ids: list[UUID4] | None = None
+    resource_ids: list[UUID4] | None = None
 
     @field_validator("status")
     @classmethod

@@ -7,7 +7,7 @@ from pydantic import UUID4
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from marvin.db.models.platform import Entries, EntryTypes
+from marvin.db.models.platform import Entries, EntryTypes, EntryCollections, EntryAssets, EntryResources
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryRead
 
@@ -53,7 +53,29 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
         if not self._entry_type_exists(data_dict["entry_type_id"]):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry type does not exist in this group.")
-        return super().create(data_dict)
+
+        # Extract relationship IDs before creating entry
+        collection_ids = data_dict.pop("collection_ids", None)
+        asset_ids = data_dict.pop("asset_ids", None)
+        resource_ids = data_dict.pop("resource_ids", None)
+
+        # Create the entry
+        entry = super().create(data_dict)
+
+        # Attach relationships if provided
+        if collection_ids:
+            self._attach_collections(entry.id, collection_ids)
+        if asset_ids:
+            self._attach_assets(entry.id, asset_ids)
+        if resource_ids:
+            self._attach_resources(entry.id, resource_ids)
+
+        # Refresh to get relationships
+        if collection_ids or asset_ids or resource_ids:
+            self.session.refresh(self.session.get(Entries, entry.id))
+            entry = self.get_one(entry.id)
+
+        return entry
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryRead:
         from datetime import datetime, timezone
@@ -93,4 +115,71 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         if entry_type_id and not self._entry_type_exists(entry_type_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry type does not exist in this group.")
         data_dict.pop("group_id", None)
-        return super().update(match_value, data_dict, match_key=match_key)
+
+        # Extract relationship IDs before updating entry
+        collection_ids = data_dict.pop("collection_ids", None)
+        asset_ids = data_dict.pop("asset_ids", None)
+        resource_ids = data_dict.pop("resource_ids", None)
+
+        # Update the entry
+        entry = super().update(match_value, data_dict, match_key=match_key)
+
+        # Update relationships if provided (replace existing)
+        if collection_ids is not None:
+            self._replace_collections(entry.id, collection_ids)
+        if asset_ids is not None:
+            self._replace_assets(entry.id, asset_ids)
+        if resource_ids is not None:
+            self._replace_resources(entry.id, resource_ids)
+
+        # Refresh to get updated relationships
+        if collection_ids is not None or asset_ids is not None or resource_ids is not None:
+            self.session.refresh(self.session.get(Entries, entry.id))
+            entry = self.get_one(entry.id)
+
+        return entry
+
+    def _attach_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:
+        """Attach collections to an entry."""
+        for position, collection_id in enumerate(collection_ids):
+            junction = EntryCollections(entry_id=entry_id, collection_id=collection_id, position=position)
+            self.session.add(junction)
+        self.session.flush()
+
+    def _attach_assets(self, entry_id: UUID4, asset_ids: list[UUID4]) -> None:
+        """Attach assets to an entry."""
+        for position, asset_id in enumerate(asset_ids):
+            junction = EntryAssets(entry_id=entry_id, asset_id=asset_id, position=position)
+            self.session.add(junction)
+        self.session.flush()
+
+    def _attach_resources(self, entry_id: UUID4, resource_ids: list[UUID4]) -> None:
+        """Attach resources to an entry."""
+        for position, resource_id in enumerate(resource_ids):
+            junction = EntryResources(entry_id=entry_id, resource_id=resource_id, position=position)
+            self.session.add(junction)
+        self.session.flush()
+
+    def _replace_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:
+        """Replace all collections for an entry."""
+        # Delete existing
+        self.session.query(EntryCollections).filter(EntryCollections.entry_id == entry_id).delete()
+        # Add new
+        if collection_ids:
+            self._attach_collections(entry_id, collection_ids)
+
+    def _replace_assets(self, entry_id: UUID4, asset_ids: list[UUID4]) -> None:
+        """Replace all assets for an entry."""
+        # Delete existing
+        self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id).delete()
+        # Add new
+        if asset_ids:
+            self._attach_assets(entry_id, asset_ids)
+
+    def _replace_resources(self, entry_id: UUID4, resource_ids: list[UUID4]) -> None:
+        """Replace all resources for an entry."""
+        # Delete existing
+        self.session.query(EntryResources).filter(EntryResources.entry_id == entry_id).delete()
+        # Add new
+        if resource_ids:
+            self._attach_resources(entry_id, resource_ids)
