@@ -964,16 +964,16 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
 
         // Build update payload - always send arrays to properly update relationships
         const updateData: any = {
-          entryTypeId,
+          entry_type_id: entryTypeId,
           title,
           summary: summary?.trim() || null,
           description: description?.trim() || null,
-          contentMarkdown: contentMarkdown?.trim() || null,
-          metadataJson: metadataJson,
+          content_markdown: contentMarkdown?.trim() || null,
+          metadata_json: metadataJson,
           status,
-          collectionIds: collectionIds,  // Use camelCase for SDK
-          assetIds: assetIds,            // Use camelCase for SDK
-          resourceIds: resourceIds,      // Use camelCase for SDK
+          collection_ids: collectionIds,  // Use snake_case like CLI
+          asset_ids: assetIds,            // Use snake_case like CLI
+          resource_ids: resourceIds,      // Use snake_case like CLI
         };
 
         console.log('Update payload:', updateData);
@@ -981,7 +981,7 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
         console.log('Asset IDs type:', typeof assetIds, Array.isArray(assetIds), assetIds);
         console.log('Resource IDs type:', typeof resourceIds, Array.isArray(resourceIds), resourceIds);
 
-        console.log('Sending with camelCase field names:', updateData);
+        console.log('Sending with snake_case field names (like CLI):', updateData);
 
         // Bypass SDK - use direct fetch to ensure proper JSON serialization
         const response = await fetch(`http://localhost:8080/api/platform/entries/${entryId}`, {
