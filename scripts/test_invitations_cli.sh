@@ -30,6 +30,7 @@ ADMIN_PASS="${ADMIN_PASS:-MyPassword}"
 ROLES=("VIEWER" "AUTHOR" "EDITOR" "ADMIN" "OWNER")
 TOKENS=()
 USER_IDS=()
+TIMESTAMP=$(date +%s)
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}  Marvin CLI Invitation Test Suite${NC}"
@@ -140,7 +141,7 @@ echo ""
 echo -e "${YELLOW}[4/6] Registering test users (via API - CLI doesn't support registration yet)...${NC}"
 idx=0
 for role in "${ROLES[@]}"; do
-  username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test
+  username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test_${TIMESTAMP}
   token="${TOKENS[$idx]}"
 
   echo -n "  Registering $username with $role role... "
@@ -148,7 +149,7 @@ for role in "${ROLES[@]}"; do
   response=$(curl -s -X POST "$MARVIN_URL/api/users/register" \
     -H "Content-Type: application/json" \
     -d "{
-      \"full_name\": \"CLI Test $role User\",
+      \"full_name\": \"CLI Test $role User ${TIMESTAMP}\",
       \"email\": \"${username}@test.com\",
       \"username\": \"${username}\",
       \"password\": \"TestPass123!\",
@@ -190,7 +191,7 @@ all_correct=true
 idx=0
 for role in "${ROLES[@]}"; do
   user_id="${USER_IDS[$idx]}"
-  username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test
+  username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test_${TIMESTAMP}
 
   # Get user's workspace membership
   membership=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -251,7 +252,7 @@ if [ "$all_found" = true ] && [ "$all_correct" = true ] && [ "$tokens_consumed" 
   echo ""
   echo "Test users created:"
   for role in "${ROLES[@]}"; do
-    username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test
+    username=$(echo "$role" | tr '[:upper:]' '[:lower:]')_cli_test_${TIMESTAMP}
     echo "  - $username (role: $role, password: TestPass123!)"
   done
 else
