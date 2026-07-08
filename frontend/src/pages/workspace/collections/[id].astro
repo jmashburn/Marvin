@@ -160,6 +160,20 @@ if (!authToken) {
               class="metadata-editor"
             >{collection.metadataJson ? JSON.stringify(collection.metadataJson, null, 2) : ''}</textarea>
             <p class="form-help">Custom metadata as JSON. Example: &#123;"featured": true, "priority": 1&#125;</p>
+
+            {collection.metadataJson && Object.keys(collection.metadataJson).length > 0 && (
+              <div class="metadata-preview">
+                <p class="metadata-preview-title">Current Metadata:</p>
+                <dl class="metadata-preview-list">
+                  {Object.entries(collection.metadataJson).map(([key, value]) => (
+                    <div class="metadata-preview-item">
+                      <dt>{key}</dt>
+                      <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
           </div>
 
           <div class="form-actions">
@@ -209,19 +223,6 @@ if (!authToken) {
           )}
         </div>
       </section>
-
-      <aside class="sidebar">
-        <div class="sidebar-section">
-          <h3>Metadata Preview</h3>
-          <div id="metadata-preview" class="metadata-preview">
-            {collection.metadataJson ? (
-              <pre>{JSON.stringify(collection.metadataJson, null, 2)}</pre>
-            ) : (
-              <p class="empty-message">No metadata</p>
-            )}
-          </div>
-        </div>
-      </aside>
     </>
   ) : null}
 </AppLayout>
@@ -356,21 +357,61 @@ if (!authToken) {
 
   // Metadata preview update
   const metadataEditor = document.getElementById('metadata') as HTMLTextAreaElement;
-  const metadataPreview = document.getElementById('metadata-preview');
+  const metadataPreviewContainer = metadataEditor?.closest('.form-group')?.querySelector('.metadata-preview');
 
-  if (metadataEditor && metadataPreview) {
+  if (metadataEditor) {
     metadataEditor.addEventListener('input', () => {
       const value = metadataEditor.value.trim();
+
       if (!value) {
-        metadataPreview.innerHTML = '<p class="empty-message">No metadata</p>';
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
         return;
       }
 
       try {
         const parsed = JSON.parse(value);
-        metadataPreview.innerHTML = `<pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+        const entries = Object.entries(parsed);
+
+        if (entries.length === 0) {
+          if (metadataPreviewContainer) {
+            metadataPreviewContainer.remove();
+          }
+          return;
+        }
+
+        let previewHTML = `
+          <div class="metadata-preview">
+            <p class="metadata-preview-title">Current Metadata:</p>
+            <dl class="metadata-preview-list">
+        `;
+
+        entries.forEach(([key, value]) => {
+          const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+          previewHTML += `
+            <div class="metadata-preview-item">
+              <dt>${key}</dt>
+              <dd>${displayValue}</dd>
+            </div>
+          `;
+        });
+
+        previewHTML += `</dl></div>`;
+
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.outerHTML = previewHTML;
+        } else {
+          const helpText = metadataEditor.closest('.form-group')?.querySelector('.form-help');
+          if (helpText) {
+            helpText.insertAdjacentHTML('afterend', previewHTML);
+          }
+        }
       } catch (error) {
-        metadataPreview.innerHTML = '<p style="color: var(--warn);">Invalid JSON</p>';
+        // Invalid JSON - remove preview
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
       }
     });
   }
@@ -583,5 +624,50 @@ if (!authToken) {
     min-height: 32px;
     padding: 6px 10px;
     font-size: 0.875rem;
+  }
+
+  .metadata-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-preview-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metadata-preview-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .metadata-preview-item {
+    padding: 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .metadata-preview-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-preview-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
   }
 </style>
