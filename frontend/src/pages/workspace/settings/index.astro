@@ -1,7 +1,8 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
-import { getCurrentWorkspace, listWorkspaces } from "@/lib/api/workspaces";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
 import { listEntries } from "@/lib/api/entries";
 import { getAssets } from "@/lib/api/platform";
 import { getSiteClients } from "@/lib/api/platform";
@@ -30,20 +31,17 @@ try {
 
 // Fetch workspace-scoped statistics for the statistics tab
 let stats: any = null;
-if (currentTab === 'statistics') {
+if (currentTab === 'statistics' && workspace?.id) {
   try {
-    const [workspaceList, entries, assets, apiClients] = await Promise.all([
-      listWorkspaces(authToken),
+    const [members, entries, assets, apiClients] = await Promise.all([
+      listWorkspaceMembers(workspace.id, authToken),
       listEntries(authToken),
       getAssets(authToken),
       getSiteClients(authToken),
     ]);
 
-    // Count only members of the current workspace
-    const currentWorkspaceMembers = workspaceList.filter(w => w.workspace.id === workspace?.id);
-
     stats = {
-      users_count: currentWorkspaceMembers.length,
+      users_count: members.length,
       groups_count: 1, // Current workspace
       entries_count: entries.length,
       assets_count: assets.length,
