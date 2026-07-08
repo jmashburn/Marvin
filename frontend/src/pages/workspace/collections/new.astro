@@ -108,6 +108,18 @@ import AppLayout from "@/layouts/AppLayout.astro";
         <p class="form-help">JSON query for filtering entries. Example: &#123;"type": "blog", "status": "published"&#125;</p>
       </div>
 
+      <div class="form-group">
+        <label for="metadata">Metadata (JSON)</label>
+        <textarea
+          id="metadata"
+          name="metadata"
+          rows="6"
+          placeholder='&#123;"featured": true, "priority": 1&#125;'
+          class="metadata-editor"
+        ></textarea>
+        <p class="form-help">Custom metadata as JSON. Example: &#123;"featured": true, "priority": 1&#125;</p>
+      </div>
+
       <div class="form-actions">
         <button type="submit" class="button">Create Collection</button>
         <a href="/workspace/collections" class="button secondary">Cancel</a>

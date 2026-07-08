@@ -150,6 +150,18 @@ if (!authToken) {
             <p class="form-help">JSON rules for filtering entries. Example: &#123;"type": "blog", "status": "published"&#125;</p>
           </div>
 
+          <div class="form-group">
+            <label for="metadata">Metadata (JSON)</label>
+            <textarea
+              id="metadata"
+              name="metadata"
+              rows="6"
+              placeholder='&#123;"featured": true, "priority": 1&#125;'
+              class="metadata-editor"
+            >{collection.metadataJson ? JSON.stringify(collection.metadataJson, null, 2) : ''}</textarea>
+            <p class="form-help">Custom metadata as JSON. Example: &#123;"featured": true, "priority": 1&#125;</p>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="button">Save Changes</button>
             <a href="/workspace/collections" class="button secondary">Cancel</a>
@@ -197,6 +209,19 @@ if (!authToken) {
           )}
         </div>
       </section>
+
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <h3>Metadata Preview</h3>
+          <div id="metadata-preview" class="metadata-preview">
+            {collection.metadataJson ? (
+              <pre>{JSON.stringify(collection.metadataJson, null, 2)}</pre>
+            ) : (
+              <p class="empty-message">No metadata</p>
+            )}
+          </div>
+        </div>
+      </aside>
     </>
   ) : null}
 </AppLayout>
@@ -231,6 +256,7 @@ if (!authToken) {
       const sortOrder = formData.get('sort_order') as string;
       const isSmart = formData.get('is_smart') === 'true';
       const smartRulesStr = formData.get('smartRules') as string;
+      const metadataStr = formData.get('metadata') as string;
 
       let smartRules = null;
       if (isSmart && smartRulesStr?.trim()) {
@@ -238,6 +264,16 @@ if (!authToken) {
           smartRules = JSON.parse(smartRulesStr);
         } catch (error) {
           alert('Invalid JSON in Smart Rules field');
+          return;
+        }
+      }
+
+      let metadataJson = null;
+      if (metadataStr?.trim()) {
+        try {
+          metadataJson = JSON.parse(metadataStr);
+        } catch (error) {
+          alert('Invalid JSON in Metadata field');
           return;
         }
       }
@@ -255,6 +291,7 @@ if (!authToken) {
           sortOrder: sortOrder ? parseInt(sortOrder) : 0,
           isSmart,
           smartRules: smartRules,
+          metadataJson: metadataJson,
         });
 
         window.location.href = '/workspace/collections';
@@ -316,6 +353,27 @@ if (!authToken) {
       }
     });
   });
+
+  // Metadata preview update
+  const metadataEditor = document.getElementById('metadata') as HTMLTextAreaElement;
+  const metadataPreview = document.getElementById('metadata-preview');
+
+  if (metadataEditor && metadataPreview) {
+    metadataEditor.addEventListener('input', () => {
+      const value = metadataEditor.value.trim();
+      if (!value) {
+        metadataPreview.innerHTML = '<p class="empty-message">No metadata</p>';
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(value);
+        metadataPreview.innerHTML = `<pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+      } catch (error) {
+        metadataPreview.innerHTML = '<p style="color: var(--warn);">Invalid JSON</p>';
+      }
+    });
+  }
 </script>
 
 <style>
