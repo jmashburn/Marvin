@@ -266,6 +266,8 @@ class RegistrationService:
                     token=group_invite_token_entry.token,
                 )
                 self.repos.group_invite_tokens.update(group_invite_token_entry.token, update_data)  # Update by ID
+                # Commit the token update
+                self.repos.group_invite_tokens.session.commit()
 
         self.logger.info(f"User '{new_user.username}' successfully registered with ID {new_user.id}.")
         return new_user
