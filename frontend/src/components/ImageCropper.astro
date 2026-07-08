@@ -76,8 +76,9 @@
     background: var(--panel);
     border-radius: var(--radius);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    max-width: 90vw;
-    max-height: 90vh;
+    width: 95vw;
+    max-width: 1400px;
+    max-height: 95vh;
     display: flex;
     flex-direction: column;
   }
@@ -86,8 +87,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5rem;
+    padding: 1.25rem 2rem;
     border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
   }
 
   .cropper-header h3 {
@@ -112,20 +114,30 @@
   }
 
   .cropper-body {
-    padding: 1.5rem;
+    padding: 2rem;
     overflow: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
   }
 
   .canvas-container {
     position: relative;
-    display: inline-block;
-    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+    padding: 2rem;
   }
 
   #cropCanvas {
     display: block;
     max-width: 100%;
-    max-height: 60vh;
+    max-height: calc(95vh - 400px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
   .crop-box {
@@ -185,8 +197,9 @@
     display: flex;
     justify-content: flex-end;
     gap: 0.75rem;
-    padding: 1.5rem;
+    padding: 1.25rem 2rem;
     border-top: 1px solid var(--line);
+    flex-shrink: 0;
   }
 </style>
 
@@ -266,8 +279,9 @@
     private drawImage() {
       if (!this.image) return;
 
-      const maxWidth = 800;
-      const maxHeight = 600;
+      // Use larger preview canvas for better editing experience
+      const maxWidth = 1200;
+      const maxHeight = 800;
       let width = this.image.width;
       let height = this.image.height;
 
