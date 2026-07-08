@@ -169,14 +169,21 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
             </div>
 
             <div class="form-group">
-              <label>Slug</label>
+              <label for="slug">Slug</label>
               <input
                 type="text"
+                id="slug"
+                name="slug"
                 value={entry.slug}
-                disabled
-                style="background: var(--panel-2); color: var(--muted);"
+                disabled={entry.status === "published"}
+                style={entry.status === "published" ? "background: var(--panel-2); color: var(--muted);" : ""}
+                form="entry-form"
               />
-              <small style="font-size: 12px; color: var(--muted);">Auto-generated from title</small>
+              <small style="font-size: 12px; color: var(--muted);">
+                {entry.status === "published"
+                  ? "Slug is locked for published entries to protect external URLs"
+                  : "Auto-generated from title, or enter custom slug"}
+              </small>
             </div>
 
             <div class="form-group">
@@ -885,6 +892,44 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
   const form = document.getElementById('entry-form') as HTMLFormElement;
   const deleteButton = document.getElementById('delete-entry-button') as HTMLButtonElement;
 
+  // Auto-generate slug from title for unpublished entries
+  const titleInput = document.getElementById('title') as HTMLInputElement;
+  const slugInput = document.getElementById('slug') as HTMLInputElement;
+  const statusSelect = document.getElementById('status') as HTMLSelectElement;
+
+  function updateSlugField() {
+    const isPublished = statusSelect?.value === 'published';
+    if (slugInput) {
+      slugInput.disabled = isPublished;
+      slugInput.style.background = isPublished ? 'var(--panel-2)' : '';
+      slugInput.style.color = isPublished ? 'var(--muted)' : '';
+    }
+  }
+
+  // Auto-generate slug as user types title (only if not published)
+  if (titleInput && slugInput && statusSelect) {
+    titleInput.addEventListener('input', () => {
+      if (statusSelect.value !== 'published' && !slugInput.dataset.manuallyEdited) {
+        const slug = titleInput.value
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/[\s_-]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        slugInput.value = slug;
+      }
+    });
+
+    // Track if user manually edits slug (stop auto-generation)
+    slugInput.addEventListener('input', () => {
+      slugInput.dataset.manuallyEdited = 'true';
+    });
+
+    // Update slug field enabled/disabled state when status changes
+    statusSelect.addEventListener('change', updateSlugField);
+    updateSlugField();
+  }
+
   // Handle delete button
   if (deleteButton) {
     deleteButton.addEventListener('click', async () => {
@@ -919,6 +964,7 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       // Get all form fields
       const entryTypeId = formData.get('entry_type_id') as string;
       const title = formData.get('title') as string;
+      const slug = formData.get('slug') as string;
       const summary = formData.get('summary') as string;
       const description = formData.get('description') as string;
       const contentMarkdown = formData.get('content_markdown') as string;
@@ -952,6 +998,7 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
         const updateData: any = {
           entry_type_id: entryTypeId,
           title,
+          slug: slug?.trim() || null,
           summary: summary?.trim() || null,
           description: description?.trim() || null,
           content_markdown: contentMarkdown?.trim() || null,
