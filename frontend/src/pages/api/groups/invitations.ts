@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { PlatformClient } from '@inneropen/marvin-sdk/platform';
 import { API_BASE_URL } from '@/lib/api/config';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
@@ -15,38 +16,31 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    const backendUrl = `${API_BASE_URL}/api/groups/invitations`;
-
-    const response = await fetch(backendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(body),
+    // Use SDK to create invitation
+    const platformClient = new PlatformClient({
+      apiUrl: API_BASE_URL,
+      userToken: authToken,
     });
 
-    const data = await response.json();
+    const invitation = await platformClient.invites.create({
+      usesLeft: body.uses_left,
+      workspace_role: body.workspace_role || 'EDITOR',
+    });
 
-    if (!response.ok) {
-      return new Response(JSON.stringify(data), {
-        status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-    }
-
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify(invitation), {
       status: 201,
       headers: {
         'Content-Type': 'application/json',
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[invitations] Error:', error);
-    return new Response(JSON.stringify({ detail: 'Failed to create invitation' }), {
-      status: 500,
+
+    const errorResponse = error.body || { detail: error.message || 'Failed to create invitation' };
+    const status = error.status || 500;
+
+    return new Response(JSON.stringify(errorResponse), {
+      status,
       headers: {
         'Content-Type': 'application/json',
       },
