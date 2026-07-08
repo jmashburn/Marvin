@@ -3,6 +3,7 @@
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
+from sqlalchemy.exc import IntegrityError
 
 from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
@@ -53,20 +54,13 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
 
         # Query collections via junction table
-        collection_ids = (
-            self.session.query(EntryCollections.collection_id)
-            .filter(EntryCollections.entry_id == entry_id)
-            .all()
-        )
+        collection_ids = self.session.query(EntryCollections.collection_id).filter(EntryCollections.entry_id == entry_id).all()
         collection_ids = [cid[0] for cid in collection_ids]
 
         if not collection_ids:
             return []
 
-        return [
-            collection for collection in self.repos.collections.get_all()
-            if collection.id in collection_ids
-        ]
+        return [collection for collection in self.repos.collections.get_all() if collection.id in collection_ids]
 
     @router.post("/{entry_id}/collections/{collection_id}", status_code=status.HTTP_201_CREATED, summary="Add Entry to Collection")
     def add_entry_to_collection(self, entry_id: UUID4, collection_id: UUID4) -> dict:
@@ -82,40 +76,25 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
 
         if collection.group_id != entry.group_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Entry and collection must belong to the same workspace."
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Entry and collection must belong to the same workspace.")
 
         # Check if already exists
         existing = (
             self.session.query(EntryCollections)
-            .filter(
-                EntryCollections.entry_id == entry_id,
-                EntryCollections.collection_id == collection_id
-            )
+            .filter(EntryCollections.entry_id == entry_id, EntryCollections.collection_id == collection_id)
             .first()
         )
 
         if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Entry is already in this collection."
-            )
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Entry is already in this collection.")
 
         # Get max position for this collection
         max_position = (
-            self.session.query(sa.func.max(EntryCollections.position))
-            .filter(EntryCollections.collection_id == collection_id)
-            .scalar()
+            self.session.query(sa.func.max(EntryCollections.position)).filter(EntryCollections.collection_id == collection_id).scalar()
         ) or -1
 
         # Create junction record
-        junction = EntryCollections(
-            entry_id=entry_id,
-            collection_id=collection_id,
-            position=max_position + 1
-        )
+        junction = EntryCollections(entry_id=entry_id, collection_id=collection_id, position=max_position + 1)
         self.session.add(junction)
         self.session.commit()
 
@@ -127,17 +106,11 @@ class EntriesController(BaseUserController):
         # Delete junction record
         deleted = (
             self.session.query(EntryCollections)
-            .filter(
-                EntryCollections.entry_id == entry_id,
-                EntryCollections.collection_id == collection_id
-            )
+            .filter(EntryCollections.entry_id == entry_id, EntryCollections.collection_id == collection_id)
             .delete()
         )
 
         if not deleted:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Entry is not in this collection."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry is not in this collection.")
 
         self.session.commit()
