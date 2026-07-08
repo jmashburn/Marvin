@@ -65,6 +65,14 @@ class EntryUpdate(_MarvinModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(ENTRY_STATUSES))}")
         return value
 
+    @field_validator("published_at", mode="before")
+    @classmethod
+    def validate_published_at(cls, value: str | datetime | None) -> datetime | None:
+        """Convert empty strings to None for published_at."""
+        if value == "":
+            return None
+        return value
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -98,13 +106,13 @@ class EntryRead(_MarvinModel):
     @classmethod
     def model_validate(cls, obj, **kwargs):
         """Custom validation to extract collection IDs from collection objects."""
-        if hasattr(obj, 'collections') and obj.collections:
+        if hasattr(obj, "collections") and obj.collections:
             # If collections are Collection objects, extract their IDs
-            if obj.collections and hasattr(obj.collections[0], 'id'):
+            if obj.collections and hasattr(obj.collections[0], "id"):
                 collection_ids = [c.id for c in obj.collections]
                 # Create a dict with all attributes
                 data = {field: getattr(obj, field, None) for field in cls.model_fields}
-                data['collections'] = collection_ids
+                data["collections"] = collection_ids
                 return super().model_validate(data, **kwargs)
         return super().model_validate(obj, **kwargs)
 
