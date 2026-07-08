@@ -50,7 +50,7 @@ if (!id) {
 
       <div class="editor-layout">
         <section class="main-section">
-          <form method="POST" action={`/api/assets/${id}/update`} id="asset-form" class="form">
+          <form id="asset-form" class="form">
             <div class="form-group">
               <label for="name">Name *</label>
               <input
@@ -121,16 +121,16 @@ if (!id) {
         <aside class="sidebar">
           <div class="sidebar-section">
             <h3>Preview</h3>
-            {asset.url && (
+            {asset.publicUrl && (
               <div class="asset-preview">
                 <img
-                  src={asset.url}
+                  src={asset.publicUrl}
                   alt={asset.altText || asset.name}
                 />
               </div>
             )}
-            {asset.url && (
-              <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
+            {asset.publicUrl && (
+              <a href={asset.publicUrl} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
                 View Full Size ↗
               </a>
             )}
@@ -307,9 +307,14 @@ if (!id) {
 </style>
 
 <script>
-  // Validate metadata JSON
-  const metadataField = document.getElementById('metadata') as HTMLTextAreaElement | null;
+  import { createSdkClient } from '@/lib/sdk';
 
+  const sdk = createSdkClient();
+  const form = document.getElementById('asset-form') as HTMLFormElement;
+  const metadataField = document.getElementById('metadata') as HTMLTextAreaElement;
+  const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+  // Validate metadata JSON
   if (metadataField) {
     metadataField.addEventListener('blur', () => {
       const value = metadataField.value.trim();
@@ -323,4 +328,48 @@ if (!id) {
       }
     });
   }
+
+  // Handle form submission via SDK
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const name = formData.get('name') as string;
+    const altText = formData.get('altText') as string;
+    const description = formData.get('description') as string;
+    const metadataStr = formData.get('metadata') as string;
+
+    // Parse metadata JSON
+    let metadata;
+    if (metadataStr?.trim()) {
+      try {
+        metadata = JSON.parse(metadataStr);
+      } catch (error) {
+        alert('Invalid JSON in metadata field');
+        return;
+      }
+    }
+
+    // Disable submit button
+    submitButton.disabled = true;
+    submitButton.textContent = 'Saving...';
+
+    try {
+      const assetId = window.location.pathname.split('/').pop()!;
+      await sdk.assets.update(assetId, {
+        name,
+        altText: altText || undefined,
+        description: description || undefined,
+        metadata: metadata || undefined,
+      });
+
+      // Redirect back to assets list
+      window.location.href = '/workspace/assets';
+    } catch (error: any) {
+      const message = error?.message || error?.detail || 'Failed to update asset';
+      alert(message);
+      submitButton.disabled = false;
+      submitButton.textContent = 'Save Changes';
+    }
+  });
 </script>

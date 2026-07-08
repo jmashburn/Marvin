@@ -86,9 +86,9 @@ function getMimeCategory(mimeType: string): string {
               <tr class="asset-row" data-type={getMimeCategory(asset.mimeType)}>
                 <td>
                   <div class="preview">
-                    {asset.url && (
+                    {asset.publicUrl && (
                       <img
-                        src={asset.url}
+                        src={asset.publicUrl}
                         alt={asset.altText ?? asset.name}
                         style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
                       />
@@ -114,8 +114,8 @@ function getMimeCategory(mimeType: string): string {
                 <td>
                   <div class="actions">
                     <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
-                    {asset.url && (
-                      <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary small">
+                    {asset.publicUrl && (
+                      <a href={asset.publicUrl} target="_blank" rel="noopener noreferrer" class="button secondary small">
                         View
                       </a>
                     )}
