@@ -1,10 +1,13 @@
 import type { APIRoute } from 'astro';
+import { API_BASE_URL } from '@/lib/api/config';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
 
-    const response = await fetch('http://localhost:8080/users/register', {
+    const backendUrl = `${API_BASE_URL}/users/register`;
+
+    const response = await fetch(backendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
