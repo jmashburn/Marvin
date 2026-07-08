@@ -886,17 +886,15 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
         data.metadata_json = metadataObject;
       }
 
-      // Submit via fetch
+      // Submit via SDK
       try {
-        const { fetchApi } = await import('@/lib/api/client');
+        const { createSdkClient } = await import('@/lib/sdk');
+        const sdk = createSdkClient(); // Uses HttpOnly cookie auth
+        const entryId = window.location.pathname.split('/').pop() || '';
 
-        await fetchApi(entryForm.action, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
+        await sdk.entries.update(entryId, data);
 
-        // Reload page to show updated data
+        // Success - stay on page and reload
         window.location.reload();
       } catch (error) {
         console.error('Update error:', error);
