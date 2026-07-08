@@ -223,10 +223,20 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
           </div>
 
           <div class="sidebar-section">
-            <h3>Collections</h3>
-            <div class="collections-list">
+            <h3>Collections ({Array.from(entryCollectionIds).length})</h3>
+            <p class="section-help">Organize entry by collection</p>
+
+            <div class="picker-search">
+              <input
+                type="search"
+                id="collection-search"
+                placeholder="Search collections..."
+              />
+            </div>
+
+            <div class="picker-list">
               {sortedCollections.map((collection) => (
-                <label class="collection-checkbox">
+                <label class="picker-item collection-picker-item">
                   <input
                     type="checkbox"
                     name="collection_ids"
@@ -234,11 +244,18 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
                     checked={entryCollectionIds.has(collection.id)}
                     form="entry-form"
                   />
-                  <span>
-                    {collection.icon && `${collection.icon} `}{collection.name}
-                  </span>
+                  <div class="picker-preview" style={`background-color: ${collection.color || '#a94d3f'}`}>
+                    <div class="picker-icon">{collection.icon || '📁'}</div>
+                  </div>
+                  <div class="picker-info">
+                    <strong>{collection.name}</strong>
+                    <span class="picker-meta">{collection.isSmart ? 'Smart Collection' : 'Collection'}</span>
+                  </div>
                 </label>
               ))}
+              {sortedCollections.length === 0 && (
+                <p class="empty-message">No collections available. <a href="/workspace/collections/new">Create one</a>.</p>
+              )}
             </div>
           </div>
 
@@ -717,25 +734,6 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
     text-decoration: underline;
   }
 
-  .collection-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-
-  .collection-checkbox:hover {
-    background: var(--panel-2);
-  }
-
-  .collection-checkbox input {
-    margin: 0;
-    cursor: pointer;
-  }
-
   .picker-search {
     margin-bottom: 1rem;
   }
@@ -972,9 +970,20 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
     });
   }
 
-  // Asset and resource search filters
+  // Collection, asset, and resource search filters
+  const collectionSearch = document.getElementById('collection-search') as HTMLInputElement;
   const assetSearch = document.getElementById('asset-search') as HTMLInputElement;
   const resourceSearch = document.getElementById('resource-search') as HTMLInputElement;
+
+  if (collectionSearch) {
+    collectionSearch.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      document.querySelectorAll('.collection-picker-item').forEach(item => {
+        const text = item.textContent?.toLowerCase() || '';
+        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
 
   if (assetSearch) {
     assetSearch.addEventListener('input', (e) => {
