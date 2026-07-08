@@ -221,7 +221,8 @@ for role in "${ROLES[@]}"; do
   fi
 
   # Extract workspace role from CLI output (JavaScript object format: workspaceRole: 'ROLE')
-  actual_role=$(echo "$member_info" | grep "workspaceRole:" | sed "s/.*workspaceRole: *'\([^']*\)'.*/\1/")
+  # Strip ANSI color codes first, then extract role
+  actual_role=$(echo "$member_info" | sed 's/\x1b\[[0-9;]*m//g' | grep "workspaceRole:" | sed "s/.*workspaceRole: *'\([^']*\)'.*/\1/")
 
   if [ "$actual_role" == "$role" ]; then
     echo -e "  ${GREEN}✓${NC} $username has correct role: $role"
