@@ -387,7 +387,9 @@ if (!id) {
       // Always send metadata field (can be null or object)
       updateData.metadata = metadata;
 
+      console.log('Updating asset with data:', updateData);
       await sdk.assets.update(assetId, updateData);
+      console.log('Update successful');
 
       // Redirect back to assets list
       window.location.href = '/workspace/assets';
