@@ -13,6 +13,7 @@ let members: WorkspaceMemberRead[] = [];
 let inviteTokens: any[] = [];
 let error: string | null = null;
 let currentUserRole: WorkspaceRole | null = null;
+let currentUserId: string | null = null;
 
 if (!authToken) {
   error = 'Not authenticated';
@@ -26,6 +27,7 @@ if (!authToken) {
       // Get current user info to find their role
       const currentUser = await fetchApi<any>('/api/self', {}, authToken);
       if (currentUser) {
+        currentUserId = currentUser.id;
         const currentMembership = members.find(m => m.userId === currentUser.id);
         currentUserRole = currentMembership?.workspaceRole || null;
       }
@@ -64,6 +66,9 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 
 // Check if current user can manage members
 const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
+
+// Count owners to detect if someone is the last owner
+const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
 ---
 
 <AppLayout title="Workspace Members" eyebrow="Workspace">
@@ -102,6 +107,9 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
         const fullName = user?.fullName;
         const username = user?.username;
         const email = user?.email;
+        const isSelf = member.userId === currentUserId;
+        const isLastOwner = member.workspaceRole === 'OWNER' && ownerCount === 1;
+        const canEditRole = canManage && !isSelf && !isLastOwner;
         return (
           <div class="member-card">
             <div class="member-info">
@@ -115,7 +123,7 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
             </div>
 
             <div class="member-role-section">
-              {canManage ? (
+              {canEditRole ? (
                 <div class="role-control">
                   <select
                     class="role-select"
@@ -137,14 +145,34 @@ const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
                     Save
                   </button>
                 </div>
+              ) : isSelf ? (
+                <div>
+                  <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
+                    {roleLabels[member.workspaceRole]} (You)
+                  </span>
+                  <span class="role-description">
+                    {roleDescriptions[member.workspaceRole]}
+                  </span>
+                </div>
+              ) : isLastOwner ? (
+                <div>
+                  <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
+                    {roleLabels[member.workspaceRole]} (Last Owner)
+                  </span>
+                  <span class="role-description">
+                    Cannot change role - workspace must have at least one owner
+                  </span>
+                </div>
               ) : (
-                <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
-                  {roleLabels[member.workspaceRole]}
-                </span>
+                <div>
+                  <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
+                    {roleLabels[member.workspaceRole]}
+                  </span>
+                  <span class="role-description">
+                    {roleDescriptions[member.workspaceRole]}
+                  </span>
+                </div>
               )}
-              <span class="role-description">
-                {roleDescriptions[member.workspaceRole]}
-              </span>
             </div>
 
             {canManage && (
