@@ -113,12 +113,8 @@ function getMimeCategory(mimeType: string): string {
                 <td class="alt-text-cell">{asset.altText || '—'}</td>
                 <td>
                   <div class="actions">
+                    <a href={`/workspace/assets/${asset.id}/view`} class="button secondary small">View</a>
                     <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
-                    {asset.publicUrl && (
-                      <a href={asset.publicUrl} target="_blank" rel="noopener noreferrer" class="button secondary small">
-                        View
-                      </a>
-                    )}
                   </div>
                 </td>
               </tr>
