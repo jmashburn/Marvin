@@ -265,6 +265,9 @@ import AppLayout from "@/layouts/AppLayout.astro";
 </style>
 
 <script>
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
   const form = document.getElementById('uploadForm') as HTMLFormElement;
   const fileInput = document.getElementById('file') as HTMLInputElement;
   const dropZone = document.getElementById('dropZone') as HTMLElement;
@@ -424,44 +427,47 @@ import AppLayout from "@/layouts/AppLayout.astro";
     progressContainer.style.display = 'block';
 
     try {
-      const xhr = new XMLHttpRequest();
+      // Prepare metadata for SDK
+      const uploadData = {
+        slug: slugInput.value,
+        name: nameInput.value,
+        altText: altText || undefined,
+        description: description || undefined,
+        metadata: metadata ? JSON.parse(metadata) : undefined,
+      };
 
-      // Track upload progress
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percent = (e.loaded / e.total) * 100;
-          progressFill.style.width = percent + '%';
-          progressText.textContent = `Uploading... ${Math.round(percent)}%`;
-        }
-      });
+      // Use SDK to upload
+      // Note: SDK uses fetch which doesn't support upload progress tracking
+      // For a better UX, we simulate progress
+      simulateProgress();
 
-      // Handle completion
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          progressText.textContent = 'Upload complete! Redirecting...';
-          setTimeout(() => {
-            window.location.href = '/workspace/assets';
-          }, 1000);
-        } else {
-          const error = JSON.parse(xhr.responseText);
-          showError(error.detail || 'Upload failed');
-          resetForm();
-        }
-      });
+      const asset = await sdk.assets.upload(selectedFile, uploadData);
 
-      // Handle errors
-      xhr.addEventListener('error', () => {
-        showError('Network error during upload');
-        resetForm();
-      });
+      progressFill.style.width = '100%';
+      progressText.textContent = 'Upload complete! Redirecting...';
 
-      // Send request
-      xhr.open('POST', '/api/platform/assets/upload');
-      xhr.send(formData);
-    } catch (error) {
-      showError('Upload failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      setTimeout(() => {
+        window.location.href = '/workspace/assets';
+      }, 1000);
+    } catch (error: any) {
+      const message = error?.message || error?.detail || 'Upload failed';
+      showError(message);
       resetForm();
     }
+  });
+
+  // Simulate upload progress (since fetch doesn't support progress tracking)
+  function simulateProgress() {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress > 90) {
+        clearInterval(interval);
+        progress = 90;
+      }
+      progressFill.style.width = progress + '%';
+      progressText.textContent = `Uploading... ${Math.round(progress)}%`;
+    }, 200);
   });
 
   function showError(message: string) {
