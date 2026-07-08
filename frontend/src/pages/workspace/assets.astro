@@ -62,11 +62,10 @@ function getMimeCategory(mimeType: string): string {
 
       {assets.length === 0 ? (
         <div class="empty-state">
-          <p class="empty-title">No assets yet</p>
-          <p class="empty-description">
-            Upload your first asset to use in entries.
-          </p>
-          <a href="/workspace/assets/new" class="button">Upload Asset</a>
+          <div class="empty-icon">🖼️</div>
+          <h3>No assets yet</h3>
+          <p>Assets are images, videos, documents, and files that you can reference in your entries.</p>
+          <a href="/workspace/assets/new" class="button">Upload Your First Asset</a>
         </div>
       ) : (
         <table class="table">
@@ -180,13 +179,19 @@ function getMimeCategory(mimeType: string): string {
     text-align: center;
   }
 
-  .empty-title {
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
   }
 
-  .empty-description {
+  .empty-state p {
     margin: 0;
     color: var(--muted);
     max-width: 32rem;
