@@ -5,6 +5,7 @@ from pydantic import UUID4
 
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import EntryTypeCreate, EntryTypeRead, EntryTypeUpdate
+from marvin.services.event_bus_service.event_types import EventEntryTypeData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/entry-types")
 
@@ -19,7 +20,25 @@ class EntryTypesController(BaseUserController):
 
     @router.post("", response_model=EntryTypeRead, status_code=status.HTTP_201_CREATED, summary="Create Entry Type")
     def create_entry_type(self, data: EntryTypeCreate) -> EntryTypeRead:
-        return self.repos.entry_types.create(data)
+        entry_type = self.repos.entry_types.create(data)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="entry_type_management",
+            group_id=self.group_id,
+            event_type=EventTypes.entry_type_created,
+            document_data=EventEntryTypeData(
+                operation=EventOperation.create,
+                entry_type_id=entry_type.id,
+                entry_type_name=entry_type.name,
+                entry_type_slug=entry_type.slug,
+                workspace_id=entry_type.groupId,
+                description=entry_type.description,
+            ),
+            message=f"Entry type '{entry_type.name}' created",
+        )
+
+        return entry_type
 
     @router.get("/{item_id}", response_model=EntryTypeRead, summary="Get Entry Type")
     def get_entry_type(self, item_id: UUID4) -> EntryTypeRead:
@@ -32,11 +51,48 @@ class EntryTypesController(BaseUserController):
     def update_entry_type(self, item_id: UUID4, data: EntryTypeUpdate) -> EntryTypeRead:
         if not self.repos.entry_types.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry type not found.")
-        return self.repos.entry_types.update(item_id, data)
+
+        entry_type = self.repos.entry_types.update(item_id, data)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="entry_type_management",
+            group_id=self.group_id,
+            event_type=EventTypes.entry_type_updated,
+            document_data=EventEntryTypeData(
+                operation=EventOperation.update,
+                entry_type_id=entry_type.id,
+                entry_type_name=entry_type.name,
+                entry_type_slug=entry_type.slug,
+                workspace_id=entry_type.groupId,
+                description=entry_type.description,
+            ),
+            message=f"Entry type '{entry_type.name}' updated",
+        )
+
+        return entry_type
 
     @router.delete("/{item_id}", summary="Delete Entry Type")
     def delete_entry_type(self, item_id: UUID4) -> dict:
-        if not self.repos.entry_types.get_one(item_id):
+        entry_type = self.repos.entry_types.get_one(item_id)
+        if not entry_type:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry type not found.")
+
+        # Emit event before deletion
+        self.event_bus.dispatch(
+            integration_id="entry_type_management",
+            group_id=self.group_id,
+            event_type=EventTypes.entry_type_deleted,
+            document_data=EventEntryTypeData(
+                operation=EventOperation.delete,
+                entry_type_id=entry_type.id,
+                entry_type_name=entry_type.name,
+                entry_type_slug=entry_type.slug,
+                workspace_id=entry_type.groupId,
+                description=entry_type.description,
+            ),
+            message=f"Entry type '{entry_type.name}' deleted",
+        )
+
         self.repos.entry_types.delete(item_id)
         return {"status": "ok", "message": "Entry type deleted successfully"}
