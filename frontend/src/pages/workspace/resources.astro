@@ -89,11 +89,14 @@ const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort(
             <td>
               <div class="actions">
                 <a href={`/workspace/resources/${resource.id}`} class="button secondary small">Edit</a>
-                <form method="POST" action={`/api/resources/${resource.id}/delete`} style="display:inline;">
-                  <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this resource?')">
-                    Delete
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  class="button secondary small danger delete-resource-btn"
+                  data-resource-id={resource.id}
+                  data-resource-name={resource.name}
+                >
+                  Delete
+                </button>
               </div>
             </td>
           </tr>
@@ -104,8 +107,38 @@ const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort(
 </AppLayout>
 
 <script>
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
   const searchInput = document.getElementById('filter-search') as HTMLInputElement;
   const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+
+  // Handle delete buttons
+  document.querySelectorAll('.delete-resource-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const btn = e.target as HTMLButtonElement;
+      const resourceId = btn.dataset.resourceId!;
+      const resourceName = btn.dataset.resourceName!;
+
+      if (!confirm(`Delete "${resourceName}"? This cannot be undone.`)) {
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+
+      try {
+        await sdk.resources.delete(resourceId);
+        // Remove the row from the table
+        btn.closest('tr')?.remove();
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to delete resource';
+        alert(message);
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+      }
+    });
+  });
 
   function filterResources() {
     const searchQuery = searchInput?.value.toLowerCase() || '';
