@@ -28,6 +28,13 @@ class EntriesController(BaseUserController):
         data_dict["created_by"] = self.user.id
         entry = self.repos.entries.create(data_dict)
 
+        # Get entry type for event
+        entry_type_slug = None
+        if entry.entry_type_id:
+            entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
+            if entry_type:
+                entry_type_slug = entry_type.slug
+
         # Emit event
         self.event_bus.dispatch(
             integration_id="entry_management",
@@ -37,9 +44,9 @@ class EntriesController(BaseUserController):
                 operation=EventOperation.create,
                 entry_id=entry.id,
                 entry_title=entry.title,
-                entry_type=entry.entryType.slug if entry.entryType else None,
-                workspace_id=entry.groupId,
-                author_id=entry.createdBy,
+                entry_type=entry_type_slug,
+                workspace_id=entry.group_id,
+                author_id=entry.created_by,
             ),
             message=f"Entry '{entry.title}' created",
         )
@@ -61,6 +68,13 @@ class EntriesController(BaseUserController):
 
         entry = self.repos.entries.update(item_id, data)
 
+        # Get entry type for event
+        entry_type_slug = None
+        if entry.entry_type_id:
+            entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
+            if entry_type:
+                entry_type_slug = entry_type.slug
+
         # Emit update event
         self.event_bus.dispatch(
             integration_id="entry_management",
@@ -70,9 +84,9 @@ class EntriesController(BaseUserController):
                 operation=EventOperation.update,
                 entry_id=entry.id,
                 entry_title=entry.title,
-                entry_type=entry.entryType.slug if entry.entryType else None,
-                workspace_id=entry.groupId,
-                author_id=entry.createdBy,
+                entry_type=entry_type_slug,
+                workspace_id=entry.group_id,
+                author_id=entry.created_by,
             ),
             message=f"Entry '{entry.title}' updated",
         )
@@ -88,9 +102,9 @@ class EntriesController(BaseUserController):
                         operation=EventOperation.update,
                         entry_id=entry.id,
                         entry_title=entry.title,
-                        entry_type=entry.entryType.slug if entry.entryType else None,
-                        workspace_id=entry.groupId,
-                        author_id=entry.createdBy,
+                        entry_type=entry_type_slug,
+                        workspace_id=entry.group_id,
+                        author_id=entry.created_by,
                     ),
                     message=f"Entry '{entry.title}' published",
                 )
@@ -103,9 +117,9 @@ class EntriesController(BaseUserController):
                         operation=EventOperation.update,
                         entry_id=entry.id,
                         entry_title=entry.title,
-                        entry_type=entry.entryType.slug if entry.entryType else None,
-                        workspace_id=entry.groupId,
-                        author_id=entry.createdBy,
+                        entry_type=entry_type_slug,
+                        workspace_id=entry.group_id,
+                        author_id=entry.created_by,
                     ),
                     message=f"Entry '{entry.title}' unpublished",
                 )
@@ -118,6 +132,13 @@ class EntriesController(BaseUserController):
         if not entry:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
 
+        # Get entry type for event
+        entry_type_slug = None
+        if entry.entry_type_id:
+            entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
+            if entry_type:
+                entry_type_slug = entry_type.slug
+
         # Emit event before deletion
         self.event_bus.dispatch(
             integration_id="entry_management",
@@ -127,9 +148,9 @@ class EntriesController(BaseUserController):
                 operation=EventOperation.delete,
                 entry_id=entry.id,
                 entry_title=entry.title,
-                entry_type=entry.entryType.slug if entry.entryType else None,
-                workspace_id=entry.groupId,
-                author_id=entry.createdBy,
+                entry_type=entry_type_slug,
+                workspace_id=entry.group_id,
+                author_id=entry.created_by,
             ),
             message=f"Entry '{entry.title}' deleted",
         )
@@ -189,6 +210,13 @@ class EntriesController(BaseUserController):
         self.session.add(junction)
         self.session.commit()
 
+        # Get entry type for event
+        entry_type_slug = None
+        if entry.entry_type_id:
+            entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
+            if entry_type:
+                entry_type_slug = entry_type.slug
+
         # Emit event
         self.event_bus.dispatch(
             integration_id="entry_management",
@@ -198,9 +226,9 @@ class EntriesController(BaseUserController):
                 operation=EventOperation.update,
                 entry_id=entry.id,
                 entry_title=entry.title,
-                entry_type=entry.entryType.slug if entry.entryType else None,
-                workspace_id=entry.groupId,
-                author_id=entry.createdBy,
+                entry_type=entry_type_slug,
+                workspace_id=entry.group_id,
+                author_id=entry.created_by,
             ),
             message=f"Entry '{entry.title}' added to collection '{collection.name}'",
         )
@@ -228,6 +256,13 @@ class EntriesController(BaseUserController):
 
         # Emit event if we have entry data
         if entry:
+            # Get entry type for event
+            entry_type_slug = None
+            if entry.entry_type_id:
+                entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
+                if entry_type:
+                    entry_type_slug = entry_type.slug
+
             self.event_bus.dispatch(
                 integration_id="entry_management",
                 group_id=self.group_id,
@@ -236,9 +271,9 @@ class EntriesController(BaseUserController):
                     operation=EventOperation.update,
                     entry_id=entry.id,
                     entry_title=entry.title,
-                    entry_type=entry.entryType.slug if entry.entryType else None,
-                    workspace_id=entry.groupId,
-                    author_id=entry.createdBy,
+                    entry_type=entry_type_slug,
+                    workspace_id=entry.group_id,
+                    author_id=entry.created_by,
                 ),
                 message=f"Entry '{entry.title}' removed from collection '{collection.name if collection else collection_id}'",
             )
