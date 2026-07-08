@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
+import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections } from "@/lib/api/collections";
 import { getEntryCollections } from "@/lib/api/entries";
@@ -10,6 +10,50 @@ import { listResources } from "@/lib/api/resources";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST' && id && authToken) {
+  try {
+    const formData = await Astro.request.formData();
+
+    // Parse multi-select fields
+    const collectionIds = formData.getAll('collection_ids') as string[];
+    const assetIds = formData.getAll('asset_ids') as string[];
+    const resourceIds = formData.getAll('resource_ids') as string[];
+
+    // Parse metadata JSON
+    const metadataJsonStr = formData.get('metadata_json') as string | null;
+    let metadataJson = null;
+    if (metadataJsonStr?.trim()) {
+      try {
+        metadataJson = JSON.parse(metadataJsonStr);
+      } catch (error) {
+        console.error('[Entry] Invalid metadata JSON:', error);
+        // Let it pass as null
+      }
+    }
+
+    const updateData = {
+      entry_type_id: formData.get('entry_type_id') as string,
+      title: formData.get('title') as string,
+      slug: (formData.get('slug') as string) || null,
+      summary: (formData.get('summary') as string) || null,
+      description: (formData.get('description') as string) || null,
+      content_markdown: (formData.get('content_markdown') as string) || null,
+      status: formData.get('status') as string,
+      metadata_json: metadataJson,
+      collection_ids: collectionIds,
+      asset_ids: assetIds,
+      resource_ids: resourceIds,
+    };
+
+    await updateEntry(id, updateData, authToken);
+    return Astro.redirect('/workspace/entries');
+  } catch (e) {
+    console.error('[Entry] Failed to update entry:', e);
+    // Error will be shown below
+  }
+}
 
 let entry: EntryRead | null = null;
 let entryTypes: EntryTypeRead[] = [];
@@ -69,7 +113,7 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
 
       <div class="editor-layout">
         <section class="main-editor">
-          <form id="entry-form" class="form">
+          <form id="entry-form" method="POST" class="form">
             <div class="form-group">
               <label for="title">Title *</label>
               <input
@@ -987,89 +1031,8 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
     });
   }
 
-  // Handle form submission
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const formData = new FormData(form);
-      const status = formData.get('status') as string || 'draft';
-
-      // Get all form fields
-      const entryTypeId = formData.get('entry_type_id') as string;
-      const title = formData.get('title') as string;
-      const slug = formData.get('slug') as string;
-      const summary = formData.get('summary') as string;
-      const description = formData.get('description') as string;
-      const contentMarkdown = formData.get('content_markdown') as string;
-      const metadataJsonStr = formData.get('metadata_json') as string;
-
-      // Get IDs from checkboxes
-      const collectionIds = formData.getAll('collection_ids') as string[];
-      const assetIds = formData.getAll('asset_ids') as string[];
-      const resourceIds = formData.getAll('resource_ids') as string[];
-
-      // Parse metadata JSON
-      let metadataJson = null;
-      if (metadataJsonStr?.trim()) {
-        try {
-          metadataJson = JSON.parse(metadataJsonStr);
-        } catch (error) {
-          alert('Invalid JSON in metadata field');
-          return;
-        }
-      }
-
-      const submitButton = e.submitter as HTMLButtonElement;
-      submitButton.disabled = true;
-      const originalText = submitButton.textContent;
-      const statusLabel = statusLabels[status] || 'Saving';
-      submitButton.textContent = status === 'published' ? 'Publishing...' : `Saving as ${statusLabel}...`;
-
-      try {
-        const entryId = window.location.pathname.split('/').pop()!;
-
-        // Build update payload - always send arrays to properly update relationships
-        const updateData: any = {
-          entry_type_id: entryTypeId,
-          title,
-          slug: slug?.trim() || null,
-          summary: summary?.trim() || null,
-          description: description?.trim() || null,
-          content_markdown: contentMarkdown?.trim() || null,
-          metadata_json: metadataJson,
-          status,
-          collection_ids: collectionIds,  // Use snake_case like CLI
-          asset_ids: assetIds,            // Use snake_case like CLI
-          resource_ids: resourceIds,      // Use snake_case like CLI
-        };
-
-        // Use direct fetch instead of SDK (SDK has array serialization bug)
-        // Import API config to get proper base URL
-        const { API_BASE_URL } = await import('@/lib/api/config');
-        const response = await fetch(`${API_BASE_URL}/api/platform/entries/${entryId}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(updateData),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`${response.status}: ${JSON.stringify(errorData)}`);
-        }
-
-        window.location.href = '/workspace/entries';
-      } catch (error: any) {
-        const message = error?.message || error?.detail || 'Failed to update entry';
-        alert(message);
-        submitButton.disabled = false;
-        submitButton.textContent = originalText!;
-      }
-    });
-  }
+  // Form submission now handled server-side via POST
+  // No need for client-side fetch - form submits naturally
 
   // Collection, asset, and resource search filters
   const collectionSearch = document.getElementById('collection-search') as HTMLInputElement;
