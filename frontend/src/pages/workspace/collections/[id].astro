@@ -55,7 +55,7 @@ if (!authToken) {
       </div>
 
       <section class="form-section">
-        <form method="POST" action={`/api/collections/${id}/update`} class="form">
+        <form id="collection-form" class="form">
           <div class="form-group">
             <label for="name">Name *</label>
             <input
@@ -179,9 +179,14 @@ if (!authToken) {
                   <td><strong>{entry.title}</strong></td>
                   <td><span class={`pill ${entry.status}`}>{entry.status}</span></td>
                   <td>
-                    <form method="POST" action={`/api/entries/${entry.id}/collections/${id}/remove`} style="display:inline;">
-                      <button type="submit" class="button secondary small">Remove</button>
-                    </form>
+                    <button
+                      type="button"
+                      class="button secondary small remove-entry-btn"
+                      data-entry-id={entry.id}
+                      data-entry-title={entry.title}
+                    >
+                      Remove
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -194,6 +199,12 @@ if (!authToken) {
 </AppLayout>
 
 <script>
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
+  const form = document.getElementById('collection-form') as HTMLFormElement;
+  const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
+
   // Toggle query field visibility based on smart collection checkbox
   const smartCheckbox = document.getElementById('is_smart') as HTMLInputElement;
   const queryField = document.getElementById('query-field');
@@ -203,6 +214,92 @@ if (!authToken) {
       queryField.style.display = smartCheckbox.checked ? 'grid' : 'none';
     });
   }
+
+  // Handle form submission via SDK
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const name = formData.get('name') as string;
+      const icon = formData.get('icon') as string;
+      const color = formData.get('color') as string;
+      const description = formData.get('description') as string;
+      const sortOrder = formData.get('sort_order') as string;
+      const isSmart = formData.get('is_smart') === 'true';
+      const smartRulesStr = formData.get('smartRules') as string;
+
+      let smartRules = null;
+      if (isSmart && smartRulesStr?.trim()) {
+        try {
+          smartRules = JSON.parse(smartRulesStr);
+        } catch (error) {
+          alert('Invalid JSON in Smart Rules field');
+          return;
+        }
+      }
+
+      submitButton.disabled = true;
+      submitButton.textContent = 'Saving...';
+
+      try {
+        const collectionId = window.location.pathname.split('/').pop()!;
+        await sdk.collections.update(collectionId, {
+          name,
+          icon: icon?.trim() || null,
+          color: color || null,
+          description: description?.trim() || null,
+          sortOrder: sortOrder ? parseInt(sortOrder) : 0,
+          isSmart,
+          smartRules: smartRules,
+        });
+
+        window.location.href = '/workspace/collections';
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to update collection';
+        alert(message);
+        submitButton.disabled = false;
+        submitButton.textContent = 'Save Changes';
+      }
+    });
+  }
+
+  // Handle remove entry buttons
+  document.querySelectorAll('.remove-entry-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const btn = e.target as HTMLButtonElement;
+      const entryId = btn.dataset.entryId!;
+      const entryTitle = btn.dataset.entryTitle!;
+
+      if (!confirm(`Remove "${entryTitle}" from this collection?`)) {
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Removing...';
+
+      try {
+        // Get current entry to modify its collection_ids
+        const entry = await sdk.entries.get(entryId);
+        const collectionId = window.location.pathname.split('/').pop()!;
+
+        // Remove this collection from the entry's collections
+        const updatedCollectionIds = (entry.collections || []).filter((cid: string) => cid !== collectionId);
+
+        await sdk.entries.update(entryId, {
+          collection_ids: updatedCollectionIds
+        });
+
+        // Remove the row from the table
+        btn.closest('tr')?.remove();
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to remove entry';
+        alert(message);
+        btn.disabled = false;
+        btn.textContent = 'Remove';
+      }
+    });
+  });
 </script>
 
 <style>
