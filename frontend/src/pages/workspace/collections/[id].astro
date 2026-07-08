@@ -158,41 +158,44 @@ if (!authToken) {
       </section>
 
       <section class="entries-section">
-        <h3 style="margin:0 0 1rem;font-size:1.125rem;">Entries in this Collection</h3>
-        {collectionEntries.length === 0 ? (
-          <div class="empty-state-small">
-            <p>No entries in this collection yet.</p>
-            <p class="muted">Add entries by editing them and selecting this collection.</p>
-          </div>
-        ) : (
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {collectionEntries.map((entry) => (
-                <tr>
-                  <td><strong>{entry.title}</strong></td>
-                  <td><span class={`pill ${entry.status}`}>{entry.status}</span></td>
-                  <td>
-                    <button
-                      type="button"
-                      class="button secondary small remove-entry-btn"
-                      data-entry-id={entry.id}
-                      data-entry-title={entry.title}
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <h3 style="margin:0 0 1rem;font-size:1.125rem;">Entries in this Collection ({collectionEntries.length})</h3>
+        <p class="section-help">Select entries to include in this collection</p>
+
+        <div class="picker-search">
+          <input
+            type="search"
+            id="entry-search"
+            placeholder="Search entries..."
+          />
+        </div>
+
+        <div class="picker-list">
+          {allEntries.map((entry) => {
+            const isInCollection = collectionEntries.some(ce => ce.id === entry.id);
+            return (
+              <label class="picker-item entry-picker-item">
+                <input
+                  type="checkbox"
+                  class="entry-checkbox"
+                  value={entry.id}
+                  checked={isInCollection}
+                  data-entry-id={entry.id}
+                  data-entry-title={entry.title}
+                />
+                <div class="picker-info">
+                  <strong>{entry.title}</strong>
+                  <span class="picker-meta">
+                    <span class={`pill ${entry.status}`}>{entry.status}</span>
+                    {entry.entryType && ` • ${entry.entryType.name}`}
+                  </span>
+                </div>
+              </label>
+            );
+          })}
+          {allEntries.length === 0 && (
+            <p class="empty-message">No entries available. <a href="/workspace/entries/new">Create one</a>.</p>
+          )}
+        </div>
       </section>
     </>
   ) : null}
@@ -264,39 +267,52 @@ if (!authToken) {
     });
   }
 
-  // Handle remove entry buttons
-  document.querySelectorAll('.remove-entry-btn').forEach(button => {
-    button.addEventListener('click', async (e) => {
-      const btn = e.target as HTMLButtonElement;
-      const entryId = btn.dataset.entryId!;
-      const entryTitle = btn.dataset.entryTitle!;
+  // Entry search filter
+  const entrySearch = document.getElementById('entry-search') as HTMLInputElement;
+  if (entrySearch) {
+    entrySearch.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      document.querySelectorAll('.entry-picker-item').forEach(item => {
+        const text = item.textContent?.toLowerCase() || '';
+        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
 
-      if (!confirm(`Remove "${entryTitle}" from this collection?`)) {
-        return;
-      }
+  // Handle entry checkbox changes (real-time update)
+  document.querySelectorAll('.entry-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', async (e) => {
+      const cb = e.target as HTMLInputElement;
+      const entryId = cb.dataset.entryId!;
+      const entryTitle = cb.dataset.entryTitle!;
+      const isChecked = cb.checked;
 
-      btn.disabled = true;
-      btn.textContent = 'Removing...';
+      cb.disabled = true;
+      const label = cb.closest('.picker-item') as HTMLElement;
+      if (label) label.style.opacity = '0.5';
 
       try {
-        // Get current entry to modify its collection_ids
         const entry = await sdk.entries.get(entryId);
         const collectionId = window.location.pathname.split('/').pop()!;
 
-        // Remove this collection from the entry's collections
-        const updatedCollectionIds = (entry.collections || []).filter((cid: string) => cid !== collectionId);
+        const updatedCollectionIds = isChecked
+          ? [...(entry.collections || []), collectionId]
+          : (entry.collections || []).filter((cid: string) => cid !== collectionId);
 
         await sdk.entries.update(entryId, {
           collection_ids: updatedCollectionIds
         });
 
-        // Remove the row from the table
-        btn.closest('tr')?.remove();
+        // Success - keep checkbox state
+        cb.disabled = false;
+        if (label) label.style.opacity = '1';
       } catch (error: any) {
-        const message = error?.message || error?.detail || 'Failed to remove entry';
+        const message = error?.message || error?.detail || 'Failed to update entry';
         alert(message);
-        btn.disabled = false;
-        btn.textContent = 'Remove';
+        // Revert checkbox
+        cb.checked = !isChecked;
+        cb.disabled = false;
+        if (label) label.style.opacity = '1';
       }
     });
   });
@@ -385,6 +401,107 @@ if (!authToken) {
 
   .entries-section {
     margin-top: 2rem;
+  }
+
+  .section-help {
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .picker-search {
+    margin-bottom: 1rem;
+  }
+
+  .picker-search input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  .picker-list {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .picker-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .picker-item:hover {
+    background: var(--panel-2);
+    border-color: var(--brand);
+  }
+
+  .picker-item input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .picker-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .picker-info strong {
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .picker-meta {
+    font-size: 0.75rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .pill.published {
+    background: rgba(34, 197, 94, 0.1);
+    color: rgb(34, 197, 94);
+  }
+
+  .pill.draft {
+    background: rgba(156, 163, 175, 0.1);
+    color: rgb(107, 114, 128);
+  }
+
+  .empty-message {
+    text-align: center;
+    color: var(--muted);
+    padding: 2rem;
   }
 
   .empty-state-small {
