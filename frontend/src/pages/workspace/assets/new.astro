@@ -284,6 +284,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
   const errorMessage = document.getElementById('errorMessage') as HTMLElement;
 
   let selectedFile: File | null = null;
+  let progressInterval: number | null = null;
 
   // Click to select file
   dropZone.addEventListener('click', (e) => {
@@ -443,6 +444,12 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
       const asset = await sdk.assets.upload(selectedFile, uploadData);
 
+      // Clear progress simulation
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
       progressFill.style.width = '100%';
       progressText.textContent = 'Upload complete! Redirecting...';
 
@@ -459,15 +466,15 @@ import AppLayout from "@/layouts/AppLayout.astro";
   // Simulate upload progress (since fetch doesn't support progress tracking)
   function simulateProgress() {
     let progress = 0;
-    const interval = setInterval(() => {
+    progressInterval = setInterval(() => {
       progress += Math.random() * 15;
       if (progress > 90) {
-        clearInterval(interval);
+        if (progressInterval) clearInterval(progressInterval);
         progress = 90;
       }
       progressFill.style.width = progress + '%';
       progressText.textContent = `Uploading... ${Math.round(progress)}%`;
-    }, 200);
+    }, 200) as unknown as number;
   }
 
   function showError(message: string) {
@@ -476,6 +483,10 @@ import AppLayout from "@/layouts/AppLayout.astro";
   }
 
   function resetForm() {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
     submitButton.disabled = false;
     submitButton.textContent = 'Upload Asset';
     progressContainer.style.display = 'none';
