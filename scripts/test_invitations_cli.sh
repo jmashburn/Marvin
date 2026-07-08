@@ -226,16 +226,24 @@ echo ""
 # Step 6: Verify invitation tokens were consumed
 echo -e "${YELLOW}[6/6] Verifying invitation tokens were consumed...${NC}"
 
-# Get updated token list
-token_list=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$MARVIN_URL/api/groups/invitations?page=1&perPage=100")
+# Get updated token list via marvin CLI
+token_list=$(MARVIN_API_URL="$MARVIN_URL" "$MARVIN_CLI" platform invites list 2>&1)
+
+if [ $? -ne 0 ]; then
+  echo -e "${RED}✗ Failed to list invitations via CLI${NC}"
+  echo "Output: $token_list"
+  exit 1
+fi
 
 idx=0
 tokens_consumed=true
 for role in "${ROLES[@]}"; do
   token="${TOKENS[$idx]}"
-  # Check uses_left for each token
-  uses_left=$(echo "$token_list" | jq -r ".items[] | select(.token == \"$token\") | .usesLeft")
+  # Extract the token prefix (first 20 chars) for matching in table output
+  token_prefix="${token:0:20}"
+
+  # Find the line with this token and extract Uses Left column (strip ANSI colors)
+  uses_left=$(echo "$token_list" | grep "$token_prefix" | sed 's/\x1b\[[0-9;]*m//g' | awk -F'│' '{print $3}' | xargs)
 
   if [ "$uses_left" == "0" ]; then
     echo -e "  ${GREEN}✓${NC} $role token consumed (uses_left: 0)"
