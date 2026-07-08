@@ -1,41 +1,29 @@
 import type { APIRoute } from 'astro';
+import { createAuthClient } from '@inneropen/marvin-sdk';
 import { API_BASE_URL } from '@/lib/api/config';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
     const body = await request.json();
 
-    const backendUrl = `${API_BASE_URL}/users/register`;
+    const authClient = createAuthClient(API_BASE_URL);
+    const user = await authClient.register(body);
 
-    const response = await fetch(backendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return new Response(JSON.stringify(data), {
-        status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-    }
-
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify(user), {
       status: 201,
       headers: {
         'Content-Type': 'application/json',
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[register] Error:', error);
-    return new Response(JSON.stringify({ detail: 'Registration failed' }), {
-      status: 500,
+
+    // Return error from SDK if available
+    const errorResponse = error.body || { detail: error.message || 'Registration failed' };
+    const status = error.status || 500;
+
+    return new Response(JSON.stringify(errorResponse), {
+      status,
       headers: {
         'Content-Type': 'application/json',
       },
