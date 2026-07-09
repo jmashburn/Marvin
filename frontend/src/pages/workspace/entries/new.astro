@@ -245,6 +245,11 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
   #schema-fields-container :global(.form-group) {
     display: grid;
     gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  #schema-fields-container :global(.form-group):last-child {
+    margin-bottom: 0;
   }
 
   #schema-fields-container :global(label) {
