@@ -172,12 +172,13 @@ class WorkspaceDataSeeder:
         if "name" not in entry_type_data:
             raise ValueError("Entry type must have 'name' field")
 
-        # Check if entry type already exists by slug
-        existing_types = self.repos.entry_types.multi_query({"slug": entry_type_data["slug"]})
+        # Check if entry type already exists in THIS workspace (not system types)
+        # Need to check both slug AND group_id to respect UNIQUE (group_id, slug) constraint
+        existing_types = self.repos.entry_types.multi_query({"slug": entry_type_data["slug"], "group_id": self.repos.group_id})
 
         if existing_types:
-            # Entry type exists - skip for now (idempotent behavior)
-            self.logger.debug(f"Entry type already exists, skipping: {entry_type_data['slug']}")
+            # Entry type exists in workspace - skip for now (idempotent behavior)
+            self.logger.debug(f"Entry type already exists in workspace, skipping: {entry_type_data['slug']}")
             return
 
         # Prepare entry type data

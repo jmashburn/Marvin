@@ -134,10 +134,11 @@ class WorkspaceSeedLoader:
         Args:
             data: Entry type data from seed file
         """
-        # Check if exists
-        existing = self.repos.entry_types.multi_query({"slug": data["slug"]})
+        # Check if exists in THIS workspace (not system types)
+        # Need to check both slug AND group_id to respect UNIQUE (group_id, slug) constraint
+        existing = self.repos.entry_types.multi_query({"slug": data["slug"], "group_id": self.repos.group_id})
         if existing:
-            self.logger.debug(f"Entry type already exists: {data['slug']}")
+            self.logger.debug(f"Entry type already exists in workspace: {data['slug']}")
             return
 
         # Create entry type
