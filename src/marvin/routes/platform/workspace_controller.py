@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
 
 from marvin.repos.seed.workspace_exporter import WorkspaceExporter
