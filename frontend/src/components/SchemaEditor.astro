@@ -439,6 +439,19 @@ const fieldTypes = [
       if (maxInput && maxInput.value) field.max = parseFloat(maxInput.value);
     }
 
+    // Update the card header title live
+    const headerTitle = fieldEl.querySelector('.field-editor-title span:first-child');
+    if (headerTitle) {
+      headerTitle.textContent = field.label || 'Untitled Field';
+    }
+
+    // Update the type badge if type changed
+    const typeBadge = fieldEl.querySelector('.field-type-badge');
+    if (typeBadge) {
+      const typeInfo = fieldTypes.find(t => t.value === field.type) || { label: field.type };
+      typeBadge.textContent = typeInfo.label;
+    }
+
     // Update hidden input and preview
     document.getElementById('schema-json-input').value = JSON.stringify(schema);
     document.getElementById('schema-preview-json').textContent = JSON.stringify(schema, null, 2);
