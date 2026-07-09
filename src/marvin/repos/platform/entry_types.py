@@ -58,6 +58,10 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if not data_dict.get("slug") and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
+        # Map content_schema to schema_json (Pydantic field name to DB column name)
+        if "content_schema" in data_dict:
+            data_dict["schema_json"] = data_dict.pop("content_schema")
+
         # Validate schema_json if provided
         if "schema_json" in data_dict:
             self._validate_schema_json(data_dict["schema_json"])
@@ -71,10 +75,14 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if "name" in data_dict and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
+        # Map content_schema to schema_json (Pydantic field name to DB column name)
+        if "content_schema" in data_dict:
+            data_dict["schema_json"] = data_dict.pop("content_schema")
+
         # Validate schema_json if provided
         if "schema_json" in data_dict:
             self._validate_schema_json(data_dict["schema_json"])
-        
+
         # Don't auto-regenerate slug on update - slugs should remain stable once created
         # to avoid breaking references in entries and external integrations
         data_dict.pop("slug", None)
