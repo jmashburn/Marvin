@@ -2,6 +2,7 @@
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import { requireAdmin } from "@/lib/auth";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { listEmailTemplates } from "@/lib/api/emailTemplates";
 
 // Require admin authentication
 const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
