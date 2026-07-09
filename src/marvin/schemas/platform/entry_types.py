@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import ConfigDict, Field, StringConstraints, UUID4, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
 from marvin.schemas._marvin import _MarvinModel
@@ -24,7 +24,7 @@ class EntryTypeCreate(_MarvinModel):
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
-        alias="schema_json",
+        validation_alias=AliasChoices("schema_json", "schemaJson"),
     )
 
     @field_validator("content_schema")
@@ -56,7 +56,7 @@ class EntryTypeUpdate(_MarvinModel):
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
-        alias="schema_json",
+        validation_alias=AliasChoices("schema_json", "schemaJson"),
     )
 
     @field_validator("content_schema")
@@ -89,7 +89,7 @@ class EntryTypeRead(_MarvinModel):
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
-        alias="schema_json",
+        validation_alias=AliasChoices("schema_json", "schemaJson"),
     )
     created_at: datetime | None = None
     update_at: datetime | None = None
