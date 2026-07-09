@@ -72,6 +72,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
               <tr>
                 <th>Icon</th>
                 <th>Name</th>
+                <th>Type</th>
                 <th>Slug</th>
                 <th>Description</th>
                 <th>Entries</th>
@@ -95,6 +96,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                       )}
                     </td>
                     <td class="type-name"><strong>{type.name}</strong></td>
+                    <td><span class="system-badge">System</span></td>
                     <td><code>{type.slug}</code></td>
                     <td>{type.description || '—'}</td>
                     <td>
@@ -129,6 +131,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
               <tr>
                 <th>Icon</th>
                 <th>Name</th>
+                <th>Type</th>
                 <th>Slug</th>
                 <th>Description</th>
                 <th>Entries</th>
@@ -153,6 +156,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                       )}
                     </td>
                     <td class="type-name"><strong>{type.name}</strong></td>
+                    <td><span class="custom-badge">Custom</span></td>
                     <td><code>{type.slug}</code></td>
                     <td>{type.description || '—'}</td>
                     <td>
@@ -289,5 +293,31 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
     border-radius: 4px;
     font-size: 12px;
     font-weight: 600;
+  }
+
+  .system-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563EB;
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .custom-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(124, 58, 237, 0.1);
+    color: #7C3AED;
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 </style>
