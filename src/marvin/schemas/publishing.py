@@ -215,6 +215,9 @@ class PublishedCollectionRead(_MarvinModel):
 class PublishedCollectionSummary(_MarvinModel):
     """
     Summary schema for published collections (for listing).
+
+    Minimal collection info for entry contexts - only includes
+    essential fields for display and ordering.
     """
 
     slug: str
@@ -223,29 +226,11 @@ class PublishedCollectionSummary(_MarvinModel):
     name: str
     """Collection display name."""
 
-    description: str | None = None
-    """Optional collection description."""
-
-    is_smart: bool = False
-    """Whether this is a smart collection with automatic rules."""
-
-    smart_rules: dict | None = None
-    """Smart collection rules (JSON object)."""
-
     metadata: dict | None = None
     """Custom metadata as JSON object."""
 
-    entry_count: int
-    """Number of published entries in this collection."""
-
     sort_order: int
     """Display order for UI."""
-
-    icon: str | None = None
-    """Optional icon identifier."""
-
-    color: str | None = None
-    """Optional color code."""
 
     model_config = ConfigDict(from_attributes=True)
 
