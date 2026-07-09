@@ -154,6 +154,26 @@ const fieldTypes = [
     border-radius: 6px;
   }
 
+  .schema-editor .field-header-meta {
+    padding: 0.75rem 1.25rem;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .schema-editor .field-meta-item {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .schema-editor .field-meta-item strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
   .schema-editor .field-editor-body {
     display: grid;
     gap: 1rem;
@@ -314,8 +334,8 @@ const fieldTypes = [
     div.innerHTML = `
       <div class="field-editor-header">
         <div class="field-editor-title">
-          <span>${field.label || 'Untitled Field'}</span>
-          <span class="field-type-badge">${typeInfo.label}</span>
+          <span class="field-title-label">${field.label || 'Untitled Field'}</span>
+          <span class="field-type-badge">${typeInfo.label}${field.required ? ' *' : ''}</span>
         </div>
         <div class="field-editor-actions">
           ${index > 0 ? '<button type="button" class="button secondary btn-move-up">↑</button>' : ''}
@@ -323,6 +343,12 @@ const fieldTypes = [
           <button type="button" class="button secondary btn-remove">Remove</button>
         </div>
       </div>
+      ${field.placeholder || field.helpText ? `
+        <div class="field-header-meta">
+          ${field.placeholder ? `<p class="field-meta-item"><strong>Placeholder:</strong> ${field.placeholder}</p>` : ''}
+          ${field.helpText ? `<p class="field-meta-item"><strong>Help:</strong> ${field.helpText}</p>` : ''}
+        </div>
+      ` : ''}
       <div class="field-editor-body">
         <div class="form-group">
           <label>Label *</label>
@@ -440,16 +466,38 @@ const fieldTypes = [
     }
 
     // Update the card header title live
-    const headerTitle = fieldEl.querySelector('.field-editor-title span:first-child');
+    const headerTitle = fieldEl.querySelector('.field-title-label');
     if (headerTitle) {
       headerTitle.textContent = field.label || 'Untitled Field';
     }
 
-    // Update the type badge if type changed
+    // Update the type badge with required indicator
     const typeBadge = fieldEl.querySelector('.field-type-badge');
     if (typeBadge) {
       const typeInfo = fieldTypes.find(t => t.value === field.type) || { label: field.type };
-      typeBadge.textContent = typeInfo.label;
+      typeBadge.textContent = typeInfo.label + (field.required ? ' *' : '');
+    }
+
+    // Update or create the meta info section
+    let metaSection = fieldEl.querySelector('.field-header-meta');
+    const headerSection = fieldEl.querySelector('.field-editor-header');
+
+    if (field.placeholder || field.helpText) {
+      const metaHtml = `
+        ${field.placeholder ? `<p class="field-meta-item"><strong>Placeholder:</strong> ${field.placeholder}</p>` : ''}
+        ${field.helpText ? `<p class="field-meta-item"><strong>Help:</strong> ${field.helpText}</p>` : ''}
+      `;
+
+      if (metaSection) {
+        metaSection.innerHTML = metaHtml;
+      } else {
+        const newMeta = document.createElement('div');
+        newMeta.className = 'field-header-meta';
+        newMeta.innerHTML = metaHtml;
+        headerSection.after(newMeta);
+      }
+    } else if (metaSection) {
+      metaSection.remove();
     }
 
     // Update hidden input and preview
