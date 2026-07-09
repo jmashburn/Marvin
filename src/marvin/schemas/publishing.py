@@ -132,15 +132,14 @@ class PublishedEntryListItem(_MarvinModel):
     collections: list[str] = []
     """List of collection slugs this entry belongs to."""
 
-    assets: list[str] = []
+    assets: list[str] = Field(default=[], serialization_alias="assetSlugs")
     """List of asset slugs included in this entry."""
+
+    resources: list[str] = Field(default=[], serialization_alias="resourceSlugs")
+    """List of resource slugs referenced by this entry."""
 
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
-    """List of asset slugs attached to this entry."""
-
-    resources: list[str] = []
-    """List of resource slugs referenced by this entry."""
 
     model_config = ConfigDict(from_attributes=True)
 
