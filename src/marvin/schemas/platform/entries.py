@@ -41,6 +41,8 @@ class EntryCreate(_MarvinModel):
     )
     status: str = "inbox"
     published_at: datetime | None = None
+    publish_at: datetime | None = None
+    expire_at: datetime | None = None
     metadata_json: dict | None = Field(
         default=None,
         description="Custom non-schema metadata (API keys, external IDs, etc.)",
@@ -79,6 +81,8 @@ class EntryUpdate(_MarvinModel):
     )
     status: str | None = None
     published_at: datetime | None = None
+    publish_at: datetime | None = None
+    expire_at: datetime | None = None
     metadata_json: dict | None = Field(
         default=None,
         description="Custom non-schema metadata (API keys, external IDs, etc.)",
@@ -95,10 +99,10 @@ class EntryUpdate(_MarvinModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(ENTRY_STATUSES))}")
         return value
 
-    @field_validator("published_at", mode="before")
+    @field_validator("published_at", "publish_at", "expire_at", mode="before")
     @classmethod
-    def validate_published_at(cls, value: str | datetime | None) -> datetime | None:
-        """Convert empty strings to None for published_at."""
+    def validate_datetime_fields(cls, value: str | datetime | None) -> datetime | None:
+        """Convert empty strings to None for datetime fields."""
         if value == "":
             return None
         return value
@@ -127,6 +131,8 @@ class EntryRead(_MarvinModel):
     )
     status: str
     published_at: datetime | None = None
+    publish_at: datetime | None = None
+    expire_at: datetime | None = None
     metadata_json: dict | None = Field(
         default=None,
         description="Custom non-schema metadata",

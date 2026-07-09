@@ -313,6 +313,31 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
                 value={entry.publishedAt ? new Date(entry.publishedAt).toISOString().slice(0, 16) : ""}
                 form="entry-form"
               />
+              <p class="form-help">Actual date/time this entry was published</p>
+            </div>
+
+            <div class="form-group">
+              <label for="publish_at">Scheduled Publish</label>
+              <input
+                type="datetime-local"
+                id="publish_at"
+                name="publish_at"
+                value={entry.publishAt ? new Date(entry.publishAt).toISOString().slice(0, 16) : ""}
+                form="entry-form"
+              />
+              <p class="form-help">Schedule when this entry should be published</p>
+            </div>
+
+            <div class="form-group">
+              <label for="expire_at">Expiration Date</label>
+              <input
+                type="datetime-local"
+                id="expire_at"
+                name="expire_at"
+                value={entry.expireAt ? new Date(entry.expireAt).toISOString().slice(0, 16) : ""}
+                form="entry-form"
+              />
+              <p class="form-help">When this entry should expire and be hidden</p>
             </div>
           </div>
 

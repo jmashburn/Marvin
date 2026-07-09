@@ -48,6 +48,10 @@ class Entries(SqlAlchemyBase, BaseMixins):
     """Schema-driven content data structured according to entry_type.schema_json."""
     status: Mapped[str] = mapped_column(sa.String, nullable=False, default="inbox", server_default="inbox")
     published_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
+    publish_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
+    """Scheduled publish datetime - when this entry should be published."""
+    expire_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
+    """Expiration datetime - when this entry should be hidden/archived."""
     metadata_json: Mapped[dict | None] = mapped_column("metadata_json", sa.JSON, nullable=True)
     """Custom non-schema metadata (API keys, external IDs, CMS config, etc.)."""
     created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)

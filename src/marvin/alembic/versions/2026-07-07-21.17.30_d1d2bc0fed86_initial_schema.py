@@ -332,6 +332,8 @@ def upgrade() -> None:
         sa.Column("data_json", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("status", sa.String(), server_default="inbox", nullable=False),
         sa.Column("published_at", sa.DateTime(), nullable=True),
+        sa.Column("publish_at", sa.DateTime(), nullable=True),
+        sa.Column("expire_at", sa.DateTime(), nullable=True),
         sa.Column("metadata_json", sa.JSON(), nullable=True),
         sa.Column("created_by", marvin.db.migration_types.GUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=True),
