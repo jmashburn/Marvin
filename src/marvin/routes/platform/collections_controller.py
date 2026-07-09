@@ -2,7 +2,7 @@
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, status
-from pydantic import UUID4
+from pydantic import UUID4, BaseModel
 
 from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
@@ -10,6 +10,19 @@ from marvin.schemas.platform import CollectionCreate, CollectionRead, Collection
 from marvin.services.event_bus_service.event_types import EventCollectionData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/collections")
+
+
+class EntryOrderItem(BaseModel):
+    """Schema for a single entry order update."""
+
+    entry_id: UUID4
+    sort_order: int
+
+
+class ReorderEntriesRequest(BaseModel):
+    """Schema for bulk reordering entries in a collection."""
+
+    entries: list[EntryOrderItem]
 
 
 @controller(router)
@@ -128,3 +141,53 @@ class CollectionsController(BaseUserController):
         )
 
         return entries
+
+    @router.patch("/{item_id}/entries/order", summary="Reorder Collection Entries")
+    def reorder_collection_entries(self, item_id: UUID4, data: ReorderEntriesRequest) -> dict:
+        """Bulk update sort_order for entries in a collection."""
+        collection = self.repos.collections.get_one(item_id)
+        if not collection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+
+        # Verify all entries belong to this collection
+        entry_ids = [item.entry_id for item in data.entries]
+        existing_junctions = (
+            self.session.query(EntryCollections).filter(EntryCollections.collection_id == item_id, EntryCollections.entry_id.in_(entry_ids)).all()
+        )
+
+        existing_entry_ids = {j.entry_id for j in existing_junctions}
+        missing_entries = set(entry_ids) - existing_entry_ids
+
+        if missing_entries:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Some entries are not in this collection: {missing_entries}",
+            )
+
+        # Update sort_order for each entry
+        for item in data.entries:
+            junction = next((j for j in existing_junctions if j.entry_id == item.entry_id), None)
+            if junction:
+                junction.sort_order = item.sort_order
+                junction.update_at = sa.func.now()
+
+        self.session.commit()
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="collection_management",
+            group_id=self.group_id,
+            event_type=EventTypes.collection_updated,
+            document_data=EventCollectionData(
+                operation=EventOperation.update,
+                collection_id=collection.id,
+                collection_name=collection.name,
+                workspace_id=collection.group_id,
+            ),
+            message=f"Collection '{collection.name}' entries reordered",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
+        )
+
+        return {"status": "ok", "message": f"Reordered {len(data.entries)} entries"}
