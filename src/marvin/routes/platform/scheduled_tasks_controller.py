@@ -27,6 +27,20 @@ router = APIRouter(prefix="/scheduled-tasks", tags=["Platform: Scheduled Tasks"]
 class ScheduledTasksController(BaseUserController):
     """Controller for scheduled task CRUD operations."""
 
+    @router.get("/task-types")
+    def list_task_types(self, detailed: bool = False):
+        """
+        List all available task types that can be scheduled.
+
+        Args:
+            detailed: If True, return full metadata including config schemas
+        """
+        from marvin.services.scheduled_tasks import TaskHandlerRegistry
+
+        if detailed:
+            return TaskHandlerRegistry.get_task_type_info()
+        return TaskHandlerRegistry.list_registered_types()
+
     @router.get("", response_model=list[ScheduledTaskRead])
     def list_tasks(self):
         """List all scheduled tasks for the current workspace."""

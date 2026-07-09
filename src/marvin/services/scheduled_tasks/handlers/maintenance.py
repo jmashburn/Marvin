@@ -29,6 +29,24 @@ class CleanupTempFilesHandler(ScheduledTaskHandler):
     - dry_run: bool (default: False) - If true, log what would be deleted
     """
 
+    name = "Cleanup Temporary Files"
+    description = "Remove old files from temporary upload storage"
+    config_schema = {
+        "type": "object",
+        "properties": {
+            "age_hours": {
+                "type": "integer",
+                "default": 24,
+                "description": "Files older than this many hours will be deleted",
+            },
+            "dry_run": {
+                "type": "boolean",
+                "default": False,
+                "description": "If true, log what would be deleted without actually deleting",
+            },
+        },
+    }
+
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
         config = task.task_config
         age_hours = config.get("age_hours", 24)
