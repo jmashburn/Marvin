@@ -64,6 +64,11 @@ class WorkspaceSeedLoader:
             self.repos = get_repositories(self.repos.session, group_id=workspace.id)
             self.logger.info(f"Using workspace: {workspace.name} ({workspace.slug})")
 
+            # Update site preferences if provided
+            site_data = data.get("site")
+            if site_data:
+                self._update_site_preferences(site_data)
+
         # Process in order: collections -> entry_types -> entries
         # (entries reference collections and entry types)
 
@@ -139,6 +144,39 @@ class WorkspaceSeedLoader:
         workspace = GroupService.create_group(self.repos, group_create)
         self.logger.info(f"Created workspace: {workspace.name} ({workspace.slug})")
         return workspace
+
+    def _update_site_preferences(self, data: dict[str, Any]) -> None:
+        """Update site preferences for the workspace.
+
+        Args:
+            data: Site configuration data from seed file
+        """
+        # Map camelCase JSON fields to snake_case database fields
+        update_data = {
+            "site_title": data.get("title"),
+            "site_tagline": data.get("tagline"),
+            "site_description": data.get("description"),
+            "site_canonical_url": data.get("canonicalUrl"),
+            "site_logo": data.get("logo"),
+            "site_favicon": data.get("favicon"),
+            "site_locale": data.get("locale"),
+            "site_timezone": data.get("timezone"),
+            "site_contact_email": data.get("contactEmail"),
+            "site_social_json": data.get("social"),
+            "site_metadata_json": data.get("metadataJson"),
+        }
+
+        # Remove None values to avoid overwriting existing data with nulls
+        update_data = {k: v for k, v in update_data.items() if v is not None}
+
+        if update_data:
+            # Update preferences using the preferences repository
+            prefs = self.repos.group_preferences.get_one(self.repos.group_id, match_key="group_id")
+            if prefs:
+                self.repos.group_preferences.update(prefs.id, update_data)
+                self.logger.info(f"Updated site preferences ({len(update_data)} fields)")
+            else:
+                self.logger.warning("Group preferences not found - cannot update site settings")
 
     def _create_collection(self, data: dict[str, Any]) -> None:
         """Create a collection if it doesn't exist.
