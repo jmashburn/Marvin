@@ -49,6 +49,19 @@ const fieldTypes = [
     <p class="form-help">Define the fields for this entry type. Fields will appear in the entry editor in the order shown below.</p>
   </div>
 
+  <!-- Schema JSON Editor (always visible, at top) -->
+  <div class="schema-json-editor">
+    <label>Edit Schema JSON</label>
+    <p class="form-help">Paste JSON schema here and click Apply to quickly create fields, or edit the JSON directly.</p>
+    <textarea
+      id="schema-preview-json"
+      class="json-preview editable"
+      rows="10"
+      placeholder='{"fields": []}'
+    >{JSON.stringify(initialSchema, null, 2)}</textarea>
+    <button type="button" id="apply-json-btn" class="button secondary">Apply JSON to Form</button>
+  </div>
+
   <div id="fields-container" class="fields-container">
     <!-- Fields will be rendered here by client-side JS -->
   </div>
@@ -64,18 +77,6 @@ const fieldTypes = [
     id="schema-json-input"
     value={JSON.stringify(initialSchema)}
   />
-
-  <!-- Schema preview (editable JSON) -->
-  <details class="schema-preview" id="schema-preview-container" style={initialSchema.fields.length === 0 ? 'display: none;' : ''}>
-    <summary>Edit Schema JSON</summary>
-    <textarea
-      id="schema-preview-json"
-      class="json-preview editable"
-      rows="10"
-      placeholder='{"fields": []}'
-    >{JSON.stringify(initialSchema, null, 2)}</textarea>
-    <button type="button" id="apply-json-btn" class="button secondary">Apply JSON</button>
-  </details>
 </div>
 
 <style is:global>
@@ -207,19 +208,21 @@ const fieldTypes = [
     margin: 0;
   }
 
-  .schema-editor .schema-preview {
-    padding: 1rem;
+  .schema-editor .schema-json-editor {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.25rem;
     background: var(--bg);
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
   }
 
-  .schema-editor .schema-preview summary {
-    cursor: pointer;
-    font-size: 0.875rem;
+  .schema-editor .schema-json-editor label {
     font-weight: 600;
-    user-select: none;
-    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: var(--ink);
+    margin: 0;
   }
 
   .schema-editor .json-preview {
@@ -238,10 +241,6 @@ const fieldTypes = [
   .schema-editor .json-preview:focus {
     outline: none;
     border-color: var(--color-primary, #666);
-  }
-
-  .schema-editor .schema-preview button {
-    margin-top: 0.75rem;
   }
 
   .schema-editor .empty-state {
@@ -276,18 +275,12 @@ const fieldTypes = [
     const container = document.getElementById('fields-container');
     const input = document.getElementById('schema-json-input');
     const preview = document.getElementById('schema-preview-json');
-    const previewContainer = document.getElementById('schema-preview-container');
 
     if (!container || !input || !preview) return;
 
     // Update hidden input and preview
     input.value = JSON.stringify(schema);
     preview.textContent = JSON.stringify(schema, null, 2);
-
-    // Show/hide preview based on field count
-    if (previewContainer) {
-      previewContainer.style.display = schema.fields.length === 0 ? 'none' : '';
-    }
 
     // Clear container
     container.innerHTML = '';
