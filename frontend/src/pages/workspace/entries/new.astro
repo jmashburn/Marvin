@@ -502,10 +502,15 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
         try {
           const dataJson = JSON.parse(dataJsonEditor.value);
 
+          console.log('[NewEntry] Applying JSON:', dataJson);
+
           // Update all matching form fields
+          let fieldsUpdated = 0;
           for (const [key, value] of Object.entries(dataJson)) {
             const fieldName = `dataJson.${key}`;
             const field = form.querySelector(`[name="${fieldName}"]`);
+
+            console.log(`[NewEntry] Looking for field: ${fieldName}`, field ? 'FOUND' : 'NOT FOUND');
 
             if (field) {
               if (field.type === 'checkbox') {
@@ -513,10 +518,16 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
               } else {
                 field.value = value !== null && value !== undefined ? String(value) : '';
               }
+              fieldsUpdated++;
+              console.log(`[NewEntry] Updated ${fieldName} to:`, value);
             }
           }
 
-          console.log('[NewEntry] Applied JSON to form fields');
+          console.log(`[NewEntry] Applied JSON to ${fieldsUpdated} form fields`);
+
+          if (fieldsUpdated === 0) {
+            alert('No matching form fields found. Make sure you have selected an entry type first.');
+          }
         } catch (e) {
           alert('Invalid JSON. Please check your syntax and try again.');
           console.error('[NewEntry] Failed to parse JSON:', e);
