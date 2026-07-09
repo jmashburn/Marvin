@@ -5,6 +5,7 @@ from datetime import datetime
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
@@ -23,7 +24,15 @@ if TYPE_CHECKING:
 
 
 class Entries(SqlAlchemyBase, BaseMixins):
-    """Workspace-scoped publishable content entry."""
+    """Workspace-scoped publishable content entry.
+
+    Entries are schema-driven content objects. The entry_type.schema_json
+    defines what fields exist, and this entry's data_json contains the
+    actual content structured according to that schema.
+
+    The metadata_json field is for custom non-schema metadata (API keys,
+    external IDs, CMS-specific config) that isn't part of the content model.
+    """
 
     __tablename__ = "entries"
 
@@ -34,10 +43,12 @@ class Entries(SqlAlchemyBase, BaseMixins):
     slug: Mapped[str] = mapped_column(sa.String, nullable=False)
     summary: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
-    content_markdown: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    data_json: Mapped[dict] = mapped_column("data_json", JSONB, nullable=False, default=dict, server_default="{}")
+    """Schema-driven content data structured according to entry_type.schema_json."""
     status: Mapped[str] = mapped_column(sa.String, nullable=False, default="inbox", server_default="inbox")
     published_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column("metadata_json", sa.JSON, nullable=True)
+    """Custom non-schema metadata (API keys, external IDs, CMS config, etc.)."""
     created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     entry_type: Mapped["EntryTypes"] = orm.relationship("EntryTypes", back_populates="entries")

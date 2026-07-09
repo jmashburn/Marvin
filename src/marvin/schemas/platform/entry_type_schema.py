@@ -1,0 +1,250 @@
+"""Entry type schema definition models for schema-driven content.
+
+This module defines the field schema models that power Marvin's schema-driven
+content system. Entry Types define schemas that specify what fields exist,
+how they are edited, and validation rules.
+
+The schema uses discriminated unions (via Pydantic's Literal types) to model
+different field types, following Marvin's existing pattern from scheduled tasks
+(schedule_type: Literal["cron", "interval", "once"]).
+"""
+
+from typing import Annotated, Any, Literal
+
+from pydantic import Field, StringConstraints
+
+from marvin.schemas._marvin import _MarvinModel
+
+
+class BaseFieldSchema(_MarvinModel):
+    """Base schema for all field types.
+
+    Defines common properties shared across all field types:
+    - Identification (key, label)
+    - Validation (required, default_value)
+    - UI hints (placeholder, help_text, read_only)
+    """
+
+    key: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$")]
+    """Field identifier (used as key in data_json). Must be a valid Python identifier."""
+
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    """Display label shown to editors in the UI."""
+
+    required: bool = Field(default=False)
+    """Whether this field is mandatory. Validated when creating/updating entries."""
+
+    default_value: Any | None = Field(default=None, alias="defaultValue")
+    """Default value used when field is not provided."""
+
+    placeholder: str | None = None
+    """Placeholder text shown in empty inputs."""
+
+    help_text: str | None = Field(default=None, alias="helpText")
+    """Help text shown to editors to explain the field's purpose."""
+
+    read_only: bool = Field(default=False, alias="readOnly")
+    """If true, field cannot be edited (useful for computed/system fields)."""
+
+
+class TextFieldSchema(BaseFieldSchema):
+    """Single-line text input field."""
+
+    type: Literal["text"]
+    min: int | None = Field(default=None, description="Minimum string length")
+    max: int | None = Field(default=None, description="Maximum string length")
+    pattern: str | None = Field(default=None, description="Regex pattern for validation")
+
+
+class TextareaFieldSchema(BaseFieldSchema):
+    """Multi-line plain text field."""
+
+    type: Literal["textarea"]
+    min: int | None = Field(default=None, description="Minimum string length")
+    max: int | None = Field(default=None, description="Maximum string length")
+    rows: int | None = Field(default=None, description="Number of visible rows")
+
+
+class MarkdownFieldSchema(BaseFieldSchema):
+    """Markdown editor field."""
+
+    type: Literal["markdown"]
+
+
+class NumberFieldSchema(BaseFieldSchema):
+    """Numeric input field (integer or float)."""
+
+    type: Literal["number"]
+    min: float | None = None
+    max: float | None = None
+    step: float | None = Field(default=None, description="Increment step for number input")
+
+
+class BooleanFieldSchema(BaseFieldSchema):
+    """Boolean toggle/checkbox field."""
+
+    type: Literal["boolean"]
+
+
+class SelectFieldSchema(BaseFieldSchema):
+    """Dropdown selection field with predefined options."""
+
+    type: Literal["select"]
+    options: list[str] = Field(..., description="Valid options for selection", min_length=1)
+    multiple: bool = Field(default=False, description="Allow multiple selections")
+
+
+class DateFieldSchema(BaseFieldSchema):
+    """Date picker field (date only, no time)."""
+
+    type: Literal["date"]
+
+
+class DateTimeFieldSchema(BaseFieldSchema):
+    """Date and time picker field."""
+
+    type: Literal["datetime"]
+
+
+class AssetFieldSchema(BaseFieldSchema):
+    """Single asset reference field.
+
+    Stores the UUID of an Asset from the assets table.
+    """
+
+    type: Literal["asset"]
+
+
+class AssetListFieldSchema(BaseFieldSchema):
+    """Multiple asset references field.
+
+    Stores a list of Asset UUIDs.
+    """
+
+    type: Literal["asset-list"]
+    min_items: int | None = Field(default=None, alias="minItems", description="Minimum number of assets")
+    max_items: int | None = Field(default=None, alias="maxItems", description="Maximum number of assets")
+
+
+class ResourceFieldSchema(BaseFieldSchema):
+    """Single resource reference field.
+
+    Stores the UUID of a Resource from the resources table.
+    """
+
+    type: Literal["resource"]
+
+
+class ResourceListFieldSchema(BaseFieldSchema):
+    """Multiple resource references field.
+
+    Stores a list of Resource UUIDs.
+    """
+
+    type: Literal["resource-list"]
+    min_items: int | None = Field(default=None, alias="minItems", description="Minimum number of resources")
+    max_items: int | None = Field(default=None, alias="maxItems", description="Maximum number of resources")
+
+
+class JsonFieldSchema(BaseFieldSchema):
+    """Free-form JSON object field.
+
+    Allows arbitrary JSON data (object, array, etc).
+    Use sparingly - prefer structured fields when possible.
+    """
+
+    type: Literal["json"]
+
+
+# Discriminated union of all field types
+FieldSchema = Annotated[
+    TextFieldSchema
+    | TextareaFieldSchema
+    | MarkdownFieldSchema
+    | NumberFieldSchema
+    | BooleanFieldSchema
+    | SelectFieldSchema
+    | DateFieldSchema
+    | DateTimeFieldSchema
+    | AssetFieldSchema
+    | AssetListFieldSchema
+    | ResourceFieldSchema
+    | ResourceListFieldSchema
+    | JsonFieldSchema,
+    Field(discriminator="type"),
+]
+"""
+Discriminated union of all field schema types.
+
+Pydantic automatically validates and deserializes to the correct field type
+based on the 'type' field, following the same pattern as ScheduledTaskCreate's
+schedule_type discriminator.
+"""
+
+
+class EntryTypeSchemaDefinition(_MarvinModel):
+    """Entry type schema definition.
+
+    Defines the structure of an Entry Type's content model:
+    - What fields exist
+    - Field types and validation rules
+    - Default values
+    - UI configuration
+
+    This schema is stored in entry_types.schema_json and used to validate
+    entries.data_json when creating/updating entries.
+
+    Example:
+        ```json
+        {
+            "fields": [
+                {
+                    "key": "body",
+                    "label": "Content",
+                    "type": "markdown",
+                    "required": false
+                },
+                {
+                    "key": "difficulty",
+                    "label": "Difficulty",
+                    "type": "select",
+                    "options": ["beginner", "intermediate", "advanced"],
+                    "defaultValue": "beginner"
+                }
+            ]
+        }
+        ```
+    """
+
+    fields: list[FieldSchema] = Field(default_factory=list)
+    """List of field definitions for this entry type."""
+
+    def get_field(self, key: str) -> FieldSchema | None:
+        """Get a field definition by key.
+
+        Args:
+            key: The field key to search for
+
+        Returns:
+            The field schema if found, None otherwise
+        """
+        for field in self.fields:
+            if field.key == key:
+                return field
+        return None
+
+    def get_required_fields(self) -> list[FieldSchema]:
+        """Get all required fields.
+
+        Returns:
+            List of field schemas marked as required
+        """
+        return [field for field in self.fields if field.required]
+
+    def get_field_keys(self) -> set[str]:
+        """Get all field keys defined in the schema.
+
+        Returns:
+            Set of field keys
+        """
+        return {field.key for field in self.fields}

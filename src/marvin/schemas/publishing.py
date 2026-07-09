@@ -59,6 +59,9 @@ class PublishedEntryRead(_MarvinModel):
 
     Only includes public-facing fields. Excludes all admin metadata,
     internal fields, and user information.
+
+    BREAKING CHANGE: content_markdown removed, replaced with data.
+    Entry content is now schema-driven based on entry_type.schema_json.
     """
 
     slug: str
@@ -73,14 +76,14 @@ class PublishedEntryRead(_MarvinModel):
     summary: str | None = None
     """Optional short description/summary."""
 
-    content_markdown: str | None = None
-    """Full entry content in Markdown format."""
+    data: dict
+    """Entry content structured according to entry type schema."""
 
     published_at: datetime | None = None
     """Timestamp when the entry was published."""
 
     metadata: dict | None = None
-    """Custom frontmatter/metadata as JSON object."""
+    """Custom non-schema metadata as JSON object."""
 
     collections: list[str] = []
     """List of collection slugs this entry belongs to."""
