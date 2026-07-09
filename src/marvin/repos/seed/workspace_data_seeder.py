@@ -13,6 +13,19 @@ class WorkspaceDataSeeder:
 
     Expected JSON format:
     {
+        "entry_types": [
+            {
+                "name": "Project",
+                "slug": "project",
+                "icon": "🧥",
+                "color": "#7C4A2D",
+                "description": "A project entry type",
+                "sortOrder": 100,
+                "schemaJson": {
+                    "fields": [...]
+                }
+            }
+        ],
         "entries": [
             {
                 "entry_type": "project",  # entry type slug
@@ -111,25 +124,75 @@ class WorkspaceDataSeeder:
         if not isinstance(data, dict):
             raise ValueError(f"Seed file must be a JSON object, got: {type(data)}")
 
-        if "entries" not in data:
-            raise ValueError("Seed file must have 'entries' array")
+        # Process entry types first (if present)
+        entry_types = data.get("entry_types", [])
+        if entry_types:
+            if not isinstance(entry_types, list):
+                raise ValueError(f"'entry_types' must be an array, got: {type(entry_types)}")
 
+            self.logger.info(f"Found {len(entry_types)} entry types to seed in {json_file.name}")
+
+            for idx, entry_type_data in enumerate(entry_types):
+                try:
+                    self._seed_entry_type(entry_type_data)
+                    results["created"] += 1
+                except Exception as e:
+                    self.logger.error(f"Failed to seed entry type #{idx + 1} in {json_file.name}: {e}")
+                    results["errors"] += 1
+
+        # Process entries (if present)
         entries = data.get("entries", [])
-        if not isinstance(entries, list):
-            raise ValueError(f"'entries' must be an array, got: {type(entries)}")
+        if entries:
+            if not isinstance(entries, list):
+                raise ValueError(f"'entries' must be an array, got: {type(entries)}")
 
-        self.logger.info(f"Found {len(entries)} entries to seed in {json_file.name}")
+            self.logger.info(f"Found {len(entries)} entries to seed in {json_file.name}")
 
-        # Process each entry
-        for idx, entry_data in enumerate(entries):
-            try:
-                self._seed_entry(entry_data)
-                results["created"] += 1
-            except Exception as e:
-                self.logger.error(f"Failed to seed entry #{idx + 1} in {json_file.name}: {e}")
-                results["errors"] += 1
+            for idx, entry_data in enumerate(entries):
+                try:
+                    self._seed_entry(entry_data)
+                    results["created"] += 1
+                except Exception as e:
+                    self.logger.error(f"Failed to seed entry #{idx + 1} in {json_file.name}: {e}")
+                    results["errors"] += 1
 
         return results
+
+    def _seed_entry_type(self, entry_type_data: dict[str, Any]) -> None:
+        """Create or update a single entry type from seed data.
+
+        Args:
+            entry_type_data: Entry type definition from seed file
+        """
+        # Validate required fields
+        if "slug" not in entry_type_data:
+            raise ValueError("Entry type must have 'slug' field")
+
+        if "name" not in entry_type_data:
+            raise ValueError("Entry type must have 'name' field")
+
+        # Check if entry type already exists by slug
+        existing_types = self.repos.entry_types.multi_query({"slug": entry_type_data["slug"]})
+
+        if existing_types:
+            # Entry type exists - skip for now (idempotent behavior)
+            self.logger.debug(f"Entry type already exists, skipping: {entry_type_data['slug']}")
+            return
+
+        # Prepare entry type data
+        create_data = {
+            "name": entry_type_data["name"],
+            "slug": entry_type_data["slug"],
+            "icon": entry_type_data.get("icon"),
+            "color": entry_type_data.get("color"),
+            "description": entry_type_data.get("description"),
+            "sort_order": entry_type_data.get("sortOrder", 0),
+            "content_schema": entry_type_data.get("schemaJson", {}),
+        }
+
+        # Create entry type
+        entry_type = self.repos.entry_types.create(create_data)
+        self.logger.info(f"Created entry type: {entry_type.slug}")
 
     def _seed_entry(self, entry_data: dict[str, Any]) -> None:
         """Create or update a single entry from seed data.
