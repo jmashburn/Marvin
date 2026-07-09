@@ -157,8 +157,7 @@ const fieldTypes = [
   }
 
   /* Match parent page form field styling */
-  .field-editor-body input[type="text"],
-  .field-editor-body input[type="number"],
+  .field-editor-body input,
   .field-editor-body select,
   .field-editor-body textarea {
     padding: 0.5rem 0.75rem;
@@ -166,11 +165,18 @@ const fieldTypes = [
     border-radius: 6px;
     background: var(--bg);
     font-size: 0.875rem;
+    font-family: inherit;
   }
 
   .field-editor-body textarea {
     resize: vertical;
-    font-family: inherit;
+  }
+
+  .field-editor-body input:focus,
+  .field-editor-body select:focus,
+  .field-editor-body textarea:focus {
+    outline: none;
+    border-color: var(--color-primary, #666);
   }
 
   /* Checkbox field override for Required checkbox */
