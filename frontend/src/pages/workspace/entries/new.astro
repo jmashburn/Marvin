@@ -144,6 +144,11 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
             <p class="form-help">Additional details about this entry</p>
           </div>
 
+          {/* Schema-driven content fields - dynamically populated */}
+          <div id="schema-fields-container">
+            {preSelectedSchema && <SchemaForm schema={preSelectedSchema} />}
+          </div>
+
           <div class="form-group">
             <label for="status">Status</label>
             <select id="status" name="status">
@@ -151,11 +156,6 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
               <option value="draft" selected>Draft</option>
             </select>
             <p class="form-help">New entries start as drafts. Add content and publish from the editor.</p>
-          </div>
-
-          {/* Schema-driven content fields - dynamically populated */}
-          <div id="schema-fields-container">
-            {preSelectedSchema && <SchemaForm schema={preSelectedSchema} />}
           </div>
 
           <div class="form-actions">
@@ -239,6 +239,52 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
     gap: 0.75rem;
     padding-top: 1rem;
     border-top: 1px solid var(--line);
+  }
+
+  /* Schema fields container styling - ensure consistency */
+  #schema-fields-container :global(.form-group) {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  #schema-fields-container :global(label) {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  #schema-fields-container :global(input[type="text"]),
+  #schema-fields-container :global(input[type="number"]),
+  #schema-fields-container :global(input[type="date"]),
+  #schema-fields-container :global(input[type="datetime-local"]),
+  #schema-fields-container :global(select),
+  #schema-fields-container :global(textarea) {
+    padding: 0.5rem 0.75rem !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 6px !important;
+    background: var(--bg) !important;
+    font-size: 0.875rem !important;
+    font-family: inherit !important;
+  }
+
+  #schema-fields-container :global(select) {
+    cursor: pointer;
+  }
+
+  #schema-fields-container :global(textarea) {
+    resize: vertical;
+  }
+
+  #schema-fields-container :global(.form-help) {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  #schema-fields-container :global(input[type="checkbox"]) {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
   }
 </style>
 
