@@ -518,6 +518,8 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
           const dataJson = JSON.parse(dataJsonEditor.value);
 
           console.log('[NewEntry] Applying JSON:', dataJson);
+          console.log('[NewEntry] Form element:', form);
+          console.log('[NewEntry] Form contains schema container:', form.contains(document.getElementById('schema-fields-container')));
 
           // Debug: Show all form fields
           const allFormFields = form.querySelectorAll('input, select, textarea');
