@@ -7,7 +7,7 @@ all admin fields, internal metadata, and unpublished content.
 
 from datetime import datetime
 
-from pydantic import UUID4, ConfigDict
+from pydantic import UUID4, ConfigDict, Field
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -50,7 +50,7 @@ class PublishedAssetRead(_MarvinModel):
     public_url: str
     """Public URL to access the asset file."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -85,7 +85,7 @@ class PublishedEntryRead(_MarvinModel):
     published_at: datetime | None = None
     """Timestamp when the entry was published."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom non-schema metadata as JSON object."""
 
     collections: list["PublishedCollectionSummary"] = []
@@ -197,7 +197,7 @@ class PublishedCollectionRead(_MarvinModel):
     smart_rules: dict | None = None
     """Smart collection rules (JSON object)."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     entry_count: int
@@ -223,7 +223,7 @@ class PublishedCollectionSummary(_MarvinModel):
     name: str
     """Collection display name."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     sort_order: int
@@ -258,7 +258,7 @@ class PublishedResourceSummary(_MarvinModel):
     external_id: str | None = None
     """External identifier (SKU, ISBN, etc)."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     entries: list[str] = []
@@ -292,7 +292,7 @@ class PublishedResourceRead(_MarvinModel):
     external_id: str | None = None
     """External identifier (SKU, ISBN, etc)."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     # Entry-specific placement fields from junction table
@@ -363,7 +363,7 @@ class SiteConfiguration(_MarvinModel):
     social: dict | None = None
     """Social media links (e.g., {instagram: 'url', facebook: 'url'})."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Framework-specific or custom site metadata."""
 
     model_config = ConfigDict(from_attributes=True)
