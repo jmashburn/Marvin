@@ -746,10 +746,11 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
     color: var(--muted);
   }
 
-  .metadata-editor {
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  .metadata-editor,
+  .data-json-editor {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
     font-size: 12px;
-    line-height: 1.5;
+    line-height: 1.6;
     background: var(--panel-2);
     border: 1px solid var(--line);
     border-radius: 6px;

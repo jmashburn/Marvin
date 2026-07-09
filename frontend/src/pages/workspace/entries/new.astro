@@ -150,6 +150,21 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
           </div>
 
           <div class="form-group">
+            <label for="data_json_editor">Data JSON (Schema Fields)</label>
+            <p class="form-help">View or edit schema field data as JSON. Paste complete JSON to populate form fields.</p>
+            <textarea
+              id="data_json_editor"
+              rows="8"
+              placeholder='{"text_field": "value", "number_field": 42}'
+              class="data-json-editor"
+            >{}</textarea>
+            <button type="button" id="apply-data-json-btn" class="button secondary" style="margin-top: 0.5rem;">Apply JSON to Form</button>
+            <small style="font-size: 11px; color: var(--muted); display: block; margin-top: 0.5rem;">
+              Changes here will update the form fields above when you click "Apply JSON to Form"
+            </small>
+          </div>
+
+          <div class="form-group">
             <label for="status">Status</label>
             <select id="status" name="status">
               <option value="inbox">Inbox</option>
@@ -290,6 +305,12 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
     width: 1rem;
     height: 1rem;
     cursor: pointer;
+  }
+
+  /* Data JSON editor styling */
+  .data-json-editor {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    line-height: 1.6;
   }
 </style>
 
@@ -436,7 +457,78 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
         console.log('[NewEntry] Rendering schema fields:', fieldsHtml);
         schemaContainer.innerHTML = fieldsHtml;
+
+        // After rendering, set up Data JSON sync
+        setupDataJsonSync();
       });
     }
+
+    // Data JSON editor - sync between JSON and form fields
+    function setupDataJsonSync() {
+      const form = document.querySelector('form');
+      const dataJsonEditor = document.getElementById('data_json_editor');
+      const applyDataJsonBtn = document.getElementById('apply-data-json-btn');
+
+      if (!form || !dataJsonEditor || !applyDataJsonBtn) return;
+
+      // Update JSON when form fields change
+      function updateDataJsonFromForm() {
+        const dataJson = {};
+        const formData = new FormData(form);
+
+        for (const [key, value] of formData.entries()) {
+          if (key.startsWith('dataJson.')) {
+            const fieldKey = key.replace('dataJson.', '');
+            // Handle boolean checkboxes
+            if (value === 'true' || value === 'false') {
+              dataJson[fieldKey] = value === 'true';
+            } else {
+              dataJson[fieldKey] = value || null;
+            }
+          }
+        }
+
+        dataJsonEditor.value = JSON.stringify(dataJson, null, 2);
+      }
+
+      // Update form fields when JSON changes
+      applyDataJsonBtn.addEventListener('click', () => {
+        try {
+          const dataJson = JSON.parse(dataJsonEditor.value);
+
+          // Update all matching form fields
+          for (const [key, value] of Object.entries(dataJson)) {
+            const fieldName = `dataJson.${key}`;
+            const field = form.querySelector(`[name="${fieldName}"]`);
+
+            if (field) {
+              if (field.type === 'checkbox') {
+                field.checked = !!value;
+              } else {
+                field.value = value !== null && value !== undefined ? String(value) : '';
+              }
+            }
+          }
+
+          alert('Form fields updated from JSON!');
+        } catch (e) {
+          alert('Invalid JSON: ' + (e instanceof Error ? e.message : String(e)));
+        }
+      });
+
+      // Listen for changes to schema fields and update JSON
+      const schemaFieldsContainer = document.getElementById('schema-fields-container');
+      if (schemaFieldsContainer) {
+        schemaFieldsContainer.addEventListener('input', () => {
+          updateDataJsonFromForm();
+        });
+      }
+
+      // Initial sync
+      updateDataJsonFromForm();
+    }
+
+    // Set up Data JSON sync on initial load if schema is pre-selected
+    setupDataJsonSync();
   });
 </script>
