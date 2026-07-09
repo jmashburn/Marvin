@@ -514,7 +514,7 @@ async def get_published_collection(
             EntryCollections.collection_id == collection.id,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
         )
-        .order_by(Entries.published_at.desc())
+        .order_by(EntryCollections.sort_order.asc(), Entries.published_at.desc())
         .all()
     )
 
