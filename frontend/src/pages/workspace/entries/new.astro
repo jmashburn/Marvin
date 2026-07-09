@@ -504,6 +504,16 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
           console.log('[NewEntry] Applying JSON:', dataJson);
 
+          // Debug: Show all form fields
+          const allFormFields = form.querySelectorAll('input, select, textarea');
+          console.log('[NewEntry] Total form fields:', allFormFields.length);
+
+          const dataJsonFields = form.querySelectorAll('[name^="dataJson."]');
+          console.log('[NewEntry] Fields with name starting with dataJson.:', dataJsonFields.length);
+          dataJsonFields.forEach(field => {
+            console.log('[NewEntry] Found field:', field.name, field.type, field);
+          });
+
           // Update all matching form fields
           let fieldsUpdated = 0;
           for (const [key, value] of Object.entries(dataJson)) {
