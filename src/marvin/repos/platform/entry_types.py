@@ -60,13 +60,13 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if self.group_id:
             return query.filter(
                 or_(
-                    self.sql_model.group_id == self.group_id,
-                    self.sql_model.group_id.is_(None),
+                    self.model.group_id == self.group_id,
+                    self.model.group_id.is_(None),
                 )
             )
         else:
             # If no group_id, only show system types
-            return query.filter(self.sql_model.group_id.is_(None))
+            return query.filter(self.model.group_id.is_(None))
 
     def page_all(self, pagination, override_schema=None, search=None):
         """Override to add custom group_id filtering for system types."""
@@ -119,7 +119,7 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
 
         query = self._query(override_schema=eff_schema)
         query = self._apply_group_filter(query)
-        query = query.filter(getattr(self.sql_model, key) == match_value)
+        query = query.filter(getattr(self.model, key) == match_value)
 
         item = self.session.scalars(query).unique().one_or_none()
         return eff_schema.model_validate(item) if item else None
@@ -133,11 +133,11 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
 
         # Apply query_by filters
         for key, value in query_by.items():
-            query = query.filter(getattr(self.sql_model, key) == value)
+            query = query.filter(getattr(self.model, key) == value)
 
         # Apply ordering
         if order_by:
-            order_attr = getattr(self.sql_model, order_by)
+            order_attr = getattr(self.model, order_by)
             query = query.order_by(order_attr.desc() if order_descending else order_attr.asc())
 
         # Apply pagination
