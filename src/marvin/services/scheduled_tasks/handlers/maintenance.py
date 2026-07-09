@@ -12,7 +12,7 @@ from pathlib import Path
 from marvin.core.config import get_app_settings
 from marvin.db.db_setup import session_context
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
-from marvin.repos import get_repositories
+from marvin.repos.repository_factory import AllRepositories
 from marvin.services.event_bus_service import EventBusService
 
 from . import ScheduledTaskHandler, TaskHandlerRegistry
@@ -96,7 +96,7 @@ class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
         age_days = config.get("age_days", 30)
 
         with session_context() as session:
-            repos = get_repositories(session, group_id=None)  # System-wide access
+            repos = AllRepositories(session, group_id=None)  # System-wide access
 
             # Get all invitations (workspace-scoped repos need group context)
             # This is a simplified example - actual implementation would need
@@ -122,7 +122,7 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
         workspace_id = config.get("workspace_id")
 
         with session_context() as session:
-            repos = get_repositories(session, group_id=workspace_id)
+            repos = AllRepositories(session, group_id=workspace_id)
 
             # Find assets with no entry associations
             # This is a simplified example - actual implementation would use SQL joins

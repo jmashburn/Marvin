@@ -9,7 +9,7 @@ from datetime import datetime
 
 from marvin.core import root_logger
 from marvin.db.db_setup import session_context
-from marvin.repos import get_repositories
+from marvin.repos.repository_factory import AllRepositories
 from marvin.services.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import EventScheduledTaskData, EventTypes
 
@@ -31,7 +31,7 @@ def check_scheduled_tasks() -> None:
     try:
         with session_context() as session:
             # System-wide access (group_id=None) to find all tasks
-            repos = get_repositories(session, group_id=None)
+            repos = AllRepositories(session, group_id=None)
             event_bus = EventBusService(bg_tasks=None)
 
             now = datetime.utcnow()

@@ -9,7 +9,7 @@ from datetime import datetime
 
 from marvin.db.db_setup import session_context
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
-from marvin.repos import get_repositories
+from marvin.repos.repository_factory import AllRepositories
 from marvin.services.event_bus_service import EventBusService, EventTypes
 
 from . import ScheduledTaskHandler, TaskHandlerRegistry
@@ -35,7 +35,7 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
             raise ValueError("workspace_id is required in task_config or task.group_id")
 
         with session_context() as session:
-            repos = get_repositories(session, group_id=workspace_id)
+            repos = AllRepositories(session, group_id=workspace_id)
 
             # Find entries with publish_at <= now and status != 'published'
             # This is a simplified example - actual implementation would query properly
@@ -84,7 +84,7 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
             raise ValueError("workspace_id is required in task_config or task.group_id")
 
         with session_context() as session:
-            repos = get_repositories(session, group_id=workspace_id)
+            repos = AllRepositories(session, group_id=workspace_id)
 
             now = datetime.utcnow()
             logger.info(

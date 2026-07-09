@@ -2,7 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import EmojiPicker from "@/components/EmojiPicker.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getCollection } from "@/lib/api/collections";
+import { getCollection, getCollectionEntries } from "@/lib/api/collections";
 import { listEntries } from "@/lib/api/entries";
 import type { EntryRead, CollectionRead } from "@/lib/api/entries";
 
@@ -20,17 +20,14 @@ if (!authToken) {
   error = "Collection ID is required";
 } else {
   try {
-    [collection, allEntries] = await Promise.all([
+    [collection, allEntries, collectionEntries] = await Promise.all([
       getCollection(id, authToken),
       listEntries(authToken),
+      getCollectionEntries(id, authToken),
     ]);
 
-    // Get entries that belong to this collection
-    // Filter entries that have this collection in their collections array
-    // Note: collections is an array of collection IDs (strings)
-    collectionEntries = allEntries.filter(entry => {
-      return entry.collections && entry.collections.includes(id);
-    });
+    // Sort collection entries by order field (already sorted by API, but ensure it)
+    collectionEntries.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -185,7 +182,34 @@ if (!authToken) {
       </section>
 
       <section class="entries-section">
-        <h3 style="margin:0 0 1rem;font-size:1.125rem;">Entries in this Collection ({collectionEntries.length})</h3>
+        <h3 style="margin:0 0 1rem;font-size:1.125rem;">Collection Entries ({collectionEntries.length})</h3>
+
+        {collectionEntries.length > 0 && (
+          <div class="order-section">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+              <p class="section-help" style="margin:0;">Drag to reorder entries</p>
+              <button id="save-order-btn" class="button small" style="display:none;">Save Order</button>
+            </div>
+            <div id="sortable-entries" class="sortable-list">
+              {collectionEntries.map((entry, index) => (
+                <div class="sortable-item" data-entry-id={entry.id} data-order={entry.order ?? index} draggable="true">
+                  <div class="drag-handle">⋮⋮</div>
+                  <div class="sortable-content">
+                    <div class="sortable-order">{(entry.order ?? index) + 1}</div>
+                    <div class="sortable-info">
+                      <strong>{entry.title}</strong>
+                      <span class="sortable-meta">
+                        <span class={`pill ${entry.status}`}>{entry.status}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <h4 style="margin:2rem 0 1rem;font-size:1rem;">Add/Remove Entries</h4>
         <p class="section-help">Select entries to include in this collection</p>
 
         <div class="picker-search">
@@ -413,6 +437,90 @@ if (!authToken) {
         if (metadataPreviewContainer) {
           metadataPreviewContainer.remove();
         }
+      }
+    });
+  }
+
+  // Drag and drop for entry ordering
+  const sortableList = document.getElementById('sortable-entries');
+  const saveOrderBtn = document.getElementById('save-order-btn');
+  let draggedItem: HTMLElement | null = null;
+  let hasChanges = false;
+
+  if (sortableList) {
+    const items = sortableList.querySelectorAll('.sortable-item');
+
+    items.forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        draggedItem = item as HTMLElement;
+        item.classList.add('dragging');
+        (e as DragEvent).dataTransfer!.effectAllowed = 'move';
+      });
+
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        draggedItem = null;
+      });
+
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        (e as DragEvent).dataTransfer!.dropEffect = 'move';
+
+        if (draggedItem && draggedItem !== item) {
+          const bounding = item.getBoundingClientRect();
+          const offset = (e as DragEvent).clientY - bounding.top;
+
+          if (offset > bounding.height / 2) {
+            item.parentNode!.insertBefore(draggedItem, item.nextSibling);
+          } else {
+            item.parentNode!.insertBefore(draggedItem, item);
+          }
+
+          updateOrderNumbers();
+          hasChanges = true;
+          if (saveOrderBtn) saveOrderBtn.style.display = 'inline-block';
+        }
+      });
+    });
+  }
+
+  function updateOrderNumbers() {
+    const items = sortableList?.querySelectorAll('.sortable-item');
+    items?.forEach((item, index) => {
+      const orderEl = item.querySelector('.sortable-order');
+      if (orderEl) orderEl.textContent = String(index + 1);
+    });
+  }
+
+  // Save order button
+  if (saveOrderBtn) {
+    saveOrderBtn.addEventListener('click', async () => {
+      const items = sortableList?.querySelectorAll('.sortable-item');
+      if (!items) return;
+
+      const entries = Array.from(items).map((item, index) => ({
+        entryId: (item as HTMLElement).dataset.entryId!,
+        sortOrder: index,
+      }));
+
+      saveOrderBtn.disabled = true;
+      saveOrderBtn.textContent = 'Saving...';
+
+      try {
+        const collectionId = window.location.pathname.split('/').pop()!;
+        await sdk.collections.reorderEntries(collectionId, entries);
+        saveOrderBtn.textContent = '✓ Saved';
+        saveOrderBtn.style.display = 'none';
+        hasChanges = false;
+
+        setTimeout(() => {
+          saveOrderBtn.textContent = 'Save Order';
+        }, 2000);
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to save order';
+        alert(message);
+        saveOrderBtn.disabled = false;
+        saveOrderBtn.textContent = 'Save Order';
       }
     });
   }
@@ -670,5 +778,93 @@ if (!authToken) {
     word-break: break-word;
     white-space: pre-wrap;
     font-family: monospace;
+  }
+
+  .order-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .sortable-list {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .sortable-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: move;
+    transition: all 0.2s;
+  }
+
+  .sortable-item:hover {
+    background: var(--panel-2);
+    border-color: var(--brand);
+  }
+
+  .sortable-item.dragging {
+    opacity: 0.5;
+  }
+
+  .drag-handle {
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: grab;
+    user-select: none;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .sortable-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .sortable-order {
+    min-width: 2rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--muted);
+    padding: 0.25rem 0.5rem;
+    background: var(--panel-2);
+    border-radius: 4px;
+  }
+
+  .sortable-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .sortable-info strong {
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sortable-meta {
+    font-size: 0.75rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 </style>
