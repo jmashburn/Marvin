@@ -33,18 +33,32 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             group_id=group_id,
         )
 
-    def _build_query(self, **kwargs):
+    def _filter_builder(self, **kwargs):
         """
         Override to include system entry types (group_id IS NULL) in addition
         to workspace-scoped types.
+
+        Returns an empty dict when group_id is set, because we'll handle
+        filtering in page_all and other query methods manually.
+        """
+        # Don't apply automatic group_id filter - we handle it manually
+        # to include both workspace types AND system types
+        return {}
+
+    def _apply_group_filter(self, query):
+        """
+        Apply custom group_id filter to include both workspace and system types.
+
+        Args:
+            query: SQLAlchemy query to filter
+
+        Returns:
+            Filtered query
         """
         from sqlalchemy import or_
 
-        query = self.session.query(self.sql_model)
-
-        # Include both workspace-scoped types AND system types
         if self.group_id:
-            query = query.filter(
+            return query.filter(
                 or_(
                     self.sql_model.group_id == self.group_id,
                     self.sql_model.group_id.is_(None),
@@ -52,9 +66,88 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             )
         else:
             # If no group_id, only show system types
-            query = query.filter(self.sql_model.group_id.is_(None))
+            return query.filter(self.sql_model.group_id.is_(None))
 
-        return query
+    def page_all(self, pagination, override_schema=None, search=None):
+        """Override to add custom group_id filtering for system types."""
+        # Get the base query from parent
+        eff_schema = override_schema or self.schema
+        pagination_params = pagination.model_copy(deep=True)
+
+        base_query = self._query(override_schema=eff_schema, with_options=False)
+
+        # Apply custom group_id filter: workspace types OR system types
+        base_query = self._apply_group_filter(base_query)
+
+        # Apply text search if provided
+        if search:
+            base_query = self.add_search_to_query(base_query, eff_schema, search)
+
+        # Default ordering
+        if not pagination_params.order_by and not search:
+            pagination_params.order_by = "sort_order"
+
+        # Apply pagination
+        paginated_query, total_count, total_pages = self.add_pagination_to_query(base_query, pagination_params)
+
+        # Apply loader options
+        if hasattr(eff_schema, "loader_options") and callable(eff_schema.loader_options):
+            final_query_with_options = paginated_query.options(*eff_schema.loader_options())
+        else:
+            final_query_with_options = paginated_query
+
+        # Execute query
+        items = list(self.session.scalars(final_query_with_options).unique())
+
+        # Convert to schemas
+        from marvin.schemas.response import PaginationBase
+
+        schema_items = [eff_schema.model_validate(item) for item in items]
+
+        return PaginationBase(
+            page=pagination_params.page,
+            per_page=pagination_params.per_page,
+            total=total_count,
+            total_pages=total_pages,
+            items=schema_items,
+        )
+
+    def get_one(self, match_value, match_key=None, override_schema=None):
+        """Override to include system types in lookup."""
+        eff_schema = override_schema or self.schema
+        key = match_key or self.primary_key
+
+        query = self._query(override_schema=eff_schema)
+        query = self._apply_group_filter(query)
+        query = query.filter(getattr(self.sql_model, key) == match_value)
+
+        item = self.session.scalars(query).unique().one_or_none()
+        return eff_schema.model_validate(item) if item else None
+
+    def multi_query(self, query_by, start=0, limit=None, override_schema=None, order_by=None, order_descending=True):
+        """Override to include system types in multi query."""
+        eff_schema = override_schema or self.schema
+
+        query = self._query(override_schema=eff_schema)
+        query = self._apply_group_filter(query)
+
+        # Apply query_by filters
+        for key, value in query_by.items():
+            query = query.filter(getattr(self.sql_model, key) == value)
+
+        # Apply ordering
+        if order_by:
+            order_attr = getattr(self.sql_model, order_by)
+            query = query.order_by(order_attr.desc() if order_descending else order_attr.asc())
+
+        # Apply pagination
+        if start:
+            query = query.offset(start)
+        if limit:
+            query = query.limit(limit)
+
+        items = list(self.session.scalars(query).unique())
+        return [eff_schema.model_validate(item) for item in items]
 
     def _validate_schema_json(self, schema_json: dict | None) -> None:
         """Validate schema_json against EntryTypeSchemaDefinition.
