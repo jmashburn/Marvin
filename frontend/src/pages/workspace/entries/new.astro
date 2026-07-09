@@ -243,143 +243,149 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 </style>
 
 <script define:vars={{ entryTypes: sortedTypes }}>
-  // Auto-generate slug from title (unless user manually edits it)
-  const titleInput = document.getElementById('title') as HTMLInputElement | null;
-  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
+  document.addEventListener('DOMContentLoaded', () => {
+    // Auto-generate slug from title (unless user manually edits it)
+    const titleInput = document.getElementById('title');
+    const slugInput = document.getElementById('slug');
 
-  if (titleInput && slugInput) {
-    titleInput.addEventListener('input', () => {
-      // Only auto-generate if user hasn't manually edited the slug
-      if (!slugInput.dataset.manuallyEdited) {
-        const slug = titleInput.value
-          .toLowerCase()
-          .trim()
-          .replace(/[^\w\s-]/g, '')
-          .replace(/[\s_-]+/g, '-')
-          .replace(/^-+|-+$/g, '');
-        slugInput.value = slug;
-      }
-    });
-
-    // Track if user manually edits slug field
-    slugInput.addEventListener('input', () => {
-      slugInput.dataset.manuallyEdited = 'true';
-    });
-  }
-
-  // Dynamically render schema fields when entry type changes
-  const entryTypeSelect = document.getElementById('entry_type_id') as HTMLSelectElement | null;
-  const schemaContainer = document.getElementById('schema-fields-container');
-
-  if (entryTypeSelect && schemaContainer) {
-    entryTypeSelect.addEventListener('change', () => {
-      const selectedTypeId = entryTypeSelect.value;
-      if (!selectedTypeId) {
-        schemaContainer.innerHTML = '';
-        return;
-      }
-
-      // Find the selected entry type
-      const selectedType = entryTypes.find((t: any) => t.id === selectedTypeId);
-      if (!selectedType || !selectedType.schemaJson || !(selectedType.schemaJson as any).fields?.length) {
-        schemaContainer.innerHTML = '';
-        return;
-      }
-
-      // Render schema fields dynamically
-      const schema = selectedType.schemaJson as any;
-      const fieldsHtml = schema.fields.map((field: any) => {
-        const fieldName = `dataJson.${field.key}`;
-        const required = field.required ? 'required' : '';
-        const placeholder = field.placeholder || '';
-        const helpText = field.helpText || '';
-
-        switch (field.type) {
-          case 'text':
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <input type="text" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}" ${required} />
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
-          case 'textarea':
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <textarea id="${fieldName}" name="${fieldName}" rows="4" placeholder="${placeholder}" ${required}></textarea>
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
-          case 'number':
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <input type="number" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}"
-                  ${field.min !== undefined ? `min="${field.min}"` : ''}
-                  ${field.max !== undefined ? `max="${field.max}"` : ''}
-                  ${required} />
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
-          case 'boolean':
-            return `
-              <div class="form-group">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <input type="checkbox" id="${fieldName}" name="${fieldName}" value="true" />
-                  <label for="${fieldName}" style="margin: 0;">${field.label}</label>
-                </div>
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
-          case 'select':
-            const options = field.options || [];
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <select id="${fieldName}" name="${fieldName}" ${required}>
-                  <option value="">Select...</option>
-                  ${options.map((opt: string) => `<option value="${opt}">${opt}</option>`).join('')}
-                </select>
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
-          case 'date':
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <input type="date" id="${fieldName}" name="${fieldName}" ${required} />
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
-          case 'datetime':
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <input type="datetime-local" id="${fieldName}" name="${fieldName}" ${required} />
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
-          case 'markdown':
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <textarea id="${fieldName}" name="${fieldName}" rows="8" placeholder="${placeholder}" ${required}></textarea>
-                <p class="form-help">Markdown supported${helpText ? ` • ${helpText}` : ''}</p>
-              </div>
-            `;
-          default:
-            return `
-              <div class="form-group">
-                <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
-                <input type="text" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}" ${required} />
-                ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
-              </div>
-            `;
+    if (titleInput && slugInput) {
+      titleInput.addEventListener('input', () => {
+        // Only auto-generate if user hasn't manually edited the slug
+        if (!slugInput.dataset.manuallyEdited) {
+          const slug = titleInput.value
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          slugInput.value = slug;
         }
-      }).join('');
+      });
 
-      schemaContainer.innerHTML = fieldsHtml;
-    });
-  }
+      // Track if user manually edits slug field
+      slugInput.addEventListener('input', () => {
+        slugInput.dataset.manuallyEdited = 'true';
+      });
+    }
+
+    // Dynamically render schema fields when entry type changes
+    const entryTypeSelect = document.getElementById('entry_type_id');
+    const schemaContainer = document.getElementById('schema-fields-container');
+
+    if (entryTypeSelect && schemaContainer) {
+      entryTypeSelect.addEventListener('change', () => {
+        console.log('[NewEntry] Entry type changed:', entryTypeSelect.value);
+        const selectedTypeId = entryTypeSelect.value;
+        if (!selectedTypeId) {
+          schemaContainer.innerHTML = '';
+          return;
+        }
+
+        // Find the selected entry type
+        const selectedType = entryTypes.find(t => t.id === selectedTypeId);
+        console.log('[NewEntry] Selected type:', selectedType);
+
+        if (!selectedType || !selectedType.schemaJson || !selectedType.schemaJson.fields?.length) {
+          schemaContainer.innerHTML = '';
+          return;
+        }
+
+        // Render schema fields dynamically
+        const schema = selectedType.schemaJson;
+        const fieldsHtml = schema.fields.map(field => {
+          const fieldName = `dataJson.${field.key}`;
+          const required = field.required ? 'required' : '';
+          const placeholder = field.placeholder || '';
+          const helpText = field.helpText || '';
+
+          switch (field.type) {
+            case 'text':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="text" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'textarea':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <textarea id="${fieldName}" name="${fieldName}" rows="4" placeholder="${placeholder}" ${required}></textarea>
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'number':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="number" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}"
+                    ${field.min !== undefined ? `min="${field.min}"` : ''}
+                    ${field.max !== undefined ? `max="${field.max}"` : ''}
+                    ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'boolean':
+              return `
+                <div class="form-group">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="${fieldName}" name="${fieldName}" value="true" />
+                    <label for="${fieldName}" style="margin: 0;">${field.label}</label>
+                  </div>
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'select':
+              const options = field.options || [];
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <select id="${fieldName}" name="${fieldName}" ${required}>
+                    <option value="">Select...</option>
+                    ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                  </select>
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'date':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="date" id="${fieldName}" name="${fieldName}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'datetime':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="datetime-local" id="${fieldName}" name="${fieldName}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'markdown':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <textarea id="${fieldName}" name="${fieldName}" rows="8" placeholder="${placeholder}" ${required}></textarea>
+                  <p class="form-help">Markdown supported${helpText ? ` • ${helpText}` : ''}</p>
+                </div>
+              `;
+            default:
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="text" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+          }
+        }).join('');
+
+        console.log('[NewEntry] Rendering schema fields:', fieldsHtml);
+        schemaContainer.innerHTML = fieldsHtml;
+      });
+    }
+  });
 </script>
