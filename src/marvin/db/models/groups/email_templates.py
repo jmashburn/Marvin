@@ -3,7 +3,7 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from marvin.db.models._model_base import BaseMixins, SqlAlchemyBase
+from marvin.db.models import BaseMixins, SqlAlchemyBase
 
 
 class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
