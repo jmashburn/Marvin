@@ -2,7 +2,7 @@
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, status
-from pydantic import UUID4, BaseModel
+from pydantic import UUID4, BaseModel, Field, ConfigDict
 
 from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
@@ -15,8 +15,10 @@ router = APIRouter(prefix="/collections")
 class EntryOrderItem(BaseModel):
     """Schema for a single entry order update."""
 
-    entry_id: UUID4
-    sort_order: int
+    entry_id: UUID4 = Field(validation_alias="entryId")
+    sort_order: int = Field(validation_alias="sortOrder")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ReorderEntriesRequest(BaseModel):
