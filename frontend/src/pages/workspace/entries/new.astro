@@ -508,10 +508,20 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
       // Update JSON (both display and hidden input) when form fields change
       function updateDataJsonFromForm() {
-        const dataJson = {};
+        // Don't update if we don't have the current JSON parsed yet
+        let currentJson = {};
+        try {
+          currentJson = JSON.parse(dataJsonEditor.value || '{}');
+        } catch (e) {
+          console.warn('[NewEntry] Could not parse current JSON, starting fresh');
+        }
+
+        const dataJson = { ...currentJson }; // Start with current JSON to preserve structure
 
         // Find all schema fields (not using FormData as it skips empty fields)
         const allFields = form.querySelectorAll('[name^="dataJson."]');
+
+        console.log('[NewEntry] updateDataJsonFromForm found fields:', allFields.length);
 
         allFields.forEach(field => {
           const fieldKey = field.name.replace('dataJson.', '');
