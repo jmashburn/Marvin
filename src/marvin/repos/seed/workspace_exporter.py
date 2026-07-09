@@ -38,6 +38,8 @@ class WorkspaceExporter:
 
         export_data = {
             "version": 1,
+            "workspace": self._export_workspace_metadata(),
+            "site": self._export_site_preferences(),
             "collections": self._export_collections(),
             "entry_types": self._export_entry_types(include_system_types),
             "entries": self._export_entries(),
@@ -50,6 +52,50 @@ class WorkspaceExporter:
         )
 
         return export_data
+
+    def _export_workspace_metadata(self) -> dict[str, Any]:
+        """Export workspace metadata.
+
+        Returns:
+            Dictionary with workspace name and slug
+        """
+        workspace = self.repos.groups.get_one(self.repos.group_id)
+
+        if not workspace:
+            return {}
+
+        return {
+            "name": workspace.name,
+            "slug": workspace.slug,
+            # Note: ownerEmail is not exported - it's only used during initial import
+        }
+
+    def _export_site_preferences(self) -> dict[str, Any]:
+        """Export site preferences/configuration.
+
+        Returns:
+            Dictionary with site configuration fields
+        """
+        prefs_list = self.repos.group_preferences.multi_query({"group_id": self.repos.group_id})
+
+        if not prefs_list:
+            return {}
+
+        prefs = prefs_list[0]
+
+        return {
+            "title": prefs.site_title,
+            "tagline": prefs.site_tagline,
+            "description": prefs.site_description,
+            "canonicalUrl": prefs.site_canonical_url,
+            "logo": prefs.site_logo,
+            "favicon": prefs.site_favicon,
+            "locale": prefs.site_locale,
+            "timezone": prefs.site_timezone,
+            "contactEmail": prefs.site_contact_email,
+            "social": prefs.site_social_json,
+            "metadataJson": prefs.site_metadata_json,
+        }
 
     def _export_collections(self) -> list[dict[str, Any]]:
         """Export all collections.

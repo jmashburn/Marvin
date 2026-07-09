@@ -81,7 +81,7 @@ const baseUrl = Astro.url.origin;
   document.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const token = btn.dataset.token;
-      const link = `${baseUrl}/register?invite=${token}`;
+      const link = `${baseUrl}/register?token=${token}`;
       await navigator.clipboard.writeText(link);
       btn.textContent = 'Copied!';
       setTimeout(() => btn.textContent = 'Copy Link', 2000);

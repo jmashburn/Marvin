@@ -115,6 +115,15 @@ class WorkspaceSeedLoader:
             f"{results['errors']} errors"
         )
 
+        # 4. Send owner invitation email if ownerEmail is provided
+        workspace_data = data.get("workspace")
+        if workspace_data and workspace_data.get("ownerEmail"):
+            try:
+                self._send_owner_invitation(workspace_data["ownerEmail"], workspace)
+            except Exception as e:
+                self.logger.error(f"Failed to send owner invitation email: {e}")
+                results["errors"] += 1
+
         return results
 
     def _ensure_workspace(self, data: dict[str, Any]):
@@ -324,3 +333,62 @@ class WorkspaceSeedLoader:
             except Exception as e:
                 self.repos.session.rollback()
                 self.logger.error(f"Failed to add to collection {collection_slug}: {e}")
+
+    def _send_owner_invitation(self, owner_email: str, workspace) -> None:
+        """Create an owner-level invitation token and send it via email.
+
+        Args:
+            owner_email: Email address to send the invitation to
+            workspace: The workspace GroupRead object
+        """
+        from marvin.core.config import get_app_settings
+        from marvin.core.security import url_safe_token
+        from marvin.schemas.group.invite_token import InviteTokenSave
+        from marvin.schemas.mapper import cast
+        from marvin.services.email.email_service import EmailService
+
+        settings = get_app_settings()
+
+        # Check if SMTP is enabled
+        if not settings.SMTP_ENABLED:
+            self.logger.warning(f"SMTP not enabled - cannot send owner invitation to {owner_email}")
+            self.logger.info(f"Owner invitation token should be created manually for: {owner_email}")
+            return
+
+        # Create an owner-level invitation token with unlimited uses
+        token_data = InviteTokenSave(
+            token=url_safe_token(),
+            group_id=self.repos.group_id,
+            uses_left=-1,  # Unlimited uses for owner
+            workspace_role="OWNER",
+        )
+
+        created_token = self.repos.group_invite_tokens.create(token_data)
+        self.logger.info(f"Created owner invitation token for {owner_email}: {created_token.token}")
+
+        # Construct registration URL
+        registration_url = f"{settings.BASE_URL}/register?token={created_token.token}"
+
+        # ALWAYS display the registration URL in logs (in case email fails)
+        self.logger.info("=" * 80)
+        self.logger.info(f"OWNER INVITATION LINK: {registration_url}")
+        self.logger.info(f"Recipient: {owner_email}")
+        self.logger.info(f"Token: {created_token.token}")
+        self.logger.info("=" * 80)
+
+        # Send invitation email
+        try:
+            email_service = EmailService()
+            success = email_service.send_invitation(
+                recipient_address=owner_email,
+                invitation_url=registration_url,
+            )
+
+            if success:
+                self.logger.info(f"✓ Owner invitation email sent to {owner_email}")
+            else:
+                self.logger.warning(f"✗ Failed to send owner invitation email to {owner_email}")
+                self.logger.warning(f"Please share the registration link manually (see above)")
+        except Exception as e:
+            self.logger.error(f"✗ Error sending owner invitation email: {e}")
+            self.logger.warning(f"Please share the registration link manually (see above)")
