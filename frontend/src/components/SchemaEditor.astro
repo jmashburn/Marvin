@@ -63,10 +63,16 @@ const fieldTypes = [
     value={JSON.stringify(initialSchema)}
   />
 
-  <!-- Schema preview (collapsed by default, hidden if no fields) -->
+  <!-- Schema preview (editable JSON) -->
   <details class="schema-preview" id="schema-preview-container" style={initialSchema.fields.length === 0 ? 'display: none;' : ''}>
-    <summary>Preview Schema JSON</summary>
-    <pre id="schema-preview-json" class="json-preview">{JSON.stringify(initialSchema, null, 2)}</pre>
+    <summary>Edit Schema JSON</summary>
+    <textarea
+      id="schema-preview-json"
+      class="json-preview editable"
+      rows="10"
+      placeholder='{"fields": []}'
+    >{JSON.stringify(initialSchema, null, 2)}</textarea>
+    <button type="button" id="apply-json-btn" class="button secondary">Apply JSON</button>
   </details>
 </div>
 
@@ -211,10 +217,11 @@ const fieldTypes = [
     font-size: 0.875rem;
     font-weight: 600;
     user-select: none;
+    margin-bottom: 1rem;
   }
 
   .schema-editor .json-preview {
-    margin: 1rem 0 0;
+    width: 100%;
     padding: 1rem;
     background: var(--panel);
     border: 1px solid var(--line);
@@ -223,6 +230,16 @@ const fieldTypes = [
     font-size: 0.75rem;
     overflow-x: auto;
     white-space: pre;
+    resize: vertical;
+  }
+
+  .schema-editor .json-preview:focus {
+    outline: none;
+    border-color: var(--color-primary, #666);
+  }
+
+  .schema-editor .schema-preview button {
+    margin-top: 0.75rem;
   }
 
   .schema-editor .empty-state {
@@ -463,6 +480,24 @@ const fieldTypes = [
     render();
   }
 
+  // Apply JSON from textarea
+  function applyJson() {
+    const jsonTextarea = document.getElementById('schema-preview-json');
+    if (!jsonTextarea) return;
+
+    try {
+      const parsed = JSON.parse(jsonTextarea.value);
+      if (!parsed.fields || !Array.isArray(parsed.fields)) {
+        alert('Invalid schema format. Must have a "fields" array.');
+        return;
+      }
+      schema = parsed;
+      render();
+    } catch (e) {
+      alert('Invalid JSON: ' + e.message);
+    }
+  }
+
   // Initialize
   document.addEventListener('DOMContentLoaded', () => {
     render();
@@ -470,6 +505,11 @@ const fieldTypes = [
     const addBtn = document.getElementById('add-field-btn');
     if (addBtn) {
       addBtn.addEventListener('click', addField);
+    }
+
+    const applyJsonBtn = document.getElementById('apply-json-btn');
+    if (applyJsonBtn) {
+      applyJsonBtn.addEventListener('click', applyJson);
     }
   });
 </script>
