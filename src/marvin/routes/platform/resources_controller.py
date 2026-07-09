@@ -5,6 +5,7 @@ from pydantic import UUID4
 
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import ResourceCreate, ResourceRead, ResourceUpdate
+from marvin.services.event_bus_service.event_types import EventOperation, EventResourceData, EventTypes
 
 router = APIRouter(prefix="/resources")
 
@@ -23,7 +24,26 @@ class ResourcesController(BaseUserController):
         data_dict = data.model_dump()
         data_dict["created_by"] = self.user.id
         data_dict["group_id"] = self.group_id
-        return self.repos.resources.create(data_dict)
+        resource = self.repos.resources.create(data_dict)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="resource_management",
+            group_id=self.group_id,
+            event_type=EventTypes.resource_created,
+            document_data=EventResourceData(
+                operation=EventOperation.create,
+                resource_id=resource.id,
+                resource_name=resource.name,
+                resource_slug=resource.slug,
+                resource_type=resource.resource_type,
+                workspace_id=self.group_id,
+                url=resource.url,
+            ),
+            message=f"Resource '{resource.name}' created",
+        )
+
+        return resource
 
     @router.get("/{item_id}", response_model=ResourceRead, summary="Get Resource")
     def get_resource(self, item_id: UUID4) -> ResourceRead:
@@ -36,10 +56,50 @@ class ResourcesController(BaseUserController):
     def update_resource(self, item_id: UUID4, data: ResourceUpdate) -> ResourceRead:
         if not self.repos.resources.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found.")
-        return self.repos.resources.update(item_id, data)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Resource")
-    def delete_resource(self, item_id: UUID4) -> None:
-        if not self.repos.resources.get_one(item_id):
+        resource = self.repos.resources.update(item_id, data)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="resource_management",
+            group_id=self.group_id,
+            event_type=EventTypes.resource_updated,
+            document_data=EventResourceData(
+                operation=EventOperation.update,
+                resource_id=resource.id,
+                resource_name=resource.name,
+                resource_slug=resource.slug,
+                resource_type=resource.resource_type,
+                workspace_id=self.group_id,
+                url=resource.url,
+            ),
+            message=f"Resource '{resource.name}' updated",
+        )
+
+        return resource
+
+    @router.delete("/{item_id}", summary="Delete Resource")
+    def delete_resource(self, item_id: UUID4) -> dict:
+        resource = self.repos.resources.get_one(item_id)
+        if not resource:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found.")
+
+        # Emit event before deletion
+        self.event_bus.dispatch(
+            integration_id="resource_management",
+            group_id=self.group_id,
+            event_type=EventTypes.resource_deleted,
+            document_data=EventResourceData(
+                operation=EventOperation.delete,
+                resource_id=resource.id,
+                resource_name=resource.name,
+                resource_slug=resource.slug,
+                resource_type=resource.resource_type,
+                workspace_id=self.group_id,
+                url=resource.url,
+            ),
+            message=f"Resource '{resource.name}' deleted",
+        )
+
         self.repos.resources.delete(item_id)
+        return {"status": "ok", "message": "Resource deleted successfully"}

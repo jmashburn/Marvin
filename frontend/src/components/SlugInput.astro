@@ -1,0 +1,88 @@
+---
+interface Props {
+  nameFieldId: string;
+  value?: string;
+  required?: boolean;
+}
+
+const { nameFieldId, value = '', required = false } = Astro.props;
+---
+
+<div class="form-group">
+  <label for="slug">Slug{required && ' *'}</label>
+  <input
+    type="text"
+    id="slug"
+    name="slug"
+    value={value}
+    placeholder="Auto-generated from name, or enter custom"
+    required={required}
+    data-slug-input
+    data-name-field={nameFieldId}
+  />
+  <small>Auto-generated from name, or enter a custom slug</small>
+</div>
+
+<script>
+  // Auto-generate slug from name (unless user manually edits it)
+  function initSlugField(slugInput: HTMLInputElement) {
+    const nameFieldId = slugInput.dataset.nameField;
+    if (!nameFieldId) return;
+
+    const nameInput = document.getElementById(nameFieldId) as HTMLInputElement | null;
+    if (!nameInput) return;
+
+    nameInput.addEventListener('input', () => {
+      // Only auto-generate if user hasn't manually edited the slug
+      if (!slugInput.dataset.manuallyEdited) {
+        const slug = nameInput.value
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/[\s_-]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        slugInput.value = slug;
+      }
+    });
+
+    // Track if user manually edits slug field
+    slugInput.addEventListener('input', () => {
+      slugInput.dataset.manuallyEdited = 'true';
+    });
+  }
+
+  // Initialize all slug inputs on the page
+  document.querySelectorAll<HTMLInputElement>('[data-slug-input]').forEach(initSlugField);
+</script>
+
+<style>
+  .form-group {
+    display: grid;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .form-group small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>

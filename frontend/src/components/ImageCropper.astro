@@ -1,0 +1,442 @@
+---
+// Image Cropper Component with draggable corners
+---
+
+<div class="image-cropper-modal" id="imageCropperModal" style="display: none;">
+  <div class="cropper-overlay"></div>
+  <div class="cropper-container">
+    <div class="cropper-header">
+      <h3>Crop & Resize Image</h3>
+      <button type="button" class="close-btn" id="closeCropper">&times;</button>
+    </div>
+
+    <div class="cropper-body">
+      <div class="canvas-container">
+        <div class="canvas-wrapper">
+          <canvas id="cropCanvas"></canvas>
+          <div class="crop-box" id="cropBox">
+            <div class="crop-handle nw"></div>
+            <div class="crop-handle ne"></div>
+            <div class="crop-handle sw"></div>
+            <div class="crop-handle se"></div>
+            <div class="crop-handle n"></div>
+            <div class="crop-handle s"></div>
+            <div class="crop-handle e"></div>
+            <div class="crop-handle w"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cropper-controls">
+        <div class="control-group">
+          <label>Max Width</label>
+          <input type="number" id="maxWidth" value="1920" min="100" max="4000" step="10" />
+        </div>
+        <div class="control-group">
+          <label>Max Height</label>
+          <input type="number" id="maxHeight" value="1080" min="100" max="4000" step="10" />
+        </div>
+        <div class="control-group">
+          <label>Quality</label>
+          <input type="range" id="quality" value="85" min="1" max="100" />
+          <span id="qualityValue">85%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cropper-footer">
+      <button type="button" class="button secondary" id="cancelCrop">Cancel</button>
+      <button type="button" class="button" id="applyCrop">Apply Crop</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .image-cropper-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cropper-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .cropper-container {
+    position: relative;
+    background: var(--panel);
+    border-radius: var(--radius);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    width: 95vw;
+    max-width: 1400px;
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cropper-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+
+  .cropper-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .close-btn:hover {
+    color: var(--ink);
+  }
+
+  .cropper-body {
+    padding: 2rem;
+    overflow: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .canvas-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+    padding: 2rem;
+  }
+
+  .canvas-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+
+  #cropCanvas {
+    display: block;
+    max-width: 100%;
+    max-height: calc(95vh - 400px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .crop-box {
+    position: absolute;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    cursor: move;
+    pointer-events: auto;
+  }
+
+  .crop-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border: 2px solid #000;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  }
+
+  .crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+  .crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+  .crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+  .crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+  .crop-handle.n { top: -6px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+  .crop-handle.s { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+  .crop-handle.e { top: 50%; right: -6px; transform: translateY(-50%); cursor: e-resize; }
+  .crop-handle.w { top: 50%; left: -6px; transform: translateY(-50%); cursor: w-resize; }
+
+  .cropper-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .control-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .control-group input {
+    padding: 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+
+  .cropper-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1.25rem 2rem;
+    border-top: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+</style>
+
+<script>
+  // Export ImageCropper class for use in other pages
+  (window as any).ImageCropper = class ImageCropper {
+    private modal: HTMLElement;
+    private canvas: HTMLCanvasElement;
+    private ctx: CanvasRenderingContext2D;
+    private cropBox: HTMLElement;
+    private image: HTMLImageElement | null = null;
+    private crop = { x: 0, y: 0, width: 0, height: 0 };
+    private isDragging = false;
+    private dragStart = { x: 0, y: 0 };
+    private resizing: string | null = null;
+    private onApply: ((blob: Blob) => void) | null = null;
+
+    constructor() {
+      this.modal = document.getElementById('imageCropperModal')!;
+      this.canvas = document.getElementById('cropCanvas') as HTMLCanvasElement;
+      this.ctx = this.canvas.getContext('2d')!;
+      this.cropBox = document.getElementById('cropBox')!;
+
+      this.setupEventListeners();
+    }
+
+    private setupEventListeners() {
+      // Close buttons
+      document.getElementById('closeCropper')!.addEventListener('click', () => this.hide());
+      document.getElementById('cancelCrop')!.addEventListener('click', () => this.hide());
+      document.getElementById('applyCrop')!.addEventListener('click', () => this.apply());
+
+      // Quality slider
+      const qualitySlider = document.getElementById('quality') as HTMLInputElement;
+      const qualityValue = document.getElementById('qualityValue')!;
+      qualitySlider.addEventListener('input', () => {
+        qualityValue.textContent = qualitySlider.value + '%';
+      });
+
+      // Crop box dragging and resizing
+      this.cropBox.addEventListener('mousedown', (e) => this.startDrag(e));
+      document.addEventListener('mousemove', (e) => this.drag(e));
+      document.addEventListener('mouseup', () => this.endDrag());
+
+      // Handle resizing
+      this.cropBox.querySelectorAll('.crop-handle').forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          this.resizing = (e.target as HTMLElement).className.split(' ')[1];
+          this.dragStart = { x: e.clientX, y: e.clientY };
+        });
+      });
+    }
+
+    public show(file: File, onApply: (blob: Blob) => void) {
+      this.onApply = onApply;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          this.image = img;
+          this.drawImage();
+          this.resetCrop();
+          this.modal.style.display = 'flex';
+        };
+        img.src = e.target!.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    public hide() {
+      this.modal.style.display = 'none';
+      this.image = null;
+    }
+
+    private drawImage() {
+      if (!this.image) return;
+
+      // Use larger preview canvas for better editing experience
+      const maxWidth = 1200;
+      const maxHeight = 800;
+      let width = this.image.width;
+      let height = this.image.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width *= ratio;
+        height *= ratio;
+      }
+
+      this.canvas.width = width;
+      this.canvas.height = height;
+      this.ctx.drawImage(this.image, 0, 0, width, height);
+    }
+
+    private resetCrop() {
+      // Get max dimensions from controls
+      const maxWidth = parseInt((document.getElementById('maxWidth') as HTMLInputElement).value);
+      const maxHeight = parseInt((document.getElementById('maxHeight') as HTMLInputElement).value);
+
+      // Calculate crop size based on max dimensions while maintaining aspect ratio
+      const scaleToCanvas = Math.min(
+        this.canvas.width / maxWidth,
+        this.canvas.height / maxHeight,
+        1 // Don't make crop box bigger than canvas
+      );
+
+      let cropWidth = maxWidth * scaleToCanvas;
+      let cropHeight = maxHeight * scaleToCanvas;
+
+      // If crop is bigger than canvas, fit it inside with padding
+      if (cropWidth > this.canvas.width - 40 || cropHeight > this.canvas.height - 40) {
+        const padding = 20;
+        cropWidth = this.canvas.width - padding * 2;
+        cropHeight = this.canvas.height - padding * 2;
+      }
+
+      // Center the crop box
+      this.crop = {
+        x: (this.canvas.width - cropWidth) / 2,
+        y: (this.canvas.height - cropHeight) / 2,
+        width: cropWidth,
+        height: cropHeight
+      };
+      this.updateCropBox();
+    }
+
+    private updateCropBox() {
+      this.cropBox.style.left = this.crop.x + 'px';
+      this.cropBox.style.top = this.crop.y + 'px';
+      this.cropBox.style.width = this.crop.width + 'px';
+      this.cropBox.style.height = this.crop.height + 'px';
+    }
+
+    private startDrag(e: MouseEvent) {
+      if ((e.target as HTMLElement).classList.contains('crop-handle')) return;
+      this.isDragging = true;
+      this.dragStart = { x: e.clientX - this.crop.x, y: e.clientY - this.crop.y };
+    }
+
+    private drag(e: MouseEvent) {
+      if (this.isDragging) {
+        this.crop.x = Math.max(0, Math.min(e.clientX - this.dragStart.x, this.canvas.width - this.crop.width));
+        this.crop.y = Math.max(0, Math.min(e.clientY - this.dragStart.y, this.canvas.height - this.crop.height));
+        this.updateCropBox();
+      } else if (this.resizing) {
+        const dx = e.clientX - this.dragStart.x;
+        const dy = e.clientY - this.dragStart.y;
+
+        // Handle different resize directions
+        if (this.resizing.includes('e')) {
+          this.crop.width = Math.max(50, Math.min(this.crop.width + dx, this.canvas.width - this.crop.x));
+        }
+        if (this.resizing.includes('w')) {
+          const newWidth = this.crop.width - dx;
+          if (newWidth >= 50 && this.crop.x + dx >= 0) {
+            this.crop.x += dx;
+            this.crop.width = newWidth;
+          }
+        }
+        if (this.resizing.includes('s')) {
+          this.crop.height = Math.max(50, Math.min(this.crop.height + dy, this.canvas.height - this.crop.y));
+        }
+        if (this.resizing.includes('n')) {
+          const newHeight = this.crop.height - dy;
+          if (newHeight >= 50 && this.crop.y + dy >= 0) {
+            this.crop.y += dy;
+            this.crop.height = newHeight;
+          }
+        }
+
+        this.dragStart = { x: e.clientX, y: e.clientY };
+        this.updateCropBox();
+      }
+    }
+
+    private endDrag() {
+      this.isDragging = false;
+      this.resizing = null;
+    }
+
+    private async apply() {
+      if (!this.image) return;
+
+      // Get crop dimensions in original image coordinates
+      const scaleX = this.image.width / this.canvas.width;
+      const scaleY = this.image.height / this.canvas.height;
+
+      const cropX = this.crop.x * scaleX;
+      const cropY = this.crop.y * scaleY;
+      const cropWidth = this.crop.width * scaleX;
+      const cropHeight = this.crop.height * scaleY;
+
+      // Get max dimensions
+      const maxWidth = parseInt((document.getElementById('maxWidth') as HTMLInputElement).value);
+      const maxHeight = parseInt((document.getElementById('maxHeight') as HTMLInputElement).value);
+      const quality = parseInt((document.getElementById('quality') as HTMLInputElement).value) / 100;
+
+      // Calculate output dimensions
+      let outputWidth = cropWidth;
+      let outputHeight = cropHeight;
+
+      if (outputWidth > maxWidth || outputHeight > maxHeight) {
+        const ratio = Math.min(maxWidth / outputWidth, maxHeight / outputHeight);
+        outputWidth *= ratio;
+        outputHeight *= ratio;
+      }
+
+      // Create output canvas
+      const outputCanvas = document.createElement('canvas');
+      outputCanvas.width = outputWidth;
+      outputCanvas.height = outputHeight;
+      const outputCtx = outputCanvas.getContext('2d')!;
+
+      // Draw cropped and resized image
+      outputCtx.drawImage(
+        this.image,
+        cropX, cropY, cropWidth, cropHeight,
+        0, 0, outputWidth, outputHeight
+      );
+
+      // Convert to blob
+      outputCanvas.toBlob((blob) => {
+        if (blob && this.onApply) {
+          this.onApply(blob);
+          this.hide();
+        }
+      }, 'image/jpeg', quality);
+    }
+  };
+</script>

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
+from .._model_utils.datetime import NaiveDateTime
 from .._model_utils.guid import GUID
 
 
@@ -29,9 +30,9 @@ class APIClients(SqlAlchemyBase, BaseMixins):
     token_hash: Mapped[str] = mapped_column(sa.String, nullable=False, unique=True, index=True)
     permissions: Mapped[dict] = mapped_column(sa.JSON, nullable=False)
     enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
-    last_used_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
     created_by: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)
 

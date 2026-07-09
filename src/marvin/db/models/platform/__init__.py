@@ -8,7 +8,9 @@ from .entry_assets import EntryAssets
 from .entry_collections import EntryCollections
 from .entry_resources import EntryResources
 from .entry_types import EntryTypes
+from .event_log import EventLogModel
 from .resources import Resources
+from .scheduled_tasks import ScheduledTaskExecutionLogModel, ScheduledTaskModel
 
 __all__ = [
     "APIClients",
@@ -19,5 +21,8 @@ __all__ = [
     "EntryCollections",
     "EntryResources",
     "EntryTypes",
+    "EventLogModel",
     "Resources",
+    "ScheduledTaskExecutionLogModel",
+    "ScheduledTaskModel",
 ]

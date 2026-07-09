@@ -32,14 +32,20 @@ def get_storage_provider(settings: AppSettings | None = None) -> BaseStorageProv
     if provider == "local":
         root = getattr(settings, "STORAGE_LOCAL_ROOT", None)
         if root is None:
-            # Default to {DATA_DIR}/uploads directory
+            # Default to {DATA_DIR}/assets directory
             from marvin.core.config import get_app_dirs
 
-            root = get_app_dirs().DATA_DIR / "uploads"
+            root = get_app_dirs().ASSETS_DIR
         else:
             root = Path(root)
 
-        public_url = getattr(settings, "STORAGE_LOCAL_PUBLIC_URL", "/uploads")
+        public_url = getattr(settings, "STORAGE_LOCAL_PUBLIC_URL", "/assets")
+
+        # In development, prepend the full backend URL for CORS
+        # Frontend runs on different port (4321) than backend (8080)
+        if not settings.PRODUCTION and not public_url.startswith("http"):
+            # Construct full URL: http://localhost:{API_PORT}/assets
+            public_url = f"http://localhost:{settings.API_PORT}{public_url}"
 
         return LocalStorageProvider(root=root, public_base_url=public_url)
 

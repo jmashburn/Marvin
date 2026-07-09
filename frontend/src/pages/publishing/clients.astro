@@ -65,7 +65,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   ) : (
     <div class="clients-grid">
       {clients.map((client) => (
-        <article class="client-card">
+        <article class={`client-card ${!client.enabled ? "disabled" : ""}`}>
           <div class="client-header">
             <div>
               <h3>{client.name}</h3>
@@ -197,7 +197,9 @@ function formatLastUsed(timestamp: string | null | undefined): string {
 
 <script>
   // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
 
   // Copy token to clipboard
   document.getElementById('copy-token')?.addEventListener('click', async () => {
@@ -237,7 +239,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       }
 
       try {
-        const data = await fetchApi(`/api/api-clients/${clientSlug}/preview`, {});
+        const data = await sdk.apiClients.preview(clientSlug);
         const modal = document.getElementById('preview-modal');
         const subtitle = document.getElementById('preview-subtitle');
         const content = document.getElementById('preview-content');
@@ -300,9 +302,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
         }
 
         try {
-          const result = await fetchApi(`/api/api-clients/${clientSlug}/rotate-token`, {
-            method: 'POST',
-          }) as { token: string };
+          const result = await sdk.apiClients.rotateToken(clientSlug);
 
           // Redirect with token in query (will be shown in modal)
           window.location.href = `/publishing/clients?token=${encodeURIComponent(result.token)}&client_name=${encodeURIComponent(clientName)}`;
@@ -324,11 +324,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
       if (!clientSlug) return;
 
       try {
-        await fetchApi(`/api/api-clients/${clientSlug}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: !currentEnabled })
-        });
+        await sdk.apiClients.update(clientSlug, { enabled: !currentEnabled });
 
         // Reload page
         window.location.reload();
@@ -420,6 +416,17 @@ function formatLastUsed(timestamp: string | null | undefined): string {
     padding: 20px;
     display: grid;
     gap: 16px;
+    transition: opacity 0.2s;
+  }
+
+  .client-card.disabled {
+    opacity: 0.6;
+    background: var(--panel-2);
+  }
+
+  .client-card.disabled h3,
+  .client-card.disabled .meta-value {
+    color: var(--muted);
   }
 
   .client-header {
@@ -590,8 +597,9 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   .token-display {
     display: block;
     padding: 16px 50px 16px 16px;
-    background: var(--ink);
+    background: var(--bg);
     color: var(--good);
+    border: 1px solid var(--line);
     font-family: ui-monospace, monospace;
     font-size: 13px;
     border-radius: var(--radius);
@@ -605,8 +613,8 @@ function formatLastUsed(timestamp: string | null | undefined): string {
     top: 8px;
     right: 8px;
     padding: 8px 12px;
-    background: rgb(255 255 255 / 0.1);
-    border: 1px solid rgb(255 255 255 / 0.2);
+    background: var(--panel);
+    border: 1px solid var(--line);
     border-radius: 4px;
     cursor: pointer;
     font-size: 18px;
@@ -614,7 +622,7 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   }
 
   .copy-button:hover {
-    background: rgb(255 255 255 / 0.2);
+    background: var(--panel-2);
   }
 
   .copy-icon {
@@ -624,8 +632,9 @@ function formatLastUsed(timestamp: string | null | undefined): string {
   .preview-json {
     margin: 0 0 20px;
     padding: 16px;
-    background: var(--ink);
-    color: var(--good);
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--line);
     font-family: ui-monospace, monospace;
     font-size: 12px;
     border-radius: var(--radius);

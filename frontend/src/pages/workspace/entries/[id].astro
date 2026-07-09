@@ -1,18 +1,66 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
+import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections } from "@/lib/api/collections";
 import { getEntryCollections } from "@/lib/api/entries";
+import { getAssets } from "@/lib/api/platform";
+import { listResources } from "@/lib/api/resources";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST' && id && authToken) {
+  try {
+    const formData = await Astro.request.formData();
+
+    // Parse multi-select fields
+    const collectionIds = formData.getAll('collection_ids') as string[];
+    const assetIds = formData.getAll('asset_ids') as string[];
+    const resourceIds = formData.getAll('resource_ids') as string[];
+
+    // Parse metadata JSON
+    const metadataJsonStr = formData.get('metadata_json') as string | null;
+    let metadataJson = null;
+    if (metadataJsonStr?.trim()) {
+      try {
+        metadataJson = JSON.parse(metadataJsonStr);
+      } catch (error) {
+        console.error('[Entry] Invalid metadata JSON:', error);
+        // Let it pass as null
+      }
+    }
+
+    const updateData = {
+      entry_type_id: formData.get('entry_type_id') as string,
+      title: formData.get('title') as string,
+      slug: (formData.get('slug') as string) || null,
+      summary: (formData.get('summary') as string) || null,
+      description: (formData.get('description') as string) || null,
+      content_markdown: (formData.get('content_markdown') as string) || null,
+      status: formData.get('status') as string,
+      metadata_json: metadataJson,
+      collection_ids: collectionIds,
+      asset_ids: assetIds,
+      resource_ids: resourceIds,
+    };
+
+    await updateEntry(id, updateData, authToken);
+    return Astro.redirect('/workspace/entries');
+  } catch (e) {
+    console.error('[Entry] Failed to update entry:', e);
+    // Error will be shown below
+  }
+}
 
 let entry: EntryRead | null = null;
 let entryTypes: EntryTypeRead[] = [];
 let collections: CollectionRead[] = [];
 let entryCollections: CollectionRead[] = [];
+let allAssets: any[] = [];
+let allResources: any[] = [];
 let error: string | null = null;
 
 if (!id) {
@@ -21,11 +69,13 @@ if (!id) {
   error = "Authentication required";
 } else {
   try {
-    [entry, entryTypes, collections, entryCollections] = await Promise.all([
+    [entry, entryTypes, collections, entryCollections, allAssets, allResources] = await Promise.all([
       getEntry(id, authToken),
       listEntryTypes(authToken),
       listCollections(authToken),
       getEntryCollections(id, authToken),
+      getAssets(authToken),
+      listResources(authToken),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -36,6 +86,8 @@ if (!id) {
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
 const entryCollectionIds = new Set(entryCollections.map(c => c.id));
+const attachedAssetIds = new Set((entry?.assets || []).map((a: any) => a.id));
+const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.id));
 ---
 
 <AppLayout title={entry ? entry.title : "Edit Entry"}>
@@ -52,18 +104,16 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
           <p style="margin:4px 0 0;color:var(--muted);">Update entry details and content</p>
         </div>
         <div style="display:flex;gap:0.75rem;">
-          <form method="POST" action={`/api/entries/${id}/delete`} style="display:inline;">
-            <button type="submit" class="button secondary" onclick="return confirm('Delete this entry?')">
-              Delete
-            </button>
-          </form>
+          <button type="button" id="delete-entry-button" class="button secondary">
+            Delete
+          </button>
           <a class="button secondary" href="/workspace/entries">Back</a>
         </div>
       </div>
 
       <div class="editor-layout">
         <section class="main-editor">
-          <form method="POST" action={`/api/entries/${id}/update`} id="entry-form" class="form">
+          <form id="entry-form" method="POST" class="form">
             <div class="form-group">
               <label for="title">Title *</label>
               <input
@@ -120,13 +170,27 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
               <small style="font-size: 11px; color: var(--muted);">
                 Must be valid JSON. Example: {`{"seo_title": "My Title", "featured": true}`}
               </small>
+
+              {entry.metadataJson && Object.keys(entry.metadataJson).length > 0 && (
+                <div class="metadata-preview">
+                  <p class="metadata-preview-title">Current Metadata:</p>
+                  <dl class="metadata-preview-list">
+                    {Object.entries(entry.metadataJson).map(([key, value]) => (
+                      <div class="metadata-preview-item">
+                        <dt>{key}</dt>
+                        <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
             </div>
 
             <div class="form-actions">
-              <button type="submit" name="status" value="draft" class="button secondary">
-                Save Draft
+              <button type="submit" id="save-button" class="button">
+                Save
               </button>
-              <button type="submit" name="status" value="published" class="button">
+              <button type="button" id="publish-button" class="button secondary">
                 Publish
               </button>
             </div>
@@ -149,14 +213,21 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
             </div>
 
             <div class="form-group">
-              <label>Slug</label>
+              <label for="slug">Slug</label>
               <input
                 type="text"
+                id="slug"
+                name="slug"
                 value={entry.slug}
-                disabled
-                style="background: var(--panel-2); color: var(--muted);"
+                disabled={entry.status === "published"}
+                style={entry.status === "published" ? "background: var(--panel-2); color: var(--muted);" : ""}
+                form="entry-form"
               />
-              <small style="font-size: 12px; color: var(--muted);">Auto-generated from title</small>
+              <small style="font-size: 12px; color: var(--muted);">
+                {entry.status === "published"
+                  ? "Slug is locked for published entries to protect external URLs"
+                  : "Auto-generated from title, or enter custom slug"}
+              </small>
             </div>
 
             <div class="form-group">
@@ -203,10 +274,20 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
           </div>
 
           <div class="sidebar-section">
-            <h3>Collections</h3>
-            <div class="collections-list">
+            <h3>Collections ({Array.from(entryCollectionIds).length})</h3>
+            <p class="section-help">Organize entry by collection</p>
+
+            <div class="picker-search">
+              <input
+                type="search"
+                id="collection-search"
+                placeholder="Search collections..."
+              />
+            </div>
+
+            <div class="picker-list">
               {sortedCollections.map((collection) => (
-                <label class="collection-checkbox">
+                <label class="picker-item collection-picker-item">
                   <input
                     type="checkbox"
                     name="collection_ids"
@@ -214,53 +295,94 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
                     checked={entryCollectionIds.has(collection.id)}
                     form="entry-form"
                   />
-                  <span>
-                    {collection.icon && `${collection.icon} `}{collection.name}
-                  </span>
+                  <div class="picker-preview" style={`background-color: ${collection.color || '#a94d3f'}`}>
+                    <div class="picker-icon">{collection.icon || '📁'}</div>
+                  </div>
+                  <div class="picker-info">
+                    <strong>{collection.name}</strong>
+                    <span class="picker-meta">{collection.isSmart ? 'Smart Collection' : 'Collection'}</span>
+                  </div>
                 </label>
               ))}
+              {sortedCollections.length === 0 && (
+                <p class="empty-message">No collections available. <a href="/workspace/collections/new">Create one</a>.</p>
+              )}
             </div>
           </div>
 
           <div class="sidebar-section">
-            <h3>Assets ({entry.assets?.length || 0})</h3>
-            <p class="section-help">Media files attached to this entry</p>
-            {entry.assets && entry.assets.length > 0 ? (
-              <div class="assets-list">
-                {entry.assets.map((asset: any) => (
-                  <div class="asset-item">
-                    <div class="asset-info">
-                      <strong>{asset.name || asset.slug}</strong>
-                      {asset.mimeType && <span class="asset-type">{asset.mimeType}</span>}
-                    </div>
-                    {asset.role && <span class="asset-role">{asset.role}</span>}
+            <h3>Assets ({Array.from(attachedAssetIds).length})</h3>
+            <p class="section-help">Attach images, files, and media</p>
+
+            <div class="picker-search">
+              <input
+                type="search"
+                id="asset-search"
+                placeholder="Search assets..."
+              />
+            </div>
+
+            <div class="picker-list">
+              {allAssets.map((asset: any) => (
+                <label class="picker-item asset-picker-item">
+                  <input
+                    type="checkbox"
+                    name="asset_ids"
+                    value={asset.id}
+                    checked={attachedAssetIds.has(asset.id)}
+                    form="entry-form"
+                  />
+                  <div class="picker-preview">
+                    {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
+                      <img src={asset.publicUrl} alt={asset.altText || asset.name} />
+                    ) : (
+                      <div class="picker-icon">📄</div>
+                    )}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p class="empty-message">No assets attached</p>
-            )}
+                  <div class="picker-info">
+                    <strong>{asset.name}</strong>
+                    <span class="picker-meta">{asset.mimeType}</span>
+                  </div>
+                </label>
+              ))}
+              {allAssets.length === 0 && (
+                <p class="empty-message">No assets available. <a href="/workspace/assets/new">Upload one</a>.</p>
+              )}
+            </div>
           </div>
 
           <div class="sidebar-section">
-            <h3>Resources ({entry.resources?.length || 0})</h3>
-            <p class="section-help">External resources referenced by this entry</p>
-            {entry.resources && entry.resources.length > 0 ? (
-              <div class="resources-list">
-                {entry.resources.map((resource: any) => (
-                  <div class="resource-item">
-                    <strong>{resource.name || resource.slug}</strong>
-                    {resource.url && (
-                      <a href={resource.url} target="_blank" rel="noopener noreferrer" class="resource-link">
-                        {resource.url}
-                      </a>
-                    )}
+            <h3>Resources ({Array.from(attachedResourceIds).length})</h3>
+            <p class="section-help">Attach external resources and references</p>
+
+            <div class="picker-search">
+              <input
+                type="search"
+                id="resource-search"
+                placeholder="Search resources..."
+              />
+            </div>
+
+            <div class="picker-list">
+              {allResources.map((resource: any) => (
+                <label class="picker-item resource-picker-item">
+                  <input
+                    type="checkbox"
+                    name="resource_ids"
+                    value={resource.id}
+                    checked={attachedResourceIds.has(resource.id)}
+                    form="entry-form"
+                  />
+                  <div class="picker-info">
+                    <strong>{resource.name}</strong>
+                    <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p class="empty-message">No resources referenced</p>
-            )}
+                </label>
+              ))}
+              {allResources.length === 0 && (
+                <p class="empty-message">No resources available. <a href="/workspace/resources/new">Create one</a>.</p>
+              )}
+            </div>
           </div>
 
         </aside>
@@ -663,23 +785,137 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
     text-decoration: underline;
   }
 
-  .collection-checkbox {
+  .picker-search {
+    margin-bottom: 1rem;
+  }
+
+  .picker-search input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  .picker-list {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .picker-item {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
     border-radius: 6px;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s;
   }
 
-  .collection-checkbox:hover {
-    background: var(--panel-2);
+  .picker-item:hover {
+    background: var(--panel);
+    border-color: var(--brand);
   }
 
-  .collection-checkbox input {
+  .picker-item input[type="checkbox"] {
     margin: 0;
     cursor: pointer;
+  }
+
+  .picker-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .picker-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .picker-icon {
+    font-size: 24px;
+  }
+
+  .picker-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .picker-info strong {
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .picker-meta {
+    font-size: 0.75rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .metadata-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-preview-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metadata-preview-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .metadata-preview-item {
+    padding: 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .metadata-preview-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-preview-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
   }
 
   @media (max-width: 1024px) {
@@ -694,6 +930,145 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 </style>
 
 <script>
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
+  const form = document.getElementById('entry-form') as HTMLFormElement;
+  const deleteButton = document.getElementById('delete-entry-button') as HTMLButtonElement;
+
+  // Auto-generate slug from title for unpublished entries
+  const titleInput = document.getElementById('title') as HTMLInputElement;
+  const slugInput = document.getElementById('slug') as HTMLInputElement;
+  const statusSelect = document.getElementById('status') as HTMLSelectElement;
+  const saveButton = document.getElementById('save-button') as HTMLButtonElement;
+  const publishButton = document.getElementById('publish-button') as HTMLButtonElement;
+
+  // Status labels for button text
+  const statusLabels: Record<string, string> = {
+    inbox: 'Inbox',
+    draft: 'Draft',
+    needs_review: 'Needs Review',
+    approved: 'Approved',
+    published: 'Published',
+  };
+
+  function updateSlugField() {
+    const isPublished = statusSelect?.value === 'published';
+    if (slugInput) {
+      slugInput.disabled = isPublished;
+      slugInput.style.background = isPublished ? 'var(--panel-2)' : '';
+      slugInput.style.color = isPublished ? 'var(--muted)' : '';
+    }
+  }
+
+  function updateSaveButton() {
+    if (saveButton && statusSelect) {
+      const status = statusSelect.value;
+      const label = statusLabels[status] || 'Save';
+      saveButton.textContent = `Save as ${label}`;
+    }
+  }
+
+  // Auto-generate slug as user types title (only if not published)
+  if (titleInput && slugInput && statusSelect) {
+    titleInput.addEventListener('input', () => {
+      if (statusSelect.value !== 'published' && !slugInput.dataset.manuallyEdited) {
+        const slug = titleInput.value
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/[\s_-]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        slugInput.value = slug;
+      }
+    });
+
+    // Track if user manually edits slug (stop auto-generation)
+    slugInput.addEventListener('input', () => {
+      slugInput.dataset.manuallyEdited = 'true';
+    });
+
+    // Update slug field and save button when status changes
+    statusSelect.addEventListener('change', () => {
+      updateSlugField();
+      updateSaveButton();
+    });
+
+    updateSlugField();
+    updateSaveButton();
+  }
+
+  // Publish button - resets status to published and submits
+  if (publishButton && statusSelect) {
+    publishButton.addEventListener('click', () => {
+      statusSelect.value = 'published';
+      updateSlugField();
+      updateSaveButton();
+      form.requestSubmit(saveButton);
+    });
+  }
+
+  // Handle delete button
+  if (deleteButton) {
+    deleteButton.addEventListener('click', async () => {
+      if (!confirm('Delete this entry? This cannot be undone.')) {
+        return;
+      }
+
+      deleteButton.disabled = true;
+      deleteButton.textContent = 'Deleting...';
+
+      try {
+        const entryId = window.location.pathname.split('/').pop()!;
+        await sdk.entries.delete(entryId);
+        window.location.href = '/workspace/entries';
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to delete entry';
+        alert(message);
+        deleteButton.disabled = false;
+        deleteButton.textContent = 'Delete';
+      }
+    });
+  }
+
+  // Form submission now handled server-side via POST
+  // No need for client-side fetch - form submits naturally
+
+  // Collection, asset, and resource search filters
+  const collectionSearch = document.getElementById('collection-search') as HTMLInputElement;
+  const assetSearch = document.getElementById('asset-search') as HTMLInputElement;
+  const resourceSearch = document.getElementById('resource-search') as HTMLInputElement;
+
+  if (collectionSearch) {
+    collectionSearch.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      document.querySelectorAll('.collection-picker-item').forEach(item => {
+        const text = item.textContent?.toLowerCase() || '';
+        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
+
+  if (assetSearch) {
+    assetSearch.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      document.querySelectorAll('.asset-picker-item').forEach(item => {
+        const text = item.textContent?.toLowerCase() || '';
+        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
+
+  if (resourceSearch) {
+    resourceSearch.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      document.querySelectorAll('.resource-picker-item').forEach(item => {
+        const text = item.textContent?.toLowerCase() || '';
+        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
+
   // HttpOnly cookie is automatically sent with credentials: 'include'
   // Markdown tab switching and preview
   const tabButtons = document.querySelectorAll('.tab-btn');
@@ -845,62 +1220,13 @@ const entryCollectionIds = new Set(entryCollections.map(c => c.id));
   // Handle form submission with JSON metadata parsing
   const entryForm = document.getElementById('entry-form') as HTMLFormElement | null;
   const metadataField = document.getElementById('metadata_json') as HTMLTextAreaElement | null;
+  const statusField = document.getElementById('status') as HTMLSelectElement | null;
 
-  if (entryForm && metadataField) {
-    entryForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const metadataValue = metadataField.value.trim();
-      let metadataObject = null;
-
-      // If metadata is not empty, validate and parse it
-      if (metadataValue) {
-        try {
-          metadataObject = JSON.parse(metadataValue);
-        } catch (error) {
-          alert('Metadata must be valid JSON. Please check your syntax.');
-          metadataField.focus();
-          return;
-        }
-      }
-
-      // Build FormData
-      const formData = new FormData(entryForm);
-      const data: Record<string, any> = {};
-
-      for (const [key, value] of formData.entries()) {
-        // Skip metadata_json as we'll add it separately
-        if (key === 'metadata_json') continue;
-
-        // Handle collection checkboxes
-        if (key === 'collection_ids') {
-          if (!data.collection_ids) data.collection_ids = [];
-          data.collection_ids.push(value);
-        } else {
-          data[key] = value;
-        }
-      }
-
-      // Add parsed metadata
-      if (metadataObject !== null) {
-        data.metadata_json = metadataObject;
-      }
-
-      // Submit via fetch
-      try {
-        const { fetchApi } = await import('@/lib/api/client');
-
-        await fetchApi(entryForm.action, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-
-        // Reload page to show updated data
-        window.location.reload();
-      } catch (error) {
-        console.error('Update error:', error);
-        alert(error instanceof Error ? error.message : 'Failed to update entry');
+  if (entryForm && metadataField && statusField) {
+    // Set status dropdown value when Save Draft or Publish button is clicked
+    entryForm.addEventListener('click', (e) => {
+      if (e.target instanceof HTMLButtonElement && e.target.type === 'submit' && e.target.name === 'status') {
+        statusField.value = e.target.value; // Set dropdown to "draft" or "published"
       }
     });
 

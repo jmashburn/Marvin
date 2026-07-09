@@ -65,8 +65,6 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryTypeRead:
-        from slugify import slugify
-
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
         # Auto-regenerate slug if name is being updated
@@ -76,7 +74,10 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         # Validate schema_json if provided
         if "schema_json" in data_dict:
             self._validate_schema_json(data_dict["schema_json"])
-
+        
+        # Don't auto-regenerate slug on update - slugs should remain stable once created
+        # to avoid breaking references in entries and external integrations
+        data_dict.pop("slug", None)
         data_dict.pop("group_id", None)
         return super().update(match_value, data_dict, match_key=match_key)
 

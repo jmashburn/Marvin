@@ -4,6 +4,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
 import { listEntries, type EntryRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
+import { listCollections, type CollectionRead } from "@/lib/api/collections";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
@@ -14,6 +15,7 @@ const statusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : 
 
 let entries: EntryRead[] = [];
 let entryTypes: EntryTypeRead[] = [];
+let collections: CollectionRead[] = [];
 let error: string | null = null;
 
 // Ensure we have auth token before making requests
@@ -21,15 +23,19 @@ if (!authToken) {
   error = 'Authentication required';
 } else {
   try {
-    [entries, entryTypes] = await Promise.all([
+    [entries, entryTypes, collections] = await Promise.all([
       listEntries(authToken),
       listEntryTypes(authToken),
+      listCollections(authToken),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     console.error('[Entries] Failed to load:', error);
   }
 }
+
+// Create a map of collection ID to collection for quick lookup
+const collectionsMap = new Map(collections.map(c => [c.id, c]));
 
 // Sort entry types by sort_order
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -80,11 +86,10 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 
       {entries.length === 0 ? (
         <div class="empty-state">
-          <p class="empty-title">No entries yet</p>
-          <p class="empty-description">
-            Create your first entry to get started.
-          </p>
-          <a href="/workspace/entries/new" class="button">Create Entry</a>
+          <div class="empty-icon">📝</div>
+          <h3>No entries yet</h3>
+          <p>Entries are your content items like blog posts, products, pages, or any structured content.</p>
+          <a href="/workspace/entries/new" class="button">Create Your First Entry</a>
         </div>
       ) : (
         <section class="grid" aria-label="Entries">
@@ -98,7 +103,7 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
                 data-title={entry.title.toLowerCase()}
                 data-summary={(entry.summary || '').toLowerCase()}
                 style={matchesStatusFilter ? '' : 'display: none;'}>
-                <EntryCard entry={entry} />
+                <EntryCard entry={entry} collectionsMap={collectionsMap} />
               </div>
             );
           })}
@@ -180,13 +185,19 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
     text-align: center;
   }
 
-  .empty-title {
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
   }
 
-  .empty-description {
+  .empty-state p {
     margin: 0;
     color: var(--muted);
     max-width: 32rem;

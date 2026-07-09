@@ -130,8 +130,9 @@ node_modules/
 *.db
 *.sqlite
 
-# Development data
-src/dev/data/scheduler_state.json
+# Development data (user-generated content and runtime files)
+# All contents of src/dev/data/ are created at runtime
+src/dev/data/*
 
 .run/
 .task/*

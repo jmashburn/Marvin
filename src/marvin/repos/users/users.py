@@ -47,15 +47,29 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
         Raises:
             HTTPException(404): If the user is not found (from `_query_one`).
         """
-        entry = self._query_one(match_value=user_id)  # Fetches the SQLAlchemy User model instance
+        # Query user directly without group_id filtering (users exist across groups)
+        # Convert UUID4 to string if needed for SQLAlchemy comparison
+        from uuid import UUID
+
+        user_uuid = UUID(str(user_id)) if not isinstance(user_id, UUID) else user_id
+
+        # Debug logging
+        self.logger.debug(f"Searching for user: user_id={user_id} (type={type(user_id)}), user_uuid={user_uuid} (type={type(user_uuid)})")
+
+        entry = self.session.query(self.model).filter_by(id=user_uuid).first()
+
         if not entry:
-            # This case should ideally be handled by _query_one raising an error
-            # or returning None, which should then be checked.
-            # Assuming _query_one raises if not found, or this check is for robustness.
-            # For now, let's rely on _query_one's behavior (likely raises or get_one used before).
-            # If _query_one can return None, a check is needed here.
-            # Based on RepositoryGeneric._query_one, it calls .one() which raises if not found.
-            pass
+            # Log all users to debug
+            all_users = self.session.query(self.model).all()
+            self.logger.error(f"User {user_uuid} not found. Available users: {[str(u.id) for u in all_users]}")
+
+            from fastapi import HTTPException, status as http_status
+            from marvin.schemas.response import ErrorResponse
+
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse.respond(f"User with ID {user_id} not found"),
+            )
 
         if settings.IS_DEMO:
             # In demo mode, prevent password updates for the default user.
@@ -107,16 +121,44 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
         Returns:
             PrivateUser: The Pydantic schema of the updated user.
         """
-        if settings.IS_DEMO:
-            # Fetch the user first to check if it's the default user.
-            # Use `get_one` which returns the schema, suitable for checking `is_default_user`.
-            user_to_update_check = self.get_one(match_value)  # `match_value` could be ID or other key if `get_one` is flexible
-            if user_to_update_check and hasattr(user_to_update_check, "is_default_user") and user_to_update_check.is_default_user:
-                self.logger.warning(f"Attempt to update default user in demo mode (User ID/match: {match_value}). Operation blocked.")
-                return user_to_update_check  # Return existing data without changes
+        # Query user directly without group_id filtering (users exist across groups)
+        from uuid import UUID
 
-        # If not demo mode or not the default user, proceed with the update.
-        return super().update(match_value, new_data)
+        user_uuid = UUID(str(match_value)) if not isinstance(match_value, UUID) else match_value
+        entry = self.session.query(self.model).filter_by(id=user_uuid).first()
+
+        if not entry:
+            from fastapi import HTTPException, status as http_status
+
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {match_value} not found",
+            )
+
+        if settings.IS_DEMO:
+            # Check if it's the default user
+            user_schema_check = self.schema.model_validate(entry)
+            if hasattr(user_schema_check, "is_default_user") and user_schema_check.is_default_user:
+                self.logger.warning(f"Attempt to update default user in demo mode (User ID: {match_value}). Operation blocked.")
+                return user_schema_check  # Return existing data without changes
+
+        # Convert new_data to dict if it's a Pydantic model
+        if hasattr(new_data, "model_dump"):
+            update_data = new_data.model_dump(exclude_unset=True)
+        elif isinstance(new_data, dict):
+            update_data = new_data
+        else:
+            update_data = dict(new_data)
+
+        # Apply updates to the model instance
+        for key, value in update_data.items():
+            if hasattr(entry, key):
+                setattr(entry, key, value)
+
+        self.session.commit()
+        self.session.refresh(entry)
+
+        return self.schema.model_validate(entry)
 
     def delete(self, value: UUID4 | str, match_key: str | None = None) -> PrivateUser:  # Changed return to PrivateUser
         """

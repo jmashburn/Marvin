@@ -177,8 +177,12 @@ async def start_scheduler() -> None:
         # scheduler_tasks.delete_old_checked_list_items,
     )
 
-    # Register minutely tasks (currently ping and post_group_webhooks)
-    SchedulerRegistry.register_minutely(scheduler_tasks.ping, scheduler_tasks.post_group_webhooks)
+    # Register minutely tasks (ping, webhooks, and scheduled tasks checker)
+    SchedulerRegistry.register_minutely(
+        scheduler_tasks.ping,
+        scheduler_tasks.post_group_webhooks,
+        scheduler_tasks.check_scheduled_tasks,
+    )
 
     # Register hourly tasks
     SchedulerRegistry.register_hourly(
@@ -216,15 +220,15 @@ include_api_routers()
 if settings.STORAGE_PROVIDER == "local":
     from marvin.core.config import get_app_dirs
 
-    storage_root = settings.STORAGE_LOCAL_ROOT or (get_app_dirs().DATA_DIR / "uploads")
+    storage_root = settings.STORAGE_LOCAL_ROOT or get_app_dirs().ASSETS_DIR
     storage_root.mkdir(parents=True, exist_ok=True)
 
     app.mount(
-        "/uploads",
+        settings.STORAGE_LOCAL_PUBLIC_URL,
         StaticFiles(directory=str(storage_root)),
-        name="uploads",
+        name="assets",
     )
-    logger.info(f"Static file serving enabled for local storage at {storage_root}")
+    logger.info(f"Static file serving enabled for local storage at {storage_root} (public URL: {settings.STORAGE_LOCAL_PUBLIC_URL})")
 
 
 def main() -> None:

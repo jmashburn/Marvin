@@ -33,6 +33,7 @@ class Collections(SqlAlchemyBase, BaseMixins):
     color: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     is_smart: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     smart_rules: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     # Relationships
     entries: Mapped[list["Entries"]] = orm.relationship(

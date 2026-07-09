@@ -12,6 +12,7 @@ from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
     from .entries import Entries
+    from .entry_assets import EntryAssets
 
 
 class Assets(SqlAlchemyBase, BaseMixins):
@@ -57,6 +58,14 @@ class Assets(SqlAlchemyBase, BaseMixins):
         secondary="entry_assets",
         back_populates="assets",
         doc="Entries that include this asset",
+    )
+    entry_assets: Mapped[list["EntryAssets"]] = orm.relationship(
+        "EntryAssets",
+        foreign_keys="EntryAssets.asset_id",
+        back_populates="asset",
+        cascade="all, delete-orphan",
+        overlaps="entries",
+        doc="Junction records for entries using this asset",
     )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)

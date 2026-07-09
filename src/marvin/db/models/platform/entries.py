@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
+from .._model_utils.datetime import NaiveDateTime
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
     data_json: Mapped[dict] = mapped_column("data_json", JSONB, nullable=False, default=dict, server_default="{}")
     """Schema-driven content data structured according to entry_type.schema_json."""
     status: Mapped[str] = mapped_column(sa.String, nullable=False, default="inbox", server_default="inbox")
-    published_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column("metadata_json", sa.JSON, nullable=True)
     """Custom non-schema metadata (API keys, external IDs, CMS config, etc.)."""
     created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -63,6 +64,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "EntryCollections",
         foreign_keys="EntryCollections.entry_id",
         overlaps="collections,entries",
+        cascade="all, delete-orphan",
         doc="Direct access to entry-collection associations",
     )
 
@@ -77,6 +79,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "EntryResources",
         foreign_keys="EntryResources.entry_id",
         overlaps="entries,resources",
+        cascade="all, delete-orphan",
         doc="Direct access to entry-resource associations with placement info",
     )
 
@@ -84,6 +87,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "Assets",
         secondary="entry_assets",
         back_populates="entries",
+        overlaps="entry_assets",
         doc="Assets included in this entry",
     )
 
@@ -91,6 +95,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
         "EntryAssets",
         foreign_keys="EntryAssets.entry_id",
         overlaps="assets,entries",
+        cascade="all, delete-orphan",
         doc="Direct access to entry-asset associations with placement info",
     )
 

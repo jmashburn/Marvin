@@ -108,6 +108,8 @@ class EventTypes(EventTypeBase):
     """Event dispatched when a workspace is deleted."""
     workspace_activated = auto()
     """Event dispatched when a user switches to a different workspace."""
+    workspace_settings_changed = auto()
+    """Event dispatched when workspace preferences/settings are modified."""
 
     # ==========================================================================
     # Workspace Member Events
@@ -238,6 +240,12 @@ class EventTypes(EventTypeBase):
     """Event dispatched when an API client is updated."""
     api_client_deleted = auto()
     """Event dispatched when an API client is deleted."""
+    api_client_token_rotated = auto()
+    """Event dispatched when an API client token is rotated."""
+    api_client_enabled = auto()
+    """Event dispatched when an API client is enabled."""
+    api_client_disabled = auto()
+    """Event dispatched when an API client is disabled."""
 
     # ==========================================================================
     # Resource Events
@@ -278,6 +286,26 @@ class EventTypes(EventTypeBase):
     """Event dispatched when content approval is granted."""
     approval_rejected = auto()
     """Event dispatched when content approval is rejected."""
+
+    # ==========================================================================
+    # Scheduled Task Events
+    # ==========================================================================
+    scheduled_task_created = auto()
+    """Event dispatched when a scheduled task is created."""
+    scheduled_task_updated = auto()
+    """Event dispatched when a scheduled task is updated."""
+    scheduled_task_deleted = auto()
+    """Event dispatched when a scheduled task is deleted."""
+    scheduled_task_triggered = auto()
+    """Event dispatched when a scheduled task is triggered by the scheduler."""
+    scheduled_task_started = auto()
+    """Event dispatched when a scheduled task starts execution."""
+    scheduled_task_completed = auto()
+    """Event dispatched when a scheduled task completes successfully."""
+    scheduled_task_failed = auto()
+    """Event dispatched when a scheduled task execution fails."""
+    scheduled_task_cancelled = auto()
+    """Event dispatched when a scheduled task execution is cancelled."""
 
     # ==========================================================================
     # Search & Indexing Events
@@ -363,6 +391,12 @@ class EventDocumentType(EventDocumentTypeBase):
     """Indicates the event data pertains to an invitation."""
     api_token = "api_token"
     """Indicates the event data pertains to an API token."""
+    api_client = "api_client"
+    """Indicates the event data pertains to an API client."""
+    entry_type = "entry_type"
+    """Indicates the event data pertains to an entry type."""
+    resource = "resource"
+    """Indicates the event data pertains to a resource."""
     deployment = "deployment"
     """Indicates the event data pertains to a site deployment."""
 
@@ -452,6 +486,28 @@ class EventWorkspaceCreatedData(EventDocumentDataBase):
     """The name of the created workspace."""
     creator_id: UUID4
     """The user ID of the workspace creator."""
+
+
+class EventWorkspaceData(EventDocumentDataBase):
+    """Data payload for workspace-related events (updates, settings changes)."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.workspace
+    workspace_id: UUID4
+    """The unique identifier of the workspace."""
+    workspace_name: str
+    """The name of the workspace."""
+    workspace_slug: str
+    """The slug of the workspace."""
+
+
+class EventWorkspaceSettingsData(EventDocumentDataBase):
+    """Data payload for workspace settings/preferences change events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.workspace
+    workspace_id: UUID4
+    """The unique identifier of the workspace."""
+    changed_fields: list[str]
+    """List of preference fields that were modified (e.g., ['site_title', 'site_logo'])."""
 
 
 class EventWebhookData(EventDocumentDataBase):
@@ -613,6 +669,107 @@ class EventDeploymentData(EventDocumentDataBase):
     """Error message if deployment failed."""
 
 
+class EventAPIClientData(EventDocumentDataBase):
+    """Data payload for API client events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.api_client
+    api_client_id: UUID4
+    """The unique identifier of the API client."""
+    api_client_name: str
+    """The name of the API client."""
+    api_client_slug: str
+    """The slug of the API client."""
+    workspace_id: UUID4
+    """The workspace the API client belongs to."""
+    permissions: dict
+    """The permissions granted to the API client."""
+    enabled: bool
+    """Whether the API client is enabled."""
+    token_prefix: str | None = None
+    """The prefix of the token (for token rotation events)."""
+
+
+class EventEntryTypeData(EventDocumentDataBase):
+    """Data payload for entry type events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.entry_type
+    entry_type_id: UUID4
+    """The unique identifier of the entry type."""
+    entry_type_name: str
+    """The name of the entry type."""
+    entry_type_slug: str
+    """The slug of the entry type."""
+    workspace_id: UUID4
+    """The workspace the entry type belongs to."""
+    description: str | None = None
+    """The description of the entry type."""
+
+
+class EventResourceData(EventDocumentDataBase):
+    """Data payload for resource events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.resource
+    resource_id: UUID4
+    """The unique identifier of the resource."""
+    resource_name: str
+    """The name of the resource."""
+    resource_slug: str
+    """The slug of the resource."""
+    resource_type: str
+    """The type of resource (fabric, tool, supplier, etc.)."""
+    workspace_id: UUID4
+    """The workspace the resource belongs to."""
+    url: str | None = None
+    """The external URL of the resource."""
+
+
+class EventScheduledTaskData(EventDocumentDataBase):
+    """Data payload for scheduled task events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
+    task_id: UUID4
+    """The unique identifier of the scheduled task."""
+    task_name: str
+    """The name of the scheduled task."""
+    task_slug: str
+    """The slug of the scheduled task."""
+    task_type: str
+    """The type of task (e.g., 'publish', 'cleanup')."""
+    workspace_id: UUID4 | None = None
+    """The workspace the task belongs to (None for system tasks)."""
+    enabled: bool = True
+    """Whether the task is enabled."""
+    next_run_at: datetime | None = None
+    """Next scheduled execution time."""
+    last_status: str | None = None
+    """Status of last execution."""
+
+    @classmethod
+    def from_model(cls, task: "ScheduledTaskModel") -> "EventScheduledTaskData":
+        """
+        Create EventScheduledTaskData from a ScheduledTaskModel.
+
+        Args:
+            task: ScheduledTaskModel instance
+
+        Returns:
+            EventScheduledTaskData instance
+        """
+        from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
+
+        return cls(
+            operation=EventOperation.info,
+            task_id=task.id,
+            task_name=task.name,
+            task_slug=task.slug,
+            task_type=task.task_type,
+            workspace_id=task.group_id,
+            enabled=task.enabled,
+            next_run_at=task.next_run_at,
+            last_status=task.last_status,
+        )
+
+
 class EventBusMessage(_MarvinModel):
     """
     Pydantic model for the user-facing message content within an event.
@@ -692,6 +849,16 @@ class Event(_MarvinModel):
     """A unique identifier for this specific event instance."""
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     """Timestamp (UTC) of when the event object was created."""
+
+    # Core identifiers for audit and filtering
+    workspace_id: UUID4
+    """The workspace this event pertains to."""
+    user_id: UUID4 | None = None
+    """The user who triggered this event (None for system events)."""
+    entity_id: UUID4 | None = None
+    """The ID of the primary entity this event is about (entry, asset, etc.)."""
+    entity_type: str | None = None
+    """The type of the primary entity (entry, asset, workspace, etc.)."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """

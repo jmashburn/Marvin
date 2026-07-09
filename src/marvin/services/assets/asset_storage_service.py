@@ -134,11 +134,10 @@ class AssetStorageService(BaseService):
                 )
 
                 # Create database record
-                asset = self.repos.assets.create(
-                    asset_create.model_dump(exclude_unset=True),
-                    group_id=group_id,
-                    uploaded_by=user_id,
-                )
+                asset_data = asset_create.model_dump(exclude_unset=True)
+                asset_data["group_id"] = group_id
+                asset_data["uploaded_by"] = user_id
+                asset = self.repos.assets.create(asset_data)
 
                 return AssetRead.model_validate(asset)
 

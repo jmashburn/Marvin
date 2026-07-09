@@ -1,12 +1,36 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
+import { createEntry } from "@/lib/api/entries";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 if (!authToken) {
   return Astro.redirect('/auth/login');
 }
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (value !== '') {
+        data[key] = value;
+      }
+    });
+
+    const entry = await createEntry(data, authToken);
+    return Astro.redirect(`/workspace/entries/${entry.id}`);
+  } catch (e) {
+    console.error('[NewEntry] Failed to create entry:', e);
+    // Error will be shown below
+  }
+}
+
+// Get pre-selected type from query parameter (e.g., from Quick Create)
+const preSelectedTypeId = Astro.url.searchParams.get('type');
 
 let entryTypes: EntryTypeRead[] = [];
 let error: string | null = null;
@@ -32,19 +56,19 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
       <div class="toolbar">
         <div>
           <h2 style="margin:0;font-size:20px;">Create Entry</h2>
-          <p style="margin:4px 0 0;color:var(--muted);">Create a new entry in your workspace.</p>
+          <p style="margin:4px 0 0;color:var(--muted);">Create a draft entry. Add content and publish from the editor.</p>
         </div>
         <a class="button secondary" href="/workspace/entries">Cancel</a>
       </div>
 
       <section class="form-section">
-        <form method="POST" action="/api/entries/create" class="form">
+        <form method="POST" class="form">
           <div class="form-group">
             <label for="entry_type_id">Entry Type *</label>
             <select id="entry_type_id" name="entry_type_id" required>
               <option value="">Select an entry type...</option>
               {sortedTypes.map((type) => (
-                <option value={type.id}>
+                <option value={type.id} selected={type.id === preSelectedTypeId}>
                   {type.icon && `${type.icon} `}{type.name}
                 </option>
               ))}
@@ -61,7 +85,17 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
               required
               placeholder="e.g., My First Project"
             />
-            <p class="form-help">Slug will be auto-generated from the title</p>
+          </div>
+
+          <div class="form-group">
+            <label for="slug">Slug</label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              placeholder="Auto-generated from title, or enter custom"
+            />
+            <p class="form-help">Auto-generated from title, or enter a custom slug</p>
           </div>
 
           <div class="form-group">
@@ -91,11 +125,8 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
             <select id="status" name="status">
               <option value="inbox">Inbox</option>
               <option value="draft" selected>Draft</option>
-              <option value="needs_review">Needs Review</option>
-              <option value="approved">Approved</option>
-              <option value="published">Published</option>
             </select>
-            <p class="form-help">Publication status</p>
+            <p class="form-help">New entries start as drafts. Add content and publish from the editor.</p>
           </div>
 
           <div class="form-actions">
@@ -181,3 +212,29 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
     border-top: 1px solid var(--line);
   }
 </style>
+
+<script>
+  // Auto-generate slug from title (unless user manually edits it)
+  const titleInput = document.getElementById('title') as HTMLInputElement | null;
+  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
+
+  if (titleInput && slugInput) {
+    titleInput.addEventListener('input', () => {
+      // Only auto-generate if user hasn't manually edited the slug
+      if (!slugInput.dataset.manuallyEdited) {
+        const slug = titleInput.value
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/[\s_-]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        slugInput.value = slug;
+      }
+    });
+
+    // Track if user manually edits slug field
+    slugInput.addEventListener('input', () => {
+      slugInput.dataset.manuallyEdited = 'true';
+    });
+  }
+</script>

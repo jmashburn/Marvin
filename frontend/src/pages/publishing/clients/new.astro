@@ -46,7 +46,23 @@ import AppLayout from "@/layouts/AppLayout.astro";
           <input type="checkbox" name="read:published_entries" checked />
           <div>
             <strong>Read Published Entries</strong>
-            <small>Access all published entries</small>
+            <small>Access all published entries (production sites)</small>
+          </div>
+        </label>
+
+        <label class="checkbox-label">
+          <input type="checkbox" name="read:draft_entries" />
+          <div>
+            <strong>Read Draft Entries</strong>
+            <small>Access draft/unpublished entries (preview environments)</small>
+          </div>
+        </label>
+
+        <label class="checkbox-label">
+          <input type="checkbox" name="read:all_entries" />
+          <div>
+            <strong>Read All Entries</strong>
+            <small>Access all entries regardless of status (admin tools)</small>
           </div>
         </label>
 

@@ -62,11 +62,10 @@ function getMimeCategory(mimeType: string): string {
 
       {assets.length === 0 ? (
         <div class="empty-state">
-          <p class="empty-title">No assets yet</p>
-          <p class="empty-description">
-            Upload your first asset to use in entries.
-          </p>
-          <a href="/workspace/assets/new" class="button">Upload Asset</a>
+          <div class="empty-icon">🖼️</div>
+          <h3>No assets yet</h3>
+          <p>Assets are images, videos, documents, and files that you can reference in your entries.</p>
+          <a href="/workspace/assets/new" class="button">Upload Your First Asset</a>
         </div>
       ) : (
         <table class="table">
@@ -86,9 +85,9 @@ function getMimeCategory(mimeType: string): string {
               <tr class="asset-row" data-type={getMimeCategory(asset.mimeType)}>
                 <td>
                   <div class="preview">
-                    {asset.url && (
+                    {asset.publicUrl && (
                       <img
-                        src={asset.url}
+                        src={asset.publicUrl}
                         alt={asset.altText ?? asset.name}
                         style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
                       />
@@ -113,12 +112,13 @@ function getMimeCategory(mimeType: string): string {
                 <td class="alt-text-cell">{asset.altText || '—'}</td>
                 <td>
                   <div class="actions">
+                    <a href={`/workspace/assets/${asset.id}/view`} class="button secondary small">View</a>
                     <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
-                    {asset.url && (
-                      <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary small">
-                        View
-                      </a>
-                    )}
+                    <form method="POST" action={`/api/assets/${asset.id}/delete`} style="display:inline;">
+                      <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this asset?')">
+                        Delete
+                      </button>
+                    </form>
                   </div>
                 </td>
               </tr>
@@ -179,13 +179,19 @@ function getMimeCategory(mimeType: string): string {
     text-align: center;
   }
 
-  .empty-title {
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
   }
 
-  .empty-description {
+  .empty-state p {
     margin: 0;
     color: var(--muted);
     max-width: 32rem;
@@ -242,5 +248,14 @@ function getMimeCategory(mimeType: string): string {
     min-height: 32px;
     padding: 6px 10px;
     font-size: 0.875rem;
+  }
+
+  .button.danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg);
   }
 </style>

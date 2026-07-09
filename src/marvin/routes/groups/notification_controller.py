@@ -68,7 +68,7 @@ class GroupEventsNotifierController(BaseUserController):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Apprise notification service is not enabled or configured. "
-                       "Please enable APPRISE_ENABLED in settings to use notifications.",
+                "Please enable APPRISE_ENABLED in settings to use notifications.",
             )
 
     @cached_property
@@ -212,8 +212,8 @@ class GroupEventsNotifierController(BaseUserController):
         # `self.mixins.update_one` uses `self.repo` which is group-scoped.
         return self.mixins.update_one(item_id=item_id, data=data)  # Corrected param order
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a Group Event Notifier")
-    def delete_one(self, item_id: UUID4) -> None:  # Return None for 204
+    @router.delete("/{item_id}", summary="Delete a Group Event Notifier")
+    def delete_one(self, item_id: UUID4) -> dict:
         """
         Deletes an event notifier configuration by its ID.
 
@@ -223,26 +223,22 @@ class GroupEventsNotifierController(BaseUserController):
             item_id (UUID4): The ID of the group event notifier to delete.
 
         Returns:
-            None: HTTP 204 No Content on successful deletion.
+            dict: Status message on successful deletion.
 
         Raises:
             HTTPException (404 Not Found): If the notifier is not found.
         """
         self._check_apprise_available()
-        # `self.mixins.delete_one` uses `self.repo` which is group-scoped.
-        # The `type: ignore` was present in original; usually means a type mismatch perceived by the linter
-        # but functionally correct. HttpRepo.delete_one returns R (GroupEventNotifierRead),
-        # but FastAPI handles None return + 204 status code correctly.
         self.mixins.delete_one(item_id)  # type: ignore
-        return None
+        return {"status": "ok", "message": "Event notifier deleted successfully"}
 
     # =======================================================================
     # Test Event Notifications
     # =======================================================================
 
     # TODO: "properly re-implement this with new event listeners" - as per original code comment
-    @router.post("/{item_id}/test", status_code=status.HTTP_204_NO_CONTENT, summary="Test a Group Event Notifier")
-    def test_notification(self, item_id: UUID4) -> None:
+    @router.post("/{item_id}/test", summary="Test a Group Event Notifier")
+    def test_notification(self, item_id: UUID4) -> dict:
         """
         Sends a test notification message to a specified group event notifier.
 
@@ -253,7 +249,7 @@ class GroupEventsNotifierController(BaseUserController):
             item_id (UUID4): The ID of the group event notifier to test.
 
         Returns:
-            None: HTTP 204 No Content on successful dispatch of the test.
+            dict: Status message on successful dispatch of the test.
 
         Raises:
             HTTPException (404 Not Found): If the notifier is not found.
@@ -290,7 +286,7 @@ class GroupEventsNotifierController(BaseUserController):
             # Consider if an error response should be sent to the client here,
             # e.g., a 500 error if Apprise fails. Currently, it would still return 204.
             # For a more robust test, this might raise an HTTPException.
-            # For now, matching original behavior of logging and returning 204 regardless of Apprise outcome.
+            # For now, matching original behavior of logging and returning status regardless of Apprise outcome.
             pass
 
-        return None  # HTTP 204 No Content
+        return {"status": "ok", "message": "Test notification sent successfully"}

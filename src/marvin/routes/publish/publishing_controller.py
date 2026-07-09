@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from marvin.core.config import get_app_settings
 from marvin.core.dependencies import get_publishing_context
+from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
 from marvin.db.models.platform import APIClients, Assets, Collections, Entries, Resources
 from marvin.repos.all_repositories import get_repositories
@@ -47,8 +48,12 @@ async def get_workspace_info(
     Returns basic workspace metadata for site consumption.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries (minimal permission to access publishing API)
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require at least one publishing permission to access workspace info
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "workspace information")
 
     return WorkspaceInfo(
         slug=group.slug,
@@ -78,8 +83,12 @@ async def get_site_configuration(
     **Use case**: Astro site initialization, meta tags, social links, contact forms.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries (minimal permission to access publishing API)
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require at least one publishing permission to access site configuration
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "site configuration")
 
     # Get group preferences (includes site configuration)
     from marvin.db.models.groups import GroupPreferencesModel
@@ -145,8 +154,12 @@ async def list_published_entries(
     - `?updated_since=2026-07-01T00:00:00Z` - Incremental builds
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries OR read:all_entries
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read entries
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "published entries")
 
     # Get repositories scoped to this workspace
     repos = get_repositories(session, group_id=group.id)
@@ -227,6 +240,12 @@ async def list_published_entries(
         # Get collection slugs
         collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
 
+        # Get asset slugs
+        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+
+        # Get resource slugs
+        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
         data.append(
             PublishedEntryListItem(
                 slug=entry.slug,
@@ -235,6 +254,8 @@ async def list_published_entries(
                 summary=entry.summary,
                 published_at=entry.published_at,
                 collections=collection_slugs,
+                assets=asset_slugs,
+                resources=resource_slugs,
             )
         )
 
@@ -268,11 +289,15 @@ async def get_published_entry(
     - Only returns entry if `status = 'published'`
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries OR read:all_entries
 
     **Raises:**
     - 404: Entry not found or not published
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read entries
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "published entry")
 
     # Query published entry
     entry = (
@@ -288,8 +313,23 @@ async def get_published_entry(
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
 
-    # Get collection slugs
-    collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+    # Get collections with full details
+    collections = [
+        PublishedCollectionSummary(
+            slug=ec.collection.slug,
+            name=ec.collection.name,
+            description=ec.collection.description,
+            is_smart=ec.collection.is_smart,
+            smart_rules=ec.collection.smart_rules,
+            metadata=ec.collection.metadata_json,
+            entry_count=0,  # Not needed in entry context
+            sort_order=ec.collection.sort_order,
+            icon=ec.collection.icon,
+            color=ec.collection.color,
+        )
+        for ec in entry.entry_collections
+        if ec.collection
+    ]
 
     # Get resources for this entry
     resources = [
@@ -335,7 +375,7 @@ async def get_published_entry(
         data=entry.data_json,  # BREAKING: replaced content_markdown with schema-driven data_json
         published_at=entry.published_at,
         metadata=entry.metadata_json,
-        collections=collection_slugs,
+        collections=collections,
         resources=resources,
         assets=assets,
     )
@@ -360,8 +400,12 @@ async def list_published_collections(
     **Use case**: Building navigation menus, collection indexes.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:collections
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read collections
+    perms.require_permission(Permissions.READ_COLLECTIONS, "collections")
 
     # Get total count
     total = session.query(Collections).filter(Collections.group_id == group.id).count()
@@ -397,6 +441,9 @@ async def list_published_collections(
                 slug=collection.slug,
                 name=collection.name,
                 description=collection.description,
+                is_smart=collection.is_smart,
+                smart_rules=collection.smart_rules,
+                metadata=collection.metadata_json,
                 entry_count=entry_count,
                 sort_order=collection.sort_order,
                 icon=collection.icon,
@@ -434,11 +481,15 @@ async def get_published_collection(
     - Only includes entries with `status = 'published'`
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:collections
 
     **Raises:**
     - 404: Collection not found
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read collections
+    perms.require_permission(Permissions.READ_COLLECTIONS, "collection")
 
     # Get collection
     collection = (
@@ -453,25 +504,32 @@ async def get_published_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    # Get published entries in this collection
+    # Get entries in this collection
+    # Filter by status based on permissions
     from marvin.db.models.platform import EntryCollections
 
-    entries = (
-        session.query(Entries)
-        .join(EntryCollections)
-        .filter(
-            EntryCollections.collection_id == collection.id,
-            Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
-        )
-        .order_by(Entries.published_at.desc())
-        .all()
-    )
+    query = session.query(Entries).join(EntryCollections).filter(EntryCollections.collection_id == collection.id)
+
+    # Only filter to published entries if user doesn't have permission to read all
+    if not perms.has_permission(Permissions.READ_ALL_ENTRIES):
+        query = query.filter(Entries.status == settings.PUBLISHING_DEFAULT_STATUS)
+
+    entries = query.order_by(EntryCollections.sort_order.asc(), Entries.published_at.desc()).all()
 
     # Convert to list items
     entry_items = []
     for entry in entries:
         # Get collection slugs for each entry
         collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+
+        # Get asset slugs
+        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+
+        # Get resource slugs
+        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
+        # Get sort order from the junction table for this collection
+        order = next((ec.sort_order for ec in entry.entry_collections if ec.collection_id == collection.id), None)
 
         entry_items.append(
             PublishedEntryListItem(
@@ -480,7 +538,11 @@ async def get_published_collection(
                 entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
                 summary=entry.summary,
                 published_at=entry.published_at,
+                status=entry.status,
                 collections=collection_slugs,
+                assets=asset_slugs,
+                resources=resource_slugs,
+                order=order,
             )
         )
 
@@ -488,6 +550,9 @@ async def get_published_collection(
         slug=collection.slug,
         name=collection.name,
         description=collection.description,
+        is_smart=collection.is_smart,
+        smart_rules=collection.smart_rules,
+        metadata=collection.metadata_json,
         entry_count=len(entry_items),
         entries=entry_items,
     )
@@ -520,8 +585,12 @@ async def list_published_assets(
     - Build asset galleries, media libraries
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:assets
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read assets
+    perms.require_permission(Permissions.READ_ASSETS, "assets")
 
     # Build query for assets
     query = session.query(Assets).filter(
@@ -539,21 +608,27 @@ async def list_published_assets(
     assets = query.order_by(Assets.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
-    data = [
-        PublishedAssetRead(
-            slug=asset.slug,
-            name=asset.name,
-            mime_type=asset.mime_type,
-            asset_type=asset.asset_type,
-            file_size=asset.file_size,
-            width=asset.width,
-            height=asset.height,
-            alt_text=asset.alt_text,
-            description=asset.description,
-            public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+    data = []
+    for asset in assets:
+        # Get published entry slugs that use this asset
+        entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
+        data.append(
+            PublishedAssetRead(
+                slug=asset.slug,
+                name=asset.name,
+                mime_type=asset.mime_type,
+                asset_type=asset.asset_type,
+                file_size=asset.file_size,
+                width=asset.width,
+                height=asset.height,
+                alt_text=asset.alt_text,
+                description=asset.description,
+                public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+                metadata=asset.metadata_,
+                entries=entry_slugs,
+            )
         )
-        for asset in assets
-    ]
 
     return PublishedAssetsResponse(
         data=data,
@@ -586,13 +661,17 @@ async def get_published_asset(
     dimensions and alt text.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:assets
 
     **Raises:**
     - 404: Asset not found
 
     **Note**: Actual file serving (GET /assets/{slug}/file) is deferred to Phase 7.
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read assets
+    perms.require_permission(Permissions.READ_ASSETS, "asset")
 
     asset = (
         session.query(Assets)
@@ -606,6 +685,9 @@ async def get_published_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
+    # Get published entry slugs that use this asset
+    entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
     return PublishedAssetRead(
         slug=asset.slug,
         name=asset.name,
@@ -617,7 +699,64 @@ async def get_published_asset(
         alt_text=asset.alt_text,
         description=asset.description,
         public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+        metadata=asset.metadata_,
+        entries=entry_slugs,
     )
+
+
+@router.get(
+    "/{workspace_slug}/assets/{asset_slug}/file",
+    summary="Serve Asset File",
+)
+async def serve_asset_file(
+    asset_slug: str,
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+):
+    """
+    Serve the actual asset file content.
+
+    This endpoint proxies through to the storage provider to serve the asset file.
+    For local storage, it redirects to the static file path.
+    For S3 storage, it could generate a signed URL or proxy the content.
+
+    **Use case**: Browsers fetching images, PDFs, videos via their public URL.
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:assets
+
+    **Raises:**
+    - 404: Asset not found
+    """
+    from fastapi.responses import RedirectResponse
+
+    api_client, group, perms = context
+
+    # Require permission to access asset files
+    perms.require_permission(Permissions.READ_ASSETS, "asset file")
+
+    asset = (
+        session.query(Assets)
+        .filter(
+            Assets.group_id == group.id,
+            Assets.slug == asset_slug,
+        )
+        .first()
+    )
+
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # For local storage, redirect to the static file URL
+    if asset.storage_provider == "local":
+        return RedirectResponse(url=f"/assets/{asset.storage_key}")
+
+    # For S3 or other providers, use the public_url if available
+    if asset.public_url:
+        return RedirectResponse(url=asset.public_url)
+
+    # Fallback error
+    raise HTTPException(status_code=500, detail="Asset file URL not available")
 
 
 @router.get(
@@ -647,8 +786,12 @@ async def list_published_resources(
     - Build resource directories, material libraries
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:resources
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read resources
+    perms.require_permission(Permissions.READ_RESOURCES, "resources")
 
     # Build query for resources
     query = session.query(Resources).filter(
@@ -666,18 +809,23 @@ async def list_published_resources(
     resources = query.order_by(Resources.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
-    data = [
-        PublishedResourceSummary(
-            slug=resource.slug,
-            name=resource.name,
-            resource_type=resource.resource_type,
-            description=resource.description,
-            url=resource.url,
-            external_id=resource.external_id,
-            metadata=resource.metadata_,
+    data = []
+    for resource in resources:
+        # Get published entry slugs that reference this resource
+        entry_slugs = [er.entry.slug for er in resource.entry_resources if er.entry and er.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
+        data.append(
+            PublishedResourceSummary(
+                slug=resource.slug,
+                name=resource.name,
+                resource_type=resource.resource_type,
+                description=resource.description,
+                url=resource.url,
+                external_id=resource.external_id,
+                metadata=resource.metadata_,
+                entries=entry_slugs,
+            )
         )
-        for resource in resources
-    ]
 
     return PublishedResourcesResponse(
         data=data,
@@ -708,11 +856,15 @@ async def get_published_resource(
     **Use case**: Resource detail pages, material information displays.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:resources
 
     **Raises:**
     - 404: Resource not found
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read resources
+    perms.require_permission(Permissions.READ_RESOURCES, "resource")
 
     # Query resource
     resource = (
@@ -727,6 +879,9 @@ async def get_published_resource(
     if not resource:
         raise HTTPException(status_code=404, detail="Resource not found")
 
+    # Get published entry slugs that reference this resource
+    entry_slugs = [er.entry.slug for er in resource.entry_resources if er.entry and er.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+
     return PublishedResourceSummary(
         slug=resource.slug,
         name=resource.name,
@@ -735,6 +890,7 @@ async def get_published_resource(
         url=resource.url,
         external_id=resource.external_id,
         metadata=resource.metadata_,
+        entries=entry_slugs,
     )
 
 
@@ -759,11 +915,15 @@ async def get_resource_entries(
     **Use case**: "View projects using this fabric" links on resource pages.
 
     **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:resources
 
     **Raises:**
     - 404: Resource not found
     """
-    api_client, group = context
+    api_client, group, perms = context
+
+    # Require permission to read resources
+    perms.require_permission(Permissions.READ_RESOURCES, "resource entries")
 
     # Get resource
     resource = (
@@ -798,6 +958,12 @@ async def get_resource_entries(
         # Get collection slugs for each entry
         collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
 
+        # Get asset slugs
+        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+
+        # Get resource slugs
+        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
         entry_items.append(
             PublishedEntryListItem(
                 slug=entry.slug,
@@ -806,6 +972,8 @@ async def get_resource_entries(
                 summary=entry.summary,
                 published_at=entry.published_at,
                 collections=collection_slugs,
+                assets=asset_slugs,
+                resources=resource_slugs,
             )
         )
 

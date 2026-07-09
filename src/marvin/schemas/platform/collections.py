@@ -27,6 +27,10 @@ class CollectionCreate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    metadata_json: dict | None = None
+    """Custom metadata for this collection."""
+    entry_ids: list[UUID4] | None = None
+    """Optional list of entry IDs to add to this collection."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,6 +54,10 @@ class CollectionUpdate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    metadata_json: dict | None = None
+    """Custom metadata for this collection."""
+    entry_ids: list[UUID4] | None = None
+    """Optional list of entry IDs to replace existing entries in this collection."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -88,5 +96,7 @@ class CollectionRead(CollectionSummary):
     """The workspace/group this collection belongs to."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    metadata_json: dict | None = None
+    """Custom metadata for this collection."""
 
     model_config = ConfigDict(from_attributes=True)

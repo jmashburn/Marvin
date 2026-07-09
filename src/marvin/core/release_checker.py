@@ -6,7 +6,7 @@ excessive API calls. The cache is reset periodically to ensure the information
 stays up-to-date.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 
 import requests
@@ -42,7 +42,7 @@ def get_latest_version(url: str) -> str:
 
     now = datetime.now(UTC)
 
-    if not _LAST_RESET or now - _LAST_RESET > datetime.timedelta(days=MAX_DAYS_OLD):
+    if not _LAST_RESET or now - _LAST_RESET > timedelta(days=MAX_DAYS_OLD):
         _LAST_RESET = now
         get_latest_github_release.cache_clear()
 

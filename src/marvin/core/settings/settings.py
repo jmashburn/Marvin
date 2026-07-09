@@ -249,10 +249,10 @@ class AppSettings(BaseSettings):
     """Storage provider to use: 'local' or 's3'. Default: local"""
 
     STORAGE_LOCAL_ROOT: Path | None = None
-    """Root directory for local file storage. Defaults to {DATA_DIR}/uploads"""
+    """Root directory for local file storage. Defaults to {DATA_DIR}/assets"""
 
-    STORAGE_LOCAL_PUBLIC_URL: str = "/uploads"
-    """Base URL for accessing local files. Default: /uploads"""
+    STORAGE_LOCAL_PUBLIC_URL: str = "/assets"
+    """Base URL for accessing local files. Default: /assets"""
 
     STORAGE_S3_ENDPOINT: str | None = None
     """S3-compatible endpoint URL (for R2, MinIO, etc). Optional for AWS S3."""

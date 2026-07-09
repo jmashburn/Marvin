@@ -1,11 +1,17 @@
 ---
-import type { EntryRead } from "@/lib/api/types";
+import type { EntryRead, CollectionRead } from "@/lib/api/types";
 
 interface Props {
   entry: EntryRead;
+  collectionsMap?: Map<string, CollectionRead>;
 }
 
-const { entry } = Astro.props;
+const { entry, collectionsMap } = Astro.props;
+
+// Get collections for this entry
+const entryCollections = entry.collections
+  ?.map(id => collectionsMap?.get(id))
+  .filter(Boolean) as CollectionRead[] | undefined;
 const asset = entry.assets?.find((item) => item.role === "featured" || item.role === "hero") ?? entry.assets?.[0];
 
 // Format relative time
@@ -27,8 +33,8 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
 
 <a href={`/workspace/entries/${entry.id}`} class="card">
   <div class="media">
-    {asset ? (
-      <img src={`/api/assets/${asset.id}/file`} alt={asset.altText ?? entry.title} style={`object-position: ${asset.focalPoint ?? "50% 50%"}`} />
+    {asset?.publicUrl ? (
+      <img src={asset.publicUrl} alt={asset.altText ?? entry.title} style={`object-position: ${asset.focalPoint ?? "50% 50%"}`} />
     ) : (
       <div class="media-placeholder">
         <span class="placeholder-icon">📄</span>
@@ -36,11 +42,25 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
     )}
   </div>
   <div class="card-body">
-    <h2 class="card-title">{entry.title}</h2>
+    <div class="card-header">
+      <h2 class="card-title">{entry.title}</h2>
+      {entry.updateAt && (
+        <span class="timestamp">Updated {formatRelativeTime(entry.updateAt)}</span>
+      )}
+    </div>
     {entry.summary && <p class="card-summary">{entry.summary}</p>}
+    {entryCollections && entryCollections.length > 0 && (
+      <div class="collections-row">
+        {entryCollections.map(collection => (
+          <span class="pill collection" style={`background-color: ${collection.color || '#a94d3f'}15; color: ${collection.color || '#a94d3f'};`}>
+            {collection.icon && <span class="collection-icon">{collection.icon}</span>}
+            {collection.name}
+          </span>
+        ))}
+      </div>
+    )}
     <div class="card-footer">
       <div class="meta">
-        <span class={`pill ${entry.status}`}>{entry.status}</span>
         {entry.assets && entry.assets.length > 0 && (
           <span class="pill secondary">{entry.assets.length} asset{entry.assets.length === 1 ? '' : 's'}</span>
         )}
@@ -48,9 +68,7 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
           <span class="pill secondary">{entry.resources.length} resource{entry.resources.length === 1 ? '' : 's'}</span>
         )}
       </div>
-      {entry.updateAt && (
-        <span class="timestamp">Updated {formatRelativeTime(entry.updateAt)}</span>
-      )}
+      <span class={`pill ${entry.status}`}>{entry.status}</span>
     </div>
   </div>
   <div class="card-action">
@@ -119,6 +137,13 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
     min-width: 0;
   }
 
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
   .card-title {
     margin: 0;
     font-size: 16px;
@@ -127,6 +152,7 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
   }
 
   .card-summary {
@@ -138,6 +164,13 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+  }
+
+  .collections-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
   .card-footer {
@@ -207,10 +240,23 @@ function formatRelativeTime(timestamp: string | null | undefined): string {
     font-size: 10px;
   }
 
-  .timestamp {
+  .pill.collection {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .collection-icon {
     font-size: 12px;
+    line-height: 1;
+  }
+
+  .timestamp {
+    font-size: 11px;
     color: var(--muted);
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .card-action {

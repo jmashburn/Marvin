@@ -35,6 +35,7 @@ from marvin.schemas.user import (  # User Pydantic schemas
     ChangePassword,
     PrivateUser,  # Represents the authenticated user profile
     # UserCreate, # Not used by active UserController endpoints for creation
+    UserProfileUpdate,  # For updating user profile without password
     UserRead,
     UserUpdate,  # Using UserUpdate for user profile updates
     # Schemas related to API tokens, not used in active UserController:
@@ -150,7 +151,7 @@ class UserController(BaseUserController):
         return SuccessResponse.respond("User password updated successfully.")
 
     @user_router.put("/self", response_model=SuccessResponse, summary="Update Current User Profile")
-    def update_user(self, new_data: UserUpdate) -> SuccessResponse:
+    def update_user(self, new_data: UserProfileUpdate) -> SuccessResponse:
         """
         Updates the profile information for the currently authenticated user.
 
@@ -159,8 +160,8 @@ class UserController(BaseUserController):
         changing their own permissions via this user-facing endpoint.
 
         Args:
-            new_data (UserUpdate): Pydantic schema containing the fields to update.
-                                   This should be a partial update schema.
+            new_data (UserProfileUpdate): Pydantic schema containing the fields to update.
+                                          Only username, email, and full_name can be updated.
 
         Returns:
             SuccessResponse: A confirmation message if the user profile was updated successfully.
@@ -170,11 +171,6 @@ class UserController(BaseUserController):
                                          (e.g., changing permissions).
             HTTPException (400/500): If the update fails for other reasons.
         """
-        # Assert that the current user is allowed to make the proposed changes.
-        # This helper function encapsulates permission logic.
-        # Use self.user.id since we're updating the authenticated user
-        assert_user_change_allowed(self.user.id, self.user, new_data)
-
         try:
             # Perform the update using the users repository.
             # `new_data.model_dump(exclude_unset=True)` ensures only provided fields are updated (PATCH behavior).

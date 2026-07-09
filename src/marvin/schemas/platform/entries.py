@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field, StringConstraints, UUID4, field_validator
+from pydantic import ConfigDict, StringConstraints, UUID4, field_validator, field_serializer, Field, AliasChoices
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -46,6 +46,9 @@ class EntryCreate(_MarvinModel):
         description="Custom non-schema metadata (API keys, external IDs, etc.)",
         serialization_alias="metadataJson",
     )
+    collection_ids: list[UUID4] | None = None
+    asset_ids: list[UUID4] | None = None
+    resource_ids: list[UUID4] | None = None
 
     @field_validator("status")
     @classmethod
@@ -64,7 +67,7 @@ class EntryUpdate(_MarvinModel):
     Entry content is now schema-driven based on entry_type.schema_json.
     """
 
-    entry_type_id: UUID4 | None = None
+    entry_type_id: UUID4 | None = Field(default=None, validation_alias=AliasChoices("entry_type_id", "entryTypeId"))
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     summary: str | None = None
@@ -81,6 +84,9 @@ class EntryUpdate(_MarvinModel):
         description="Custom non-schema metadata (API keys, external IDs, etc.)",
         serialization_alias="metadataJson",
     )
+    collection_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("collection_ids", "collectionIds"))
+    asset_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("asset_ids", "assetIds"))
+    resource_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("resource_ids", "resourceIds"))
 
     @field_validator("status")
     @classmethod
@@ -89,7 +95,15 @@ class EntryUpdate(_MarvinModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(ENTRY_STATUSES))}")
         return value
 
-    model_config = ConfigDict(from_attributes=True)
+    @field_validator("published_at", mode="before")
+    @classmethod
+    def validate_published_at(cls, value: str | datetime | None) -> datetime | None:
+        """Convert empty strings to None for published_at."""
+        if value == "":
+            return None
+        return value
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class EntryRead(_MarvinModel):
@@ -127,6 +141,8 @@ class EntryRead(_MarvinModel):
     """Assets included in this entry with placement info."""
     collections: list[UUID4] = []
     """Collection IDs this entry belongs to."""
+    order: int | None = None
+    """Sort order within a collection. Only populated when querying entries for a specific collection."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -142,6 +158,43 @@ class EntryRead(_MarvinModel):
                 data["collections"] = collection_ids
                 return super().model_validate(data, **kwargs)
         return super().model_validate(obj, **kwargs)
+        """Custom validation to extract collection IDs and build asset/resource details."""
+        data = {field: getattr(obj, field, None) for field in cls.model_fields}
+
+        # Extract collection IDs from collection objects
+        if hasattr(obj, "collections") and obj.collections:
+            if obj.collections and hasattr(obj.collections[0], "id"):
+                data["collections"] = [c.id for c in obj.collections]
+
+        # Extract order from entry_collections junction table if querying for a specific collection
+        if hasattr(obj, "entry_collections") and obj.entry_collections:
+            # Use the first junction's sort_order (typically only one when filtering by collection)
+            if obj.entry_collections and hasattr(obj.entry_collections[0], "sort_order"):
+                data["order"] = obj.entry_collections[0].sort_order
+
+        # Build assets from entry_assets junction table (includes placement metadata)
+        if hasattr(obj, "entry_assets") and obj.entry_assets:
+            from marvin.schemas.platform.assets import EntryAssetRead
+
+            assets = []
+            for junction in obj.entry_assets:
+                if hasattr(junction, "asset") and junction.asset:
+                    # Combine asset data + junction placement data
+                    asset_data = {
+                        # Asset fields
+                        **{k: getattr(junction.asset, k, None) for k in EntryAssetRead.model_fields if hasattr(junction.asset, k)},
+                        # Placement fields from junction
+                        "role": junction.role,
+                        "usage": junction.usage,
+                        "position": junction.position,
+                        "focal_point": junction.focal_point,
+                        "caption": junction.caption,
+                        "placement_metadata": junction.metadata_,
+                    }
+                    assets.append(asset_data)
+            data["assets"] = assets
+
+        return super().model_validate(data, **kwargs)
 
 
 class EntrySummary(EntryRead):

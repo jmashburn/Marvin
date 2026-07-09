@@ -35,11 +35,19 @@ from .entry_types import (
     EntryTypeSummary,
     EntryTypeUpdate,
 )
+from .event_log import EventLogRead, EventLogSummary
 from .resources import (
     ResourceCreate,
     ResourceRead,
     ResourceSummary,
     ResourceUpdate,
+)
+from .scheduled_tasks import (
+    ScheduledTaskCreate,
+    ScheduledTaskExecutionLogRead,
+    ScheduledTaskRead,
+    ScheduledTaskSummary,
+    ScheduledTaskUpdate,
 )
 
 __all__ = [
@@ -68,10 +76,17 @@ __all__ = [
     "EntryTypeSummary",
     "EntryTypeUpdate",
     "EntryUpdate",
+    "EventLogRead",
+    "EventLogSummary",
     "ResourceCreate",
     "ResourceRead",
     "ResourceSummary",
     "ResourceUpdate",
+    "ScheduledTaskCreate",
+    "ScheduledTaskExecutionLogRead",
+    "ScheduledTaskRead",
+    "ScheduledTaskSummary",
+    "ScheduledTaskUpdate",
     # Legacy aliases for backward compatibility
     "SiteClientCreate",
     "SiteClientRead",

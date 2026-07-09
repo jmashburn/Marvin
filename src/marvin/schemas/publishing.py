@@ -50,6 +50,12 @@ class PublishedAssetRead(_MarvinModel):
     public_url: str
     """Public URL to access the asset file."""
 
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
+
+    entries: list[str] = []
+    """List of entry slugs that use this asset."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -85,14 +91,17 @@ class PublishedEntryRead(_MarvinModel):
     metadata: dict | None = None
     """Custom non-schema metadata as JSON object."""
 
-    collections: list[str] = []
-    """List of collection slugs this entry belongs to."""
+    collections: list["PublishedCollectionSummary"] = []
+    """Collections this entry belongs to."""
 
     resources: list["PublishedResourceRead"] = []
     """Resources referenced by this entry."""
 
     assets: list[PublishedAssetRead] = []
     """Assets included in this entry."""
+
+    order: int | None = None
+    """Sort order within a collection. Only populated when querying entries for a specific collection."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -120,8 +129,21 @@ class PublishedEntryListItem(_MarvinModel):
     published_at: datetime | None = None
     """Timestamp when the entry was published."""
 
+    status: str
+    """Entry status (e.g., 'published', 'draft', 'needs_review')."""
+
     collections: list[str] = []
     """List of collection slugs this entry belongs to."""
+
+    assets: list[str] = []
+    """List of asset slugs included in this entry."""
+
+    order: int | None = None
+    """Sort order within a collection. Only populated when querying entries for a specific collection."""
+    """List of asset slugs attached to this entry."""
+
+    resources: list[str] = []
+    """List of resource slugs referenced by this entry."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -172,6 +194,15 @@ class PublishedCollectionRead(_MarvinModel):
     description: str | None = None
     """Optional collection description."""
 
+    is_smart: bool = False
+    """Whether this is a smart collection with automatic rules."""
+
+    smart_rules: dict | None = None
+    """Smart collection rules (JSON object)."""
+
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
+
     entry_count: int
     """Number of published entries in this collection."""
 
@@ -194,6 +225,15 @@ class PublishedCollectionSummary(_MarvinModel):
 
     description: str | None = None
     """Optional collection description."""
+
+    is_smart: bool = False
+    """Whether this is a smart collection with automatic rules."""
+
+    smart_rules: dict | None = None
+    """Smart collection rules (JSON object)."""
+
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
 
     entry_count: int
     """Number of published entries in this collection."""
@@ -239,6 +279,9 @@ class PublishedResourceSummary(_MarvinModel):
     metadata: dict | None = None
     """Custom metadata as JSON object."""
 
+    entries: list[str] = []
+    """List of entry slugs that reference this resource."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -266,6 +309,9 @@ class PublishedResourceRead(_MarvinModel):
 
     external_id: str | None = None
     """External identifier (SKU, ISBN, etc)."""
+
+    metadata: dict | None = None
+    """Custom metadata as JSON object."""
 
     # Entry-specific placement fields from junction table
     role: str | None = None

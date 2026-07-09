@@ -57,11 +57,10 @@ const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
 
       {sortedCollections.length === 0 ? (
         <div class="empty-state">
-          <p class="empty-title">No collections yet</p>
-          <p class="empty-description">
-            Collections help you organize and group related entries together.
-          </p>
-          <a href="/workspace/collections/new" class="button">Create Collection</a>
+          <div class="empty-icon">📚</div>
+          <h3>No collections yet</h3>
+          <p>Collections are curated groupings of entries, like Featured Projects or Recent Articles.</p>
+          <a href="/workspace/collections/new" class="button">Create Your First Collection</a>
         </div>
       ) : (
         <table class="table">
@@ -161,13 +160,19 @@ const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
     text-align: center;
   }
 
-  .empty-title {
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
   }
 
-  .empty-description {
+  .empty-state p {
     margin: 0;
     color: var(--muted);
     max-width: 32rem;

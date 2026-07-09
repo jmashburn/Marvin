@@ -35,17 +35,15 @@ if (!id) {
           <p style="margin:4px 0 0;color:var(--muted);">Update resource details</p>
         </div>
         <div style="display:flex;gap:0.75rem;">
-          <form method="POST" action={`/api/resources/${id}/delete`} style="display:inline;">
-            <button type="submit" class="button secondary" onclick="return confirm('Delete this resource?')">
-              Delete
-            </button>
-          </form>
+          <button type="button" id="delete-button" class="button secondary">
+            Delete
+          </button>
           <a class="button secondary" href="/workspace/resources">Back</a>
         </div>
       </div>
 
       <section class="form-section">
-        <form method="POST" action={`/api/resources/${id}/update`} class="form">
+        <form id="resource-form" class="form">
           <div class="form-group">
             <label for="name">Name *</label>
             <input
@@ -130,6 +128,20 @@ if (!id) {
             <small style="font-size: 11px; color: var(--muted);">
               Must be valid JSON. Example: {`{"supplier_code": "ABC123", "contact": "john@example.com"}`}
             </small>
+
+            {resource.metadata && Object.keys(resource.metadata).length > 0 && (
+              <div class="metadata-preview">
+                <p class="metadata-preview-title">Current Metadata:</p>
+                <dl class="metadata-preview-list">
+                  {Object.entries(resource.metadata).map(([key, value]) => (
+                    <div class="metadata-preview-item">
+                      <dt>{key}</dt>
+                      <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
           </div>
 
           <div class="form-actions">
@@ -143,9 +155,45 @@ if (!id) {
 </AppLayout>
 
 <script>
-  // Validate metadata JSON
-  const metadataField = document.getElementById('metadata_') as HTMLInputElement | null;
+  import { createSdkClient } from '@/lib/sdk';
 
+  console.log('[Resources] Script loading...');
+
+  const sdk = createSdkClient();
+  const form = document.getElementById('resource-form') as HTMLFormElement;
+  const metadataField = document.getElementById('metadata_') as HTMLTextAreaElement;
+  const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
+  const deleteButton = document.getElementById('delete-button') as HTMLButtonElement;
+
+  console.log('[Resources] Elements:', { form, deleteButton, submitButton });
+
+  // Handle delete via SDK
+  if (deleteButton) {
+    console.log('[Resources] Attaching delete handler');
+    deleteButton.addEventListener('click', async () => {
+      if (!confirm('Delete this resource? This cannot be undone.')) {
+        return;
+      }
+
+      deleteButton.disabled = true;
+      deleteButton.textContent = 'Deleting...';
+
+      try {
+        const resourceId = window.location.pathname.split('/').pop()!;
+        console.log('[Resources] Deleting resource:', resourceId);
+        await sdk.resources.delete(resourceId);
+        console.log('[Resources] Delete successful');
+        window.location.href = '/workspace/resources';
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to delete resource';
+        alert(message);
+        deleteButton.disabled = false;
+        deleteButton.textContent = 'Delete';
+      }
+    });
+  }
+
+  // Validate metadata JSON
   if (metadataField) {
     metadataField.addEventListener('blur', () => {
       const value = metadataField.value.trim();
@@ -156,6 +204,117 @@ if (!id) {
         metadataField.style.borderColor = 'var(--line)';
       } catch (error) {
         metadataField.style.borderColor = '#ef5350';
+      }
+    });
+  }
+
+  // Handle form submission via SDK
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const name = formData.get('name') as string;
+      const resourceType = formData.get('resource_type') as string;
+      const url = formData.get('url') as string;
+      const externalId = formData.get('external_id') as string;
+      const description = formData.get('description') as string;
+      const metadataStr = formData.get('metadata_') as string;
+
+      // Parse metadata JSON
+      let metadata = null;
+      if (metadataStr?.trim()) {
+        try {
+          metadata = JSON.parse(metadataStr);
+        } catch (error) {
+          alert('Invalid JSON in metadata field');
+          return;
+        }
+      }
+
+      // Disable submit button
+      submitButton.disabled = true;
+      submitButton.textContent = 'Saving...';
+
+      try {
+        const resourceId = window.location.pathname.split('/').pop()!;
+        await sdk.resources.update(resourceId, {
+          name,
+          resourceType,
+          url: url?.trim() || null,
+          externalId: externalId?.trim() || null,
+          description: description?.trim() || null,
+          metadata: metadata,
+        });
+
+        // Redirect back to resources list
+        window.location.href = '/workspace/resources';
+      } catch (error: any) {
+        const message = error?.message || error?.detail || 'Failed to update resource';
+        alert(message);
+        submitButton.disabled = false;
+        submitButton.textContent = 'Save Changes';
+      }
+    });
+  }
+
+  // Metadata preview update
+  const metadataEditor = document.getElementById('metadata_') as HTMLTextAreaElement;
+  const metadataPreviewContainer = metadataEditor?.closest('.form-group')?.querySelector('.metadata-preview');
+
+  if (metadataEditor) {
+    metadataEditor.addEventListener('input', () => {
+      const value = metadataEditor.value.trim();
+
+      if (!value) {
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(value);
+        const entries = Object.entries(parsed);
+
+        if (entries.length === 0) {
+          if (metadataPreviewContainer) {
+            metadataPreviewContainer.remove();
+          }
+          return;
+        }
+
+        let previewHTML = `
+          <div class="metadata-preview">
+            <p class="metadata-preview-title">Current Metadata:</p>
+            <dl class="metadata-preview-list">
+        `;
+
+        entries.forEach(([key, value]) => {
+          const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+          previewHTML += `
+            <div class="metadata-preview-item">
+              <dt>${key}</dt>
+              <dd>${displayValue}</dd>
+            </div>
+          `;
+        });
+
+        previewHTML += `</dl></div>`;
+
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.outerHTML = previewHTML;
+        } else {
+          const helpText = metadataEditor.closest('.form-group')?.querySelector('.form-help');
+          if (helpText) {
+            helpText.insertAdjacentHTML('afterend', previewHTML);
+          }
+        }
+      } catch (error) {
+        // Invalid JSON - remove preview
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
       }
     });
   }
@@ -245,5 +404,50 @@ if (!id) {
     font-size: 12px;
     line-height: 1.5;
     background: var(--panel-2);
+  }
+
+  .metadata-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-preview-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metadata-preview-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .metadata-preview-item {
+    padding: 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .metadata-preview-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-preview-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
   }
 </style>

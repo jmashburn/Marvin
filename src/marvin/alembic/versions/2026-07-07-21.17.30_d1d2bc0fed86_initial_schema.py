@@ -139,9 +139,11 @@ def upgrade() -> None:
         sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
         sa.Column("token", sa.String(), nullable=False),
         sa.Column("uses_left", sa.Integer(), nullable=False),
+        sa.Column("workspace_role", sa.String(), nullable=False, server_default="EDITOR"),
         sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("update_at", sa.DateTime(), nullable=True),
+        sa.CheckConstraint("workspace_role IN ('OWNER', 'ADMIN', 'EDITOR', 'AUTHOR', 'VIEWER')", name="ck_invite_tokens_workspace_role"),
         sa.ForeignKeyConstraint(
             ["group_id"],
             ["groups.id"],

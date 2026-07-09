@@ -181,9 +181,11 @@ try {
           <label class="span-2">
             <span>Custom Metadata (JSON)</span>
             <textarea
+              id="metadata-editor"
               name="siteMetadataJson"
               rows="10"
               placeholder='{"social": {"instagram": "...", "twitter": "..."}, "seo": {"image": "..."}, "analytics": {"id": "..."}}'
+              class="metadata-editor"
             >{(() => {
               const metadata = preferences.siteMetadataJson;
               const social = preferences.siteSocialJson;
@@ -203,6 +205,33 @@ try {
               return "";
             })()}</textarea>
             <small>Additional metadata for your publishing framework. Include social links under "social" key.</small>
+
+            {(() => {
+              const metadata = preferences.siteMetadataJson;
+              const social = preferences.siteSocialJson;
+
+              let mergedMetadata = metadata || {};
+              if (social && Object.keys(social).length > 0) {
+                mergedMetadata = { ...mergedMetadata, social };
+              }
+
+              if (mergedMetadata && Object.keys(mergedMetadata).length > 0) {
+                return (
+                  <div class="metadata-preview">
+                    <p class="metadata-preview-title">Current Metadata:</p>
+                    <dl class="metadata-preview-list">
+                      {Object.entries(mergedMetadata).map(([key, value]) => (
+                        <div class="metadata-preview-item">
+                          <dt>{key}</dt>
+                          <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </label>
         </div>
       </section>
@@ -272,6 +301,68 @@ try {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to save';
         window.location.href = '/publishing/site?error=' + encodeURIComponent(errorMessage);
+      }
+    });
+  }
+
+  // Metadata preview update
+  const metadataEditor = document.getElementById('metadata-editor') as HTMLTextAreaElement;
+  const metadataPreviewContainer = metadataEditor?.closest('.form-grid')?.querySelector('.metadata-preview');
+
+  if (metadataEditor) {
+    metadataEditor.addEventListener('input', () => {
+      const value = metadataEditor.value.trim();
+
+      if (!value) {
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(value);
+        const entries = Object.entries(parsed);
+
+        if (entries.length === 0) {
+          if (metadataPreviewContainer) {
+            metadataPreviewContainer.remove();
+          }
+          return;
+        }
+
+        let previewHTML = `
+          <div class="metadata-preview">
+            <p class="metadata-preview-title">Current Metadata:</p>
+            <dl class="metadata-preview-list">
+        `;
+
+        entries.forEach(([key, value]) => {
+          const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+          previewHTML += `
+            <div class="metadata-preview-item">
+              <dt>${key}</dt>
+              <dd>${displayValue}</dd>
+            </div>
+          `;
+        });
+
+        previewHTML += `</dl></div>`;
+
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.outerHTML = previewHTML;
+        } else {
+          const label = metadataEditor.closest('label');
+          const smallElement = label?.querySelector('small');
+          if (smallElement) {
+            smallElement.insertAdjacentHTML('afterend', previewHTML);
+          }
+        }
+      } catch (error) {
+        // Invalid JSON - remove preview
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
       }
     });
   }
@@ -401,5 +492,50 @@ try {
     padding: 64px 24px;
     text-align: center;
     color: var(--muted);
+  }
+
+  .metadata-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-preview-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metadata-preview-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .metadata-preview-item {
+    padding: 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .metadata-preview-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-preview-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
   }
 </style>

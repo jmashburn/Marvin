@@ -1,5 +1,46 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import SlugInput from "@/components/SlugInput.astro";
+import { createResource } from "@/lib/api/resources";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/auth/login');
+}
+
+let error: string | null = null;
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (value !== '') {
+        // Handle JSON metadata field
+        if (key === 'metadata_') {
+          try {
+            data[key] = JSON.parse(value as string);
+          } catch (e) {
+            // Invalid JSON, skip it
+          }
+        } else {
+          data[key] = value;
+        }
+      }
+    });
+
+    console.log('[NewResource] Creating resource with data:', data);
+    const resource = await createResource(data, authToken);
+    console.log('[NewResource] Resource created:', resource);
+    return Astro.redirect(`/workspace/resources/${resource.id}`);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[NewResource] Failed to create resource:', e);
+  }
+}
 ---
 
 <AppLayout title="New Resource" eyebrow="Resources">
@@ -12,7 +53,12 @@ import AppLayout from "@/layouts/AppLayout.astro";
   </div>
 
   <section class="form-section">
-    <form method="POST" action="/api/resources" class="form">
+    {error && (
+      <div class="error-banner" style="margin-bottom: 1rem;">
+        <p><strong>Error:</strong> {error}</p>
+      </div>
+    )}
+    <form method="POST" class="form">
       <div class="form-group">
         <label for="name">Name *</label>
         <input
@@ -24,18 +70,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
         />
       </div>
 
-      <div class="form-group">
-        <label for="slug">Slug</label>
-        <input
-          type="text"
-          id="slug"
-          name="slug"
-          placeholder="Auto-generated from name"
-          disabled
-          style="background: var(--panel-2); color: var(--muted);"
-        />
-        <p class="form-help">Auto-generated from name</p>
-      </div>
+      <SlugInput nameFieldId="name" />
 
       <div class="form-group">
         <label for="resource_type">Type *</label>
@@ -104,22 +139,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
-  // Auto-generate slug from name
-  const nameInput = document.getElementById('name') as HTMLInputElement | null;
-  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
-
-  if (nameInput && slugInput) {
-    nameInput.addEventListener('input', () => {
-      const slug = nameInput.value
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/[\s_-]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-      slugInput.value = slug;
-    });
-  }
-
   // Validate metadata JSON on form submit
   const form = document.querySelector('form');
   const metadataField = document.getElementById('metadata_') as HTMLTextAreaElement | null;
@@ -212,5 +231,13 @@ import AppLayout from "@/layouts/AppLayout.astro";
     font-size: 12px;
     line-height: 1.5;
     background: var(--panel-2);
+  }
+
+  .error-banner {
+    padding: 1rem;
+    background: #fee;
+    border: 1px solid #c00;
+    border-radius: var(--radius);
+    color: #c00;
   }
 </style>

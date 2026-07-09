@@ -306,6 +306,7 @@ def require_workspace_role(required_role: WorkspaceRole, allow_platform_admin: b
     Returns:
         Callable: A FastAPI dependency function.
     """
+
     async def check_workspace_role(
         workspace_id: UUID4 = fastapi.Path(..., description="Workspace ID"),
         current_user: PrivateUser = Depends(get_current_user),
@@ -367,6 +368,7 @@ def require_workspace_member(allow_platform_admin: bool = True):
     Returns:
         Callable: A FastAPI dependency function.
     """
+
     async def check_membership(
         workspace_id: UUID4 = fastapi.Path(..., description="Workspace ID"),
         current_user: PrivateUser = Depends(get_current_user),
@@ -402,6 +404,7 @@ def require_workspace_member(allow_platform_admin: bool = True):
 
 
 # Convenience dependencies for common workspace roles
+
 
 def require_workspace_owner(allow_platform_admin: bool = True):
     """Require OWNER role in workspace. Platform admins can bypass if allowed."""
@@ -450,28 +453,23 @@ def validate_long_live_token(session: Session, client_token: str, user_id: str) 
         PrivateUser: The user associated with the valid token.
     """
     from pydantic import UUID4
+
     repos = get_repositories(session, group_id=None)
 
     # Use repository's validate_token method which handles hash verification
     # and updates last_used_at
     token_model = repos.api_tokens.validate_token(
         plaintext_token=client_token,
-        user_id=UUID4(user_id)  # Scope to claimed user for performance
+        user_id=UUID4(user_id),  # Scope to claimed user for performance
     )
 
     if not token_model:
         # Token invalid, revoked, or doesn't belong to user
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or revoked API token."
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked API token.")
 
     # Verify token belongs to the claimed user (defense in depth)
     if str(token_model.user_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token does not belong to this user."
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token does not belong to this user.")
 
     # Return the user associated with the token
     return token_model.user
@@ -588,7 +586,8 @@ async def get_publishing_context(
     2. Ensures the token is an API client token (marvin_sk_ prefix)
     3. Verifies the workspace_slug matches the client's workspace
     4. Updates last_used_at timestamp
-    5. Returns (api_client, group) tuple for use in publishing routes
+    5. Creates a PermissionChecker from the client's permissions
+    6. Returns (api_client, group, permission_checker) tuple for use in publishing routes
 
     Args:
         workspace_slug: The workspace slug from URL path
@@ -596,7 +595,7 @@ async def get_publishing_context(
         session: Database session
 
     Returns:
-        tuple: (api_client model, group model)
+        tuple: (api_client model, group model, PermissionChecker instance)
 
     Raises:
         HTTPException 401: Missing, invalid, or expired token
@@ -626,6 +625,7 @@ async def get_publishing_context(
     # Get the group and verify workspace slug matches
     # Query the database model directly to get slug field
     from marvin.db.models.groups import Groups
+
     group_model = session.query(Groups).filter(Groups.slug == workspace_slug).first()
 
     if not group_model:
@@ -642,6 +642,11 @@ async def get_publishing_context(
             detail="API client does not have access to this workspace",
         )
 
+    # Create PermissionChecker from API client's permissions
+    from marvin.core.permissions import PermissionChecker
+
+    permission_checker = PermissionChecker(api_client.permissions)
+
     # Note: last_used_at is already updated by validate_token()
     # Return the database model instead of schema so publishing routes can access slug
-    return api_client, group_model
+    return api_client, group_model, permission_checker

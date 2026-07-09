@@ -382,48 +382,64 @@ class WebhookEventListener(EventListenerBase):
 
     def get_subscribers(self, event: Event) -> list[WebhookRead]:
         """
-        Retrieves a list of scheduled webhooks that match the event criteria.
+        Retrieves a list of webhooks that should receive this event.
 
-        This method is interested in `EventTypes.webhook_task` events. For such events,
-        it extracts the start and end datetime from `event.document_data` (expected
-        to be `EventWebhookData`) and fetches all enabled webhooks for the group
-        scheduled within that time range.
+        This method handles two types of webhook triggers:
+        1. Scheduled webhooks (`EventTypes.webhook_task`) - time-based triggers
+        2. Event-subscribed webhooks - webhooks that subscribe to specific event types
 
         Args:
             event (Event): The event to find subscribers for.
 
         Returns:
             list[WebhookRead]: A list of `WebhookRead` schemas for webhooks that
-                               should be triggered by this event. Returns an empty
-                               list if the event is not a relevant webhook task or
-                               if no webhooks are scheduled in the given time range.
+                               should be triggered by this event.
         """
-        # This listener only acts on `webhook_task` events carrying `EventWebhookData`
-        if not (event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData)):
-            return []  # Not a relevant event for this listener
+        # EXISTING: Handle scheduled webhook_task events
+        if event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData):
+            webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
+            scheduled_webhooks_list = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
+            return scheduled_webhooks_list
 
-        # Extract start and end datetime from event data to find matching scheduled webhooks
-        webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
-        scheduled_webhooks_list = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
-        return scheduled_webhooks_list
+        # NEW: Handle event-subscribed webhooks
+        # Find webhooks that have subscribed to this specific event type
+        with self.ensure_session() as session:
+            stmt = select(GroupWebhooksModel).where(
+                GroupWebhooksModel.enabled == True,  # noqa: E712 - SQLAlchemy specific comparison
+                GroupWebhooksModel.group_id == self.group_id,
+                # Match webhooks where subscribed_events array contains this event type
+                GroupWebhooksModel.subscribed_events.contains([event.event_type.value]),
+            )
+            db_webhooks = session.execute(stmt).scalars().all()
+            return [WebhookRead.model_validate(wh) for wh in db_webhooks]
 
     def publish_to_subscribers(self, event: Event, subscribers_webhooks: list[WebhookRead]) -> None:  # Renamed subscribers
         """
         Publishes the event data to the provided list of webhook configurations.
 
-        For each webhook, it may dynamically generate data by calling a registered
-        function based on `webhook.webhook_type` (if the event operation is 'info').
-        The (potentially dynamic) data is then included in the webhook payload.
+        Handles two types of webhooks:
+        1. Scheduled webhooks (webhook_task events) - uses dynamic payload generation
+        2. Event-subscribed webhooks - sends the full event payload
 
         Args:
-            event (Event): The event containing data to publish. `event.document_data`
-                           is expected to be `EventWebhookData`.
+            event (Event): The event containing data to publish.
             subscribers_webhooks (list[WebhookRead]): A list of `WebhookRead` schemas
                                                       representing the webhooks to trigger.
         """
-        # This method returns True in original code but is typed as None. Assuming None is correct.
-        # with self.ensure_repos(self.group_id) as repos: # `repos` is not used in this method
+        # Handle event-subscribed webhooks (non-webhook_task events)
+        if event.event_type != EventTypes.webhook_task:
+            # For event-subscribed webhooks, send the full event payload
+            for webhook_config in subscribers_webhooks:
+                self.publisher.publish(
+                    event,  # Send the complete event
+                    [webhook_config.url],  # Single webhook URL
+                    method=webhook_config.method.name,  # HTTP method
+                    webhook_id=webhook_config.id,  # For logging
+                    group_id=self.group_id,  # For logging
+                )
+            return
 
+        # Handle scheduled webhook_task events (existing logic)
         if not isinstance(event.document_data, EventWebhookData):
             self.logger.warning(f"WebhookEventListener received event with mismatched document_data type: {type(event.document_data)}")
             return
@@ -528,3 +544,282 @@ class WebhookEventListener(EventListenerBase):
             # Execute query and convert SQLAlchemy models to Pydantic schemas
             db_webhooks = session.execute(stmt).scalars().all()
             return [WebhookRead.model_validate(db_webhook) for db_webhook in db_webhooks]
+
+
+class ScheduledTaskListener(EventListenerBase):
+    """
+    Event listener that executes scheduled tasks when triggered.
+
+    This listener responds to scheduled_task.triggered events by:
+    1. Looking up the appropriate handler via TaskHandlerRegistry
+    2. Executing the handler with the task configuration
+    3. Logging execution results
+    4. Emitting completion/failure events
+    5. Updating task execution state
+    """
+
+    def __init__(self, group_id: UUID4) -> None:
+        """
+        Initializes the ScheduledTaskListener for a specific group.
+
+        Args:
+            group_id (UUID4): The ID of the group this listener is associated with.
+        """
+        from .publisher import ConsolePublisher  # We don't actually publish anything, but need a publisher
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """
+        Returns a list indicating this listener should handle the event.
+
+        Only subscribes to scheduled_task.triggered events.
+
+        Args:
+            event (Event): The event to check.
+
+        Returns:
+            list[str]: Returns ["scheduled_task_handler"] if this is a triggered event, else empty list.
+        """
+        if event.event_type == EventTypes.scheduled_task_triggered:
+            return ["scheduled_task_handler"]
+        return []
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        """
+        Executes the scheduled task.
+
+        Args:
+            event (Event): The triggered event containing task data.
+            subscribers (list[str]): List of subscribers (always ["scheduled_task_handler"]).
+        """
+        import traceback
+        from datetime import datetime
+
+        from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
+        from marvin.services.scheduled_tasks import TaskHandlerRegistry
+
+        # Extract task data from event
+        if not event.document_data:
+            self.logger.error("ScheduledTaskListener: No document_data in event")
+            return
+
+        task_id = getattr(event.document_data, "task_id", None)
+        if not task_id:
+            self.logger.error("ScheduledTaskListener: No task_id in document_data")
+            return
+
+        # Load the task from database
+        with self.ensure_repos(self.group_id) as repos:
+            task = repos.session.get(ScheduledTaskModel, task_id)
+            if not task:
+                self.logger.error(f"ScheduledTaskListener: Task {task_id} not found")
+                return
+
+            start_time = datetime.utcnow()
+
+            # Import event bus for handler to use
+            from marvin.services.event_bus_service import EventBusService
+
+            event_bus = EventBusService(bg_tasks=None)
+
+            try:
+                # Emit started event
+                event_bus.dispatch(
+                    integration_id="scheduled_tasks",
+                    group_id=task.group_id,
+                    event_type=EventTypes.scheduled_task_started,
+                    document_data=event.document_data,  # Reuse same task data
+                    message=f"Scheduled task '{task.name}' execution started",
+                )
+
+                # Get and execute handler
+                handler = TaskHandlerRegistry.get_handler(task.task_type)
+                self.logger.info(f"Executing scheduled task: {task.name} (type: {task.task_type})")
+                handler.execute(task, event_bus)
+
+                # Calculate duration
+                end_time = datetime.utcnow()
+                duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
+                # Log successful execution
+                repos.scheduled_task_executions.log_execution(
+                    task_id=task.id,
+                    group_id=task.group_id,
+                    status="success",
+                    executed_at=start_time,
+                    duration_ms=duration_ms,
+                )
+
+                # Update task state
+                repos.scheduled_tasks.update_execution_state(
+                    task_id=task.id,
+                    last_run_at=start_time,
+                    last_status="success",
+                    last_duration_ms=duration_ms,
+                    failure_count=0,  # Reset on success
+                )
+
+                # Emit completed event
+                event_bus.dispatch(
+                    integration_id="scheduled_tasks",
+                    group_id=task.group_id,
+                    event_type=EventTypes.scheduled_task_completed,
+                    document_data=event.document_data,
+                    message=f"Scheduled task '{task.name}' completed successfully in {duration_ms}ms",
+                )
+
+                self.logger.info(f"Scheduled task '{task.name}' completed successfully in {duration_ms}ms")
+
+            except ValueError as e:
+                # Handler not found
+                self.logger.error(f"Scheduled task handler error: {e}")
+                self._handle_task_failure(repos, task, start_time, str(e), None, event_bus, event)
+
+            except Exception as e:
+                # Handler execution failed
+                error_msg = str(e)
+                error_trace = traceback.format_exc()
+                self.logger.error(f"Scheduled task '{task.name}' failed: {error_msg}\n{error_trace}")
+                self._handle_task_failure(repos, task, start_time, error_msg, error_trace, event_bus, event)
+
+    def _handle_task_failure(
+        self,
+        repos,
+        task,
+        start_time,
+        error_message: str,
+        error_traceback: str | None,
+        event_bus,
+        event: Event,
+    ) -> None:
+        """Helper to handle task execution failures."""
+        from datetime import datetime
+
+        end_time = datetime.utcnow()
+        duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
+        # Log failed execution
+        repos.scheduled_task_executions.log_execution(
+            task_id=task.id,
+            group_id=task.group_id,
+            status="failed",
+            executed_at=start_time,
+            duration_ms=duration_ms,
+            error_message=error_message,
+            error_traceback=error_traceback,
+        )
+
+        # Update task state with incremented failure count
+        repos.scheduled_tasks.update_execution_state(
+            task_id=task.id,
+            last_run_at=start_time,
+            last_status="failed",
+            last_duration_ms=duration_ms,
+            failure_count=task.failure_count + 1,
+        )
+
+        # Emit failed event
+        event_bus.dispatch(
+            integration_id="scheduled_tasks",
+            group_id=task.group_id,
+            event_type=EventTypes.scheduled_task_failed,
+            document_data=event.document_data,
+            message=f"Scheduled task '{task.name}' failed: {error_message}",
+        )
+
+
+class ConsoleEventListener(EventListenerBase):
+    """
+    Event listener that logs all events to the console for debugging.
+
+    This listener is useful during development to see events in real-time
+    without needing to configure external webhooks or notification services.
+    """
+
+    def __init__(self, group_id: UUID4) -> None:
+        """
+        Initializes the ConsoleEventListener for a specific group.
+
+        Args:
+            group_id (UUID4): The ID of the group this listener is associated with.
+        """
+        from .publisher import ConsolePublisher
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """
+        Returns a list of subscribers for console logging.
+
+        For ConsoleEventListener, we always return ["console"] to indicate
+        that all events should be logged to the console.
+
+        Args:
+            event (Event): The event to log.
+
+        Returns:
+            list[str]: Always returns ["console"] to log all events.
+        """
+        # Always log all events to console
+        return ["console"]
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        """
+        Publishes the event to the console logger.
+
+        Args:
+            event (Event): The event to log.
+            subscribers (list[str]): List of subscribers (ignored, always logs to console).
+        """
+        # Use the ConsolePublisher to log the event
+        self.publisher.publish(event, subscribers)
+
+
+class AuditLogListener(EventListenerBase):
+    """
+    Event listener that persists all events to the database for audit trail.
+
+    This listener creates an immutable record of every event that occurs in Marvin,
+    enabling event history queries, entity timelines, and user activity tracking.
+    It should be registered first in the listener chain to ensure events are
+    persisted even if subsequent listeners fail.
+    """
+
+    def __init__(self, group_id: UUID4) -> None:
+        """
+        Initializes the AuditLogListener for a specific group.
+
+        Args:
+            group_id (UUID4): The ID of the group this listener is associated with.
+        """
+        from .publisher import AuditLogPublisher
+
+        super().__init__(group_id, AuditLogPublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """
+        Returns a list of subscribers for audit logging.
+
+        For AuditLogListener, we always return ["database"] to indicate
+        that all events should be persisted to the event_log table.
+
+        Args:
+            event (Event): The event to persist.
+
+        Returns:
+            list[str]: Always returns ["database"] to persist all events.
+        """
+        # Always persist all events to database
+        return ["database"]
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        """
+        Publishes the event to the audit log database.
+
+        Args:
+            event (Event): The event to persist.
+            subscribers (list[str]): List of subscribers (ignored, always persists to database).
+        """
+        # Use the AuditLogPublisher to persist the event
+        self.publisher.publish(event, subscribers)

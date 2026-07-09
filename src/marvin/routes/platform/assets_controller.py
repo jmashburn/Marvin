@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import UUID4
 
 from marvin.routes._base import BaseUserController, controller
-from marvin.schemas.platform import AssetCreate, AssetRead, AssetUpdate, AssetUploadRequest
+from marvin.schemas.platform import AssetRead, AssetUpdate, AssetUploadRequest
 from marvin.services.assets.asset_storage_service import AssetStorageService
 from marvin.services.event_bus_service.event_types import EventAssetData, EventTypes
 from marvin.services.storage.provider_factory import get_storage_provider
@@ -88,21 +88,6 @@ class AssetsController(BaseUserController):
 
         return asset
 
-    @router.post("", response_model=AssetRead, status_code=status.HTTP_201_CREATED, summary="Create Asset Metadata")
-    def create_asset(self, data: AssetCreate) -> AssetRead:
-        """
-        Create asset metadata entry.
-
-        Note: This endpoint only creates the metadata record. File upload functionality
-        (multipart form-data) is planned for Phase 7. For testing, provide a file_path
-        that points to an existing file or use a placeholder path.
-        """
-        # Inject uploaded_by and group_id from authenticated user
-        data_dict = data.model_dump()
-        data_dict["uploaded_by"] = self.user.id
-        data_dict["group_id"] = self.group_id
-        return self.repos.assets.create(data_dict)
-
     @router.get("/{item_id}", response_model=AssetRead, summary="Get Asset")
     def get_asset(self, item_id: UUID4) -> AssetRead:
         asset = self.repos.assets.get_one(item_id)
@@ -120,7 +105,9 @@ class AssetsController(BaseUserController):
         if not self.repos.assets.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
 
-        updated_asset = self.repos.assets.update(item_id, data.model_dump(exclude_unset=True))
+        # Use exclude_none=False to allow explicit null values to clear fields
+        # exclude_unset=True only excludes fields not sent in the request
+        updated_asset = self.repos.assets.update(item_id, data.model_dump(exclude_unset=True, exclude_none=False))
 
         # Emit event
         self.event_bus.dispatch(
@@ -133,8 +120,8 @@ class AssetsController(BaseUserController):
 
         return updated_asset
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Asset")
-    def delete_asset(self, item_id: UUID4) -> None:
+    @router.delete("/{item_id}", summary="Delete Asset")
+    def delete_asset(self, item_id: UUID4) -> dict:
         """Delete asset from storage and database."""
         asset = self.repos.assets.get_one(item_id)
         if not asset:
@@ -154,3 +141,37 @@ class AssetsController(BaseUserController):
             document_data=EventAssetData.from_schema(AssetRead.model_validate(asset)),
             message=f"Asset {asset.name} deleted",
         )
+
+        return {"status": "ok", "message": "Asset deleted successfully"}
+
+    @router.get("/{item_id}/file", summary="Serve Asset File")
+    def serve_asset_file(self, item_id: UUID4):
+        """
+        Serve the actual asset file content directly.
+
+        For local storage, serves the file from disk.
+        For S3 storage, redirects to the public URL or signed URL.
+        """
+        from fastapi.responses import FileResponse, RedirectResponse
+        from pathlib import Path
+
+        asset = self.repos.assets.get_one(item_id)
+        if not asset:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+
+        # For local storage, serve file directly
+        if asset.storage_provider == "local":
+            storage_provider = get_storage_provider()
+            file_path = Path(storage_provider.root) / asset.storage_key
+
+            if not file_path.exists():
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset file not found on disk.")
+
+            return FileResponse(path=str(file_path), media_type=asset.mime_type or "application/octet-stream", filename=asset.original_filename)
+
+        # For S3 or other providers, redirect to public URL
+        if asset.public_url:
+            return RedirectResponse(url=asset.public_url)
+
+        # Fallback error
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asset file URL not available")

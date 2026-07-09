@@ -39,18 +39,16 @@ if (!id) {
           <p style="margin:4px 0 0;color:var(--muted);">Update asset metadata and details</p>
         </div>
         <div style="display:flex;gap:0.75rem;">
-          <form method="POST" action={`/api/assets/${id}/delete`} style="display:inline;">
-            <button type="submit" class="button secondary" onclick="return confirm('Delete this asset?')">
-              Delete
-            </button>
-          </form>
+          <button type="button" id="delete-button" class="button secondary">
+            Delete
+          </button>
           <a class="button secondary" href="/workspace/assets">Back</a>
         </div>
       </div>
 
       <div class="editor-layout">
         <section class="main-section">
-          <form method="POST" action={`/api/assets/${id}/update`} id="asset-form" class="form">
+          <form id="asset-form" class="form">
             <div class="form-group">
               <label for="name">Name *</label>
               <input
@@ -98,17 +96,28 @@ if (!id) {
 
             <div class="form-group">
               <label for="metadata">Metadata (JSON)</label>
-              <p class="form-help">Custom metadata fields for this asset</p>
               <textarea
                 id="metadata"
                 name="metadata"
                 rows="6"
                 placeholder='{"key": "value"}'
                 class="metadata-editor"
-              >{asset.metadata ? JSON.stringify(asset.metadata, null, 2) : ""}</textarea>
-              <small style="font-size: 11px; color: var(--muted);">
-                Must be valid JSON. Example: {`{"photographer": "Jane", "license": "CC-BY"}`}
-              </small>
+              >{asset.metadata_ ? JSON.stringify(asset.metadata_, null, 2) : ""}</textarea>
+              <p class="form-help">Must be valid JSON. Example: {`{"photographer": "Jane", "license": "CC-BY"}`}</p>
+
+              {asset.metadata_ && Object.keys(asset.metadata_).length > 0 && (
+                <div class="metadata-preview">
+                  <p class="metadata-preview-title">Current Metadata:</p>
+                  <dl class="metadata-preview-list">
+                    {Object.entries(asset.metadata_).map(([key, value]) => (
+                      <div class="metadata-preview-item">
+                        <dt>{key}</dt>
+                        <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
             </div>
 
             <div class="form-actions">
@@ -121,16 +130,16 @@ if (!id) {
         <aside class="sidebar">
           <div class="sidebar-section">
             <h3>Preview</h3>
-            {asset.url && (
+            {asset.publicUrl && (
               <div class="asset-preview">
                 <img
-                  src={asset.url}
+                  src={asset.publicUrl}
                   alt={asset.altText || asset.name}
                 />
               </div>
             )}
-            {asset.url && (
-              <a href={asset.url} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
+            {asset.publicUrl && (
+              <a href={asset.publicUrl} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
                 View Full Size ↗
               </a>
             )}
@@ -304,12 +313,74 @@ if (!id) {
       order: -1;
     }
   }
+
+  .metadata-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-preview-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metadata-preview-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .metadata-preview-item {
+    padding: 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .metadata-preview-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-preview-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
+  }
 </style>
 
 <script>
-  // Validate metadata JSON
-  const metadataField = document.getElementById('metadata') as HTMLTextAreaElement | null;
+  import { createSdkClient } from '@/lib/sdk';
 
+  console.log('[Asset Edit] Script loading...');
+
+  const sdk = createSdkClient();
+  const form = document.getElementById('asset-form') as HTMLFormElement;
+  const metadataField = document.getElementById('metadata') as HTMLTextAreaElement;
+  const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
+  const deleteButton = document.getElementById('delete-button') as HTMLButtonElement;
+
+  console.log('[Asset Edit] Elements found:', { form, submitButton, deleteButton, metadataField });
+
+  if (!form) {
+    console.error('[Asset Edit] Form not found!');
+  }
+  if (!submitButton) {
+    console.error('[Asset Edit] Submit button not found!');
+  }
+
+  // Validate metadata JSON
   if (metadataField) {
     metadataField.addEventListener('blur', () => {
       const value = metadataField.value.trim();
@@ -320,6 +391,147 @@ if (!id) {
         metadataField.style.borderColor = 'var(--line)';
       } catch (error) {
         metadataField.style.borderColor = '#ef5350';
+      }
+    });
+  }
+
+  // Handle delete via SDK
+  deleteButton.addEventListener('click', async () => {
+    if (!confirm('Delete this asset? This cannot be undone.')) {
+      return;
+    }
+
+    deleteButton.disabled = true;
+    deleteButton.textContent = 'Deleting...';
+
+    try {
+      const assetId = window.location.pathname.split('/').pop()!;
+      await sdk.assets.delete(assetId);
+      window.location.href = '/workspace/assets';
+    } catch (error: any) {
+      const message = error?.message || error?.detail || 'Failed to delete asset';
+      alert(message);
+      deleteButton.disabled = false;
+      deleteButton.textContent = 'Delete';
+    }
+  });
+
+  // Handle form submission via SDK
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      console.log('[Asset Edit] Form submitted');
+
+    const formData = new FormData(form);
+    const name = formData.get('name') as string;
+    const altText = formData.get('altText') as string;
+    const description = formData.get('description') as string;
+    const metadataStr = formData.get('metadata') as string;
+
+    // Parse metadata JSON
+    let metadata = null;
+    if (metadataStr?.trim()) {
+      try {
+        metadata = JSON.parse(metadataStr);
+      } catch (error) {
+        alert('Invalid JSON in metadata field');
+        return;
+      }
+    }
+
+    // Disable submit button
+    submitButton.disabled = true;
+    submitButton.textContent = 'Saving...';
+
+    try {
+      const assetId = window.location.pathname.split('/').pop()!;
+
+      // Build update payload - always include metadata even if null/{}
+      const updateData: any = {
+        name,
+        altText: altText?.trim() || null,
+        description: description?.trim() || null,
+      };
+
+      // Always send metadata field (can be null or object)
+      updateData.metadata = metadata;
+
+      console.log('Updating asset with data:', updateData);
+      await sdk.assets.update(assetId, updateData);
+      console.log('Update successful');
+
+      // Redirect back to assets list after a brief delay to see logs
+      setTimeout(() => {
+        window.location.href = '/workspace/assets';
+      }, 500);
+    } catch (error: any) {
+      const message = error?.message || error?.detail || 'Failed to update asset';
+      alert(message);
+      submitButton.disabled = false;
+      submitButton.textContent = 'Save Changes';
+    }
+    });
+  } else {
+    console.error('[Asset Edit] Cannot add submit handler - form not found');
+  }
+
+  // Metadata preview update
+  const metadataEditor = document.getElementById('metadata') as HTMLTextAreaElement;
+  const metadataPreviewContainer = metadataEditor?.closest('.form-group')?.querySelector('.metadata-preview');
+
+  if (metadataEditor) {
+    metadataEditor.addEventListener('input', () => {
+      const value = metadataEditor.value.trim();
+
+      if (!value) {
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(value);
+        const entries = Object.entries(parsed);
+
+        if (entries.length === 0) {
+          if (metadataPreviewContainer) {
+            metadataPreviewContainer.remove();
+          }
+          return;
+        }
+
+        let previewHTML = `
+          <div class="metadata-preview">
+            <p class="metadata-preview-title">Current Metadata:</p>
+            <dl class="metadata-preview-list">
+        `;
+
+        entries.forEach(([key, value]) => {
+          const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+          previewHTML += `
+            <div class="metadata-preview-item">
+              <dt>${key}</dt>
+              <dd>${displayValue}</dd>
+            </div>
+          `;
+        });
+
+        previewHTML += `</dl></div>`;
+
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.outerHTML = previewHTML;
+        } else {
+          const helpText = metadataEditor.closest('.form-group')?.querySelector('.form-help');
+          if (helpText) {
+            helpText.insertAdjacentHTML('afterend', previewHTML);
+          }
+        }
+      } catch (error) {
+        // Invalid JSON - remove preview
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
       }
     });
   }

@@ -24,7 +24,10 @@ from marvin.services import BaseService  # Base service class for common functio
 # Event listener implementations
 from marvin.services.event_bus_service.event_bus_listener import (
     AppriseEventListener,
+    AuditLogListener,
+    ConsoleEventListener,
     EventListenerBase,
+    ScheduledTaskListener,
     WebhookEventListener,
 )
 
@@ -126,7 +129,8 @@ class EventBusService(BaseService):
         Retrieves a list of initialized event listeners for a given group ID.
 
         The order of listeners determines the order in which they might process events.
-        Currently, `WebhookEventListener` is followed by `AppriseEventListener`.
+        AuditLogListener MUST be first to ensure events are persisted even if other listeners fail.
+        Current order: AuditLog (persistence), Console (debug), Webhook, Apprise.
 
         Args:
             group_id (UUID4): The ID of the group for which to get listeners.
@@ -137,9 +141,13 @@ class EventBusService(BaseService):
         """
         # The order of listeners can be significant if one listener's action
         # depends on another or if there's a desired notification priority.
-        # Original comment: "Why would I send it to the Apprise listener frst? Chhanging the order"
-        # Current order: Webhook, then Apprise.
+        # AuditLogListener is first to ensure all events are persisted to the database
+        # even if subsequent listeners (webhooks, notifications) fail.
+        # ScheduledTaskListener must run before webhooks to execute tasks that may trigger webhooks.
         return [
+            AuditLogListener(group_id),  # Persists all events to event_log table (MUST BE FIRST).
+            ScheduledTaskListener(group_id),  # Executes scheduled tasks when triggered.
+            ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
             AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.
         ]
@@ -182,6 +190,9 @@ class EventBusService(BaseService):
         event_type: EventTypeBase,  # The type of event (enum member)
         document_data: EventDocumentDataBase | None,  # Data associated with the event
         message: str = "",  # Optional human-readable message for the event
+        user_id: UUID4 | None = None,  # User who triggered the event
+        entity_id: UUID4 | None = None,  # Primary entity the event is about
+        entity_type: str | None = None,  # Type of the primary entity
     ) -> None:
         """
         Dispatches an event to the event bus.
@@ -198,6 +209,12 @@ class EventBusService(BaseService):
                 data relevant to the event. Can be None if the event carries no specific data.
             message (str, optional): A descriptive message accompanying the event.
                                      Defaults to "".
+            user_id (UUID4 | None, optional): The ID of the user who triggered this event.
+                                              None for system-triggered events. Defaults to None.
+            entity_id (UUID4 | None, optional): The ID of the primary entity this event is about
+                                                (e.g., entry_id, asset_id). Defaults to None.
+            entity_type (str | None, optional): The type of the primary entity
+                                                (e.g., "entry", "asset"). Defaults to None.
         """
         # Construct the full Event object
         event_payload = Event(
@@ -205,6 +222,10 @@ class EventBusService(BaseService):
             event_type=event_type,
             integration_id=integration_id,
             document_data=document_data,  # The actual data payload of the event
+            workspace_id=group_id,
+            user_id=user_id,
+            entity_id=entity_id,
+            entity_type=entity_type,
         )
 
         # If BackgroundTasks instance is available, run publishing as a background task

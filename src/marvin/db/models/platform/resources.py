@@ -13,6 +13,7 @@ from .._model_utils.guid import GUID
 if TYPE_CHECKING:
     from ..users import Users
     from .entries import Entries
+    from .entry_resources import EntryResources
 
 
 class Resources(SqlAlchemyBase, BaseMixins):
@@ -41,6 +42,14 @@ class Resources(SqlAlchemyBase, BaseMixins):
         secondary="entry_resources",
         back_populates="resources",
         doc="Entries that reference this resource",
+    )
+    entry_resources: Mapped[list["EntryResources"]] = orm.relationship(
+        "EntryResources",
+        foreign_keys="EntryResources.resource_id",
+        back_populates="resource",
+        cascade="all, delete-orphan",
+        overlaps="entries,resources",
+        doc="Junction records for entries using this resource",
     )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)

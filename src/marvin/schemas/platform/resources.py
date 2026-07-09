@@ -28,11 +28,25 @@ class ResourceCreate(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ResourceUpdate(ResourceCreate):
+class ResourceUpdate(_MarvinModel):
     """Schema for updating a resource."""
 
-    id: UUID4
-    """The unique identifier of the resource to update."""
+    slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    """URL-friendly slug for the resource."""
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    """Name of the resource."""
+    resource_type: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    """Type of resource (fabric, tool, supplier, etc)."""
+    description: str | None = None
+    """Optional description of the resource."""
+    url: str | None = None
+    """External URL (supplier site, GitHub repo, API docs, etc)."""
+    external_id: str | None = None
+    """External identifier (supplier SKU, ISBN, repo path, etc)."""
+    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
+    """Optional metadata for additional properties."""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class ResourceSummary(_MarvinModel):

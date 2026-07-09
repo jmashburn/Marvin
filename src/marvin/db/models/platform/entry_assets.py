@@ -38,6 +38,7 @@ class EntryAssets(SqlAlchemyBase):
     asset: Mapped["Assets"] = orm.relationship(
         "Assets",
         foreign_keys=[asset_id],
+        back_populates="entry_assets",
         overlaps="assets,entries",
     )
 

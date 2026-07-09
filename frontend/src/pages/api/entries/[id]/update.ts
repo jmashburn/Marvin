@@ -21,7 +21,7 @@ export const POST: APIRoute = async ({ params, request, redirect, cookies }) => 
     }
 
     await updateEntry(id, updates, authToken);
-    return redirect(`/entries/${id}`, 303);
+    return redirect(`/workspace/entries/${id}`, 303);
   } catch (error) {
     console.error('[entries/update] Error:', error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to update entry' }), {

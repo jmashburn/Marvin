@@ -16,9 +16,20 @@ export const POST: APIRoute = async ({ request, redirect, cookies }) => {
       status: (formData.get('status') as string) || 'draft',
     }, authToken);
 
-    return redirect(`/entries/${entry.id}`, 303);
+    return redirect(`/workspace/entries/${entry.id}`, 303);
   } catch (error) {
     console.error('[entries/create] Error:', error);
+
+    // Check for unique constraint violation
+    if (error instanceof Error && (error.message.includes('unique constraint') || error.message.includes('already exists'))) {
+      return new Response(JSON.stringify({
+        error: 'An entry with this slug already exists. Please choose a different title.'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to create entry' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
