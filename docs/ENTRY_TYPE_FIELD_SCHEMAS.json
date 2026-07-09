@@ -1,0 +1,773 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Entry Type Field Schema Catalog",
+  "description": "Complete catalog of all available field types for entry type schemas in Marvin CMS",
+  "version": "1.0.0",
+  "fieldTypes": [
+    {
+      "type": "text",
+      "label": "Text",
+      "description": "Single-line text input for short text content",
+      "category": "basic",
+      "icon": "T",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true,
+          "description": "Unique field identifier (e.g., 'title', 'author_name')"
+        },
+        "label": {
+          "type": "string",
+          "required": true,
+          "description": "Display label shown in the editor"
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["text"],
+          "description": "Field type identifier"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the field must be filled"
+        },
+        "placeholder": {
+          "type": "string",
+          "description": "Placeholder text shown when empty"
+        },
+        "helpText": {
+          "type": "string",
+          "description": "Helper text displayed below the field"
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Default value when creating new entries"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prevent editing after creation"
+        }
+      },
+      "example": {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true,
+        "placeholder": "Enter a title...",
+        "helpText": "The main title of your content"
+      }
+    },
+    {
+      "type": "textarea",
+      "label": "Textarea",
+      "description": "Multi-line plain text input for longer content",
+      "category": "basic",
+      "icon": "¶",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true,
+          "description": "Unique field identifier"
+        },
+        "label": {
+          "type": "string",
+          "required": true,
+          "description": "Display label"
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["textarea"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "rows": {
+          "type": "number",
+          "default": 4,
+          "description": "Number of visible text rows"
+        }
+      },
+      "example": {
+        "key": "summary",
+        "label": "Summary",
+        "type": "textarea",
+        "rows": 3,
+        "placeholder": "Brief summary...",
+        "helpText": "A short description of the content"
+      }
+    },
+    {
+      "type": "markdown",
+      "label": "Markdown",
+      "description": "Rich text editor with markdown support and live preview",
+      "category": "rich-text",
+      "icon": "M↓",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["markdown"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "rows": {
+          "type": "number",
+          "default": 12
+        }
+      },
+      "example": {
+        "key": "body",
+        "label": "Content",
+        "type": "markdown",
+        "required": true,
+        "placeholder": "Write your content in Markdown...",
+        "helpText": "Main body content supporting Markdown formatting"
+      }
+    },
+    {
+      "type": "number",
+      "label": "Number",
+      "description": "Numeric input with optional min/max validation",
+      "category": "basic",
+      "icon": "123",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["number"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "number"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum allowed value"
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum allowed value"
+        },
+        "step": {
+          "type": "number",
+          "default": 1,
+          "description": "Increment step for number input"
+        }
+      },
+      "example": {
+        "key": "price",
+        "label": "Price",
+        "type": "number",
+        "required": true,
+        "min": 0,
+        "max": 10000,
+        "placeholder": "0.00",
+        "helpText": "Product price in USD"
+      }
+    },
+    {
+      "type": "boolean",
+      "label": "Boolean",
+      "description": "Checkbox toggle for true/false values",
+      "category": "basic",
+      "icon": "☑",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["boolean"]
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "boolean",
+          "default": false
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "example": {
+        "key": "featured",
+        "label": "Featured Content",
+        "type": "boolean",
+        "defaultValue": false,
+        "helpText": "Show this content in featured section"
+      }
+    },
+    {
+      "type": "select",
+      "label": "Select",
+      "description": "Dropdown selection from predefined options",
+      "category": "choice",
+      "icon": "▾",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["select"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "required": true,
+          "description": "List of selectable options"
+        }
+      },
+      "example": {
+        "key": "category",
+        "label": "Category",
+        "type": "select",
+        "required": true,
+        "options": ["Technology", "Design", "Business", "Science"],
+        "helpText": "Primary content category"
+      }
+    },
+    {
+      "type": "date",
+      "label": "Date",
+      "description": "Date picker (YYYY-MM-DD)",
+      "category": "temporal",
+      "icon": "📅",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["date"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO date string (YYYY-MM-DD)"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "min": {
+          "type": "string",
+          "format": "date",
+          "description": "Minimum allowed date"
+        },
+        "max": {
+          "type": "string",
+          "format": "date",
+          "description": "Maximum allowed date"
+        }
+      },
+      "example": {
+        "key": "publish_date",
+        "label": "Publish Date",
+        "type": "date",
+        "required": true,
+        "helpText": "When this content should be published"
+      }
+    },
+    {
+      "type": "datetime",
+      "label": "DateTime",
+      "description": "Date and time picker with timezone support",
+      "category": "temporal",
+      "icon": "🕐",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["datetime"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO datetime string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "example": {
+        "key": "event_start",
+        "label": "Event Start Time",
+        "type": "datetime",
+        "required": true,
+        "helpText": "When the event begins (includes time)"
+      }
+    },
+    {
+      "type": "asset",
+      "label": "Asset",
+      "description": "Single asset reference (image, video, file)",
+      "category": "media",
+      "icon": "🖼",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["asset"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "acceptedTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "MIME types or file extensions to accept",
+          "example": ["image/*", ".pdf", "video/mp4"]
+        }
+      },
+      "example": {
+        "key": "hero_image",
+        "label": "Hero Image",
+        "type": "asset",
+        "required": true,
+        "acceptedTypes": ["image/*"],
+        "helpText": "Main banner image for this content"
+      }
+    },
+    {
+      "type": "asset-list",
+      "label": "Asset List",
+      "description": "Multiple asset references in a collection",
+      "category": "media",
+      "icon": "🖼📁",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["asset-list"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "acceptedTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minItems": {
+          "type": "number",
+          "description": "Minimum number of assets required"
+        },
+        "maxItems": {
+          "type": "number",
+          "description": "Maximum number of assets allowed"
+        }
+      },
+      "example": {
+        "key": "gallery",
+        "label": "Photo Gallery",
+        "type": "asset-list",
+        "acceptedTypes": ["image/*"],
+        "minItems": 1,
+        "maxItems": 20,
+        "helpText": "Collection of images for the gallery"
+      }
+    },
+    {
+      "type": "resource",
+      "label": "Resource",
+      "description": "Single resource reference (link to another entry)",
+      "category": "reference",
+      "icon": "🔗",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["resource"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "resourceTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Allowed resource type slugs",
+          "example": ["blog-post", "product", "author"]
+        }
+      },
+      "example": {
+        "key": "author",
+        "label": "Author",
+        "type": "resource",
+        "required": true,
+        "resourceTypes": ["author"],
+        "helpText": "The person who wrote this content"
+      }
+    },
+    {
+      "type": "resource-list",
+      "label": "Resource List",
+      "description": "Multiple resource references (links to other entries)",
+      "category": "reference",
+      "icon": "🔗📁",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["resource-list"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "resourceTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minItems": {
+          "type": "number"
+        },
+        "maxItems": {
+          "type": "number"
+        }
+      },
+      "example": {
+        "key": "related_posts",
+        "label": "Related Posts",
+        "type": "resource-list",
+        "resourceTypes": ["blog-post"],
+        "maxItems": 5,
+        "helpText": "Related blog posts to show at the end"
+      }
+    },
+    {
+      "type": "json",
+      "label": "JSON",
+      "description": "Free-form JSON data for custom structured content",
+      "category": "advanced",
+      "icon": "{ }",
+      "supportedProperties": {
+        "key": {
+          "type": "string",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "type": {
+          "type": "string",
+          "required": true,
+          "enum": ["json"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "helpText": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "object",
+          "description": "Default JSON object"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "schema": {
+          "type": "object",
+          "description": "JSON Schema for validation (optional)"
+        }
+      },
+      "example": {
+        "key": "metadata",
+        "label": "Custom Metadata",
+        "type": "json",
+        "defaultValue": {},
+        "helpText": "Additional structured data in JSON format"
+      }
+    }
+  ],
+  "categories": {
+    "basic": {
+      "label": "Basic Input",
+      "description": "Simple text and number inputs",
+      "types": ["text", "textarea", "number", "boolean"]
+    },
+    "rich-text": {
+      "label": "Rich Text",
+      "description": "Formatted text editors",
+      "types": ["markdown"]
+    },
+    "choice": {
+      "label": "Selection",
+      "description": "Dropdown and option pickers",
+      "types": ["select"]
+    },
+    "temporal": {
+      "label": "Date & Time",
+      "description": "Date and datetime pickers",
+      "types": ["date", "datetime"]
+    },
+    "media": {
+      "label": "Media",
+      "description": "Asset and file references",
+      "types": ["asset", "asset-list"]
+    },
+    "reference": {
+      "label": "References",
+      "description": "Links to other content",
+      "types": ["resource", "resource-list"]
+    },
+    "advanced": {
+      "label": "Advanced",
+      "description": "Complex structured data",
+      "types": ["json"]
+    }
+  },
+  "commonProperties": {
+    "key": "Unique identifier for the field (snake_case recommended)",
+    "label": "Human-readable label shown in the editor",
+    "type": "Field type identifier from the available types",
+    "required": "Whether the field must have a value",
+    "placeholder": "Hint text shown when the field is empty",
+    "helpText": "Explanatory text shown below the field",
+    "defaultValue": "Default value when creating new entries",
+    "readOnly": "Prevent modification after initial creation"
+  },
+  "exampleSchema": {
+    "fields": [
+      {
+        "key": "title",
+        "label": "Title",
+        "type": "text",
+        "required": true,
+        "placeholder": "Enter post title...",
+        "helpText": "The main title of your blog post"
+      },
+      {
+        "key": "body",
+        "label": "Content",
+        "type": "markdown",
+        "required": true,
+        "helpText": "Main content with Markdown support"
+      },
+      {
+        "key": "featured_image",
+        "label": "Featured Image",
+        "type": "asset",
+        "required": true,
+        "acceptedTypes": ["image/*"],
+        "helpText": "Main banner image"
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "type": "select",
+        "required": true,
+        "options": ["Technology", "Design", "Business"],
+        "helpText": "Primary category"
+      },
+      {
+        "key": "published",
+        "label": "Published",
+        "type": "boolean",
+        "defaultValue": false,
+        "helpText": "Make this post visible to readers"
+      },
+      {
+        "key": "publish_date",
+        "label": "Publish Date",
+        "type": "date",
+        "required": true,
+        "helpText": "When to publish this post"
+      }
+    ]
+  }
+}

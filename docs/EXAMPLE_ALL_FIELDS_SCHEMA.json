@@ -1,0 +1,111 @@
+{
+  "name": "Complete Field Showcase",
+  "slug": "field-showcase",
+  "description": "Example entry type demonstrating all available field types",
+  "schema": {
+    "fields": [
+      {
+        "key": "text_field",
+        "label": "Text Field",
+        "type": "text",
+        "required": true,
+        "placeholder": "Enter single-line text...",
+        "helpText": "Single-line text input for short content"
+      },
+      {
+        "key": "textarea_field",
+        "label": "Textarea Field",
+        "type": "textarea",
+        "required": false,
+        "placeholder": "Enter multi-line text...",
+        "helpText": "Multi-line plain text area"
+      },
+      {
+        "key": "markdown_field",
+        "label": "Markdown Field",
+        "type": "markdown",
+        "required": false,
+        "placeholder": "Write markdown content...",
+        "helpText": "Rich text editor with Markdown support and live preview"
+      },
+      {
+        "key": "number_field",
+        "label": "Number Field",
+        "type": "number",
+        "required": false,
+        "min": 0,
+        "max": 100,
+        "placeholder": "0",
+        "helpText": "Numeric input with min/max constraints"
+      },
+      {
+        "key": "boolean_field",
+        "label": "Boolean Field",
+        "type": "boolean",
+        "defaultValue": false,
+        "helpText": "Checkbox for true/false values"
+      },
+      {
+        "key": "select_field",
+        "label": "Select Field",
+        "type": "select",
+        "required": false,
+        "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+        "helpText": "Dropdown selection from predefined options"
+      },
+      {
+        "key": "date_field",
+        "label": "Date Field",
+        "type": "date",
+        "required": false,
+        "helpText": "Date picker (YYYY-MM-DD format)"
+      },
+      {
+        "key": "datetime_field",
+        "label": "DateTime Field",
+        "type": "datetime",
+        "required": false,
+        "helpText": "Date and time picker with timezone"
+      },
+      {
+        "key": "asset_field",
+        "label": "Asset Field",
+        "type": "asset",
+        "required": false,
+        "helpText": "Single asset reference (image, video, or file)"
+      },
+      {
+        "key": "asset_list_field",
+        "label": "Asset List Field",
+        "type": "asset-list",
+        "required": false,
+        "minItems": 0,
+        "maxItems": 10,
+        "helpText": "Multiple asset references in a collection"
+      },
+      {
+        "key": "resource_field",
+        "label": "Resource Field",
+        "type": "resource",
+        "required": false,
+        "helpText": "Single resource reference (link to another entry)"
+      },
+      {
+        "key": "resource_list_field",
+        "label": "Resource List Field",
+        "type": "resource-list",
+        "required": false,
+        "maxItems": 5,
+        "helpText": "Multiple resource references (links to other entries)"
+      },
+      {
+        "key": "json_field",
+        "label": "JSON Field",
+        "type": "json",
+        "required": false,
+        "defaultValue": {},
+        "helpText": "Free-form JSON data for custom structured content"
+      }
+    ]
+  }
+}
