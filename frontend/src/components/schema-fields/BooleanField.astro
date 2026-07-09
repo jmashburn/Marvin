@@ -1,0 +1,110 @@
+---
+/**
+ * BooleanField Component
+ * Renders a checkbox/toggle for boolean values
+ */
+export interface Props {
+  field: {
+    key: string;
+    label: string;
+    type: 'boolean';
+    required?: boolean;
+    defaultValue?: boolean;
+    helpText?: string;
+    readOnly?: boolean;
+  };
+  value?: boolean;
+  error?: string;
+}
+
+const { field, value, error } = Astro.props;
+const inputId = `field-${field.key}`;
+const checked = value !== undefined ? value : field.defaultValue || false;
+---
+
+<div class="field-group">
+  <div class="checkbox-wrapper">
+    <input
+      type="checkbox"
+      id={inputId}
+      name={`dataJson.${field.key}`}
+      value="true"
+      checked={checked}
+      disabled={field.readOnly}
+      class:list={['field-checkbox', { error }]}
+    />
+    <label for={inputId}>
+      {field.label}
+      {field.required && <span class="required">*</span>}
+    </label>
+  </div>
+
+  {field.helpText && <p class="field-help">{field.helpText}</p>}
+  {error && <p class="field-error">{error}</p>}
+</div>
+
+<style>
+  .field-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .field-checkbox {
+    width: 1.125rem;
+    height: 1.125rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .field-checkbox:hover {
+    border-color: var(--color-primary);
+  }
+
+  .field-checkbox:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-alpha);
+  }
+
+  .field-checkbox:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .field-checkbox.error {
+    border-color: var(--color-error);
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .required {
+    color: var(--color-error);
+    margin-left: 2px;
+  }
+
+  .field-help {
+    margin: 0 0 0 1.625rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .field-error {
+    margin: 0 0 0 1.625rem;
+    font-size: 0.75rem;
+    color: var(--color-error);
+  }
+</style>
