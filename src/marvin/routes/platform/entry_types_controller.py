@@ -1,11 +1,14 @@
 """Entry type routes."""
 
+import logging
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
 
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import EntryTypeCreate, EntryTypeRead, EntryTypeUpdate
 from marvin.services.event_bus_service.event_types import EventEntryTypeData, EventOperation, EventTypes
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entry-types")
 
@@ -20,6 +23,8 @@ class EntryTypesController(BaseUserController):
 
     @router.post("", response_model=EntryTypeRead, status_code=status.HTTP_201_CREATED, summary="Create Entry Type")
     def create_entry_type(self, data: EntryTypeCreate) -> EntryTypeRead:
+        logger.warning(f"[SCHEMA_DEBUG] Controller received EntryTypeCreate: {data.model_dump()}")
+        logger.warning(f"[SCHEMA_DEBUG] content_schema value: {data.content_schema}")
         entry_type = self.repos.entry_types.create(data)
 
         # Emit event
