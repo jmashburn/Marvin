@@ -362,8 +362,33 @@ const fieldTypes = [
     if (moveDownBtn) moveDownBtn.addEventListener('click', () => moveField(index, 1));
     if (removeBtn) removeBtn.addEventListener('click', () => removeField(index));
 
-    // Update field on input changes
-    div.querySelectorAll('input, select, textarea').forEach(input => {
+    // Track if key has been manually edited
+    const keyInput = div.querySelector('.field-key');
+    const labelInput = div.querySelector('.field-label');
+    let keyManuallyEdited = !!field.key; // If field has a key already, consider it manually set
+
+    // Auto-generate key from label (like slug)
+    labelInput.addEventListener('input', () => {
+      if (!keyManuallyEdited) {
+        const generatedKey = labelInput.value
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/[\s-]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+        keyInput.value = generatedKey;
+      }
+      updateField(index, div);
+    });
+
+    // Mark key as manually edited if user types in it
+    keyInput.addEventListener('input', () => {
+      keyManuallyEdited = true;
+      updateField(index, div);
+    });
+
+    // Update field on other input changes
+    div.querySelectorAll('select, textarea, input[type="checkbox"], input[type="number"]').forEach(input => {
       input.addEventListener('input', () => updateField(index, div));
     });
 
