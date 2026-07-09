@@ -493,10 +493,14 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
     }
 
     // Data JSON editor - sync between JSON and form fields
+    let applyJsonClickListener = null;
+    let schemaInputListener = null;
+
     function setupDataJsonSync(skipInitialSync = false) {
       const form = document.querySelector('form');
       const dataJsonEditor = document.getElementById('data_json_editor');
       const applyDataJsonBtn = document.getElementById('apply-data-json-btn');
+      const schemaFieldsContainer = document.getElementById('schema-fields-container');
 
       if (!form || !dataJsonEditor || !applyDataJsonBtn) return;
 
@@ -520,8 +524,16 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
         dataJsonEditor.value = JSON.stringify(dataJson, null, 2);
       }
 
+      // Remove old event listeners to prevent duplicates
+      if (applyJsonClickListener) {
+        applyDataJsonBtn.removeEventListener('click', applyJsonClickListener);
+      }
+      if (schemaInputListener && schemaFieldsContainer) {
+        schemaFieldsContainer.removeEventListener('input', schemaInputListener);
+      }
+
       // Update form fields when JSON changes
-      applyDataJsonBtn.addEventListener('click', () => {
+      applyJsonClickListener = () => {
         try {
           const dataJson = JSON.parse(dataJsonEditor.value);
 
@@ -543,14 +555,17 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
         } catch (e) {
           alert('Invalid JSON: ' + (e instanceof Error ? e.message : String(e)));
         }
-      });
+      };
+
+      applyDataJsonBtn.addEventListener('click', applyJsonClickListener);
 
       // Listen for changes to schema fields and update JSON
-      const schemaFieldsContainer = document.getElementById('schema-fields-container');
+      schemaInputListener = () => {
+        updateDataJsonFromForm();
+      };
+
       if (schemaFieldsContainer) {
-        schemaFieldsContainer.addEventListener('input', () => {
-          updateDataJsonFromForm();
-        });
+        schemaFieldsContainer.addEventListener('input', schemaInputListener);
       }
 
       // Initial sync (unless we just set a template)
