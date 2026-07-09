@@ -149,6 +149,15 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
             {preSelectedSchema && <SchemaForm schema={preSelectedSchema} />}
           </div>
 
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <option value="inbox">Inbox</option>
+              <option value="draft" selected>Draft</option>
+            </select>
+            <p class="form-help">New entries start as drafts. Add content and publish from the editor.</p>
+          </div>
+
           <div class="form-group" id="data-json-group" style={preSelectedSchema ? '' : 'display: none;'}>
             <label for="data_json_editor">Data JSON (Schema Fields)</label>
             <p class="form-help">View or edit schema field data as JSON. Paste complete JSON to populate form fields.</p>
@@ -169,15 +178,6 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
             <small style="font-size: 11px; color: var(--muted); display: block; margin-top: 0.5rem;">
               Changes here will update the form fields above when you click "Apply JSON to Form"
             </small>
-          </div>
-
-          <div class="form-group">
-            <label for="status">Status</label>
-            <select id="status" name="status">
-              <option value="inbox">Inbox</option>
-              <option value="draft" selected>Draft</option>
-            </select>
-            <p class="form-help">New entries start as drafts. Add content and publish from the editor.</p>
           </div>
 
           <div class="form-actions">
