@@ -167,9 +167,16 @@ class WorkspaceSeedLoader:
             self.logger.debug(f"Entry already exists: {data['slug']}")
             return
 
-        # Get entry type
+        # Get entry type - prefer workspace type over system type if both exist
         entry_type_slug = data["entryType"]
-        entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug})
+
+        # First try to find workspace-scoped type
+        entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug, "group_id": self.repos.group_id})
+
+        # Fall back to system type if no workspace type exists
+        if not entry_types:
+            entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug})
+
         if not entry_types:
             raise ValueError(f"Entry type not found: {entry_type_slug}")
 
