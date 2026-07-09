@@ -486,8 +486,23 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
           }
         }).join('');
 
-        console.log('[NewEntry] Rendering schema fields:', fieldsHtml);
+        console.log('[NewEntry] Rendering schema fields HTML length:', fieldsHtml.length);
+        console.log('[NewEntry] First 500 chars of HTML:', fieldsHtml.substring(0, 500));
         schemaContainer.innerHTML = fieldsHtml;
+
+        // Debug: Check what actually got rendered
+        setTimeout(() => {
+          const renderedFields = schemaContainer.querySelectorAll('input, select, textarea');
+          console.log('[NewEntry] After rendering, found inputs:', renderedFields.length);
+          renderedFields.forEach(field => {
+            console.log('[NewEntry] Rendered field:', {
+              tag: field.tagName,
+              name: field.getAttribute('name'),
+              id: field.id,
+              type: field.type
+            });
+          });
+        }, 100);
       });
     }
 
