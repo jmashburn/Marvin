@@ -22,29 +22,212 @@ class WorkspaceBootstrapService:
         {
             "slug": "page",
             "name": "Page",
-            "description": "Static pages and content",
             "icon": "📄",
-            "color": "#4A90E2",
-            "sort_order": 1,
+            "color": "#2563EB",
+            "description": "A standard content page with markdown body content.",
+            "sort_order": 100,
             "is_system": True,
+            "schema_json": {
+                "fields": [
+                    {
+                        "key": "body",
+                        "label": "Body",
+                        "type": "markdown",
+                        "required": True,
+                        "placeholder": "Write page content...",
+                    }
+                ]
+            },
         },
         {
-            "slug": "post",
-            "name": "Post",
-            "description": "Blog posts and updates",
+            "slug": "article",
+            "name": "Article",
             "icon": "📝",
-            "color": "#50C878",
-            "sort_order": 2,
+            "color": "#7C3AED",
+            "description": "A publishable article, note, or long-form post.",
+            "sort_order": 200,
             "is_system": True,
+            "schema_json": {
+                "fields": [
+                    {
+                        "key": "body",
+                        "label": "Body",
+                        "type": "markdown",
+                        "required": True,
+                    },
+                    {
+                        "key": "heroImage",
+                        "label": "Hero Image",
+                        "type": "asset",
+                        "required": False,
+                    },
+                ]
+            },
         },
         {
             "slug": "project",
             "name": "Project",
-            "description": "Projects and case studies",
-            "icon": "🚀",
-            "color": "#FF6B6B",
-            "sort_order": 3,
+            "icon": "🛠️",
+            "color": "#D97706",
+            "description": "A documented project, build, case study, or body of work.",
+            "sort_order": 300,
             "is_system": True,
+            "schema_json": {
+                "fields": [
+                    {
+                        "key": "overview",
+                        "label": "Overview",
+                        "type": "markdown",
+                        "required": True,
+                    },
+                    {
+                        "key": "status",
+                        "label": "Project Status",
+                        "type": "select",
+                        "options": ["planned", "active", "paused", "completed", "archived"],
+                        "defaultValue": "active",
+                    },
+                    {
+                        "key": "startedAt",
+                        "label": "Started At",
+                        "type": "date",
+                    },
+                    {
+                        "key": "completedAt",
+                        "label": "Completed At",
+                        "type": "date",
+                    },
+                    {
+                        "key": "gallery",
+                        "label": "Gallery",
+                        "type": "asset-list",
+                    },
+                    {
+                        "key": "relatedResources",
+                        "label": "Related Resources",
+                        "type": "resource-list",
+                    },
+                ]
+            },
+        },
+        {
+            "slug": "reference",
+            "name": "Reference",
+            "icon": "📚",
+            "color": "#059669",
+            "description": "Evergreen reference material, documentation, or guides.",
+            "sort_order": 400,
+            "is_system": True,
+            "schema_json": {
+                "fields": [
+                    {
+                        "key": "body",
+                        "label": "Reference Content",
+                        "type": "markdown",
+                        "required": True,
+                    },
+                    {
+                        "key": "category",
+                        "label": "Category",
+                        "type": "text",
+                    },
+                    {
+                        "key": "relatedEntries",
+                        "label": "Related Entries",
+                        "type": "resource-list",
+                    },
+                ]
+            },
+        },
+        {
+            "slug": "navigation-item",
+            "name": "Navigation Item",
+            "icon": "🔗",
+            "color": "#0F766E",
+            "description": "A generic navigation or menu link.",
+            "sort_order": 500,
+            "is_system": True,
+            "schema_json": {
+                "fields": [
+                    {
+                        "key": "href",
+                        "label": "Destination",
+                        "type": "text",
+                        "required": True,
+                        "placeholder": "/about",
+                    },
+                    {
+                        "key": "openInNewTab",
+                        "label": "Open in New Tab",
+                        "type": "boolean",
+                        "defaultValue": False,
+                    },
+                ]
+            },
+        },
+        {
+            "slug": "resource",
+            "name": "Resource",
+            "icon": "📦",
+            "color": "#6B7280",
+            "description": "A reusable object, material, supplier, tool, link, or reference.",
+            "sort_order": 600,
+            "is_system": True,
+            "schema_json": {
+                "fields": [
+                    {
+                        "key": "resourceType",
+                        "label": "Resource Type",
+                        "type": "text",
+                        "placeholder": "material, supplier, tool, book, link...",
+                    },
+                    {
+                        "key": "body",
+                        "label": "Notes",
+                        "type": "markdown",
+                    },
+                    {
+                        "key": "url",
+                        "label": "URL",
+                        "type": "text",
+                    },
+                    {
+                        "key": "assets",
+                        "label": "Assets",
+                        "type": "asset-list",
+                    },
+                ]
+            },
+        },
+        {
+            "slug": "faq",
+            "name": "FAQ",
+            "icon": "❓",
+            "color": "#9333EA",
+            "description": "A question and answer entry.",
+            "sort_order": 700,
+            "is_system": True,
+            "schema_json": {
+                "fields": [
+                    {
+                        "key": "question",
+                        "label": "Question",
+                        "type": "text",
+                        "required": True,
+                    },
+                    {
+                        "key": "answer",
+                        "label": "Answer",
+                        "type": "markdown",
+                        "required": True,
+                    },
+                    {
+                        "key": "category",
+                        "label": "Category",
+                        "type": "text",
+                    },
+                ]
+            },
         },
     ]
 
