@@ -538,11 +538,16 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
       applyJsonClickListener = () => {
         try {
           const dataJson = JSON.parse(dataJsonEditor.value);
+          console.log('[NewEntry] Applying JSON to form:', dataJson);
+
+          let fieldsUpdated = 0;
 
           // Update all matching form fields
           for (const [key, value] of Object.entries(dataJson)) {
             const fieldName = `dataJson.${key}`;
             const field = form.querySelector(`[name="${fieldName}"]`);
+
+            console.log(`[NewEntry] Looking for field: ${fieldName}, found:`, field);
 
             if (field) {
               if (field.type === 'checkbox') {
@@ -550,10 +555,11 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
               } else {
                 field.value = value !== null && value !== undefined ? String(value) : '';
               }
+              fieldsUpdated++;
             }
           }
 
-          alert('Form fields updated from JSON!');
+          alert(`Form fields updated from JSON! (${fieldsUpdated} fields updated)`);
         } catch (e) {
           alert('Invalid JSON: ' + (e instanceof Error ? e.message : String(e)));
         }

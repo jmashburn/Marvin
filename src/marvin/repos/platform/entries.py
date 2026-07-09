@@ -112,7 +112,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         # Auto-generate slug from title if not provided
         if not data_dict.get("slug") and data_dict.get("title"):
             data_dict["slug"] = slugify(data_dict["title"])
-        
+
         # Validate entry type exists
         if not self._entry_type_exists(data_dict["entry_type_id"]):
             raise HTTPException(
@@ -214,7 +214,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         if "data_json" in data_dict:
             # Get the entry to find its entry_type_id if not being changed
             if not entry_type_id:
-                existing_entry = self.get_one(match_value, match_key=match_key or self.primary_key)
+                existing_entry = self.get_one(match_value, key=match_key or self.primary_key)
                 if existing_entry:
                     entry_type_id = existing_entry.entry_type_id
 
