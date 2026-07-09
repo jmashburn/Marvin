@@ -518,9 +518,25 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
           let fieldsUpdated = 0;
           for (const [key, value] of Object.entries(dataJson)) {
             const fieldName = `dataJson.${key}`;
-            const field = form.querySelector(`[name="${fieldName}"]`);
+
+            // Try multiple query methods to find the field
+            let field = form.querySelector(`[name="${fieldName}"]`);
+
+            if (!field) {
+              // Try escaping the dot
+              field = form.querySelector(`[name="dataJson\\.${key}"]`);
+            }
+
+            if (!field) {
+              // Try finding all fields and matching manually
+              const allFields = Array.from(form.querySelectorAll('[name^="dataJson"]'));
+              field = allFields.find(f => f.getAttribute('name') === fieldName);
+            }
 
             console.log(`[NewEntry] Looking for field: ${fieldName}`, field ? 'FOUND' : 'NOT FOUND');
+            if (field) {
+              console.log(`[NewEntry] Field name attribute:`, field.getAttribute('name'));
+            }
 
             if (field) {
               if (field.type === 'checkbox') {
