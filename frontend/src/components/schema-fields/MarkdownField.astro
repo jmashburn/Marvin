@@ -22,28 +22,38 @@ const { field, value, error } = Astro.props;
 const inputId = `field-${field.key}`;
 ---
 
-<div class="field-group">
+<div class="field-group markdown-field">
   <label for={inputId}>
     {field.label}
     {field.required && <span class="required">*</span>}
   </label>
 
-  <textarea
-    id={inputId}
-    name={`dataJson.${field.key}`}
-    placeholder={field.placeholder}
-    required={field.required}
-    readonly={field.readOnly}
-    class:list={['field-textarea markdown-editor', { error }]}
-    rows="12"
-  >{value || field.defaultValue || ''}</textarea>
+  <div class="markdown-editor-container">
+    <div class="markdown-tabs">
+      <button type="button" class="tab-button active" data-tab="write">Write</button>
+      <button type="button" class="tab-button" data-tab="preview">Preview</button>
+    </div>
+
+    <div class="markdown-content">
+      <textarea
+        id={inputId}
+        name={`dataJson.${field.key}`}
+        placeholder={field.placeholder}
+        required={field.required}
+        readonly={field.readOnly}
+        class:list={['field-textarea markdown-editor', { error }]}
+        rows="12"
+        data-markdown-input
+      >{value || field.defaultValue || ''}</textarea>
+
+      <div class="markdown-preview" data-markdown-preview style="display: none;">
+        <div class="preview-empty">Nothing to preview</div>
+      </div>
+    </div>
+  </div>
 
   {field.helpText && <p class="field-help">{field.helpText}</p>}
   {error && <p class="field-error">{error}</p>}
-
-  <div class="markdown-hint">
-    <small>Supports <strong>Markdown</strong> formatting</small>
-  </div>
 </div>
 
 <style>
@@ -106,4 +116,264 @@ const inputId = `field-${field.key}`;
     font-size: 0.75rem;
     color: var(--muted);
   }
+
+  .markdown-editor-container {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .markdown-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .tab-button {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab-button:hover {
+    color: var(--ink);
+    background: var(--bg);
+  }
+
+  .tab-button.active {
+    color: var(--ink);
+    border-bottom-color: var(--color-primary);
+  }
+
+  .markdown-content {
+    position: relative;
+  }
+
+  .markdown-editor-container .field-textarea {
+    border: none;
+    border-radius: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .markdown-editor-container .field-textarea:focus {
+    box-shadow: none;
+  }
+
+  .markdown-preview {
+    padding: 0.75rem;
+    min-height: 300px;
+    overflow-y: auto;
+    background: var(--bg);
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  .markdown-preview.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .preview-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* Markdown preview content styling */
+  .markdown-preview :global(h1),
+  .markdown-preview :global(h2),
+  .markdown-preview :global(h3),
+  .markdown-preview :global(h4),
+  .markdown-preview :global(h5),
+  .markdown-preview :global(h6) {
+    margin: 1.5rem 0 0.75rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .markdown-preview :global(h1) { font-size: 1.75rem; }
+  .markdown-preview :global(h2) { font-size: 1.5rem; }
+  .markdown-preview :global(h3) { font-size: 1.25rem; }
+  .markdown-preview :global(h4) { font-size: 1.1rem; }
+  .markdown-preview :global(h5) { font-size: 1rem; }
+  .markdown-preview :global(h6) { font-size: 0.95rem; }
+
+  .markdown-preview :global(p) {
+    margin: 0.75rem 0;
+  }
+
+  .markdown-preview :global(a) {
+    color: var(--color-primary);
+    text-decoration: underline;
+  }
+
+  .markdown-preview :global(code) {
+    padding: 0.2rem 0.4rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.85em;
+  }
+
+  .markdown-preview :global(pre) {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow-x: auto;
+  }
+
+  .markdown-preview :global(pre code) {
+    padding: 0;
+    background: transparent;
+    border: none;
+  }
+
+  .markdown-preview :global(ul),
+  .markdown-preview :global(ol) {
+    margin: 0.75rem 0;
+    padding-left: 2rem;
+  }
+
+  .markdown-preview :global(li) {
+    margin: 0.25rem 0;
+  }
+
+  .markdown-preview :global(blockquote) {
+    margin: 1rem 0;
+    padding-left: 1rem;
+    border-left: 4px solid var(--line);
+    color: var(--muted);
+  }
+
+  .markdown-preview :global(hr) {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .markdown-preview :global(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+  }
+
+  .markdown-preview :global(th),
+  .markdown-preview :global(td) {
+    padding: 0.5rem;
+    border: 1px solid var(--line);
+    text-align: left;
+  }
+
+  .markdown-preview :global(th) {
+    background: var(--panel);
+    font-weight: 600;
+  }
+
+  .markdown-preview :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
 </style>
+
+<script>
+  // Simple markdown parser (basic subset)
+  function parseMarkdown(markdown: string): string {
+    if (!markdown || !markdown.trim()) {
+      return '<div class="preview-empty">Nothing to preview</div>';
+    }
+
+    let html = markdown;
+
+    // Escape HTML
+    html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Headers
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+    // Italic
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+
+    // Code blocks
+    html = html.replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>');
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+    // Line breaks
+    html = html.replace(/\n\n/g, '</p><p>');
+    html = html.replace(/\n/g, '<br>');
+
+    // Wrap in paragraphs if not already wrapped
+    if (!html.startsWith('<')) {
+      html = '<p>' + html + '</p>';
+    }
+
+    return html;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.markdown-field').forEach((field) => {
+      const writeBtn = field.querySelector('[data-tab="write"]');
+      const previewBtn = field.querySelector('[data-tab="preview"]');
+      const textarea = field.querySelector('[data-markdown-input]') as HTMLTextAreaElement;
+      const preview = field.querySelector('[data-markdown-preview]') as HTMLElement;
+
+      if (!writeBtn || !previewBtn || !textarea || !preview) return;
+
+      // Tab switching
+      writeBtn.addEventListener('click', () => {
+        writeBtn.classList.add('active');
+        previewBtn.classList.remove('active');
+        textarea.style.display = 'block';
+        preview.style.display = 'none';
+      });
+
+      previewBtn.addEventListener('click', () => {
+        previewBtn.classList.add('active');
+        writeBtn.classList.remove('active');
+        textarea.style.display = 'none';
+        preview.style.display = 'block';
+
+        // Update preview content
+        preview.innerHTML = parseMarkdown(textarea.value);
+      });
+
+      // Update preview on input (debounced)
+      let debounceTimer: number;
+      textarea.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(() => {
+          if (previewBtn.classList.contains('active')) {
+            preview.innerHTML = parseMarkdown(textarea.value);
+          }
+        }, 300);
+      });
+    });
+  });
+</script>
