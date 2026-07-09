@@ -106,6 +106,8 @@ class EntryRead(_MarvinModel):
     """Assets included in this entry with placement info."""
     collections: list[UUID4] = []
     """Collection IDs this entry belongs to."""
+    order: int | None = None
+    """Sort order within a collection. Only populated when querying entries for a specific collection."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -118,6 +120,12 @@ class EntryRead(_MarvinModel):
         if hasattr(obj, "collections") and obj.collections:
             if obj.collections and hasattr(obj.collections[0], "id"):
                 data["collections"] = [c.id for c in obj.collections]
+
+        # Extract order from entry_collections junction table if querying for a specific collection
+        if hasattr(obj, "entry_collections") and obj.entry_collections:
+            # Use the first junction's sort_order (typically only one when filtering by collection)
+            if obj.entry_collections and hasattr(obj.entry_collections[0], "sort_order"):
+                data["order"] = obj.entry_collections[0].sort_order
 
         # Build assets from entry_assets junction table (includes placement metadata)
         if hasattr(obj, "entry_assets") and obj.entry_assets:
