@@ -380,10 +380,12 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
           // Create template with all field keys and null/default values
           const template = {};
+          console.log('[NewEntry] Schema fields:', selectedType.schemaJson.fields);
           selectedType.schemaJson.fields.forEach(field => {
             template[field.key] = field.defaultValue ?? null;
           });
 
+          console.log('[NewEntry] Data JSON template:', template);
           if (dataJsonEditor) {
             dataJsonEditor.value = JSON.stringify(template, null, 2);
           }
@@ -485,13 +487,13 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
         console.log('[NewEntry] Rendering schema fields:', fieldsHtml);
         schemaContainer.innerHTML = fieldsHtml;
 
-        // After rendering, set up Data JSON sync
-        setupDataJsonSync();
+        // After rendering, set up Data JSON sync (but don't do initial sync - keep the template)
+        setupDataJsonSync(true);
       });
     }
 
     // Data JSON editor - sync between JSON and form fields
-    function setupDataJsonSync() {
+    function setupDataJsonSync(skipInitialSync = false) {
       const form = document.querySelector('form');
       const dataJsonEditor = document.getElementById('data_json_editor');
       const applyDataJsonBtn = document.getElementById('apply-data-json-btn');
@@ -551,11 +553,13 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
         });
       }
 
-      // Initial sync
-      updateDataJsonFromForm();
+      // Initial sync (unless we just set a template)
+      if (!skipInitialSync) {
+        updateDataJsonFromForm();
+      }
     }
 
     // Set up Data JSON sync on initial load if schema is pre-selected
-    setupDataJsonSync();
+    setupDataJsonSync(false);
   });
 </script>
