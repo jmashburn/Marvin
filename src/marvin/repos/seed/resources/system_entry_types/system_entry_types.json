@@ -34,12 +34,6 @@
           "label": "Body",
           "type": "markdown",
           "required": true
-        },
-        {
-          "key": "heroImage",
-          "label": "Hero Image",
-          "type": "asset",
-          "required": false
         }
       ]
     }
@@ -76,16 +70,6 @@
           "key": "completedAt",
           "label": "Completed At",
           "type": "date"
-        },
-        {
-          "key": "gallery",
-          "label": "Gallery",
-          "type": "asset-list"
-        },
-        {
-          "key": "relatedResources",
-          "label": "Related Resources",
-          "type": "resource-list"
         }
       ]
     }
@@ -110,11 +94,6 @@
           "key": "category",
           "label": "Category",
           "type": "text"
-        },
-        {
-          "key": "relatedEntries",
-          "label": "Related Entries",
-          "type": "resource-list"
         }
       ]
     }
@@ -170,11 +149,6 @@
           "key": "url",
           "label": "URL",
           "type": "text"
-        },
-        {
-          "key": "assets",
-          "label": "Assets",
-          "type": "asset-list"
         }
       ]
     }

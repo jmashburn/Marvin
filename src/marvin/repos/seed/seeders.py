@@ -236,9 +236,17 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                     count_updated += 1
                 else:
                     # Create new system entry type with group_id=NULL
+                    # Bypass repository to avoid group_id validation
+                    from marvin.db.models.platform import EntryTypes
+
                     entry_type_dict = entry_type_schema.model_dump()
-                    entry_type_dict["group_id"] = None  # System types have no workspace
-                    self.repos.entry_types.create(entry_type_dict)
+                    entry_type = EntryTypes(
+                        session=self.repos.session,
+                        group_id=None,  # System types have no workspace
+                        **entry_type_dict,
+                    )
+                    self.repos.session.add(entry_type)
+                    self.repos.session.commit()
                     self.logger.debug(f"Created system entry type: {entry_type_schema.slug}")
                     count_seeded += 1
 
