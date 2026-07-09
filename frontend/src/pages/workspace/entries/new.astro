@@ -533,35 +533,44 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
             console.log('[NewEntry] Container field names:', Array.from(containerFields).map(f => f.getAttribute('name')));
           }
 
-          const dataJsonFields = form.querySelectorAll('[name^="dataJson."]');
-          console.log('[NewEntry] Fields with name starting with dataJson.:', dataJsonFields.length);
-          dataJsonFields.forEach(field => {
-            console.log('[NewEntry] Found dataJson field:', field.name, field.type, field);
+          // Try to find all fields that might be dataJson fields (case insensitive)
+          const allDataJsonFields = Array.from(allFormFields).filter(f => {
+            const name = f.getAttribute('name') || '';
+            return name.toLowerCase().startsWith('datajson.');
+          });
+          console.log('[NewEntry] Fields starting with dataJson (case insensitive):', allDataJsonFields.length);
+          allDataJsonFields.forEach(field => {
+            console.log('[NewEntry] Found dataJson field:', field.getAttribute('name'), field.type);
           });
 
           // Update all matching form fields
           let fieldsUpdated = 0;
           for (const [key, value] of Object.entries(dataJson)) {
-            const fieldName = `dataJson.${key}`;
+            // Try both camelCase and lowercase versions
+            const fieldNames = [`dataJson.${key}`, `datajson.${key}`];
+            let field = null;
 
-            // Try multiple query methods to find the field
-            let field = form.querySelector(`[name="${fieldName}"]`);
+            for (const fieldName of fieldNames) {
+              field = form.querySelector(`[name="${fieldName}"]`);
+              if (field) {
+                console.log(`[NewEntry] Found field with name: ${fieldName}`);
+                break;
+              }
+            }
 
+            // If still not found, try manual search (case insensitive)
             if (!field) {
-              // Try escaping the dot
-              field = form.querySelector(`[name="dataJson\\.${key}"]`);
+              const allFields = Array.from(form.querySelectorAll('input, select, textarea'));
+              field = allFields.find(f => {
+                const name = f.getAttribute('name') || '';
+                return name.toLowerCase() === `datajson.${key}`.toLowerCase();
+              });
+              if (field) {
+                console.log(`[NewEntry] Found field via case-insensitive search: ${field.getAttribute('name')}`);
+              }
             }
 
-            if (!field) {
-              // Try finding all fields and matching manually
-              const allFields = Array.from(form.querySelectorAll('[name^="dataJson"]'));
-              field = allFields.find(f => f.getAttribute('name') === fieldName);
-            }
-
-            console.log(`[NewEntry] Looking for field: ${fieldName}`, field ? 'FOUND' : 'NOT FOUND');
-            if (field) {
-              console.log(`[NewEntry] Field name attribute:`, field.getAttribute('name'));
-            }
+            console.log(`[NewEntry] Looking for field with key "${key}":`, field ? 'FOUND' : 'NOT FOUND');
 
             if (field) {
               if (field.type === 'checkbox') {
@@ -570,7 +579,7 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
                 field.value = value !== null && value !== undefined ? String(value) : '';
               }
               fieldsUpdated++;
-              console.log(`[NewEntry] Updated ${fieldName} to:`, value);
+              console.log(`[NewEntry] Updated field to:`, value);
             }
           }
 
