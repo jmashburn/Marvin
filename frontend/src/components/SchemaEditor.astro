@@ -21,7 +21,9 @@ export interface Props {
 }
 
 const { schema } = Astro.props;
-const initialSchema = schema || { fields: [] };
+const initialSchema = (schema && typeof schema === 'object' && 'fields' in schema)
+  ? schema
+  : { fields: [] };
 
 // Available field types
 const fieldTypes = [
