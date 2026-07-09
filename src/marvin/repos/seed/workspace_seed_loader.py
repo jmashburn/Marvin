@@ -167,18 +167,25 @@ class WorkspaceSeedLoader:
             self.logger.debug(f"Entry already exists: {data['slug']}")
             return
 
-        # Get entry type - prefer workspace type over system type if both exist
+        # Get entry type - handle explicit scope or auto-prefer workspace over system
         entry_type_slug = data["entryType"]
+        entry_type_scope = data.get("entryTypeScope")  # Optional: "system", "workspace", or None
 
-        # First try to find workspace-scoped type
-        entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug, "group_id": self.repos.group_id})
+        if entry_type_scope == "system":
+            # Explicitly use system type
+            entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug, "group_id": None})
+        elif entry_type_scope == "workspace":
+            # Explicitly use workspace type
+            entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug, "group_id": self.repos.group_id})
+        else:
+            # Auto-prefer: workspace type first, then system type
+            entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug, "group_id": self.repos.group_id})
+            if not entry_types:
+                entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug})
 
-        # Fall back to system type if no workspace type exists
         if not entry_types:
-            entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug})
-
-        if not entry_types:
-            raise ValueError(f"Entry type not found: {entry_type_slug}")
+            scope_msg = f" (scope: {entry_type_scope})" if entry_type_scope else ""
+            raise ValueError(f"Entry type not found: {entry_type_slug}{scope_msg}")
 
         entry_type = entry_types[0]
 

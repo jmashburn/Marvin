@@ -148,6 +148,10 @@ class WorkspaceExporter:
                 "expireAt": entry.expire_at.isoformat() if entry.expire_at else None,
             }
 
+            # Add entryTypeScope if using a system type (for explicit re-import)
+            if entry_type.group_id is None:
+                entry_dict["entryTypeScope"] = "system"
+
             # Only add collections array if there are any
             if collections_data:
                 entry_dict["collections"] = collections_data
