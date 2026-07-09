@@ -42,6 +42,7 @@
         "key": "boolean_field",
         "label": "Boolean Field",
         "type": "boolean",
+
         "defaultValue": false,
         "helpText": "Checkbox for true/false values"
       },
