@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import SchemaEditor from "@/components/SchemaEditor.astro";
 import { getEntryType } from "@/lib/api/entryTypes";
 import { getAuthToken } from '@/lib/api/client';
 
@@ -121,6 +122,11 @@ const isSystem = entryType?.isSystem ?? false;
             <p class="form-help">Lower numbers appear first</p>
           </div>
 
+          {/* Schema Editor */}
+          <div class="schema-section">
+            <SchemaEditor schema={entryType.schemaJson} />
+          </div>
+
           {isSystem && (
             <div class="notice">
               <strong>⚠️ System Entry Type</strong>
@@ -215,6 +221,11 @@ const isSystem = entryType?.isSystem ?? false;
     margin: 0;
     font-size: 0.75rem;
     color: var(--muted);
+  }
+
+  .schema-section {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
   }
 
   .notice {

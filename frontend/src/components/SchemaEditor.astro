@@ -1,0 +1,440 @@
+---
+/**
+ * SchemaEditor Component
+ * Visual editor for creating and modifying entry type schemas
+ *
+ * Usage:
+ *   <SchemaEditor schema={existingSchema} />
+ *
+ * The schema is stored in a hidden input field as JSON and can be submitted with the form.
+ */
+
+export interface Props {
+  schema?: {
+    fields: Array<{
+      key: string;
+      label: string;
+      type: string;
+      [key: string]: any;
+    }>;
+  } | null;
+}
+
+const { schema } = Astro.props;
+const initialSchema = schema || { fields: [] };
+
+// Available field types
+const fieldTypes = [
+  { value: 'text', label: 'Text', description: 'Single-line text input' },
+  { value: 'textarea', label: 'Textarea', description: 'Multi-line plain text' },
+  { value: 'markdown', label: 'Markdown', description: 'Markdown editor' },
+  { value: 'number', label: 'Number', description: 'Numeric input' },
+  { value: 'boolean', label: 'Boolean', description: 'Checkbox toggle' },
+  { value: 'select', label: 'Select', description: 'Dropdown selection' },
+  { value: 'date', label: 'Date', description: 'Date picker' },
+  { value: 'datetime', label: 'DateTime', description: 'Date and time picker' },
+  { value: 'asset', label: 'Asset', description: 'Single asset reference' },
+  { value: 'asset-list', label: 'Asset List', description: 'Multiple assets' },
+  { value: 'resource', label: 'Resource', description: 'Single resource reference' },
+  { value: 'resource-list', label: 'Resource List', description: 'Multiple resources' },
+  { value: 'json', label: 'JSON', description: 'Free-form JSON data' },
+];
+---
+
+<div class="schema-editor">
+  <div class="schema-editor-header">
+    <h3>Content Schema</h3>
+    <p class="help-text">Define the fields for this entry type. Fields will appear in the entry editor in the order shown below.</p>
+  </div>
+
+  <div id="fields-container" class="fields-container">
+    <!-- Fields will be rendered here by client-side JS -->
+  </div>
+
+  <div class="schema-editor-actions">
+    <button type="button" id="add-field-btn" class="button secondary">
+      + Add Field
+    </button>
+  </div>
+
+  <!-- Hidden input to store the schema JSON for form submission -->
+  <input
+    type="hidden"
+    name="schema_json"
+    id="schema-json-input"
+    value={JSON.stringify(initialSchema)}
+  />
+
+  <!-- Schema preview (collapsed by default) -->
+  <details class="schema-preview">
+    <summary>Preview Schema JSON</summary>
+    <pre id="schema-preview-json" class="json-preview">{JSON.stringify(initialSchema, null, 2)}</pre>
+  </details>
+</div>
+
+<style>
+  .schema-editor {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .schema-editor-header h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .help-text {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .fields-container {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .field-editor {
+    padding: 1.5rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    display: grid;
+    gap: 1rem;
+  }
+
+  .field-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .field-editor-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  .field-type-badge {
+    padding: 0.25rem 0.5rem;
+    background: var(--muted-bg);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .field-editor-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .field-editor-actions button {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .field-editor-body {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .field-editor-body .full-width {
+    grid-column: 1 / -1;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 0.375rem;
+  }
+
+  .form-field label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .form-field input,
+  .form-field select,
+  .form-field textarea {
+    padding: 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  .form-field textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-field-help {
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .schema-editor-actions {
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .schema-preview {
+    padding: 1rem;
+    background: var(--muted-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  .schema-preview summary {
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    user-select: none;
+  }
+
+  .json-preview {
+    margin: 1rem 0 0;
+    padding: 1rem;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.75rem;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .empty-state {
+    padding: 3rem 2rem;
+    text-align: center;
+    background: var(--muted-bg);
+    border: 2px dashed var(--line);
+    border-radius: 6px;
+  }
+
+  .empty-state-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .empty-state-text {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+</style>
+
+<script define:vars={{ initialSchema, fieldTypes }}>
+  // Schema state
+  let schema = JSON.parse(JSON.stringify(initialSchema));
+
+  // Render the schema editor
+  function render() {
+    const container = document.getElementById('fields-container');
+    const input = document.getElementById('schema-json-input');
+    const preview = document.getElementById('schema-preview-json');
+
+    if (!container || !input || !preview) return;
+
+    // Update hidden input and preview
+    input.value = JSON.stringify(schema);
+    preview.textContent = JSON.stringify(schema, null, 2);
+
+    // Clear container
+    container.innerHTML = '';
+
+    // Show empty state if no fields
+    if (schema.fields.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <p class="empty-state-title">No fields defined</p>
+          <p class="empty-state-text">Add your first field to define the content structure for this entry type.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Render each field
+    schema.fields.forEach((field, index) => {
+      const fieldEl = createFieldEditor(field, index);
+      container.appendChild(fieldEl);
+    });
+  }
+
+  // Create field editor element
+  function createFieldEditor(field, index) {
+    const div = document.createElement('div');
+    div.className = 'field-editor';
+    div.dataset.index = index;
+
+    const typeInfo = fieldTypes.find(t => t.value === field.type) || { label: field.type };
+
+    div.innerHTML = `
+      <div class="field-editor-header">
+        <div class="field-editor-title">
+          <span>${field.label || 'Untitled Field'}</span>
+          <span class="field-type-badge">${typeInfo.label}</span>
+        </div>
+        <div class="field-editor-actions">
+          ${index > 0 ? '<button type="button" class="button secondary btn-move-up">↑</button>' : ''}
+          ${index < schema.fields.length - 1 ? '<button type="button" class="button secondary btn-move-down">↓</button>' : ''}
+          <button type="button" class="button secondary btn-remove">Remove</button>
+        </div>
+      </div>
+      <div class="field-editor-body">
+        <div class="form-field">
+          <label>Field Key *</label>
+          <input type="text" class="field-key" value="${field.key || ''}" placeholder="e.g., body, title" required />
+          <p class="form-field-help">Unique identifier (letters, numbers, underscores)</p>
+        </div>
+        <div class="form-field">
+          <label>Label *</label>
+          <input type="text" class="field-label" value="${field.label || ''}" placeholder="e.g., Body, Title" required />
+          <p class="form-field-help">Display name in the editor</p>
+        </div>
+        <div class="form-field">
+          <label>Field Type *</label>
+          <select class="field-type" required>
+            ${fieldTypes.map(t => `<option value="${t.value}" ${t.value === field.type ? 'selected' : ''}>${t.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field checkbox-field">
+          <input type="checkbox" class="field-required" ${field.required ? 'checked' : ''} />
+          <label>Required field</label>
+        </div>
+        <div class="form-field full-width">
+          <label>Placeholder Text</label>
+          <input type="text" class="field-placeholder" value="${field.placeholder || ''}" placeholder="Optional hint text" />
+        </div>
+        <div class="form-field full-width">
+          <label>Help Text</label>
+          <textarea class="field-help-text" rows="2" placeholder="Optional description for editors">${field.helpText || ''}</textarea>
+        </div>
+        ${field.type === 'select' ? `
+          <div class="form-field full-width">
+            <label>Options (comma-separated) *</label>
+            <input type="text" class="field-options" value="${(field.options || []).join(', ')}" placeholder="e.g., draft, published" required />
+          </div>
+        ` : ''}
+        ${field.type === 'number' ? `
+          <div class="form-field">
+            <label>Min Value</label>
+            <input type="number" class="field-min" value="${field.min ?? ''}" placeholder="Optional" />
+          </div>
+          <div class="form-field">
+            <label>Max Value</label>
+            <input type="number" class="field-max" value="${field.max ?? ''}" placeholder="Optional" />
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    // Attach event listeners
+    const moveUpBtn = div.querySelector('.btn-move-up');
+    const moveDownBtn = div.querySelector('.btn-move-down');
+    const removeBtn = div.querySelector('.btn-remove');
+
+    if (moveUpBtn) moveUpBtn.addEventListener('click', () => moveField(index, -1));
+    if (moveDownBtn) moveDownBtn.addEventListener('click', () => moveField(index, 1));
+    if (removeBtn) removeBtn.addEventListener('click', () => removeField(index));
+
+    // Update field on input changes
+    div.querySelectorAll('input, select, textarea').forEach(input => {
+      input.addEventListener('input', () => updateField(index, div));
+    });
+
+    return div;
+  }
+
+  // Update field from DOM
+  function updateField(index, fieldEl) {
+    const field = schema.fields[index];
+
+    field.key = fieldEl.querySelector('.field-key').value.trim();
+    field.label = fieldEl.querySelector('.field-label').value.trim();
+    field.type = fieldEl.querySelector('.field-type').value;
+    field.required = fieldEl.querySelector('.field-required').checked;
+    field.placeholder = fieldEl.querySelector('.field-placeholder').value.trim() || undefined;
+    field.helpText = fieldEl.querySelector('.field-help-text').value.trim() || undefined;
+
+    // Type-specific fields
+    if (field.type === 'select') {
+      const optionsInput = fieldEl.querySelector('.field-options');
+      if (optionsInput) {
+        field.options = optionsInput.value.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
+    if (field.type === 'number') {
+      const minInput = fieldEl.querySelector('.field-min');
+      const maxInput = fieldEl.querySelector('.field-max');
+      if (minInput && minInput.value) field.min = parseFloat(minInput.value);
+      if (maxInput && maxInput.value) field.max = parseFloat(maxInput.value);
+    }
+
+    // Update hidden input and preview
+    document.getElementById('schema-json-input').value = JSON.stringify(schema);
+    document.getElementById('schema-preview-json').textContent = JSON.stringify(schema, null, 2);
+  }
+
+  // Add new field
+  function addField() {
+    schema.fields.push({
+      key: `field_${schema.fields.length + 1}`,
+      label: 'New Field',
+      type: 'text',
+      required: false,
+    });
+    render();
+  }
+
+  // Remove field
+  function removeField(index) {
+    if (confirm('Remove this field?')) {
+      schema.fields.splice(index, 1);
+      render();
+    }
+  }
+
+  // Move field
+  function moveField(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= schema.fields.length) return;
+
+    const temp = schema.fields[index];
+    schema.fields[index] = schema.fields[newIndex];
+    schema.fields[newIndex] = temp;
+
+    render();
+  }
+
+  // Initialize
+  document.addEventListener('DOMContentLoaded', () => {
+    render();
+
+    const addBtn = document.getElementById('add-field-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', addField);
+    }
+  });
+</script>
