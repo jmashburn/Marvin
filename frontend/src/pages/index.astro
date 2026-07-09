@@ -5,8 +5,9 @@ import { getSiteClients } from "@/lib/api/platform";
 import { listEntries } from "@/lib/api/entries";
 import { listCollections } from "@/lib/api/collections";
 import { listEntryTypes } from "@/lib/api/entryTypes";
+import { listResources } from "@/lib/api/resources";
 import { getAuthToken } from "@/lib/api/client";
-import type { EntryRead, APIClientRead, EntryTypeRead, CollectionRead } from "@/lib/api/types";
+import type { EntryRead, APIClientRead, EntryTypeRead, CollectionRead, ResourceRead } from "@/lib/api/types";
 
 // Require authentication
 await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
@@ -16,17 +17,19 @@ let entries: EntryRead[] = [];
 let siteClients: APIClientRead[] = [];
 let collections: CollectionRead[] = [];
 let entryTypes: EntryTypeRead[] = [];
+let resources: ResourceRead[] = [];
 let error: string | null = null;
 
 if (!authToken) {
   error = "Authentication required";
 } else {
   try {
-    [entries, siteClients, collections, entryTypes] = await Promise.all([
+    [entries, siteClients, collections, entryTypes, resources] = await Promise.all([
       listEntries(authToken),
       getSiteClients(authToken),
       listCollections(authToken),
       listEntryTypes(authToken),
+      listResources(authToken),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -236,6 +239,10 @@ function getStatusClass(status: string): string {
             <div class="pub-stat">
               <strong>{publishingStats.draft}</strong>
               <span>Drafts</span>
+            </div>
+            <div class="pub-stat">
+              <strong>{resources.length}</strong>
+              <span>Resources</span>
             </div>
             <div class="pub-stat">
               <strong>{publishingStats.activeClients}</strong>
