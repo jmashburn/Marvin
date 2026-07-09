@@ -161,8 +161,8 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
     def _attach_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:
         """Attach collections to an entry."""
-        for position, collection_id in enumerate(collection_ids):
-            junction = EntryCollections(entry_id=entry_id, collection_id=collection_id, position=position)
+        for sort_order, collection_id in enumerate(collection_ids):
+            junction = EntryCollections(entry_id=entry_id, collection_id=collection_id, sort_order=sort_order)
             self.session.add(junction)
         self.session.flush()
 
