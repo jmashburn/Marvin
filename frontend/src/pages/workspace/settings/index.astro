@@ -57,6 +57,7 @@ const tabs = [
   { id: 'general', label: 'General', icon: '⚙' },
   { id: 'members', label: 'Members', icon: '👥' },
   { id: 'entry-types', label: 'Entry Types', icon: '◈' },
+  { id: 'email', label: 'Email', icon: '📧' },
   { id: 'publishing', label: 'Publishing', icon: '🌐' },
   { id: 'automation', label: 'Automation', icon: '⚡' },
   { id: 'integrations', label: 'Integrations', icon: '🔌' },
@@ -139,6 +140,28 @@ const tabs = [
             <div class="link-card disabled">
               <strong>Templates</strong>
               <p>Coming soon</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'email' && (
+        <div class="content-section">
+          <h2>Email Settings</h2>
+          <p class="section-description">Manage email templates and test sending</p>
+
+          <div class="quick-links">
+            <a href="/workspace/settings/email" class="link-card">
+              <strong>Email Templates</strong>
+              <p>Customize invitation and notification emails</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Test Emails</strong>
+              <p>Preview and send test emails (Coming soon)</p>
+            </div>
+            <div class="link-card disabled">
+              <strong>SMTP Configuration</strong>
+              <p>Workspace-specific email settings (Coming soon)</p>
             </div>
           </div>
         </div>

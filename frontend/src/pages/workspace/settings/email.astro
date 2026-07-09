@@ -1,0 +1,305 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+} catch (e) {
+  console.error('[email-settings] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// Email template types
+const emailTemplates = [
+  {
+    id: 'invitation',
+    name: 'Workspace Invitation',
+    description: 'Email sent when inviting new members to the workspace',
+    status: 'active',
+  },
+  {
+    id: 'password-reset',
+    name: 'Password Reset',
+    description: 'Email sent when a user requests a password reset',
+    status: 'coming-soon',
+  },
+  {
+    id: 'notification',
+    name: 'Notifications',
+    description: 'Email notifications for workspace events',
+    status: 'coming-soon',
+  },
+];
+---
+
+<AppLayout title="Email Settings" eyebrow="Workspace">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings" },
+    { label: "Email Settings" }
+  ]} />
+
+  <div class="toolbar">
+    <div>
+      <h2>Email Settings</h2>
+      <p>Manage email templates and test sending for {workspace?.workspace?.name || 'this workspace'}</p>
+    </div>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : (
+    <div class="email-settings">
+      <section class="settings-section">
+        <h3>Email Templates</h3>
+        <p class="section-description">Customize the emails sent from your workspace</p>
+
+        <div class="templates-list">
+          {emailTemplates.map((template) => (
+            <div class="template-card">
+              <div class="template-info">
+                <div class="template-header">
+                  <strong>{template.name}</strong>
+                  {template.status === 'active' ? (
+                    <span class="badge badge-active">Active</span>
+                  ) : (
+                    <span class="badge badge-coming-soon">Coming Soon</span>
+                  )}
+                </div>
+                <p>{template.description}</p>
+              </div>
+              <div class="template-actions">
+                {template.status === 'active' ? (
+                  <>
+                    <button class="button secondary small" disabled>Edit</button>
+                    <button class="button secondary small" disabled>Test Send</button>
+                  </>
+                ) : (
+                  <button class="button secondary small" disabled>Coming Soon</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Test Email Delivery</h3>
+        <p class="section-description">Send a test email to verify your SMTP configuration</p>
+
+        <div class="test-email-form">
+          <div class="form-group">
+            <label for="test-email">Recipient Email</label>
+            <input
+              type="email"
+              id="test-email"
+              placeholder="test@example.com"
+              disabled
+            />
+            <small>Feature coming soon</small>
+          </div>
+          <button class="button" disabled>Send Test Email</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>SMTP Configuration</h3>
+        <p class="section-description">Workspace-specific email server settings (optional)</p>
+
+        <div class="coming-soon-box">
+          <p>📧 Workspace-specific SMTP configuration coming soon</p>
+          <p class="hint">Currently using system-wide SMTP settings from admin configuration</p>
+        </div>
+      </section>
+    </div>
+  )}
+</AppLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .email-settings {
+    max-width: 900px;
+  }
+
+  .settings-section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .settings-section h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .templates-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .template-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .template-info {
+    flex: 1;
+  }
+
+  .template-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .template-header strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .template-info p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .template-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-active {
+    background: rgb(53 122 85 / 0.1);
+    color: var(--good);
+  }
+
+  .badge-coming-soon {
+    background: rgb(169 77 63 / 0.1);
+    color: var(--muted);
+  }
+
+  .test-email-form {
+    display: grid;
+    gap: 16px;
+    max-width: 500px;
+  }
+
+  .form-group {
+    display: grid;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .form-group input {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .form-group input:disabled {
+    background: var(--panel-2);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .form-group small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .coming-soon-box {
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--bg);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+  }
+
+  .coming-soon-box p {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+
+  .coming-soon-box .hint {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .button.small {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+</style>
