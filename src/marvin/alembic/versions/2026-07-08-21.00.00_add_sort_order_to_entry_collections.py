@@ -17,10 +17,28 @@ depends_on = None
 
 
 def upgrade():
-    # Rename 'position' column to 'sort_order'
-    op.alter_column("entry_collections", "position", new_column_name="sort_order")
+    # Check if we need to rename 'position' to 'sort_order'
+    # If position doesn't exist, the table might have been created with sort_order already
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = [col["name"] for col in inspector.get_columns("entry_collections")]
+
+    if "position" in columns and "sort_order" not in columns:
+        # Rename 'position' column to 'sort_order'
+        op.alter_column("entry_collections", "position", new_column_name="sort_order")
+    elif "sort_order" in columns:
+        # sort_order already exists, nothing to do
+        pass
+    else:
+        # Neither exists, add sort_order
+        op.add_column("entry_collections", sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"))
 
 
 def downgrade():
-    # Rename back to 'position'
-    op.alter_column("entry_collections", "sort_order", new_column_name="position")
+    # Check if sort_order exists before trying to rename
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = [col["name"] for col in inspector.get_columns("entry_collections")]
+
+    if "sort_order" in columns:
+        op.alter_column("entry_collections", "sort_order", new_column_name="position")
