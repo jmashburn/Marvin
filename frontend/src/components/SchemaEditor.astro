@@ -63,8 +63,8 @@ const fieldTypes = [
     value={JSON.stringify(initialSchema)}
   />
 
-  <!-- Schema preview (collapsed by default) -->
-  <details class="schema-preview">
+  <!-- Schema preview (collapsed by default, hidden if no fields) -->
+  <details class="schema-preview" id="schema-preview-container" style={initialSchema.fields.length === 0 ? 'display: none;' : ''}>
     <summary>Preview Schema JSON</summary>
     <pre id="schema-preview-json" class="json-preview">{JSON.stringify(initialSchema, null, 2)}</pre>
   </details>
@@ -257,12 +257,18 @@ const fieldTypes = [
     const container = document.getElementById('fields-container');
     const input = document.getElementById('schema-json-input');
     const preview = document.getElementById('schema-preview-json');
+    const previewContainer = document.getElementById('schema-preview-container');
 
     if (!container || !input || !preview) return;
 
     // Update hidden input and preview
     input.value = JSON.stringify(schema);
     preview.textContent = JSON.stringify(schema, null, 2);
+
+    // Show/hide preview based on field count
+    if (previewContainer) {
+      previewContainer.style.display = schema.fields.length === 0 ? 'none' : '';
+    }
 
     // Clear container
     container.innerHTML = '';
