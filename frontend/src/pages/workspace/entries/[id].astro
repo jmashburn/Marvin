@@ -1095,8 +1095,6 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
             }
           }
         }
-
-        alert('Form fields updated from JSON!');
       } catch (e) {
         alert('Invalid JSON: ' + (e instanceof Error ? e.message : String(e)));
       }
