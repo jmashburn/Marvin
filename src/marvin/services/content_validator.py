@@ -15,8 +15,6 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from marvin.schemas.platform.entry_type_schema import (
-    AssetFieldSchema,
-    AssetListFieldSchema,
     BooleanFieldSchema,
     DateFieldSchema,
     DateTimeFieldSchema,
@@ -25,8 +23,6 @@ from marvin.schemas.platform.entry_type_schema import (
     JsonFieldSchema,
     MarkdownFieldSchema,
     NumberFieldSchema,
-    ResourceFieldSchema,
-    ResourceListFieldSchema,
     SelectFieldSchema,
     TextareaFieldSchema,
     TextFieldSchema,
@@ -120,14 +116,6 @@ class ContentValidator(BaseService):
             self._validate_date_field(field_schema, value)
         elif isinstance(field_schema, DateTimeFieldSchema):
             self._validate_datetime_field(field_schema, value)
-        elif isinstance(field_schema, AssetFieldSchema):
-            self._validate_asset_field(field_schema, value)
-        elif isinstance(field_schema, AssetListFieldSchema):
-            self._validate_asset_list_field(field_schema, value)
-        elif isinstance(field_schema, ResourceFieldSchema):
-            self._validate_resource_field(field_schema, value)
-        elif isinstance(field_schema, ResourceListFieldSchema):
-            self._validate_resource_list_field(field_schema, value)
         elif isinstance(field_schema, JsonFieldSchema):
             self._validate_json_field(field_schema, value)
         else:
@@ -310,78 +298,6 @@ class ContentValidator(BaseService):
             field_schema.key,
             f"Expected datetime string or datetime, got {type(value).__name__}",
         )
-
-    def _validate_asset_field(self, field_schema: AssetFieldSchema, value: Any) -> None:
-        """Validate asset field (UUID reference)."""
-        if isinstance(value, UUID):
-            return
-
-        if isinstance(value, str):
-            # Try parsing as UUID
-            try:
-                UUID(value)
-                return
-            except ValueError as e:
-                raise ContentValidationError(
-                    field_schema.key,
-                    f"Invalid UUID format: {e}",
-                )
-
-        raise ContentValidationError(
-            field_schema.key,
-            f"Expected UUID string or UUID, got {type(value).__name__}",
-        )
-
-    def _validate_asset_list_field(self, field_schema: AssetListFieldSchema, value: Any) -> None:
-        """Validate asset list field (list of UUIDs)."""
-        if not isinstance(value, list):
-            raise ContentValidationError(
-                field_schema.key,
-                f"Expected list, got {type(value).__name__}",
-            )
-
-        # Check item count constraints
-        if field_schema.min_items is not None and len(value) < field_schema.min_items:
-            raise ContentValidationError(
-                field_schema.key,
-                f"List has {len(value)} items, minimum is {field_schema.min_items}",
-            )
-
-        if field_schema.max_items is not None and len(value) > field_schema.max_items:
-            raise ContentValidationError(
-                field_schema.key,
-                f"List has {len(value)} items, maximum is {field_schema.max_items}",
-            )
-
-        # Validate each UUID
-        for i, item in enumerate(value):
-            if isinstance(item, UUID):
-                continue
-
-            if isinstance(item, str):
-                try:
-                    UUID(item)
-                    continue
-                except ValueError as e:
-                    raise ContentValidationError(
-                        field_schema.key,
-                        f"Item {i} is not a valid UUID: {e}",
-                    )
-
-            raise ContentValidationError(
-                field_schema.key,
-                f"Item {i} is not a UUID string or UUID, got {type(item).__name__}",
-            )
-
-    def _validate_resource_field(self, field_schema: ResourceFieldSchema, value: Any) -> None:
-        """Validate resource field (UUID reference)."""
-        # Same validation as asset field
-        self._validate_asset_field(field_schema, value)  # type: ignore
-
-    def _validate_resource_list_field(self, field_schema: ResourceListFieldSchema, value: Any) -> None:
-        """Validate resource list field (list of UUIDs)."""
-        # Same validation as asset list field
-        self._validate_asset_list_field(field_schema, value)  # type: ignore
 
     def _validate_json_field(self, field_schema: JsonFieldSchema, value: Any) -> None:
         """Validate JSON field.
