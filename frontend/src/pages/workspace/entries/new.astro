@@ -522,11 +522,21 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
           // Debug: Show all form fields
           const allFormFields = form.querySelectorAll('input, select, textarea');
           console.log('[NewEntry] Total form fields:', allFormFields.length);
+          console.log('[NewEntry] All form field names:', Array.from(allFormFields).map(f => f.getAttribute('name')));
+
+          // Debug: Check schema container
+          const schemaContainer = document.getElementById('schema-fields-container');
+          console.log('[NewEntry] Schema container exists:', !!schemaContainer);
+          if (schemaContainer) {
+            const containerFields = schemaContainer.querySelectorAll('input, select, textarea');
+            console.log('[NewEntry] Fields inside schema container:', containerFields.length);
+            console.log('[NewEntry] Container field names:', Array.from(containerFields).map(f => f.getAttribute('name')));
+          }
 
           const dataJsonFields = form.querySelectorAll('[name^="dataJson."]');
           console.log('[NewEntry] Fields with name starting with dataJson.:', dataJsonFields.length);
           dataJsonFields.forEach(field => {
-            console.log('[NewEntry] Found field:', field.name, field.type, field);
+            console.log('[NewEntry] Found dataJson field:', field.name, field.type, field);
           });
 
           // Update all matching form fields
