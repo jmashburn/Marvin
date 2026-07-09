@@ -15,14 +15,19 @@ if (Astro.request.method === 'POST') {
   try {
     const formData = await Astro.request.formData();
 
-    // Parse data_json from hidden input (source of truth)
-    const dataJsonStr = formData.get('data_json') as string;
-    let dataJson = null;
-    if (dataJsonStr) {
-      try {
-        dataJson = JSON.parse(dataJsonStr);
-      } catch (e) {
-        console.error('[NewEntry] Invalid data_json:', e);
+    // Collect dataJson.* fields from form
+    const dataJson: Record<string, any> = {};
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('dataJson.')) {
+        const fieldKey = key.replace('dataJson.', '');
+        // Handle boolean checkboxes (they submit "true" string or are absent)
+        if (value === 'true' || value === 'false') {
+          dataJson[fieldKey] = value === 'true';
+        } else if (value) {
+          dataJson[fieldKey] = value;
+        } else {
+          dataJson[fieldKey] = null;
+        }
       }
     }
 
@@ -33,7 +38,7 @@ if (Astro.request.method === 'POST') {
       summary: (formData.get('summary') as string) || null,
       description: (formData.get('description') as string) || null,
       status: formData.get('status') as string,
-      data_json: dataJson,
+      data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
     };
 
     const entry = await createEntry(data, authToken);
@@ -157,7 +162,7 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
           <div class="form-group" id="data-json-group" style={preSelectedSchema ? '' : 'display: none;'}>
             <label for="data_json_editor">Data JSON (Schema Fields)</label>
-            <p class="form-help">This is the source of truth - edit JSON directly or use the fields above for convenience.</p>
+            <p class="form-help">Paste complete JSON to populate form fields above.</p>
             <textarea
               id="data_json_editor"
               rows="8"
@@ -171,14 +176,9 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
               null,
               2
             ) : '{}'}</textarea>
-            <input type="hidden" name="data_json" id="data_json_input" value={preSelectedSchema ? JSON.stringify(
-              preSelectedSchema.fields.reduce((acc: any, field: any) => {
-                acc[field.key] = field.defaultValue ?? null;
-                return acc;
-              }, {})
-            ) : '{}'} />
+            <button type="button" id="apply-data-json-btn" class="button secondary" style="margin-top: 0.5rem;">Apply JSON to Form</button>
             <small style="font-size: 11px; color: var(--muted); display: block; margin-top: 0.5rem;">
-              Form fields above update this JSON. This JSON is what gets submitted.
+              Changes here will update the form fields above when you click "Apply JSON to Form"
             </small>
           </div>
 
@@ -488,73 +488,19 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
         console.log('[NewEntry] Rendering schema fields:', fieldsHtml);
         schemaContainer.innerHTML = fieldsHtml;
-
-        // After rendering, set up Data JSON sync (but don't do initial sync - keep the template)
-        setupDataJsonSync(true);
       });
     }
 
-    // Data JSON editor - sync between JSON textarea, hidden input, and form fields
-    let dataJsonEditorListener = null;
-    let schemaInputListener = null;
+    // Data JSON editor - "Apply JSON to Form" button functionality
+    const form = document.querySelector('form');
+    const dataJsonEditor = document.getElementById('data_json_editor');
+    const applyDataJsonBtn = document.getElementById('apply-data-json-btn');
 
-    function setupDataJsonSync(skipInitialSync = false) {
-      const form = document.querySelector('form');
-      const dataJsonEditor = document.getElementById('data_json_editor');
-      const dataJsonInput = document.getElementById('data_json_input');
-      const schemaFieldsContainer = document.getElementById('schema-fields-container');
-
-      if (!form || !dataJsonEditor || !dataJsonInput) return;
-
-      // Update JSON (both display and hidden input) when form fields change
-      function updateDataJsonFromForm() {
-        // Don't update if we don't have the current JSON parsed yet
-        let currentJson = {};
-        try {
-          currentJson = JSON.parse(dataJsonEditor.value || '{}');
-        } catch (e) {
-          console.warn('[NewEntry] Could not parse current JSON, starting fresh');
-        }
-
-        const dataJson = { ...currentJson }; // Start with current JSON to preserve structure
-
-        // Find all schema fields (not using FormData as it skips empty fields)
-        const allFields = form.querySelectorAll('[name^="dataJson."]');
-
-        console.log('[NewEntry] updateDataJsonFromForm found fields:', allFields.length);
-
-        allFields.forEach(field => {
-          const fieldKey = field.name.replace('dataJson.', '');
-
-          if (field.type === 'checkbox') {
-            dataJson[fieldKey] = field.checked;
-          } else if (field.value) {
-            dataJson[fieldKey] = field.value;
-          } else {
-            dataJson[fieldKey] = null;
-          }
-        });
-
-        const jsonString = JSON.stringify(dataJson, null, 2);
-        dataJsonEditor.value = jsonString;
-        dataJsonInput.value = JSON.stringify(dataJson); // Hidden input gets compact JSON
-      }
-
-      // Remove old event listeners to prevent duplicates
-      if (dataJsonEditorListener) {
-        dataJsonEditor.removeEventListener('input', dataJsonEditorListener);
-      }
-      if (schemaInputListener && schemaFieldsContainer) {
-        schemaFieldsContainer.removeEventListener('input', schemaInputListener);
-      }
-
-      // Update form fields AND hidden input when user edits JSON textarea
-      dataJsonEditorListener = () => {
+    if (form && dataJsonEditor && applyDataJsonBtn) {
+      // Update form fields when "Apply JSON to Form" button is clicked
+      applyDataJsonBtn.addEventListener('click', () => {
         try {
           const dataJson = JSON.parse(dataJsonEditor.value);
-
-          // Update hidden input
-          dataJsonInput.value = JSON.stringify(dataJson);
 
           // Update all matching form fields
           for (const [key, value] of Object.entries(dataJson)) {
@@ -569,29 +515,13 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
               }
             }
           }
+
+          console.log('[NewEntry] Applied JSON to form fields');
         } catch (e) {
-          // Invalid JSON - don't update fields or hidden input
+          alert('Invalid JSON. Please check your syntax and try again.');
+          console.error('[NewEntry] Failed to parse JSON:', e);
         }
-      };
-
-      dataJsonEditor.addEventListener('input', dataJsonEditorListener);
-
-      // Listen for changes to schema fields and update JSON
-      schemaInputListener = () => {
-        updateDataJsonFromForm();
-      };
-
-      if (schemaFieldsContainer) {
-        schemaFieldsContainer.addEventListener('input', schemaInputListener);
-      }
-
-      // Initial sync (unless we just set a template)
-      if (!skipInitialSync) {
-        updateDataJsonFromForm();
-      }
+      });
     }
-
-    // Set up Data JSON sync on initial load if schema is pre-selected
-    setupDataJsonSync(false);
   });
 </script>
