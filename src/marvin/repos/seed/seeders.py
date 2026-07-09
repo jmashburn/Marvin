@@ -239,11 +239,18 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                     # Bypass repository to avoid group_id validation
                     from marvin.db.models.platform import EntryTypes
 
-                    entry_type_dict = entry_type_schema.model_dump()
+                    # Map content_schema to schema_json for the model
                     entry_type = EntryTypes(
                         session=self.repos.session,
                         group_id=None,  # System types have no workspace
-                        **entry_type_dict,
+                        name=entry_type_schema.name,
+                        slug=entry_type_schema.slug,
+                        icon=entry_type_schema.icon,
+                        color=entry_type_schema.color,
+                        description=entry_type_schema.description,
+                        sort_order=entry_type_schema.sort_order,
+                        is_system=entry_type_schema.is_system,
+                        schema_json=entry_type_schema.content_schema or {},
                     )
                     self.repos.session.add(entry_type)
                     self.repos.session.commit()

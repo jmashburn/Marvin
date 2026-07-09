@@ -5,9 +5,9 @@
     "icon": "📄",
     "color": "#2563EB",
     "description": "A standard content page with markdown body content.",
-    "sortOrder": 100,
-    "isSystem": true,
-    "schemaJson": {
+    "sort_order": 100,
+    "is_system": true,
+    "schema_json": {
       "fields": [
         {
           "key": "body",
