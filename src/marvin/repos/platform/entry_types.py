@@ -1,6 +1,7 @@
 """Entry type repository."""
 
 from typing import Any
+import logging
 
 from fastapi import HTTPException, status
 from pydantic import UUID4, ValidationError
@@ -10,6 +11,8 @@ from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryTypeRead
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
+
+logger = logging.getLogger(__name__)
 
 
 class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
@@ -53,13 +56,13 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         data_dict = data if isinstance(data, dict) else data.model_dump()
 
         # DEBUG: Log what we received
-        print(f"[DEBUG] create() received data_dict keys: {data_dict.keys()}")
-        print(f"[DEBUG] content_schema in data_dict: {'content_schema' in data_dict}")
-        print(f"[DEBUG] schema_json in data_dict: {'schema_json' in data_dict}")
+        logger.warning(f"[SCHEMA_DEBUG] create() received data_dict keys: {list(data_dict.keys())}")
+        logger.warning(f"[SCHEMA_DEBUG] content_schema in data_dict: {'content_schema' in data_dict}")
+        logger.warning(f"[SCHEMA_DEBUG] schema_json in data_dict: {'schema_json' in data_dict}")
         if "content_schema" in data_dict:
-            print(f"[DEBUG] content_schema value: {data_dict['content_schema']}")
+            logger.warning(f"[SCHEMA_DEBUG] content_schema value: {data_dict['content_schema']}")
         if "schema_json" in data_dict:
-            print(f"[DEBUG] schema_json value: {data_dict['schema_json']}")
+            logger.warning(f"[SCHEMA_DEBUG] schema_json value: {data_dict['schema_json']}")
 
         if self.group_id:
             data_dict["group_id"] = self.group_id
@@ -71,14 +74,14 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         # Map content_schema to schema_json (Pydantic field name to DB column name)
         if "content_schema" in data_dict:
             data_dict["schema_json"] = data_dict.pop("content_schema")
-            print(f"[DEBUG] After mapping, schema_json value: {data_dict['schema_json']}")
+            logger.warning(f"[SCHEMA_DEBUG] After mapping, schema_json value: {data_dict['schema_json']}")
 
         # Validate schema_json if provided
         if "schema_json" in data_dict:
-            print(f"[DEBUG] Validating schema_json: {data_dict['schema_json']}")
+            logger.warning(f"[SCHEMA_DEBUG] Validating schema_json: {data_dict['schema_json']}")
             self._validate_schema_json(data_dict["schema_json"])
 
-        print(f"[DEBUG] Final data_dict before super().create(): {data_dict}")
+        logger.warning(f"[SCHEMA_DEBUG] Final data_dict before super().create(): {data_dict}")
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryTypeRead:
