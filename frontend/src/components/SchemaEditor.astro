@@ -156,6 +156,23 @@ const fieldTypes = [
     grid-column: 1 / -1;
   }
 
+  /* Match parent page form field styling */
+  .field-editor-body input[type="text"],
+  .field-editor-body input[type="number"],
+  .field-editor-body select,
+  .field-editor-body textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  .field-editor-body textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
   /* Checkbox field override for Required checkbox */
   .checkbox-field {
     display: flex;
