@@ -266,13 +266,13 @@ class EntriesController(BaseUserController):
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Entry is already in this collection.")
 
-        # Get max position for this collection
-        max_position = (
-            self.session.query(sa.func.max(EntryCollections.position)).filter(EntryCollections.collection_id == collection_id).scalar()
+        # Get max sort_order for this collection
+        max_sort_order = (
+            self.session.query(sa.func.max(EntryCollections.sort_order)).filter(EntryCollections.collection_id == collection_id).scalar()
         ) or -1
 
         # Create junction record
-        junction = EntryCollections(entry_id=entry_id, collection_id=collection_id, position=max_position + 1)
+        junction = EntryCollections(entry_id=entry_id, collection_id=collection_id, sort_order=max_sort_order + 1)
         self.session.add(junction)
         self.session.commit()
 
