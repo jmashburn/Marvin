@@ -486,23 +486,7 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
           }
         }).join('');
 
-        console.log('[NewEntry] Rendering schema fields HTML length:', fieldsHtml.length);
-        console.log('[NewEntry] First 500 chars of HTML:', fieldsHtml.substring(0, 500));
         schemaContainer.innerHTML = fieldsHtml;
-
-        // Debug: Check what actually got rendered
-        setTimeout(() => {
-          const renderedFields = schemaContainer.querySelectorAll('input, select, textarea');
-          console.log('[NewEntry] After rendering, found inputs:', renderedFields.length);
-          renderedFields.forEach(field => {
-            console.log('[NewEntry] Rendered field:', {
-              tag: field.tagName,
-              name: field.getAttribute('name'),
-              id: field.id,
-              type: field.type
-            });
-          });
-        }, 100);
       });
     }
 
@@ -517,62 +501,11 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
         try {
           const dataJson = JSON.parse(dataJsonEditor.value);
 
-          console.log('[NewEntry] Applying JSON:', dataJson);
-          console.log('[NewEntry] Form element:', form);
-          console.log('[NewEntry] Form contains schema container:', form.contains(document.getElementById('schema-fields-container')));
-
-          // Debug: Show all form fields
-          const allFormFields = form.querySelectorAll('input, select, textarea');
-          console.log('[NewEntry] Total form fields:', allFormFields.length);
-          console.log('[NewEntry] All form field names:', Array.from(allFormFields).map(f => f.getAttribute('name')));
-
-          // Debug: Check schema container
-          const schemaContainer = document.getElementById('schema-fields-container');
-          console.log('[NewEntry] Schema container exists:', !!schemaContainer);
-          if (schemaContainer) {
-            const containerFields = schemaContainer.querySelectorAll('input, select, textarea');
-            console.log('[NewEntry] Fields inside schema container:', containerFields.length);
-            console.log('[NewEntry] Container field names:', Array.from(containerFields).map(f => f.getAttribute('name')));
-          }
-
-          // Try to find all fields that might be dataJson fields (case insensitive)
-          const allDataJsonFields = Array.from(allFormFields).filter(f => {
-            const name = f.getAttribute('name') || '';
-            return name.toLowerCase().startsWith('datajson.');
-          });
-          console.log('[NewEntry] Fields starting with dataJson (case insensitive):', allDataJsonFields.length);
-          allDataJsonFields.forEach(field => {
-            console.log('[NewEntry] Found dataJson field:', field.getAttribute('name'), field.type);
-          });
-
           // Update all matching form fields
           let fieldsUpdated = 0;
           for (const [key, value] of Object.entries(dataJson)) {
-            // Try both camelCase and lowercase versions
-            const fieldNames = [`dataJson.${key}`, `datajson.${key}`];
-            let field = null;
-
-            for (const fieldName of fieldNames) {
-              field = form.querySelector(`[name="${fieldName}"]`);
-              if (field) {
-                console.log(`[NewEntry] Found field with name: ${fieldName}`);
-                break;
-              }
-            }
-
-            // If still not found, try manual search (case insensitive)
-            if (!field) {
-              const allFields = Array.from(form.querySelectorAll('input, select, textarea'));
-              field = allFields.find(f => {
-                const name = f.getAttribute('name') || '';
-                return name.toLowerCase() === `datajson.${key}`.toLowerCase();
-              });
-              if (field) {
-                console.log(`[NewEntry] Found field via case-insensitive search: ${field.getAttribute('name')}`);
-              }
-            }
-
-            console.log(`[NewEntry] Looking for field with key "${key}":`, field ? 'FOUND' : 'NOT FOUND');
+            const fieldName = `dataJson.${key}`;
+            const field = form.querySelector(`[name="${fieldName}"]`);
 
             if (field) {
               if (field.type === 'checkbox') {
@@ -581,14 +514,13 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
                 field.value = value !== null && value !== undefined ? String(value) : '';
               }
               fieldsUpdated++;
-              console.log(`[NewEntry] Updated field to:`, value);
             }
           }
 
-          console.log(`[NewEntry] Applied JSON to ${fieldsUpdated} form fields`);
-
           if (fieldsUpdated === 0) {
             alert('No matching form fields found. Make sure you have selected an entry type first.');
+          } else {
+            console.log(`[NewEntry] Applied JSON to ${fieldsUpdated} form fields`);
           }
         } catch (e) {
           alert('Invalid JSON. Please check your syntax and try again.');
