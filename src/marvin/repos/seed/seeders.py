@@ -215,14 +215,17 @@ class SystemEntryTypeSeeder(AbstractSeeder):
         count_updated = 0
         count_errors = 0
 
+        from marvin.db.models.platform.entry_types import EntryTypes
+
         for entry_type_schema in self.load_data(name):
             try:
                 # Check if system entry type with this slug already exists
+                # Query the table directly, not through the repository
                 existing = (
-                    self.repos.session.query(self.repos.entry_types.sql_model)
+                    self.repos.session.query(EntryTypes)
                     .filter(
-                        self.repos.entry_types.sql_model.slug == entry_type_schema.slug,
-                        self.repos.entry_types.sql_model.group_id.is_(None),
+                        EntryTypes.slug == entry_type_schema.slug,
+                        EntryTypes.group_id.is_(None),
                     )
                     .first()
                 )
@@ -237,7 +240,6 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                 else:
                     # Create new system entry type with group_id=NULL
                     # Create using raw SQLAlchemy insert to bypass repository and auto_init validation
-                    from marvin.db.models.platform.entry_types import EntryTypes
                     from sqlalchemy import insert
 
                     insert_stmt = insert(EntryTypes.__table__).values(
