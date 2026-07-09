@@ -106,46 +106,6 @@ class DateTimeFieldSchema(BaseFieldSchema):
     type: Literal["datetime"]
 
 
-class AssetFieldSchema(BaseFieldSchema):
-    """Single asset reference field.
-
-    Stores the UUID of an Asset from the assets table.
-    """
-
-    type: Literal["asset"]
-
-
-class AssetListFieldSchema(BaseFieldSchema):
-    """Multiple asset references field.
-
-    Stores a list of Asset UUIDs.
-    """
-
-    type: Literal["asset-list"]
-    min_items: int | None = Field(default=None, alias="minItems", description="Minimum number of assets")
-    max_items: int | None = Field(default=None, alias="maxItems", description="Maximum number of assets")
-
-
-class ResourceFieldSchema(BaseFieldSchema):
-    """Single resource reference field.
-
-    Stores the UUID of a Resource from the resources table.
-    """
-
-    type: Literal["resource"]
-
-
-class ResourceListFieldSchema(BaseFieldSchema):
-    """Multiple resource references field.
-
-    Stores a list of Resource UUIDs.
-    """
-
-    type: Literal["resource-list"]
-    min_items: int | None = Field(default=None, alias="minItems", description="Minimum number of resources")
-    max_items: int | None = Field(default=None, alias="maxItems", description="Maximum number of resources")
-
-
 class JsonFieldSchema(BaseFieldSchema):
     """Free-form JSON object field.
 
@@ -157,6 +117,7 @@ class JsonFieldSchema(BaseFieldSchema):
 
 
 # Discriminated union of all field types
+# Note: Asset and Resource fields are handled through the entry UI sidebar, not schema
 FieldSchema = Annotated[
     TextFieldSchema
     | TextareaFieldSchema
@@ -166,10 +127,6 @@ FieldSchema = Annotated[
     | SelectFieldSchema
     | DateFieldSchema
     | DateTimeFieldSchema
-    | AssetFieldSchema
-    | AssetListFieldSchema
-    | ResourceFieldSchema
-    | ResourceListFieldSchema
     | JsonFieldSchema,
     Field(discriminator="type"),
 ]
@@ -177,8 +134,10 @@ FieldSchema = Annotated[
 Discriminated union of all field schema types.
 
 Pydantic automatically validates and deserializes to the correct field type
-based on the 'type' field, following the same pattern as ScheduledTaskCreate's
-schedule_type discriminator.
+based on the 'type' field.
+
+Note: Asset and Resource relationships are managed through the entry edit UI
+sidebar, not through the schema system.
 """
 
 

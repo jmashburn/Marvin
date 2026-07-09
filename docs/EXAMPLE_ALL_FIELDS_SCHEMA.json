@@ -68,37 +68,6 @@
         "helpText": "Date and time picker with timezone"
       },
       {
-        "key": "asset_field",
-        "label": "Asset Field",
-        "type": "asset",
-        "required": false,
-        "helpText": "Single asset reference (image, video, or file)"
-      },
-      {
-        "key": "asset_list_field",
-        "label": "Asset List Field",
-        "type": "asset-list",
-        "required": false,
-        "minItems": 0,
-        "maxItems": 10,
-        "helpText": "Multiple asset references in a collection"
-      },
-      {
-        "key": "resource_field",
-        "label": "Resource Field",
-        "type": "resource",
-        "required": false,
-        "helpText": "Single resource reference (link to another entry)"
-      },
-      {
-        "key": "resource_list_field",
-        "label": "Resource List Field",
-        "type": "resource-list",
-        "required": false,
-        "maxItems": 5,
-        "helpText": "Multiple resource references (links to other entries)"
-      },
-      {
         "key": "json_field",
         "label": "JSON Field",
         "type": "json",
