@@ -9,7 +9,7 @@ export const POST: APIRoute = async ({ params, redirect, cookies }) => {
 
     const authToken = await getAuthToken(cookies);
     await deleteEntryType(id, authToken);
-    return redirect('/entry-types', 303);
+    return redirect('/workspace/entry-types', 303);
   } catch (error) {
     console.error('[entry-types/delete] Error:', error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to delete entry type' }), {
