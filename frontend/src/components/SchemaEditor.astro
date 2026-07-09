@@ -156,45 +156,7 @@ const fieldTypes = [
     grid-column: 1 / -1;
   }
 
-  .form-field {
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .form-field label {
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: var(--ink);
-  }
-
-  .form-field input,
-  .form-field select,
-  .form-field textarea {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--bg);
-    font-size: 0.875rem;
-  }
-
-  .form-field input:focus,
-  .form-field select:focus,
-  .form-field textarea:focus {
-    outline: none;
-    border-color: var(--color-primary, var(--ink));
-  }
-
-  .form-field textarea {
-    resize: vertical;
-    font-family: inherit;
-  }
-
-  .form-field-help {
-    margin: 0;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-
+  /* Checkbox field override for Required checkbox */
   .checkbox-field {
     display: flex;
     align-items: center;
@@ -211,6 +173,7 @@ const fieldTypes = [
   .checkbox-field label {
     cursor: pointer;
     user-select: none;
+    margin: 0;
   }
 
   .schema-preview {
@@ -320,46 +283,46 @@ const fieldTypes = [
         </div>
       </div>
       <div class="field-editor-body">
-        <div class="form-field">
+        <div class="form-group">
           <label>Field Key *</label>
           <input type="text" class="field-key" value="${field.key || ''}" placeholder="e.g., body, title" required />
-          <p class="form-field-help">Unique identifier (letters, numbers, underscores)</p>
+          <p class="form-help">Unique identifier (letters, numbers, underscores)</p>
         </div>
-        <div class="form-field">
+        <div class="form-group">
           <label>Label *</label>
           <input type="text" class="field-label" value="${field.label || ''}" placeholder="e.g., Body, Title" required />
-          <p class="form-field-help">Display name in the editor</p>
+          <p class="form-help">Display name in the editor</p>
         </div>
-        <div class="form-field">
+        <div class="form-group">
           <label>Field Type *</label>
           <select class="field-type" required>
             ${fieldTypes.map(t => `<option value="${t.value}" ${t.value === field.type ? 'selected' : ''}>${t.label}</option>`).join('')}
           </select>
         </div>
-        <div class="form-field checkbox-field">
+        <div class="form-group checkbox-field">
           <input type="checkbox" class="field-required" ${field.required ? 'checked' : ''} />
           <label>Required field</label>
         </div>
-        <div class="form-field full-width">
+        <div class="form-group full-width">
           <label>Placeholder Text</label>
           <input type="text" class="field-placeholder" value="${field.placeholder || ''}" placeholder="Optional hint text" />
         </div>
-        <div class="form-field full-width">
+        <div class="form-group full-width">
           <label>Help Text</label>
           <textarea class="field-help-text" rows="2" placeholder="Optional description for editors">${field.helpText || ''}</textarea>
         </div>
         ${field.type === 'select' ? `
-          <div class="form-field full-width">
+          <div class="form-group full-width">
             <label>Options (comma-separated) *</label>
             <input type="text" class="field-options" value="${(field.options || []).join(', ')}" placeholder="e.g., draft, published" required />
           </div>
         ` : ''}
         ${field.type === 'number' ? `
-          <div class="form-field">
+          <div class="form-group">
             <label>Min Value</label>
             <input type="number" class="field-min" value="${field.min ?? ''}" placeholder="Optional" />
           </div>
-          <div class="form-field">
+          <div class="form-group">
             <label>Max Value</label>
             <input type="number" class="field-max" value="${field.max ?? ''}" placeholder="Optional" />
           </div>
