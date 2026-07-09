@@ -115,14 +115,22 @@ class WorkspaceSeedLoader:
             f"{results['errors']} errors"
         )
 
-        # 4. Send owner invitation email if ownerEmail is provided
+        # 4. Send owner invitation emails if provided
         workspace_data = data.get("workspace")
-        if workspace_data and workspace_data.get("ownerEmail"):
-            try:
-                self._send_owner_invitation(workspace_data["ownerEmail"], workspace)
-            except Exception as e:
-                self.logger.error(f"Failed to send owner invitation email: {e}")
-                results["errors"] += 1
+        if workspace_data:
+            # Support both single ownerEmail and multiple ownerEmails
+            owner_emails = []
+            if workspace_data.get("ownerEmail"):
+                owner_emails.append(workspace_data["ownerEmail"])
+            if workspace_data.get("ownerEmails"):
+                owner_emails.extend(workspace_data["ownerEmails"])
+
+            for owner_email in owner_emails:
+                try:
+                    self._send_owner_invitation(owner_email, workspace)
+                except Exception as e:
+                    self.logger.error(f"Failed to send owner invitation to {owner_email}: {e}")
+                    results["errors"] += 1
 
         return results
 
@@ -138,13 +146,23 @@ class WorkspaceSeedLoader:
         from marvin.schemas.group.group import GroupCreate
         from marvin.services.group.group_service import GroupService
 
-        # Check if workspace exists by slug
-        existing_groups = self.repos.groups.multi_query({"slug": data["slug"]})
+        # Check if workspace exists by slug (if provided) or by name
+        existing_groups = None
+
+        if data.get("slug"):
+            # Try to find by slug first
+            existing_groups = self.repos.groups.multi_query({"slug": data["slug"]})
+            if existing_groups:
+                self.logger.info(f"Workspace found by slug: {data['slug']}")
+                return existing_groups[0]
+
+        # If no slug or slug not found, try to find by name
+        existing_groups = self.repos.groups.multi_query({"name": data["name"]})
         if existing_groups:
-            self.logger.info(f"Workspace already exists: {data['slug']}")
+            self.logger.info(f"Workspace found by name: {data['name']}")
             return existing_groups[0]
 
-        # Create new workspace
+        # Create new workspace if not found
         group_create = GroupCreate(
             name=data["name"],
             slug=data.get("slug"),  # Optional, will be auto-generated if not provided

@@ -57,18 +57,43 @@ class WorkspaceExporter:
         """Export workspace metadata.
 
         Returns:
-            Dictionary with workspace name and slug
+            Dictionary with workspace name and owner emails
         """
         workspace = self.repos.groups.get_one(self.repos.group_id)
 
         if not workspace:
             return {}
 
-        return {
+        # Get all workspace members with OWNER role
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+
+        owner_members = (
+            self.repos.session.query(WorkspaceMembers)
+            .filter(
+                WorkspaceMembers.group_id == self.repos.group_id,
+                WorkspaceMembers.workspace_role == "OWNER",
+            )
+            .all()
+        )
+
+        # Get owner emails
+        owner_emails = []
+        for member in owner_members:
+            user = self.repos.users.get_one(member.user_id)
+            if user and user.email:
+                owner_emails.append(user.email)
+
+        result = {
             "name": workspace.name,
-            "slug": workspace.slug,
-            # Note: ownerEmail is not exported - it's only used during initial import
+            # Note: slug NOT exported to prevent conflicts on re-import
+            # The workspace will be matched by name, keeping its existing slug
         }
+
+        # Only add ownerEmails if there are any
+        if owner_emails:
+            result["ownerEmails"] = owner_emails
+
+        return result
 
     def _export_site_preferences(self) -> dict[str, Any]:
         """Export site preferences/configuration.
