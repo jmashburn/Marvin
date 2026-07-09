@@ -41,9 +41,20 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         )
 
     def _entry_type_exists(self, entry_type_id: UUID4) -> bool:
+        """Check if entry type exists (includes system types)."""
+        from sqlalchemy import or_
+
         query = select(EntryTypes.id).filter_by(id=entry_type_id)
         if self.group_id:
-            query = query.filter_by(group_id=self.group_id)
+            # Include both workspace types AND system types
+            query = query.filter(
+                or_(
+                    EntryTypes.group_id == self.group_id,
+                    EntryTypes.group_id.is_(None),
+                )
+            )
+        else:
+            query = query.filter(EntryTypes.group_id.is_(None))
         return self.session.scalar(query) is not None
 
     def _get_entry_type(self, entry_type_id: UUID4) -> EntryTypes | None:
