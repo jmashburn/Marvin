@@ -221,11 +221,9 @@ class WorkspaceSeedLoader:
                 from marvin.db.models.platform import EntryCollections
 
                 junction = EntryCollections(
-                    session=self.repos.session,
-                    id=None,  # Auto-generated
                     entry_id=entry_id,
                     collection_id=collection.id,
-                    order=order,
+                    sort_order=order,
                 )
                 self.repos.session.add(junction)
                 self.repos.session.commit()

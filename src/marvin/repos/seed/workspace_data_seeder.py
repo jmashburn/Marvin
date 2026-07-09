@@ -79,8 +79,9 @@ class WorkspaceDataSeeder:
 
         results = {"created": 0, "updated": 0, "errors": 0}
 
-        # Process all .json files in the directory
-        json_files = sorted(seed_dir.glob("*.json"))
+        # Process all .json files in the directory (excluding workspace-*.json files
+        # which are handled by WorkspaceSeedLoader)
+        json_files = sorted([f for f in seed_dir.glob("*.json") if not f.name.startswith("workspace-")])
 
         if not json_files:
             self.logger.debug(f"No JSON files found in: {seed_dir}")

@@ -151,6 +151,9 @@ class AppSettings(BaseSettings):
 
     ALLOW_SIGNUP: bool = False
 
+    DATA_DIR: Path | None = None
+    """Root directory for application data (database, assets, seeds, etc.)"""
+
     @property
     def logger(self) -> logging.Logger:
         """
@@ -711,6 +714,7 @@ def app_settings_constructor(
         _secrets_dir=secrets_dir,  # type: ignore
         **{"SECRET": determine_secrets(data_dir, production)},
         **{"ENV_SECRETS": dotenv_values(env_secrets)},
+        **{"DATA_DIR": data_dir},
     )
 
     app_settings.DB_PROVIDER = db_provider_factory(
