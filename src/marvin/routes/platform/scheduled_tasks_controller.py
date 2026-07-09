@@ -10,14 +10,14 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import UUID4
 
-from marvin.routes._base.controller import BaseUserController, controller
+from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform.scheduled_tasks import (
     ScheduledTaskCreate,
     ScheduledTaskExecutionLogRead,
     ScheduledTaskRead,
     ScheduledTaskUpdate,
 )
-from marvin.services.event_bus_service import EventTypes
+from marvin.services.event_bus_service.event_types import EventTypes
 from marvin.services.event_bus_service.event_types import EventScheduledTaskData
 
 router = APIRouter(prefix="/scheduled-tasks", tags=["Platform: Scheduled Tasks"])
