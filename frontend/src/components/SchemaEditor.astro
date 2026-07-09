@@ -425,8 +425,8 @@ const fieldTypes = [
       updateField(index, div);
     });
 
-    // Update field on other input changes
-    div.querySelectorAll('select, textarea, input[type="checkbox"], input[type="number"]').forEach(input => {
+    // Update field on other input changes (placeholder, help text, type, required, etc.)
+    div.querySelectorAll('.field-placeholder, .field-help-text, .field-type, .field-required, .field-options, .field-min, .field-max').forEach(input => {
       input.addEventListener('input', () => updateField(index, div));
     });
 
