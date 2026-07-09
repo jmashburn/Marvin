@@ -49,7 +49,15 @@ const fieldTypes = [
     <p class="form-help">Define the fields for this entry type. Fields will appear in the entry editor in the order shown below.</p>
   </div>
 
-  <!-- Schema JSON Editor (always visible, at top) -->
+  <div id="fields-container" class="fields-container">
+    <!-- Fields will be rendered here by client-side JS -->
+  </div>
+
+  <button type="button" id="add-field-btn" class="button secondary">
+    + Add Field
+  </button>
+
+  <!-- Schema JSON Editor (always visible, at bottom) -->
   <div class="schema-json-editor">
     <label>Edit Schema JSON</label>
     <p class="form-help">Paste JSON schema here and click Apply to quickly create fields, or edit the JSON directly.</p>
@@ -61,14 +69,6 @@ const fieldTypes = [
     >{JSON.stringify(initialSchema, null, 2)}</textarea>
     <button type="button" id="apply-json-btn" class="button secondary">Apply JSON to Form</button>
   </div>
-
-  <div id="fields-container" class="fields-container">
-    <!-- Fields will be rendered here by client-side JS -->
-  </div>
-
-  <button type="button" id="add-field-btn" class="button secondary">
-    + Add Field
-  </button>
 
   <!-- Hidden input to store the schema JSON for form submission -->
   <input
