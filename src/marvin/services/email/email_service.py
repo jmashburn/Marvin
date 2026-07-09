@@ -179,27 +179,42 @@ class EmailService(BaseService):
         )
         return self.send_email(recipient_address, forgot_password_template)
 
-    def send_invitation(self, recipient_address: str, invitation_url: str) -> bool:  # Renamed params
+    def send_invitation(self, recipient_address: str, invitation_url: str, group_id: str | None = None) -> bool:
         """
         Sends a group invitation email to a prospective user.
 
         The email contains a unique URL for accepting the invitation and registering.
-        Content is defined by localization keys.
+        Looks for a database template first, falls back to filesystem/hardcoded template.
 
         Args:
             recipient_address (str): The email address of the person being invited.
             invitation_url (str): The URL the recipient will click to accept the invitation.
+            group_id (str | None): Workspace ID for workspace-specific templates.
 
         Returns:
             bool: True if the email was sent successfully, False otherwise.
         """
-        # Construct the EmailTemplate with content specific to invitations
+        # Try to load template from database
+        db_template = self._get_db_template("invitation", group_id)
+
+        if db_template:
+            # Use database template with Jinja2 rendering
+            return self._send_db_template(
+                recipient_address,
+                db_template,
+                {
+                    "invitation_url": invitation_url,
+                    "button_link": invitation_url,
+                },
+            )
+
+        # Fallback to hardcoded template
         invitation_template = EmailTemplate(
-            subject="Invitation to Join",  # Localization key for subject
+            subject="Invitation to Join",
             header_text="You're Invited!",
             message_top="You have been invited to join",
             message_bottom="Please click the button above to accept the invitation.",
-            button_link=invitation_url,  # The actual invitation URL
+            button_link=invitation_url,
             button_text="Accept Invitation",
         )
         return self.send_email(recipient_address, invitation_template)
@@ -227,3 +242,89 @@ class EmailService(BaseService):
             button_text="Open",
         )
         return self.send_email(recipient_address, test_email_template)
+
+    def _get_db_template(self, template_type: str, group_id: str | None = None):
+        """Get email template from database.
+
+        Looks for workspace-specific template first, then system-wide template.
+
+        Args:
+            template_type: Type of template (invitation, password_reset, etc.)
+            group_id: Workspace ID for workspace-specific templates
+
+        Returns:
+            EmailTemplateModel or None if not found
+        """
+        try:
+            from marvin.db.db_setup import session_context
+            from marvin.db.models.groups.email_templates import EmailTemplateModel
+
+            with session_context() as session:
+                # Try workspace-specific template first
+                if group_id:
+                    template = session.query(EmailTemplateModel).filter_by(template_type=template_type, group_id=group_id, enabled=True).first()
+                    if template:
+                        return template
+
+                # Fall back to system-wide template
+                template = session.query(EmailTemplateModel).filter_by(template_type=template_type, group_id=None, enabled=True).first()
+                return template
+        except Exception as e:
+            self.logger.warning(f"Failed to load database template '{template_type}': {e}")
+            return None
+
+    def _send_db_template(self, recipient_address: str, db_template, variables: dict) -> bool:
+        """Send email using database template.
+
+        Supports two modes:
+        1. Structured: Uses header_text, message_top, etc. with default.html template
+        2. Custom HTML: Uses custom_html field with Jinja2 rendering
+
+        Args:
+            recipient_address: Email recipient
+            db_template: EmailTemplateModel from database
+            variables: Dictionary of variables to render in the template
+
+        Returns:
+            bool: True if email sent successfully
+        """
+        try:
+            from jinja2 import Template
+
+            # Render subject with Jinja2
+            subject_template = Template(db_template.subject)
+            subject = subject_template.render(**variables)
+
+            # Determine rendering mode
+            if db_template.custom_html:
+                # Mode 1: Custom HTML - render the full HTML with variables
+                html_template = Template(db_template.custom_html)
+                html_content = html_template.render(**variables)
+            else:
+                # Mode 2: Structured - use EmailTemplate class with default.html
+                # Build EmailTemplate from database fields
+                template_data = EmailTemplate(
+                    subject=subject,
+                    header_text=Template(db_template.header_text or "").render(**variables),
+                    message_top=Template(db_template.message_top or "").render(**variables),
+                    message_bottom=Template(db_template.message_bottom or "").render(**variables),
+                    button_link=variables.get("button_link", ""),
+                    button_text=Template(db_template.button_text or "").render(**variables),
+                )
+                # Render with default.html template
+                html_content = template_data.render_html(self.default_template)
+
+            # Send via configured sender
+            if not self.settings.SMTP_ENABLED:
+                self.logger.info(f"SMTP is disabled. Email not sent to {recipient_address} (Subject: {subject}).")
+                return False
+
+            success = self.sender.send(recipient_address, subject, html_content)
+            if success:
+                self.logger.info(f"Email '{subject}' sent successfully to {recipient_address} (DB template: {db_template.name}).")
+            else:
+                self.logger.error(f"Failed to send email '{subject}' to {recipient_address}.")
+            return success
+        except Exception as e:
+            self.logger.error(f"Error rendering database template: {e}")
+            return False

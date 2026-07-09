@@ -400,6 +400,7 @@ class WorkspaceSeedLoader:
             success = email_service.send_invitation(
                 recipient_address=owner_email,
                 invitation_url=registration_url,
+                group_id=str(self.repos.group_id) if self.repos.group_id else None,
             )
 
             if success:
