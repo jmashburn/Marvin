@@ -85,8 +85,8 @@ class EntryTypeRead(_MarvinModel):
     description: str | None = None
     sort_order: int
     is_system: bool
-    content_schema: dict = Field(
-        default_factory=dict,
+    content_schema: dict | None = Field(
+        default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
         alias="schema_json",
