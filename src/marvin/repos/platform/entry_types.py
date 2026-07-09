@@ -16,9 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
-    """Repository for workspace-scoped entry types.
+    """Repository for workspace-scoped and system-level entry types.
 
     Validates schema_json against EntryTypeSchemaDefinition when creating/updating.
+
+    System entry types (group_id=NULL, is_system=True) are globally available
+    to all workspaces and cannot be modified or deleted via standard methods.
     """
 
     def __init__(self, session: Session, group_id: UUID4 | None) -> None:
@@ -29,6 +32,29 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             schema=EntryTypeRead,
             group_id=group_id,
         )
+
+    def _build_query(self, **kwargs):
+        """
+        Override to include system entry types (group_id IS NULL) in addition
+        to workspace-scoped types.
+        """
+        from sqlalchemy import or_
+
+        query = self.session.query(self.sql_model)
+
+        # Include both workspace-scoped types AND system types
+        if self.group_id:
+            query = query.filter(
+                or_(
+                    self.sql_model.group_id == self.group_id,
+                    self.sql_model.group_id.is_(None),
+                )
+            )
+        else:
+            # If no group_id, only show system types
+            query = query.filter(self.sql_model.group_id.is_(None))
+
+        return query
 
     def _validate_schema_json(self, schema_json: dict | None) -> None:
         """Validate schema_json against EntryTypeSchemaDefinition.
@@ -73,6 +99,14 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryTypeRead:
+        # Check if this is a system entry type
+        entry_type = self.get_one(match_value)
+        if entry_type and entry_type.is_system and entry_type.group_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="System entry types cannot be modified.",
+            )
+
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
         # Auto-regenerate slug if name is being updated
@@ -94,6 +128,14 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         return super().update(match_value, data_dict, match_key=match_key)
 
     def delete(self, value: Any, match_key: str | None = None) -> EntryTypeRead:
+        # Check if this is a system entry type
+        entry_type = self.get_one(value)
+        if entry_type and entry_type.is_system and entry_type.group_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="System entry types cannot be deleted.",
+            )
+
         entry_count = self._count_attribute("entry_type_id", value)
         if entry_count:
             raise HTTPException(

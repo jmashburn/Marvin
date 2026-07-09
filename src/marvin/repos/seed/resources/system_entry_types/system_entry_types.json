@@ -1,0 +1,212 @@
+[
+  {
+    "name": "Page",
+    "slug": "page",
+    "icon": "📄",
+    "color": "#2563EB",
+    "description": "A standard content page with markdown body content.",
+    "sortOrder": 100,
+    "isSystem": true,
+    "schemaJson": {
+      "fields": [
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "markdown",
+          "required": true,
+          "placeholder": "Write page content..."
+        }
+      ]
+    }
+  },
+  {
+    "name": "Article",
+    "slug": "article",
+    "icon": "📝",
+    "color": "#7C3AED",
+    "description": "A publishable article, note, or long-form post.",
+    "sortOrder": 200,
+    "isSystem": true,
+    "schemaJson": {
+      "fields": [
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "markdown",
+          "required": true
+        },
+        {
+          "key": "heroImage",
+          "label": "Hero Image",
+          "type": "asset",
+          "required": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "Project",
+    "slug": "project",
+    "icon": "🛠️",
+    "color": "#D97706",
+    "description": "A documented project, build, case study, or body of work.",
+    "sortOrder": 300,
+    "isSystem": true,
+    "schemaJson": {
+      "fields": [
+        {
+          "key": "overview",
+          "label": "Overview",
+          "type": "markdown",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Project Status",
+          "type": "select",
+          "options": ["planned", "active", "paused", "completed", "archived"],
+          "defaultValue": "active"
+        },
+        {
+          "key": "startedAt",
+          "label": "Started At",
+          "type": "date"
+        },
+        {
+          "key": "completedAt",
+          "label": "Completed At",
+          "type": "date"
+        },
+        {
+          "key": "gallery",
+          "label": "Gallery",
+          "type": "asset-list"
+        },
+        {
+          "key": "relatedResources",
+          "label": "Related Resources",
+          "type": "resource-list"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Reference",
+    "slug": "reference",
+    "icon": "📚",
+    "color": "#059669",
+    "description": "Evergreen reference material, documentation, or guides.",
+    "sortOrder": 400,
+    "isSystem": true,
+    "schemaJson": {
+      "fields": [
+        {
+          "key": "body",
+          "label": "Reference Content",
+          "type": "markdown",
+          "required": true
+        },
+        {
+          "key": "category",
+          "label": "Category",
+          "type": "text"
+        },
+        {
+          "key": "relatedEntries",
+          "label": "Related Entries",
+          "type": "resource-list"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Navigation Item",
+    "slug": "navigation-item",
+    "icon": "🔗",
+    "color": "#0F766E",
+    "description": "A generic navigation or menu link.",
+    "sortOrder": 500,
+    "isSystem": true,
+    "schemaJson": {
+      "fields": [
+        {
+          "key": "href",
+          "label": "Destination",
+          "type": "text",
+          "required": true,
+          "placeholder": "/about"
+        },
+        {
+          "key": "openInNewTab",
+          "label": "Open in New Tab",
+          "type": "boolean",
+          "defaultValue": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "Resource",
+    "slug": "resource",
+    "icon": "📦",
+    "color": "#6B7280",
+    "description": "A reusable object, material, supplier, tool, link, or reference.",
+    "sortOrder": 600,
+    "isSystem": true,
+    "schemaJson": {
+      "fields": [
+        {
+          "key": "resourceType",
+          "label": "Resource Type",
+          "type": "text",
+          "placeholder": "material, supplier, tool, book, link..."
+        },
+        {
+          "key": "body",
+          "label": "Notes",
+          "type": "markdown"
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text"
+        },
+        {
+          "key": "assets",
+          "label": "Assets",
+          "type": "asset-list"
+        }
+      ]
+    }
+  },
+  {
+    "name": "FAQ",
+    "slug": "faq",
+    "icon": "❓",
+    "color": "#9333EA",
+    "description": "A question and answer entry.",
+    "sortOrder": 700,
+    "isSystem": true,
+    "schemaJson": {
+      "fields": [
+        {
+          "key": "question",
+          "label": "Question",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "answer",
+          "label": "Answer",
+          "type": "markdown",
+          "required": true
+        },
+        {
+          "key": "category",
+          "label": "Category",
+          "type": "text"
+        }
+      ]
+    }
+  }
+]

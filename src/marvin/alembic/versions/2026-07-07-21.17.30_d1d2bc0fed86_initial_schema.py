@@ -75,7 +75,7 @@ def upgrade() -> None:
     op.create_table(
         "entry_types",
         sa.Column("id", marvin.db.migration_types.GUID(), nullable=False),
-        sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=False),
+        sa.Column("group_id", marvin.db.migration_types.GUID(), nullable=True),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("icon", sa.String(), nullable=True),

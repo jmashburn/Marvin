@@ -84,6 +84,10 @@ def init_db(session: orm.Session) -> None:
     seeder_service = SeederService(group_repos)
     seeder_service.seed_notifier_options("notification_options")
 
+    # Seed system-level entry types (globally available to all workspaces)
+    system_seeder_service = SeederService(instance_repos)  # Use instance_repos (no group_id) for system types
+    system_seeder_service.seed_system_entry_types("system_entry_types")
+
 
 def default_group_init(repos: AllRepositories, name: str) -> GroupRead:
     """

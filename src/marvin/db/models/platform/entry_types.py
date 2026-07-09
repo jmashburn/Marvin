@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class EntryTypes(SqlAlchemyBase, BaseMixins):
-    """Workspace-defined entry type.
+    """Workspace-defined or system-level entry type.
 
     Entry Types define schema-driven content models that specify:
     - What fields exist (via schema_json)
@@ -26,12 +26,15 @@ class EntryTypes(SqlAlchemyBase, BaseMixins):
 
     The schema_json field stores an EntryTypeSchemaDefinition that is used
     to validate entries.data_json when creating/updating entries.
+
+    System entry types (is_system=True, group_id=NULL) are globally available
+    to all workspaces and cannot be modified or deleted.
     """
 
     __tablename__ = "entry_types"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    group_id: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(sa.String, nullable=False)
     slug: Mapped[str] = mapped_column(sa.String, nullable=False)
     icon: Mapped[str | None] = mapped_column(sa.String, nullable=True)
