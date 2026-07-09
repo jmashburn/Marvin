@@ -236,12 +236,11 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                     count_updated += 1
                 else:
                     # Create new system entry type with group_id=NULL
-                    # Bypass repository to avoid group_id validation
-                    from marvin.db.models.platform import EntryTypes
+                    # Create using raw SQLAlchemy insert to bypass repository and auto_init validation
+                    from marvin.db.models.platform.entry_types import EntryTypes
+                    from sqlalchemy import insert
 
-                    # Map content_schema to schema_json for the model
-                    entry_type = EntryTypes(
-                        session=self.repos.session,
+                    insert_stmt = insert(EntryTypes.__table__).values(
                         group_id=None,  # System types have no workspace
                         name=entry_type_schema.name,
                         slug=entry_type_schema.slug,
@@ -252,7 +251,7 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                         is_system=entry_type_schema.is_system,
                         schema_json=entry_type_schema.content_schema or {},
                     )
-                    self.repos.session.add(entry_type)
+                    self.repos.session.execute(insert_stmt)
                     self.repos.session.commit()
                     self.logger.debug(f"Created system entry type: {entry_type_schema.slug}")
                     count_seeded += 1
