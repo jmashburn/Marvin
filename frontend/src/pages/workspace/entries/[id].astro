@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import SchemaForm from "@/components/SchemaForm.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
@@ -21,6 +22,20 @@ if (Astro.request.method === 'POST' && id && authToken) {
     const assetIds = formData.getAll('asset_ids') as string[];
     const resourceIds = formData.getAll('resource_ids') as string[];
 
+    // Parse dataJson from schema fields (dataJson.fieldKey format)
+    const dataJson: Record<string, any> = {};
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('dataJson.')) {
+        const fieldKey = key.replace('dataJson.', '');
+        // Handle boolean checkboxes (only present if checked)
+        if (value === 'true' || value === 'false') {
+          dataJson[fieldKey] = value === 'true';
+        } else {
+          dataJson[fieldKey] = value || null;
+        }
+      }
+    }
+
     // Parse metadata JSON
     const metadataJsonStr = formData.get('metadata_json') as string | null;
     let metadataJson = null;
@@ -39,7 +54,7 @@ if (Astro.request.method === 'POST' && id && authToken) {
       slug: (formData.get('slug') as string) || null,
       summary: (formData.get('summary') as string) || null,
       description: (formData.get('description') as string) || null,
-      content_markdown: (formData.get('content_markdown') as string) || null,
+      data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
       status: formData.get('status') as string,
       metadata_json: metadataJson,
       collection_ids: collectionIds,
@@ -88,6 +103,10 @@ const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
 const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 const attachedAssetIds = new Set((entry?.assets || []).map((a: any) => a.id));
 const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.id));
+
+// Get entry type schema for schema-driven form
+const entryType = entry ? entryTypes.find(t => t.id === entry.entryTypeId) : null;
+const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?.length > 0;
 ---
 
 <AppLayout title={entry ? entry.title : "Edit Entry"}>
@@ -126,35 +145,40 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
               />
             </div>
 
-            <div class="form-group">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-                <label for="content_markdown" style="margin:0;">
-                  Content (Markdown)
-                  {entry.contentMarkdown && (
-                    <span style="color:var(--muted);font-weight:normal;margin-left:8px;">
-                      ({entry.contentMarkdown.length} characters)
-                    </span>
-                  )}
-                </label>
-                <div class="markdown-tabs">
-                  <button type="button" class="tab-btn active" data-tab="edit">Edit</button>
-                  <button type="button" class="tab-btn" data-tab="preview">Preview</button>
+            {/* Schema-driven content fields */}
+            {hasSchema ? (
+              <div class="schema-content-section">
+                <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:600;">Content Fields</h3>
+                <SchemaForm
+                  schema={entryType.schemaJson}
+                  values={entry.dataJson || {}}
+                />
+              </div>
+            ) : (
+              <div class="legacy-content-section">
+                <div class="migration-notice">
+                  <p>
+                    <strong>⚠️ Legacy Content Mode</strong>
+                  </p>
+                  <p style="margin:0.5rem 0 0;">
+                    This entry type doesn't have a schema defined yet.
+                    Using the legacy markdown field.
+                    <a href={`/workspace/entry-types/${entry.entryTypeId}`}>Add a schema →</a>
+                  </p>
+                </div>
+
+                <div class="form-group">
+                  <label for="content_markdown">Content (Markdown)</label>
+                  <textarea
+                    id="content_markdown"
+                    name="dataJson.body"
+                    rows="20"
+                    placeholder="Write your content in Markdown..."
+                    class="content-markdown-field"
+                  >{entry.contentMarkdown || entry.dataJson?.body || ""}</textarea>
                 </div>
               </div>
-              <div class="markdown-editor-container">
-                <textarea
-                  id="content_markdown"
-                  name="content_markdown"
-                  rows="20"
-                  placeholder="Write your content in Markdown..."
-                  class="tab-content active"
-                  data-tab-content="edit"
-                >{entry.contentMarkdown || ""}</textarea>
-                <div class="markdown-preview tab-content" data-tab-content="preview">
-                  <p style="color:var(--muted);text-align:center;padding:2rem;">Start typing to see preview...</p>
-                </div>
-              </div>
-            </div>
+            )}
 
             <div class="form-group">
               <label for="metadata_json">Metadata (JSON)</label>
