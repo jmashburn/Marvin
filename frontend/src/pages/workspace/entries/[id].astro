@@ -227,13 +227,17 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
 
             <div class="form-group">
               <label for="entry_type_id">Entry Type</label>
-              <select id="entry_type_id" name="entry_type_id" form="entry-form" value={entry.entryTypeId}>
+              <select id="entry_type_id" name="entry_type_id" form="entry-form" value={entry.entryTypeId} disabled>
                 {sortedTypes.map((type) => (
-                  <option value={type.id}>
+                  <option value={type.id} selected={type.id === entry.entryTypeId}>
                     {type.icon && `${type.icon} `}{type.name}
                   </option>
                 ))}
               </select>
+              <p class="form-help" style="color: var(--muted); font-size: 0.75rem; margin-top: 0.25rem;">
+                Entry type cannot be changed after creation
+              </p>
+              <input type="hidden" name="entry_type_id" value={entry.entryTypeId} />
             </div>
 
             <div class="form-group">
