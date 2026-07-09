@@ -2,6 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import SlugInput from "@/components/SlugInput.astro";
+import EmojiPicker from "@/components/EmojiPicker.astro";
 ---
 
 <AppLayout title="Create Entry Type">
@@ -37,13 +38,7 @@ import SlugInput from "@/components/SlugInput.astro";
       <div class="form-row">
         <div class="form-group">
           <label for="icon">Icon</label>
-          <input
-            type="text"
-            id="icon"
-            name="icon"
-            placeholder="e.g., 📚, ✨, 🎨"
-            maxlength="4"
-          />
+          <EmojiPicker inputId="icon" value="📚" />
           <p class="form-help">Emoji or symbol</p>
         </div>
 
