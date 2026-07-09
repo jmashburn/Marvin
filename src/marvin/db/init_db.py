@@ -28,6 +28,7 @@ from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
 from marvin.repos.seed.init_users import default_user_init
 from marvin.repos.seed.workspace_data_seeder import WorkspaceDataSeeder
+from marvin.repos.seed.workspace_seed_loader import WorkspaceSeedLoader
 from marvin.schemas.group.group import GroupCreate, GroupRead
 from marvin.services.group.group_service import GroupService
 from marvin.services.seeders.seeder_service import SeederService
@@ -95,6 +96,15 @@ def init_db(session: orm.Session) -> None:
         seed_dir = Path(data_dir) / "seeds"
         if seed_dir.exists():
             logger.info(f"Seeding workspace data from: {seed_dir}")
+
+            # Look for complete workspace seed files (workspace-*.json)
+            workspace_seeds = list(seed_dir.glob("workspace-*.json"))
+            if workspace_seeds:
+                workspace_loader = WorkspaceSeedLoader(group_repos, logger)
+                for seed_file in workspace_seeds:
+                    workspace_loader.load_seed_file(seed_file)
+
+            # Also process legacy entry-only seeds
             workspace_seeder = WorkspaceDataSeeder(group_repos, logger)
             workspace_seeder.seed_from_directory(seed_dir)
 
