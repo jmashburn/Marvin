@@ -123,11 +123,11 @@ class CollectionsController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
 
         # Query entries via junction table, eagerly load entry_collections for the order field
-        from marvin.db.models.platform import Entry
+        from marvin.db.models.platform.entries import Entries
 
         entries = (
-            self.session.query(Entry)
-            .join(EntryCollections, Entry.id == EntryCollections.entry_id)
+            self.session.query(Entries)
+            .join(EntryCollections, Entries.id == EntryCollections.entry_id)
             .filter(EntryCollections.collection_id == item_id)
             .order_by(
                 sa.case(
@@ -135,7 +135,7 @@ class CollectionsController(BaseUserController):
                     else_=0,
                 ),
                 EntryCollections.sort_order.asc(),
-                Entry.published_at.desc(),
+                Entries.published_at.desc(),
             )
             .all()
         )
