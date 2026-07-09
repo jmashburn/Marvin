@@ -49,15 +49,28 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
     def _get_entry_type(self, entry_type_id: UUID4) -> EntryTypes | None:
         """Get entry type by ID.
 
+        Includes both workspace-scoped types AND system types (group_id=NULL).
+
         Args:
             entry_type_id: Entry type UUID
 
         Returns:
             EntryTypes model or None if not found
         """
+        from sqlalchemy import or_
+
         query = select(EntryTypes).filter_by(id=entry_type_id)
         if self.group_id:
-            query = query.filter_by(group_id=self.group_id)
+            # Include both workspace types AND system types
+            query = query.filter(
+                or_(
+                    EntryTypes.group_id == self.group_id,
+                    EntryTypes.group_id.is_(None),
+                )
+            )
+        else:
+            # If no group_id, only system types
+            query = query.filter(EntryTypes.group_id.is_(None))
         return self.session.scalar(query)
 
     def _validate_content(self, entry_type_id: UUID4, data_json: dict) -> None:
