@@ -171,11 +171,11 @@ class WorkspaceSeedLoader:
 
         if update_data:
             # Update preferences using the preferences repository
-            # Use multi_query to find by group_id since get_one uses primary key
+            # Use multi_query to find by group_id, then update by group_id (not id)
             prefs_list = self.repos.group_preferences.multi_query({"group_id": self.repos.group_id})
             if prefs_list:
-                prefs = prefs_list[0]
-                self.repos.group_preferences.update(prefs.id, update_data)
+                # Update using group_id as the match key
+                self.repos.group_preferences.update(self.repos.group_id, update_data, match_key="group_id")
                 self.logger.info(f"Updated site preferences ({len(update_data)} fields)")
             else:
                 self.logger.warning("Group preferences not found - cannot update site settings")
