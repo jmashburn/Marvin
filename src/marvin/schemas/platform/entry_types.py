@@ -20,16 +20,17 @@ class EntryTypeCreate(_MarvinModel):
     description: str | None = None
     sort_order: int = 0
     is_system: bool = False
-    schema_json: dict | None = Field(
+    content_schema: dict | None = Field(
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
+        alias="schema_json",
     )
 
-    @field_validator("schema_json")
+    @field_validator("content_schema")
     @classmethod
-    def validate_schema_json(cls, value: dict | None) -> dict | None:
-        """Validate schema_json against EntryTypeSchemaDefinition."""
+    def validate_content_schema(cls, value: dict | None) -> dict | None:
+        """Validate content_schema against EntryTypeSchemaDefinition."""
         if value is None:
             return None
 
@@ -51,16 +52,17 @@ class EntryTypeUpdate(_MarvinModel):
     description: str | None = None
     sort_order: int | None = None
     is_system: bool | None = None
-    schema_json: dict | None = Field(
+    content_schema: dict | None = Field(
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
+        alias="schema_json",
     )
 
-    @field_validator("schema_json")
+    @field_validator("content_schema")
     @classmethod
-    def validate_schema_json(cls, value: dict | None) -> dict | None:
-        """Validate schema_json against EntryTypeSchemaDefinition."""
+    def validate_content_schema(cls, value: dict | None) -> dict | None:
+        """Validate content_schema against EntryTypeSchemaDefinition."""
         if value is None:
             return None
 
@@ -83,10 +85,11 @@ class EntryTypeRead(_MarvinModel):
     description: str | None = None
     sort_order: int
     is_system: bool
-    schema_json: dict = Field(
+    content_schema: dict = Field(
         default_factory=dict,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
+        alias="schema_json",
     )
     created_at: datetime | None = None
     update_at: datetime | None = None
