@@ -349,6 +349,30 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
       });
     }
 
+    // Function to sync form fields to JSON editor (defined early so it can be called later)
+    function updateDataJsonFromForm() {
+      const form = document.getElementById('entry-form');
+      const dataJsonEditor = document.getElementById('data_json_editor');
+      if (!form || !dataJsonEditor) return;
+
+      const dataJson = {};
+      const dataJsonFields = form.querySelectorAll('[name^="dataJson."]');
+
+      dataJsonFields.forEach(field => {
+        const fieldKey = field.name.replace('dataJson.', '');
+
+        if (field.type === 'checkbox') {
+          dataJson[fieldKey] = field.checked;
+        } else if (field.value) {
+          dataJson[fieldKey] = field.value;
+        } else {
+          dataJson[fieldKey] = null;
+        }
+      });
+
+      dataJsonEditor.value = JSON.stringify(dataJson, null, 2);
+    }
+
     // Dynamically render schema fields when entry type changes
     const entryTypeSelect = document.getElementById('entry_type_id');
     const schemaContainer = document.getElementById('schema-fields-container');
@@ -490,12 +514,20 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
       });
     }
 
-    // Data JSON editor - "Apply JSON to Form" button functionality
+    // Data JSON editor - bidirectional sync with form fields
     const form = document.getElementById('entry-form');
     const dataJsonEditor = document.getElementById('data_json_editor');
     const applyDataJsonBtn = document.getElementById('apply-data-json-btn');
 
     if (form && dataJsonEditor && applyDataJsonBtn) {
+      // Listen for changes to schema fields (updateDataJsonFromForm is defined above)
+      form.addEventListener('input', (e) => {
+        const target = e.target;
+        if (target.name && target.name.startsWith('dataJson.')) {
+          updateDataJsonFromForm();
+        }
+      });
+
       // Update form fields when "Apply JSON to Form" button is clicked
       applyDataJsonBtn.addEventListener('click', () => {
         try {
@@ -527,6 +559,12 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
           console.error('[NewEntry] Failed to parse JSON:', e);
         }
       });
+
+      // Do initial sync if fields are pre-populated
+      const schemaContainer = document.getElementById('schema-fields-container');
+      if (schemaContainer && schemaContainer.querySelectorAll('[name^="dataJson."]').length > 0) {
+        updateDataJsonFromForm();
+      }
     }
   });
 </script>
