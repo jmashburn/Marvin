@@ -144,118 +144,137 @@ const groupId = workspace?.workspace?.group?.id;
       <form id="template-form">
         <input type="hidden" id="template-id" />
 
-        <div class="form-grid">
+        <div class="form-section">
+          <h4 class="section-label">Basic Information</h4>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="template-type">Template Type *</label>
+              <input
+                type="text"
+                id="template-type"
+                placeholder="e.g., invitation, password_reset"
+                required
+              />
+              <small>Identifier for this template (lowercase, underscores allowed)</small>
+            </div>
+
+            <div class="form-group">
+              <label for="template-name">Display Name *</label>
+              <input
+                type="text"
+                id="template-name"
+                placeholder="e.g., Workspace Invitation"
+                required
+              />
+            </div>
+          </div>
+
           <div class="form-group">
-            <label for="template-type">Template Type *</label>
+            <label for="template-description">Description</label>
             <input
               type="text"
-              id="template-type"
-              placeholder="e.g., invitation, password_reset"
+              id="template-description"
+              placeholder="Brief description of this template"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="template-subject">Email Subject *</label>
+            <input
+              type="text"
+              id="template-subject"
+              placeholder="e.g., You're invited to {{ workspace_name }}"
               required
             />
-            <small>Identifier for this template (lowercase, underscores allowed)</small>
-          </div>
-
-          <div class="form-group">
-            <label for="template-name">Name *</label>
-            <input
-              type="text"
-              id="template-name"
-              placeholder="e.g., Workspace Invitation"
-              required
-            />
+            <small>Use {'{{ variable }}'} for dynamic values</small>
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="template-description">Description</label>
-          <input
-            type="text"
-            id="template-description"
-            placeholder="Brief description of this template"
-          />
-        </div>
+        <div class="form-section">
+          <h4 class="section-label">Template Content</h4>
 
-        <div class="form-group">
-          <label for="template-subject">Subject *</label>
-          <input
-            type="text"
-            id="template-subject"
-            placeholder="e.g., You're invited to {{ workspace_name }}"
-            required
-          />
-          <small>Use {'{{ variable }}'} for dynamic values</small>
-        </div>
-
-        <div class="template-mode-tabs">
-          <button type="button" class="mode-tab active" data-mode="structured">
-            Structured Template
-          </button>
-          <button type="button" class="mode-tab" data-mode="custom">
-            Custom HTML
-          </button>
-        </div>
-
-        <div id="structured-fields" class="template-mode-content">
-          <div class="form-group">
-            <label for="template-header">Header Text</label>
-            <input
-              type="text"
-              id="template-header"
-              placeholder="e.g., You're Invited!"
-            />
+          <div class="template-mode-tabs">
+            <button type="button" class="mode-tab active" data-mode="structured">
+              <span>📝 Structured Template</span>
+              <small>Use the default email layout</small>
+            </button>
+            <button type="button" class="mode-tab" data-mode="custom">
+              <span>💻 Custom HTML</span>
+              <small>Full control over design</small>
+            </button>
           </div>
 
-          <div class="form-group">
-            <label for="template-message-top">Message Top</label>
-            <textarea
-              id="template-message-top"
-              rows="3"
-              placeholder="Main message content (supports {{ variables }})"
-            ></textarea>
+          <div id="structured-fields" class="template-mode-content">
+            <div class="form-group">
+              <label for="template-header">Header Text</label>
+              <input
+                type="text"
+                id="template-header"
+                placeholder="e.g., You're Invited!"
+              />
+              <small>Large heading at the top of the email</small>
+            </div>
+
+            <div class="form-group">
+              <label for="template-message-top">Message Top</label>
+              <textarea
+                id="template-message-top"
+                rows="4"
+                placeholder="Main message content (supports {{ variables }})"
+              ></textarea>
+              <small>Primary message shown above the button</small>
+            </div>
+
+            <div class="form-group">
+              <label for="template-button-text">Button Text</label>
+              <input
+                type="text"
+                id="template-button-text"
+                placeholder="e.g., Accept Invitation"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="template-message-bottom">Message Bottom</label>
+              <textarea
+                id="template-message-bottom"
+                rows="3"
+                placeholder="Additional message content"
+              ></textarea>
+              <small>Secondary message shown below the button</small>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label for="template-message-bottom">Message Bottom</label>
-            <textarea
-              id="template-message-bottom"
-              rows="3"
-              placeholder="Additional message content"
-            ></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="template-button-text">Button Text</label>
-            <input
-              type="text"
-              id="template-button-text"
-              placeholder="e.g., Accept Invitation"
-            />
-          </div>
-        </div>
-
-        <div id="custom-html-field" class="template-mode-content" style="display: none;">
-          <div class="form-group">
-            <label for="template-custom-html">Custom HTML Template</label>
-            <textarea
-              id="template-custom-html"
-              rows="12"
-              placeholder="Full Jinja2 HTML template with {{ variables }}"
-            ></textarea>
-            <small>Full control over HTML structure and styling</small>
+          <div id="custom-html-field" class="template-mode-content" style="display: none;">
+            <div class="form-group">
+              <label for="template-custom-html">Custom HTML Template</label>
+              <textarea
+                id="template-custom-html"
+                rows="16"
+                placeholder="<!DOCTYPE html>
+<html>
+<body>
+  <h1>{{ workspace_name }}</h1>
+  <p>Your custom email content here...</p>
+</body>
+</html>"
+              ></textarea>
+              <small>Full Jinja2 HTML template with complete control over styling and structure</small>
+            </div>
           </div>
         </div>
 
-        <div class="form-group">
-          <label>
+        <div class="form-section form-section-compact">
+          <label class="checkbox-label">
             <input type="checkbox" id="template-enabled" checked />
-            Enabled
+            <span>Enable this template</span>
           </label>
         </div>
 
         <div class="modal-actions">
           <button type="button" class="button secondary" id="cancel-btn">Cancel</button>
-          <button type="submit" class="button">Save Template</button>
+          <button type="submit" class="button primary">Save Template</button>
         </div>
       </form>
     </div>
@@ -753,12 +772,19 @@ const groupId = workspace?.workspace?.group?.id;
 
   .modal-content {
     position: relative;
-    max-width: 700px;
+    max-width: 750px;
     max-height: 90vh;
     margin: 5vh auto;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-content > form {
     overflow-y: auto;
   }
 
@@ -800,7 +826,28 @@ const groupId = workspace?.workspace?.group?.id;
   }
 
   .modal form {
+    padding: 0;
+  }
+
+  .form-section {
     padding: 24px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .form-section:last-of-type {
+    border-bottom: none;
+  }
+
+  .form-section-compact {
+    padding: 16px 24px;
+  }
+
+  .section-label {
+    margin: 0 0 20px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
   }
 
   .form-grid {
@@ -811,14 +858,19 @@ const groupId = workspace?.workspace?.group?.id;
   }
 
   .modal .form-group {
-    margin-bottom: 16px;
+    margin-bottom: 20px;
+  }
+
+  .modal .form-group:last-child {
+    margin-bottom: 0;
   }
 
   .modal .form-group label {
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     font-size: 14px;
     font-weight: 500;
+    color: var(--text);
   }
 
   .modal .form-group input[type="text"],
@@ -832,6 +884,13 @@ const groupId = workspace?.workspace?.group?.id;
     font-family: inherit;
     background: var(--bg);
     color: var(--text);
+    transition: border-color 0.15s;
+  }
+
+  .modal .form-group input:focus,
+  .modal .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
   }
 
   .modal .form-group input:disabled {
@@ -842,54 +901,106 @@ const groupId = workspace?.workspace?.group?.id;
 
   .modal .form-group textarea {
     resize: vertical;
-    font-family: monospace;
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   .modal .form-group small {
     display: block;
-    margin-top: 4px;
+    margin-top: 6px;
     font-size: 12px;
     color: var(--muted);
+    line-height: 1.4;
   }
 
-  .modal .form-group input[type="checkbox"] {
-    margin-right: 8px;
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
   }
 
   .template-mode-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
-    border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
   }
 
   .mode-tab {
-    background: none;
-    border: none;
-    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    background: var(--bg);
+    border: 2px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
     font-size: 14px;
     font-weight: 500;
-    color: var(--muted);
+    color: var(--text);
     cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    transition: all 0.15s;
+    text-align: left;
   }
 
   .mode-tab:hover {
-    color: var(--text);
+    border-color: var(--primary);
+    background: var(--panel);
   }
 
   .mode-tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
+    border-color: var(--primary);
+    background: var(--primary);
+    color: white;
+  }
+
+  .mode-tab span {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .mode-tab small {
+    display: block;
+    font-size: 12px;
+    opacity: 0.8;
+    font-weight: 400;
+  }
+
+  .template-mode-content {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .modal-actions {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
-    padding-top: 16px;
+    padding: 20px 24px;
+    background: var(--panel-2);
     border-top: 1px solid var(--line);
-    margin-top: 24px;
+  }
+
+  .button.primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .button.primary:hover {
+    opacity: 0.9;
   }
 </style>
