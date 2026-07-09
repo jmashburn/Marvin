@@ -504,19 +504,17 @@ async def get_published_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    # Get published entries in this collection
+    # Get entries in this collection
+    # Filter by status based on permissions
     from marvin.db.models.platform import EntryCollections
 
-    entries = (
-        session.query(Entries)
-        .join(EntryCollections)
-        .filter(
-            EntryCollections.collection_id == collection.id,
-            Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
-        )
-        .order_by(EntryCollections.sort_order.asc(), Entries.published_at.desc())
-        .all()
-    )
+    query = session.query(Entries).join(EntryCollections).filter(EntryCollections.collection_id == collection.id)
+
+    # Only filter to published entries if user doesn't have permission to read all
+    if not perms.has_permission(Permissions.READ_ALL_ENTRIES):
+        query = query.filter(Entries.status == settings.PUBLISHING_DEFAULT_STATUS)
+
+    entries = query.order_by(EntryCollections.sort_order.asc(), Entries.published_at.desc()).all()
 
     # Convert to list items
     entry_items = []
