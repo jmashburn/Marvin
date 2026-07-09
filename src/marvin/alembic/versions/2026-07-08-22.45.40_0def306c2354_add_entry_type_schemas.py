@@ -3,8 +3,8 @@
 This migration transforms Entry Types from simple categorizations into schema-driven
 content models. It:
 
-1. Adds schema_json to entry_types table (JSONB)
-2. Adds data_json to entries table (JSONB)
+1. Adds schema_json to entry_types table (JSON)
+2. Adds data_json to entries table (JSON)
 3. Migrates existing content_markdown to data_json.body
 4. Drops content_markdown column
 
@@ -21,7 +21,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB
 import marvin.db.migration_types
 
 # revision identifiers, used by Alembic.
@@ -48,10 +47,10 @@ def upgrade() -> None:
     connection = op.get_bind()
 
     # Step 1: Add schema_json to entry_types (nullable initially)
-    op.add_column("entry_types", sa.Column("schema_json", JSONB(), nullable=True))
+    op.add_column("entry_types", sa.Column("schema_json", sa.JSON(), nullable=True))
 
     # Step 2: Add data_json to entries (nullable initially)
-    op.add_column("entries", sa.Column("data_json", JSONB(), nullable=True))
+    op.add_column("entries", sa.Column("data_json", sa.JSON(), nullable=True))
 
     # Step 3: Populate default schema for all entry types
     connection.execute(
@@ -65,10 +64,11 @@ def upgrade() -> None:
 
     # Step 4: Migrate content_markdown to data_json.body
     # For entries with content_markdown, create {body: content_markdown}
+    # SQLite compatible: use JSON function
     connection.execute(
         sa.text("""
             UPDATE entries
-            SET data_json = jsonb_build_object('body', content_markdown)
+            SET data_json = json_object('body', content_markdown)
             WHERE content_markdown IS NOT NULL
         """)
     )
@@ -77,7 +77,7 @@ def upgrade() -> None:
     connection.execute(
         sa.text("""
             UPDATE entries
-            SET data_json = '{}'::jsonb
+            SET data_json = '{}'
             WHERE data_json IS NULL
         """)
     )
