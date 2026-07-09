@@ -147,27 +147,17 @@ const groupId = workspace?.workspace?.group?.id;
         <div class="form-section">
           <h4 class="section-label">Basic Information</h4>
 
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="template-type">Template Type *</label>
-              <input
-                type="text"
-                id="template-type"
-                placeholder="e.g., invitation, password_reset"
-                required
-              />
-              <small>Identifier for this template (lowercase, underscores allowed)</small>
-            </div>
+          <input type="hidden" id="template-type" />
 
-            <div class="form-group">
-              <label for="template-name">Display Name *</label>
-              <input
-                type="text"
-                id="template-name"
-                placeholder="e.g., Workspace Invitation"
-                required
-              />
-            </div>
+          <div class="form-group">
+            <label for="template-name">Template Name *</label>
+            <input
+              type="text"
+              id="template-name"
+              placeholder="e.g., Workspace Invitation"
+              required
+            />
+            <small>A friendly name for this template. The template type will be automatically generated.</small>
           </div>
 
           <div class="form-group">
@@ -312,6 +302,19 @@ const groupId = workspace?.workspace?.group?.id;
   <script define:vars={{ groupId }}>
     const GROUP_ID = groupId;
 
+    // Slugify function
+    function slugify(text) {
+      return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '_')           // Replace spaces with _
+        .replace(/[^\w\-]+/g, '')       // Remove non-word chars
+        .replace(/\_\_+/g, '_')         // Replace multiple _ with single _
+        .replace(/^-+/, '')             // Trim _ from start
+        .replace(/-+$/, '');            // Trim _ from end
+    }
+
     // Modal management
     const templateModal = document.getElementById('template-modal');
     const testSendModal = document.getElementById('test-send-modal');
@@ -346,12 +349,22 @@ const groupId = workspace?.workspace?.group?.id;
       });
     });
 
+    // Auto-generate template type from name
+    let isEditMode = false;
+    document.getElementById('template-name').addEventListener('input', (e) => {
+      if (!isEditMode) {
+        const slug = slugify(e.target.value);
+        document.getElementById('template-type').value = slug;
+      }
+    });
+
     // Create template
     document.getElementById('create-template-btn').addEventListener('click', () => {
+      isEditMode = false;
       document.getElementById('modal-title').textContent = 'Create Email Template';
-      document.getElementById('template-type').disabled = false;
       templateForm.reset();
       document.getElementById('template-id').value = '';
+      document.getElementById('template-type').value = '';
       showModal(templateModal);
     });
 
@@ -367,10 +380,10 @@ const groupId = workspace?.workspace?.group?.id;
 
           const template = await response.json();
 
+          isEditMode = true;
           document.getElementById('modal-title').textContent = 'Edit Email Template';
           document.getElementById('template-id').value = template.id;
           document.getElementById('template-type').value = template.template_type;
-          document.getElementById('template-type').disabled = true;
           document.getElementById('template-name').value = template.name;
           document.getElementById('template-description').value = template.description || '';
           document.getElementById('template-subject').value = template.subject;
