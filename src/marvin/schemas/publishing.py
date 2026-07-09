@@ -126,6 +126,9 @@ class PublishedEntryListItem(_MarvinModel):
     published_at: datetime | None = None
     """Timestamp when the entry was published."""
 
+    status: str
+    """Entry status (e.g., 'published', 'draft', 'needs_review')."""
+
     collections: list[str] = []
     """List of collection slugs this entry belongs to."""
 

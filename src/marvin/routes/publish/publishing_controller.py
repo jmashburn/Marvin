@@ -538,6 +538,7 @@ async def get_published_collection(
                 entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
                 summary=entry.summary,
                 published_at=entry.published_at,
+                status=entry.status,
                 collections=collection_slugs,
                 assets=asset_slugs,
                 resources=resource_slugs,
