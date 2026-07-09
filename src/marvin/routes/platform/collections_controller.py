@@ -1,10 +1,12 @@
 """Collection routes."""
 
+import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
 
+from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
-from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate
+from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate, EntryRead
 from marvin.services.event_bus_service.event_types import EventCollectionData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/collections")
@@ -99,3 +101,30 @@ class CollectionsController(BaseUserController):
 
         self.repos.collections.delete(item_id)
         return {"status": "ok", "message": "Collection deleted successfully"}
+
+    @router.get("/{item_id}/entries", response_model=list[EntryRead], summary="Get Collection Entries")
+    def get_collection_entries(self, item_id: UUID4) -> list[EntryRead]:
+        """Get all entries in a collection, ordered by sort_order."""
+        collection = self.repos.collections.get_one(item_id)
+        if not collection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+
+        # Query entries via junction table, eagerly load entry_collections for the order field
+        from marvin.db.models.platform import Entry
+
+        entries = (
+            self.session.query(Entry)
+            .join(EntryCollections, Entry.id == EntryCollections.entry_id)
+            .filter(EntryCollections.collection_id == item_id)
+            .order_by(
+                sa.case(
+                    (EntryCollections.sort_order.is_(None), 1),
+                    else_=0,
+                ),
+                EntryCollections.sort_order.asc(),
+                Entry.published_at.desc(),
+            )
+            .all()
+        )
+
+        return entries
