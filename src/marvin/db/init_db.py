@@ -100,7 +100,8 @@ def init_db(session: orm.Session) -> None:
             # Look for complete workspace seed files (workspace-*.json)
             workspace_seeds = list(seed_dir.glob("workspace-*.json"))
             if workspace_seeds:
-                workspace_loader = WorkspaceSeedLoader(group_repos, logger)
+                # Use instance_repos (no group_id) so loader can create/find workspaces
+                workspace_loader = WorkspaceSeedLoader(instance_repos, logger)
                 for seed_file in workspace_seeds:
                     workspace_loader.load_seed_file(seed_file)
 

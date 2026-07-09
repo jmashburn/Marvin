@@ -54,6 +54,16 @@ class WorkspaceSeedLoader:
             "errors": 0,
         }
 
+        # 0. Create or find workspace from seed file
+        workspace_data = data.get("workspace")
+        if workspace_data:
+            workspace = self._ensure_workspace(workspace_data)
+            # Switch repos to this workspace's context
+            from marvin.repos.all_repositories import get_repositories
+
+            self.repos = get_repositories(self.repos.session, group_id=workspace.id)
+            self.logger.info(f"Using workspace: {workspace.name} ({workspace.slug})")
+
         # Process in order: collections -> entry_types -> entries
         # (entries reference collections and entry types)
 
@@ -101,6 +111,34 @@ class WorkspaceSeedLoader:
         )
 
         return results
+
+    def _ensure_workspace(self, data: dict[str, Any]):
+        """Create workspace if it doesn't exist, or return existing one.
+
+        Args:
+            data: Workspace data from seed file
+
+        Returns:
+            GroupRead: The workspace/group
+        """
+        from marvin.schemas.group.group import GroupCreate
+        from marvin.services.group.group_service import GroupService
+
+        # Check if workspace exists by slug
+        existing_groups = self.repos.groups.multi_query({"slug": data["slug"]})
+        if existing_groups:
+            self.logger.info(f"Workspace already exists: {data['slug']}")
+            return existing_groups[0]
+
+        # Create new workspace
+        group_create = GroupCreate(
+            name=data["name"],
+            slug=data.get("slug"),  # Optional, will be auto-generated if not provided
+        )
+
+        workspace = GroupService.create_group(self.repos, group_create)
+        self.logger.info(f"Created workspace: {workspace.name} ({workspace.slug})")
+        return workspace
 
     def _create_collection(self, data: dict[str, Any]) -> None:
         """Create a collection if it doesn't exist.
