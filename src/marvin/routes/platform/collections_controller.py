@@ -140,7 +140,7 @@ class CollectionsController(BaseUserController):
             .all()
         )
 
-        return entries
+        return [EntryRead.model_validate(entry) for entry in entries]
 
     @router.patch("/{item_id}/entries/order", summary="Reorder Collection Entries")
     def reorder_collection_entries(self, item_id: UUID4, data: ReorderEntriesRequest) -> dict:
