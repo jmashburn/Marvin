@@ -241,8 +241,8 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
             <h3>Entry Details</h3>
 
             <div class="form-group">
-              <label for="entry_type_id">Entry Type</label>
-              <select id="entry_type_id" name="entry_type_id" form="entry-form" value={entry.entryTypeId} disabled>
+              <label for="entry_type_display">Entry Type</label>
+              <select id="entry_type_display" form="entry-form" disabled>
                 {sortedTypes.map((type) => (
                   <option value={type.id} selected={type.id === entry.entryTypeId}>
                     {type.icon && `${type.icon} `}{type.name}
