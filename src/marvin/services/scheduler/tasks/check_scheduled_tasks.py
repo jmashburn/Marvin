@@ -10,7 +10,7 @@ from datetime import datetime
 from marvin.core import root_logger
 from marvin.db.db_setup import session_context
 from marvin.repos.repository_factory import AllRepositories
-from marvin.services.event_bus_service import EventBusService
+from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import EventScheduledTaskData, EventTypes
 
 logger = root_logger.get_logger(__name__)

@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Type
 
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
-from marvin.services.event_bus_service import EventBusService
+from marvin.services.event_bus_service.event_bus_service import EventBusService
 
 
 class ScheduledTaskHandler(ABC):
