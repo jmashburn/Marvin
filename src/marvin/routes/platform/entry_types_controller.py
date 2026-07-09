@@ -23,8 +23,6 @@ class EntryTypesController(BaseUserController):
 
     @router.post("", response_model=EntryTypeRead, status_code=status.HTTP_201_CREATED, summary="Create Entry Type")
     def create_entry_type(self, data: EntryTypeCreate) -> EntryTypeRead:
-        logger.warning(f"[SCHEMA_DEBUG] Controller received EntryTypeCreate: {data.model_dump()}")
-        logger.warning(f"[SCHEMA_DEBUG] content_schema value: {data.content_schema}")
         entry_type = self.repos.entry_types.create(data)
 
         # Emit event
