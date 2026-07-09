@@ -149,7 +149,7 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
             {preSelectedSchema && <SchemaForm schema={preSelectedSchema} />}
           </div>
 
-          <div class="form-group">
+          <div class="form-group" id="data-json-group" style={preSelectedSchema ? '' : 'display: none;'}>
             <label for="data_json_editor">Data JSON (Schema Fields)</label>
             <p class="form-help">View or edit schema field data as JSON. Paste complete JSON to populate form fields.</p>
             <textarea
@@ -157,7 +157,14 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
               rows="8"
               placeholder='{"text_field": "value", "number_field": 42}'
               class="data-json-editor"
-            >{}</textarea>
+            >{preSelectedSchema ? JSON.stringify(
+              preSelectedSchema.fields.reduce((acc: any, field: any) => {
+                acc[field.key] = field.defaultValue ?? null;
+                return acc;
+              }, {}),
+              null,
+              2
+            ) : '{}'}</textarea>
             <button type="button" id="apply-data-json-btn" class="button secondary" style="margin-top: 0.5rem;">Apply JSON to Form</button>
             <small style="font-size: 11px; color: var(--muted); display: block; margin-top: 0.5rem;">
               Changes here will update the form fields above when you click "Apply JSON to Form"
@@ -348,8 +355,12 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
       entryTypeSelect.addEventListener('change', () => {
         console.log('[NewEntry] Entry type changed:', entryTypeSelect.value);
         const selectedTypeId = entryTypeSelect.value;
+        const dataJsonGroup = document.getElementById('data-json-group');
+        const dataJsonEditor = document.getElementById('data_json_editor');
+
         if (!selectedTypeId) {
           schemaContainer.innerHTML = '';
+          if (dataJsonGroup) dataJsonGroup.style.display = 'none';
           return;
         }
 
@@ -359,7 +370,23 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
         if (!selectedType || !selectedType.schemaJson || !selectedType.schemaJson.fields?.length) {
           schemaContainer.innerHTML = '';
+          if (dataJsonGroup) dataJsonGroup.style.display = 'none';
           return;
+        }
+
+        // Show Data JSON editor and populate with empty template
+        if (dataJsonGroup) {
+          dataJsonGroup.style.display = '';
+
+          // Create template with all field keys and null/default values
+          const template = {};
+          selectedType.schemaJson.fields.forEach(field => {
+            template[field.key] = field.defaultValue ?? null;
+          });
+
+          if (dataJsonEditor) {
+            dataJsonEditor.value = JSON.stringify(template, null, 2);
+          }
         }
 
         // Render schema fields dynamically
