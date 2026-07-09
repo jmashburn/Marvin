@@ -307,14 +307,14 @@ const fieldTypes = [
       </div>
       <div class="field-editor-body">
         <div class="form-group">
-          <label>Field Key *</label>
-          <input type="text" class="field-key" value="${field.key || ''}" placeholder="e.g., body, title" required />
-          <p class="form-help">Unique identifier (letters, numbers, underscores)</p>
-        </div>
-        <div class="form-group">
           <label>Label *</label>
           <input type="text" class="field-label" value="${field.label || ''}" placeholder="e.g., Body, Title" required />
           <p class="form-help">Display name in the editor</p>
+        </div>
+        <div class="form-group">
+          <label>Field Key *</label>
+          <input type="text" class="field-key" value="${field.key || ''}" placeholder="e.g., body, title" required />
+          <p class="form-help">Auto-generated from label (editable)</p>
         </div>
         <div class="form-group">
           <label>Field Type *</label>
