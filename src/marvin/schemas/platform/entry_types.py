@@ -74,10 +74,14 @@ class EntryTypeUpdate(_MarvinModel):
 
 
 class EntryTypeRead(_MarvinModel):
-    """Schema for reading an entry type."""
+    """Schema for reading an entry type.
+
+    System entry types have group_id=None and are globally available to all workspaces.
+    Workspace-scoped entry types have a specific group_id.
+    """
 
     id: UUID4
-    group_id: UUID4
+    group_id: UUID4 | None  # None for system types, UUID for workspace types
     name: str
     slug: str
     icon: str | None = None
