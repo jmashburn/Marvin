@@ -372,7 +372,7 @@ async def get_published_entry(
         title=entry.title,
         entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
         summary=entry.summary,
-        content_markdown=entry.content_markdown,
+        data=entry.data_json,  # BREAKING: replaced content_markdown with schema-driven data_json
         published_at=entry.published_at,
         metadata=entry.metadata_json,
         collections=collections,

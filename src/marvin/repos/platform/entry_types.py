@@ -3,16 +3,20 @@
 from typing import Any
 
 from fastapi import HTTPException, status
-from pydantic import UUID4
+from pydantic import UUID4, ValidationError
 from sqlalchemy.orm import Session
 
 from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryTypeRead
+from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
 
 class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
-    """Repository for workspace-scoped entry types."""
+    """Repository for workspace-scoped entry types.
+
+    Validates schema_json against EntryTypeSchemaDefinition when creating/updating.
+    """
 
     def __init__(self, session: Session, group_id: UUID4 | None) -> None:
         super().__init__(
@@ -22,6 +26,26 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             schema=EntryTypeRead,
             group_id=group_id,
         )
+
+    def _validate_schema_json(self, schema_json: dict | None) -> None:
+        """Validate schema_json against EntryTypeSchemaDefinition.
+
+        Args:
+            schema_json: The schema definition to validate
+
+        Raises:
+            HTTPException: If schema validation fails
+        """
+        if schema_json is None:
+            return
+
+        try:
+            EntryTypeSchemaDefinition.model_validate(schema_json)
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid schema definition: {e}",
+            )
 
     def create(self, data: Any) -> EntryTypeRead:
         from slugify import slugify
@@ -34,11 +58,23 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if not data_dict.get("slug") and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
+        # Validate schema_json if provided
+        if "schema_json" in data_dict:
+            self._validate_schema_json(data_dict["schema_json"])
+
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryTypeRead:
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
+        # Auto-regenerate slug if name is being updated
+        if "name" in data_dict and data_dict.get("name"):
+            data_dict["slug"] = slugify(data_dict["name"])
+
+        # Validate schema_json if provided
+        if "schema_json" in data_dict:
+            self._validate_schema_json(data_dict["schema_json"])
+        
         # Don't auto-regenerate slug on update - slugs should remain stable once created
         # to avoid breaking references in entries and external integrations
         data_dict.pop("slug", None)

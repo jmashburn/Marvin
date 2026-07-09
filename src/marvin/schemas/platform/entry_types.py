@@ -3,9 +3,11 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import ConfigDict, StringConstraints, UUID4
+from pydantic import ConfigDict, Field, StringConstraints, UUID4, field_validator
+from pydantic_core.core_schema import ValidationInfo
 
 from marvin.schemas._marvin import _MarvinModel
+from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
 
 class EntryTypeCreate(_MarvinModel):
@@ -18,6 +20,23 @@ class EntryTypeCreate(_MarvinModel):
     description: str | None = None
     sort_order: int = 0
     is_system: bool = False
+    schema_json: dict | None = Field(
+        default=None,
+        description="Entry type schema definition (EntryTypeSchemaDefinition)",
+        serialization_alias="schemaJson",
+    )
+
+    @field_validator("schema_json")
+    @classmethod
+    def validate_schema_json(cls, value: dict | None) -> dict | None:
+        """Validate schema_json against EntryTypeSchemaDefinition."""
+        if value is None:
+            return None
+
+        # Validate against EntryTypeSchemaDefinition
+        # This will raise ValidationError if invalid
+        EntryTypeSchemaDefinition.model_validate(value)
+        return value
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,6 +51,22 @@ class EntryTypeUpdate(_MarvinModel):
     description: str | None = None
     sort_order: int | None = None
     is_system: bool | None = None
+    schema_json: dict | None = Field(
+        default=None,
+        description="Entry type schema definition (EntryTypeSchemaDefinition)",
+        serialization_alias="schemaJson",
+    )
+
+    @field_validator("schema_json")
+    @classmethod
+    def validate_schema_json(cls, value: dict | None) -> dict | None:
+        """Validate schema_json against EntryTypeSchemaDefinition."""
+        if value is None:
+            return None
+
+        # Validate against EntryTypeSchemaDefinition
+        EntryTypeSchemaDefinition.model_validate(value)
+        return value
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -48,6 +83,11 @@ class EntryTypeRead(_MarvinModel):
     description: str | None = None
     sort_order: int
     is_system: bool
+    schema_json: dict = Field(
+        default_factory=dict,
+        description="Entry type schema definition (EntryTypeSchemaDefinition)",
+        serialization_alias="schemaJson",
+    )
     created_at: datetime | None = None
     update_at: datetime | None = None
 
