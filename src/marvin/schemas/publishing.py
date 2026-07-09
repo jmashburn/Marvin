@@ -97,6 +97,9 @@ class PublishedEntryRead(_MarvinModel):
     assets: list[PublishedAssetRead] = []
     """Assets included in this entry."""
 
+    order: int | None = None
+    """Sort order within a collection. Only populated when querying entries for a specific collection."""
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -127,6 +130,10 @@ class PublishedEntryListItem(_MarvinModel):
     """List of collection slugs this entry belongs to."""
 
     assets: list[str] = []
+    """List of asset slugs included in this entry."""
+
+    order: int | None = None
+    """Sort order within a collection. Only populated when querying entries for a specific collection."""
     """List of asset slugs attached to this entry."""
 
     resources: list[str] = []

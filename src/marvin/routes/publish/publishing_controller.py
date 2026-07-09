@@ -528,6 +528,9 @@ async def get_published_collection(
         # Get resource slugs
         resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
 
+        # Get sort order from the junction table for this collection
+        order = next((ec.sort_order for ec in entry.entry_collections if ec.collection_id == collection.id), None)
+
         entry_items.append(
             PublishedEntryListItem(
                 slug=entry.slug,
@@ -538,6 +541,7 @@ async def get_published_collection(
                 collections=collection_slugs,
                 assets=asset_slugs,
                 resources=resource_slugs,
+                order=order,
             )
         )
 
