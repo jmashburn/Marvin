@@ -8,6 +8,7 @@ All routes are mounted under /api/platform/ prefix:
 - /api/platform/api-clients - API client credentials
 - /api/platform/resources - Platform resources
 - /api/platform/assets - File assets
+- /api/platform/workspace - Workspace export/import
 - /api/platform/workspaces/{id}/members - Workspace member management
 - /api/platform/scheduled-tasks - Scheduled task automation
 """
@@ -23,6 +24,7 @@ from . import (
     events_controller,
     resources_controller,
     scheduled_tasks_controller,
+    workspace_controller,
     workspace_members_controller,
 )
 
@@ -34,6 +36,7 @@ router.include_router(collections_controller.router, tags=["Platform: Collection
 router.include_router(api_clients_controller.router, tags=["Platform: API Clients"])
 router.include_router(resources_controller.router, tags=["Platform: Resources"])
 router.include_router(assets_controller.router, tags=["Platform: Assets"])
+router.include_router(workspace_controller.router, tags=["Platform: Workspace"])
 router.include_router(workspace_members_controller.router, tags=["Platform: Workspace Members"])
 router.include_router(events_controller.router, tags=["Platform: Events"])
 router.include_router(scheduled_tasks_controller.router, tags=["Platform: Scheduled Tasks"])
