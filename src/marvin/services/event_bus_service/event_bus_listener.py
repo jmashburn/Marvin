@@ -407,11 +407,14 @@ class WebhookEventListener(EventListenerBase):
             stmt = select(GroupWebhooksModel).where(
                 GroupWebhooksModel.enabled == True,  # noqa: E712 - SQLAlchemy specific comparison
                 GroupWebhooksModel.group_id == self.group_id,
-                # Match webhooks where subscribed_events array contains this event type
-                GroupWebhooksModel.subscribed_events.contains([event.event_type.value]),
             )
             db_webhooks = session.execute(stmt).scalars().all()
-            return [WebhookRead.model_validate(wh) for wh in db_webhooks]
+
+            # Filter webhooks by subscribed_events in Python (SQLite compatible)
+            # subscribed_events is stored as JSON array, filter to those containing this event
+            filtered_webhooks = [wh for wh in db_webhooks if wh.subscribed_events and event.event_type.value in wh.subscribed_events]
+
+            return [WebhookRead.model_validate(wh) for wh in filtered_webhooks]
 
     def publish_to_subscribers(self, event: Event, subscribers_webhooks: list[WebhookRead]) -> None:  # Renamed subscribers
         """
