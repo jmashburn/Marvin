@@ -88,7 +88,7 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
       </div>
 
       <section class="form-section">
-        <form method="POST" class="form">
+        <form method="POST" class="form" id="entry-form">
           <div class="form-group">
             <label for="entry_type_id">Entry Type *</label>
             <select id="entry_type_id" name="entry_type_id" required>
@@ -507,7 +507,7 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
     }
 
     // Data JSON editor - "Apply JSON to Form" button functionality
-    const form = document.querySelector('form');
+    const form = document.getElementById('entry-form');
     const dataJsonEditor = document.getElementById('data_json_editor');
     const applyDataJsonBtn = document.getElementById('apply-data-json-btn');
 
