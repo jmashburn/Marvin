@@ -38,8 +38,6 @@ if (Astro.request.method === 'POST') {
       summary: (formData.get('summary') as string) || null,
       description: (formData.get('description') as string) || null,
       status: formData.get('status') as string,
-      publish_at: (formData.get('publish_at') as string) || null,
-      expire_at: (formData.get('expire_at') as string) || null,
       data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
     };
 
@@ -160,26 +158,6 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
               <option value="draft" selected>Draft</option>
             </select>
             <p class="form-help">New entries start as drafts. Add content and publish from the editor.</p>
-          </div>
-
-          <div class="form-group">
-            <label for="publish_at">Scheduled Publish</label>
-            <input
-              type="datetime-local"
-              id="publish_at"
-              name="publish_at"
-            />
-            <p class="form-help">Optional: Schedule when this entry should be published</p>
-          </div>
-
-          <div class="form-group">
-            <label for="expire_at">Expiration Date</label>
-            <input
-              type="datetime-local"
-              id="expire_at"
-              name="expire_at"
-            />
-            <p class="form-help">Optional: When this entry should expire and be hidden</p>
           </div>
 
           <div class="form-group" id="data-json-group" style={preSelectedSchema ? '' : 'display: none;'}>
