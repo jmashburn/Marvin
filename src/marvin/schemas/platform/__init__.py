@@ -42,6 +42,13 @@ from .resources import (
     ResourceSummary,
     ResourceUpdate,
 )
+from .scheduled_tasks import (
+    ScheduledTaskCreate,
+    ScheduledTaskExecutionLogRead,
+    ScheduledTaskRead,
+    ScheduledTaskSummary,
+    ScheduledTaskUpdate,
+)
 
 __all__ = [
     "APIClientCreate",
@@ -75,6 +82,11 @@ __all__ = [
     "ResourceRead",
     "ResourceSummary",
     "ResourceUpdate",
+    "ScheduledTaskCreate",
+    "ScheduledTaskExecutionLogRead",
+    "ScheduledTaskRead",
+    "ScheduledTaskSummary",
+    "ScheduledTaskUpdate",
     # Legacy aliases for backward compatibility
     "SiteClientCreate",
     "SiteClientRead",

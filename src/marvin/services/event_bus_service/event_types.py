@@ -288,6 +288,26 @@ class EventTypes(EventTypeBase):
     """Event dispatched when content approval is rejected."""
 
     # ==========================================================================
+    # Scheduled Task Events
+    # ==========================================================================
+    scheduled_task_created = auto()
+    """Event dispatched when a scheduled task is created."""
+    scheduled_task_updated = auto()
+    """Event dispatched when a scheduled task is updated."""
+    scheduled_task_deleted = auto()
+    """Event dispatched when a scheduled task is deleted."""
+    scheduled_task_triggered = auto()
+    """Event dispatched when a scheduled task is triggered by the scheduler."""
+    scheduled_task_started = auto()
+    """Event dispatched when a scheduled task starts execution."""
+    scheduled_task_completed = auto()
+    """Event dispatched when a scheduled task completes successfully."""
+    scheduled_task_failed = auto()
+    """Event dispatched when a scheduled task execution fails."""
+    scheduled_task_cancelled = auto()
+    """Event dispatched when a scheduled task execution is cancelled."""
+
+    # ==========================================================================
     # Search & Indexing Events
     # ==========================================================================
     search_index_updated = auto()
@@ -701,6 +721,53 @@ class EventResourceData(EventDocumentDataBase):
     """The workspace the resource belongs to."""
     url: str | None = None
     """The external URL of the resource."""
+
+
+class EventScheduledTaskData(EventDocumentDataBase):
+    """Data payload for scheduled task events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
+    task_id: UUID4
+    """The unique identifier of the scheduled task."""
+    task_name: str
+    """The name of the scheduled task."""
+    task_slug: str
+    """The slug of the scheduled task."""
+    task_type: str
+    """The type of task (e.g., 'publish', 'cleanup')."""
+    workspace_id: UUID4 | None = None
+    """The workspace the task belongs to (None for system tasks)."""
+    enabled: bool = True
+    """Whether the task is enabled."""
+    next_run_at: datetime | None = None
+    """Next scheduled execution time."""
+    last_status: str | None = None
+    """Status of last execution."""
+
+    @classmethod
+    def from_model(cls, task: "ScheduledTaskModel") -> "EventScheduledTaskData":
+        """
+        Create EventScheduledTaskData from a ScheduledTaskModel.
+
+        Args:
+            task: ScheduledTaskModel instance
+
+        Returns:
+            EventScheduledTaskData instance
+        """
+        from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
+
+        return cls(
+            operation=EventOperation.info,
+            task_id=task.id,
+            task_name=task.name,
+            task_slug=task.slug,
+            task_type=task.task_type,
+            workspace_id=task.group_id,
+            enabled=task.enabled,
+            next_run_at=task.next_run_at,
+            last_status=task.last_status,
+        )
 
 
 class EventBusMessage(_MarvinModel):

@@ -60,6 +60,8 @@ from .platform import (
     EntryTypesRepository,
     EventLogRepository,
     ResourcesRepository,
+    ScheduledTaskExecutionLogRepository,
+    ScheduledTasksRepository,
 )
 
 # Constants for primary key / lookup key names used in repositories
@@ -294,3 +296,13 @@ class AllRepositories:
     def event_log(self) -> EventLogRepository:
         """Provides access to workspace-scoped event log records."""
         return EventLogRepository(self.session, self.group_id)
+
+    @cached_property
+    def scheduled_tasks(self) -> ScheduledTasksRepository:
+        """Provides access to workspace-scoped scheduled task records."""
+        return ScheduledTasksRepository(self.session, self.group_id)
+
+    @cached_property
+    def scheduled_task_executions(self) -> ScheduledTaskExecutionLogRepository:
+        """Provides access to workspace-scoped scheduled task execution logs."""
+        return ScheduledTaskExecutionLogRepository(self.session, self.group_id)

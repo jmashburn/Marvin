@@ -10,6 +10,7 @@ from .entry_resources import EntryResources
 from .entry_types import EntryTypes
 from .event_log import EventLogModel
 from .resources import Resources
+from .scheduled_tasks import ScheduledTaskExecutionLogModel, ScheduledTaskModel
 
 __all__ = [
     "APIClients",
@@ -22,4 +23,6 @@ __all__ = [
     "EntryTypes",
     "EventLogModel",
     "Resources",
+    "ScheduledTaskExecutionLogModel",
+    "ScheduledTaskModel",
 ]

@@ -177,8 +177,12 @@ async def start_scheduler() -> None:
         # scheduler_tasks.delete_old_checked_list_items,
     )
 
-    # Register minutely tasks (currently ping and post_group_webhooks)
-    SchedulerRegistry.register_minutely(scheduler_tasks.ping, scheduler_tasks.post_group_webhooks)
+    # Register minutely tasks (ping, webhooks, and scheduled tasks checker)
+    SchedulerRegistry.register_minutely(
+        scheduler_tasks.ping,
+        scheduler_tasks.post_group_webhooks,
+        scheduler_tasks.check_scheduled_tasks,
+    )
 
     # Register hourly tasks
     SchedulerRegistry.register_hourly(

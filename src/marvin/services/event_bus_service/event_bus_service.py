@@ -27,6 +27,7 @@ from marvin.services.event_bus_service.event_bus_listener import (
     AuditLogListener,
     ConsoleEventListener,
     EventListenerBase,
+    ScheduledTaskListener,
     WebhookEventListener,
 )
 
@@ -142,8 +143,10 @@ class EventBusService(BaseService):
         # depends on another or if there's a desired notification priority.
         # AuditLogListener is first to ensure all events are persisted to the database
         # even if subsequent listeners (webhooks, notifications) fail.
+        # ScheduledTaskListener must run before webhooks to execute tasks that may trigger webhooks.
         return [
             AuditLogListener(group_id),  # Persists all events to event_log table (MUST BE FIRST).
+            ScheduledTaskListener(group_id),  # Executes scheduled tasks when triggered.
             ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
             AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.

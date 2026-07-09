@@ -546,6 +546,189 @@ class WebhookEventListener(EventListenerBase):
             return [WebhookRead.model_validate(db_webhook) for db_webhook in db_webhooks]
 
 
+class ScheduledTaskListener(EventListenerBase):
+    """
+    Event listener that executes scheduled tasks when triggered.
+
+    This listener responds to scheduled_task.triggered events by:
+    1. Looking up the appropriate handler via TaskHandlerRegistry
+    2. Executing the handler with the task configuration
+    3. Logging execution results
+    4. Emitting completion/failure events
+    5. Updating task execution state
+    """
+
+    def __init__(self, group_id: UUID4) -> None:
+        """
+        Initializes the ScheduledTaskListener for a specific group.
+
+        Args:
+            group_id (UUID4): The ID of the group this listener is associated with.
+        """
+        from .publisher import ConsolePublisher  # We don't actually publish anything, but need a publisher
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """
+        Returns a list indicating this listener should handle the event.
+
+        Only subscribes to scheduled_task.triggered events.
+
+        Args:
+            event (Event): The event to check.
+
+        Returns:
+            list[str]: Returns ["scheduled_task_handler"] if this is a triggered event, else empty list.
+        """
+        if event.event_type == EventTypes.scheduled_task_triggered:
+            return ["scheduled_task_handler"]
+        return []
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        """
+        Executes the scheduled task.
+
+        Args:
+            event (Event): The triggered event containing task data.
+            subscribers (list[str]): List of subscribers (always ["scheduled_task_handler"]).
+        """
+        import traceback
+        from datetime import datetime
+
+        from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
+        from marvin.services.scheduled_tasks import TaskHandlerRegistry
+
+        # Extract task data from event
+        if not event.document_data:
+            self.logger.error("ScheduledTaskListener: No document_data in event")
+            return
+
+        task_id = getattr(event.document_data, "task_id", None)
+        if not task_id:
+            self.logger.error("ScheduledTaskListener: No task_id in document_data")
+            return
+
+        # Load the task from database
+        with self.ensure_repos(self.group_id) as repos:
+            task = repos.session.get(ScheduledTaskModel, task_id)
+            if not task:
+                self.logger.error(f"ScheduledTaskListener: Task {task_id} not found")
+                return
+
+            start_time = datetime.utcnow()
+
+            # Import event bus for handler to use
+            from marvin.services.event_bus_service import EventBusService
+
+            event_bus = EventBusService(bg_tasks=None)
+
+            try:
+                # Emit started event
+                event_bus.dispatch(
+                    integration_id="scheduled_tasks",
+                    group_id=task.group_id,
+                    event_type=EventTypes.scheduled_task_started,
+                    document_data=event.document_data,  # Reuse same task data
+                    message=f"Scheduled task '{task.name}' execution started",
+                )
+
+                # Get and execute handler
+                handler = TaskHandlerRegistry.get_handler(task.task_type)
+                self.logger.info(f"Executing scheduled task: {task.name} (type: {task.task_type})")
+                handler.execute(task, event_bus)
+
+                # Calculate duration
+                end_time = datetime.utcnow()
+                duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
+                # Log successful execution
+                repos.scheduled_task_executions.log_execution(
+                    task_id=task.id,
+                    group_id=task.group_id,
+                    status="success",
+                    executed_at=start_time,
+                    duration_ms=duration_ms,
+                )
+
+                # Update task state
+                repos.scheduled_tasks.update_execution_state(
+                    task_id=task.id,
+                    last_run_at=start_time,
+                    last_status="success",
+                    last_duration_ms=duration_ms,
+                    failure_count=0,  # Reset on success
+                )
+
+                # Emit completed event
+                event_bus.dispatch(
+                    integration_id="scheduled_tasks",
+                    group_id=task.group_id,
+                    event_type=EventTypes.scheduled_task_completed,
+                    document_data=event.document_data,
+                    message=f"Scheduled task '{task.name}' completed successfully in {duration_ms}ms",
+                )
+
+                self.logger.info(f"Scheduled task '{task.name}' completed successfully in {duration_ms}ms")
+
+            except ValueError as e:
+                # Handler not found
+                self.logger.error(f"Scheduled task handler error: {e}")
+                self._handle_task_failure(repos, task, start_time, str(e), None, event_bus, event)
+
+            except Exception as e:
+                # Handler execution failed
+                error_msg = str(e)
+                error_trace = traceback.format_exc()
+                self.logger.error(f"Scheduled task '{task.name}' failed: {error_msg}\n{error_trace}")
+                self._handle_task_failure(repos, task, start_time, error_msg, error_trace, event_bus, event)
+
+    def _handle_task_failure(
+        self,
+        repos,
+        task,
+        start_time,
+        error_message: str,
+        error_traceback: str | None,
+        event_bus,
+        event: Event,
+    ) -> None:
+        """Helper to handle task execution failures."""
+        from datetime import datetime
+
+        end_time = datetime.utcnow()
+        duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
+        # Log failed execution
+        repos.scheduled_task_executions.log_execution(
+            task_id=task.id,
+            group_id=task.group_id,
+            status="failed",
+            executed_at=start_time,
+            duration_ms=duration_ms,
+            error_message=error_message,
+            error_traceback=error_traceback,
+        )
+
+        # Update task state with incremented failure count
+        repos.scheduled_tasks.update_execution_state(
+            task_id=task.id,
+            last_run_at=start_time,
+            last_status="failed",
+            last_duration_ms=duration_ms,
+            failure_count=task.failure_count + 1,
+        )
+
+        # Emit failed event
+        event_bus.dispatch(
+            integration_id="scheduled_tasks",
+            group_id=task.group_id,
+            event_type=EventTypes.scheduled_task_failed,
+            document_data=event.document_data,
+            message=f"Scheduled task '{task.name}' failed: {error_message}",
+        )
+
+
 class ConsoleEventListener(EventListenerBase):
     """
     Event listener that logs all events to the console for debugging.
