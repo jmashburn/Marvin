@@ -118,6 +118,25 @@ const groupId = workspace?.workspace?.group?.id;
             />
           </label>
 
+          <label class="form-field">
+            <span class="label">Subject</span>
+            <input
+              type="text"
+              name="subject"
+              value="Marvin Platform - Test Email"
+              class="input"
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="label">Message</span>
+            <textarea
+              name="message"
+              rows="4"
+              class="input textarea"
+            >This is a test email from Marvin Platform. If you received this, your SMTP configuration is working correctly.</textarea>
+          </label>
+
           <div class="form-actions">
             <button type="submit" class="button">Send Test Email</button>
           </div>
@@ -649,6 +668,11 @@ const groupId = workspace?.workspace?.group?.id;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     font-size: 14px;
+  }
+
+  .textarea {
+    resize: vertical;
+    font-family: inherit;
   }
 
   .form-actions {
