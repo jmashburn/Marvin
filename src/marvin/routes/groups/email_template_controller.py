@@ -42,8 +42,14 @@ class EmailTemplateController(BaseUserController):
             raise Exception("No user logged in")
         from marvin.repos.repository_generic import RepositoryGeneric
         from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.schemas.group.email_template import EmailTemplateRead
 
-        return RepositoryGeneric(self.repos.session, EmailTemplateModel, group_id=self.group_id)
+        return RepositoryGeneric(
+            self.repos.session,
+            primary_key="id",
+            sql_model=EmailTemplateModel,
+            schema=EmailTemplateRead,
+        )
 
     @router.get("", response_model=list[EmailTemplateSummary], summary="List Email Templates")
     def list_templates(self, group_id: UUID4) -> list[EmailTemplateSummary]:
@@ -60,18 +66,17 @@ class EmailTemplateController(BaseUserController):
         """
         self._check_workspace_access(group_id)
 
-        # Get workspace templates + system templates
-        workspace_templates = self.repo.get_all()
-
-        # Get system templates (group_id = None)
-        from marvin.repos.repository_generic import RepositoryGeneric
         from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from sqlalchemy import or_
 
-        system_repo = RepositoryGeneric(self.repos.session, EmailTemplateModel, group_id=None)
-        system_templates = system_repo.get_all()
+        # Query workspace templates + system templates in one query
+        templates = (
+            self.repos.session.query(EmailTemplateModel)
+            .filter(or_(EmailTemplateModel.group_id == group_id, EmailTemplateModel.group_id.is_(None)))
+            .all()
+        )
 
-        all_templates = list(workspace_templates) + list(system_templates)
-        return [EmailTemplateSummary.model_validate(t) for t in all_templates]
+        return [EmailTemplateSummary.model_validate(t) for t in templates]
 
     @router.get("/{template_id}", response_model=EmailTemplateRead, summary="Get Email Template")
     def get_template(self, group_id: UUID4, template_id: UUID4) -> EmailTemplateRead:
