@@ -124,7 +124,7 @@ class EmailTemplateController(BaseUserController):
 
         # Set group_id from path
         create_data = data.model_dump()
-        create_data["group_id"] = group_id
+        create_data["group_id"] = str(group_id)
 
         # Create template using SQLAlchemy directly
         from marvin.db.models.groups.email_templates import EmailTemplateModel
