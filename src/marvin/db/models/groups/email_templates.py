@@ -4,6 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
+from marvin.db.models._model_utils.guid import GUID
 
 
 class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
@@ -28,8 +29,8 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
         index=True,
         doc="Type of email template (invitation, password_reset, notification, test)",
     )
-    group_id: Mapped[str | None] = mapped_column(
-        sa.String,
+    group_id: Mapped[GUID | None] = mapped_column(
+        GUID,
         sa.ForeignKey("groups.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
