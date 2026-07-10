@@ -128,12 +128,12 @@ class EmailTemplateController(BaseUserController):
 
         # Create template using SQLAlchemy directly
         from marvin.db.models.groups.email_templates import EmailTemplateModel
-        import uuid
+        from marvin.db.models._model_utils.guid import GUID
         from datetime import datetime
 
         # Create empty model instance and set attributes
         template = EmailTemplateModel()
-        template.id = uuid.uuid4()
+        template.id = GUID.generate()
         template.group_id = group_id
         template.template_type = data.template_type
         template.name = data.name
