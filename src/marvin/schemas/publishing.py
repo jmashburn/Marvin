@@ -443,7 +443,7 @@ class PublishedFormRead(_MarvinModel):
     description: str | None = None
     """Optional description of the form."""
 
-    schema: dict
+    form_schema: dict
     """Form field definitions."""
 
     metadata: dict | None = None

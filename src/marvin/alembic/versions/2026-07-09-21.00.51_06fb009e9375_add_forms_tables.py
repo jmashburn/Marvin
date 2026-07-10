@@ -14,7 +14,7 @@ from marvin.db.migration_types import GUID
 
 # revision identifiers, used by Alembic.
 revision: str = "06fb009e9375"
-down_revision: Union[str, None] = "add_scheduled_tasks"
+down_revision: Union[str, None] = "69fec729cdb6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

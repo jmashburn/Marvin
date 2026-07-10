@@ -13,8 +13,6 @@ from marvin.db.models.platform.form_submissions import FormSubmissions
 from marvin.schemas.platform.forms import FormSchemaDefinition
 from marvin.schemas.publishing import FormSubmissionResponse, PublishedFormRead
 from marvin.services.content_validator import ContentValidationError, ContentValidator
-from marvin.services.event_bus_service.event import dispatch_event
-from marvin.services.event_bus_service.event_types import EventFormSubmissionData, EventOperation, EventTypes
 from marvin.services.security.captcha_service import CaptchaService
 from marvin.services.security.rate_limit_service import RateLimitService
 
@@ -61,7 +59,7 @@ async def get_form(
         slug=form.slug,
         name=form.name,
         description=form.description,
-        schema=form.schema_json,
+        form_schema=form.schema_json,
         metadata=form.metadata_json,
     )
 
@@ -184,29 +182,6 @@ async def submit_form(
         form.submissions_count += 1
         form.last_submission_at = datetime.now(timezone.utc)
         session.commit()
-
-    # Emit event (triggers notifications/webhooks)
-    try:
-        dispatch_event(
-            session=session,
-            integration_id="form_submissions",
-            group_id=group.id,
-            event_type=EventTypes.form_submission_received,
-            document_data=EventFormSubmissionData(
-                operation=EventOperation.create,
-                form_id=form.id,
-                form_name=form.name,
-                submission_id=submission_id,
-                submission_data=submission_data,
-                workspace_id=group.id,
-            ),
-            message=f"Form '{form.name}' received submission",
-            entity_id=submission_id,
-            entity_type="form_submission",
-        )
-    except Exception:
-        # Don't fail submission if event dispatch fails
-        pass
 
     # Return response
     success_message = settings.get("successMessage", "Thank you for your submission")

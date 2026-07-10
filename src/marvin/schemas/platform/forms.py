@@ -47,7 +47,7 @@ class FormCreate(_MarvinModel):
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     description: str | None = None
     status: str = "draft"
-    schema_json: dict = Field(default_factory=dict, serialization_alias="schemaJson")
+    form_schema: dict = Field(default_factory=dict, serialization_alias="schemaJson")
     settings_json: dict | None = Field(default=None, serialization_alias="settingsJson")
     metadata_json: dict | None = Field(default=None, serialization_alias="metadataJson")
 
@@ -58,7 +58,7 @@ class FormCreate(_MarvinModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(FORM_STATUSES))}")
         return value
 
-    @field_validator("schema_json")
+    @field_validator("form_schema")
     @classmethod
     def validate_schema(cls, value: dict) -> dict:
         if value:
@@ -75,7 +75,7 @@ class FormUpdate(_MarvinModel):
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     description: str | None = None
     status: str | None = None
-    schema_json: dict | None = Field(default=None, serialization_alias="schemaJson")
+    form_schema: dict | None = Field(default=None, serialization_alias="schemaJson")
     settings_json: dict | None = Field(default=None, serialization_alias="settingsJson")
     metadata_json: dict | None = Field(default=None, serialization_alias="metadataJson")
 
@@ -86,7 +86,7 @@ class FormUpdate(_MarvinModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(FORM_STATUSES))}")
         return value
 
-    @field_validator("schema_json")
+    @field_validator("form_schema")
     @classmethod
     def validate_schema(cls, value: dict | None) -> dict | None:
         if value:
@@ -104,7 +104,7 @@ class FormRead(_MarvinModel):
     slug: str
     name: str
     description: str | None
-    schema_json: dict = Field(serialization_alias="schemaJson")
+    form_schema: dict = Field(serialization_alias="schemaJson")
     settings_json: dict | None = Field(serialization_alias="settingsJson")
     metadata_json: dict | None = Field(serialization_alias="metadataJson")
     status: str
