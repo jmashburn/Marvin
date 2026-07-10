@@ -519,7 +519,7 @@ const groupId = workspace?.workspace?.group?.id;
       const recipient = document.getElementById('test-recipient').value;
 
       try {
-        const response = await fetch(`/api/groups/${GROUP_ID}/email-templates/${templateId}/test`, {
+        const response = await fetch(`/api/platform/workspaces/${GROUP_ID}/email-templates/${templateId}/test`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
