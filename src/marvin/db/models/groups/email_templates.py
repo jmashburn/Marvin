@@ -22,6 +22,9 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
 
     __tablename__ = "email_templates"
 
+    # Override id from SqlAlchemyBase to use GUID instead of Integer
+    id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the email template")
+
     # Template identifier and scope
     template_type: Mapped[str] = mapped_column(
         sa.String,
