@@ -85,3 +85,9 @@ class Permissions:
 
     # Resource permissions
     READ_RESOURCES = "read:resources"
+
+    # Form permissions
+    READ_FORMS = "read:forms"
+    WRITE_FORMS = "write:forms"
+    WRITE_FORM_SUBMISSIONS = "write:form_submissions"
+    READ_FORM_SUBMISSIONS = "read:form_submissions"

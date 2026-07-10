@@ -309,6 +309,121 @@ class ContentValidator(BaseService):
         # Python dict/list/str/int/float/bool/None all serialize to JSON
         pass
 
+    def validate_form_submission(
+        self,
+        schema_definition: Any,  # FormSchemaDefinition
+        submission_data: dict[str, Any],
+    ) -> None:
+        """Validate form submission against form schema definition.
+
+        Args:
+            schema_definition: The form's schema definition (FormSchemaDefinition)
+            submission_data: The submitted form data to validate
+
+        Raises:
+            ContentValidationError: If validation fails
+        """
+        # Check for required fields
+        for field in schema_definition.fields:
+            if field.required:
+                value = submission_data.get(field.key)
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    raise ContentValidationError(
+                        field.key,
+                        f"Required field '{field.label}' is missing or empty",
+                    )
+
+        # Validate each submitted field
+        for field_key, field_value in submission_data.items():
+            # Find field definition
+            field_def = next((f for f in schema_definition.fields if f.key == field_key), None)
+
+            # Unknown fields are silently ignored (honeypot, etc.)
+            if field_def is None:
+                continue
+
+            # Skip null values (unless required, checked above)
+            if field_value is None:
+                continue
+
+            # Validate based on field type
+            self._validate_form_field(field_def, field_value)
+
+    def _validate_form_field(self, field_def: Any, value: Any) -> None:
+        """Validate a single form field value.
+
+        Args:
+            field_def: The field definition from FormSchemaDefinition
+            value: The field value to validate
+
+        Raises:
+            ContentValidationError: If validation fails
+        """
+        field_key = field_def.key
+
+        # Type-specific validation
+        if field_def.type in ("text", "textarea", "tel", "url"):
+            if not isinstance(value, str):
+                raise ContentValidationError(field_key, f"Expected string, got {type(value).__name__}")
+
+            # Check validation constraints
+            if field_def.validation:
+                if "minLength" in field_def.validation and len(value) < field_def.validation["minLength"]:
+                    raise ContentValidationError(
+                        field_key,
+                        f"Must be at least {field_def.validation['minLength']} characters",
+                    )
+
+                if "maxLength" in field_def.validation and len(value) > field_def.validation["maxLength"]:
+                    raise ContentValidationError(
+                        field_key,
+                        f"Must be no more than {field_def.validation['maxLength']} characters",
+                    )
+
+                if "pattern" in field_def.validation:
+                    if not re.match(field_def.validation["pattern"], value):
+                        raise ContentValidationError(field_key, "Invalid format")
+
+        elif field_def.type == "email":
+            if not isinstance(value, str):
+                raise ContentValidationError(field_key, "Expected email string")
+
+            # Basic email validation
+            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+            if not re.match(email_pattern, value):
+                raise ContentValidationError(field_key, "Invalid email address")
+
+        elif field_def.type == "number":
+            if not isinstance(value, (int, float)):
+                # Try to convert string to number
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    raise ContentValidationError(field_key, "Expected number")
+
+            if field_def.validation:
+                if "min" in field_def.validation and value < field_def.validation["min"]:
+                    raise ContentValidationError(field_key, f"Must be at least {field_def.validation['min']}")
+
+                if "max" in field_def.validation and value > field_def.validation["max"]:
+                    raise ContentValidationError(field_key, f"Must be no more than {field_def.validation['max']}")
+
+        elif field_def.type == "checkbox":
+            if not isinstance(value, bool):
+                # Accept "true"/"false" strings
+                if isinstance(value, str):
+                    value = value.lower() in ("true", "1", "yes")
+                else:
+                    raise ContentValidationError(field_key, "Expected boolean")
+
+        elif field_def.type in ("select", "radio"):
+            if not isinstance(value, str):
+                raise ContentValidationError(field_key, "Expected string")
+
+            # Check value is in options
+            if field_def.options and value not in field_def.options:
+                raise ContentValidationError(field_key, f"Invalid option: {value}")
+
 
 def validate_entry_content(
     schema_definition: EntryTypeSchemaDefinition,

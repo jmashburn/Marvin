@@ -8,11 +8,13 @@ Authenticated via API client tokens (marvin_sk_ prefix).
 from fastapi import APIRouter
 
 from .publishing_controller import router as publishing_router
+from .forms_controller import router as forms_router
 
 # Create main publishing router with /api/publish prefix
 router = APIRouter(prefix="/publish", tags=["Publishing API"])
 
 # Include all publishing sub-routes
 router.include_router(publishing_router)
+router.include_router(forms_router)
 
 __all__ = ["router"]

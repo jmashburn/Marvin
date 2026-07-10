@@ -162,6 +162,26 @@ class EventTypes(EventTypeBase):
     """Event dispatched when an archived entry is restored."""
 
     # ==========================================================================
+    # Form Events
+    # ==========================================================================
+    form_created = auto()
+    """Event dispatched when a new form is created."""
+    form_updated = auto()
+    """Event dispatched when a form is updated."""
+    form_deleted = auto()
+    """Event dispatched when a form is deleted."""
+    form_published = auto()
+    """Event dispatched when a form is published."""
+    form_archived = auto()
+    """Event dispatched when a form is archived."""
+    form_submission_received = auto()
+    """Event dispatched when a form submission is received."""
+    form_submission_processed = auto()
+    """Event dispatched when a form submission is processed."""
+    form_submission_failed = auto()
+    """Event dispatched when a form submission fails."""
+
+    # ==========================================================================
     # Collection Events
     # ==========================================================================
     collection_created = auto()
@@ -389,6 +409,10 @@ class EventDocumentType(EventDocumentTypeBase):
     """Indicates the event data pertains to a workspace entity."""
     entry = "entry"
     """Indicates the event data pertains to an entry entity."""
+    form = "form"
+    """Indicates the event data pertains to a form entity."""
+    form_submission = "form_submission"
+    """Indicates the event data pertains to a form submission entity."""
     collection = "collection"
     """Indicates the event data pertains to a collection entity."""
     asset = "asset"
@@ -558,6 +582,38 @@ class EventEntryData(EventDocumentDataBase):
     """The workspace containing the entry."""
     author_id: UUID4
     """The user who created/modified the entry."""
+
+
+class EventFormData(EventDocumentDataBase):
+    """Data payload for form-related events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.form
+    operation: "EventOperation"
+    """The operation performed on the form."""
+    form_id: UUID4
+    """The unique identifier of the form."""
+    form_name: str
+    """The name of the form."""
+    workspace_id: UUID4
+    """The workspace containing the form."""
+
+
+class EventFormSubmissionData(EventDocumentDataBase):
+    """Data payload for form submission events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.form_submission
+    operation: "EventOperation"
+    """The operation performed."""
+    form_id: UUID4
+    """The unique identifier of the form."""
+    form_name: str
+    """The name of the form."""
+    submission_id: UUID4 | None
+    """The unique identifier of the submission (if persisted)."""
+    submission_data: dict
+    """The submitted form data."""
+    workspace_id: UUID4
+    """The workspace containing the form."""
 
 
 class EventCollectionData(EventDocumentDataBase):

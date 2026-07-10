@@ -59,6 +59,8 @@ from .platform import (
     EntriesRepository,
     EntryTypesRepository,
     EventLogRepository,
+    FormsRepository,
+    FormSubmissionsRepository,
     ResourcesRepository,
     ScheduledTaskExecutionLogRepository,
     ScheduledTasksRepository,
@@ -306,3 +308,13 @@ class AllRepositories:
     def scheduled_task_executions(self) -> ScheduledTaskExecutionLogRepository:
         """Provides access to workspace-scoped scheduled task execution logs."""
         return ScheduledTaskExecutionLogRepository(self.session, self.group_id)
+
+    @cached_property
+    def forms(self) -> FormsRepository:
+        """Provides access to workspace-scoped forms."""
+        return FormsRepository(self.session, self.group_id)
+
+    @cached_property
+    def form_submissions(self) -> FormSubmissionsRepository:
+        """Provides access to workspace-scoped form submissions."""
+        return FormSubmissionsRepository(self.session, self.group_id)
