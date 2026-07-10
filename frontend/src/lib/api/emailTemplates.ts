@@ -2,12 +2,12 @@
  * Email Templates API - manage workspace email templates
  */
 
-import { apiClient } from './client';
+import { fetchApi } from './client';
 
 export interface EmailTemplateSummary {
   id: string;
   template_type: string;
-  group_id: string | null;
+  workspace_id: string | null;
   name: string;
   description?: string;
   enabled: boolean;
@@ -18,7 +18,7 @@ export interface EmailTemplateSummary {
 export interface EmailTemplateRead {
   id: string;
   template_type: string;
-  group_id: string | null;
+  workspace_id: string | null;
   name: string;
   description?: string;
   subject: string;
@@ -35,7 +35,7 @@ export interface EmailTemplateRead {
 
 export interface EmailTemplateCreate {
   template_type: string;
-  group_id?: string;
+  workspace_id?: string;
   name: string;
   description?: string;
   subject: string;
@@ -65,74 +65,81 @@ export interface EmailTemplateUpdate {
  * List all email templates for the workspace
  */
 export async function listEmailTemplates(
-  groupId: string,
+  workspaceId: string,
   authToken?: string
 ): Promise<EmailTemplateSummary[]> {
-  const response = await apiClient(`/groups/${groupId}/email-templates`, {
-    method: 'GET',
-    authToken,
-  });
-  return response.json();
+  return fetchApi<EmailTemplateSummary[]>(
+    `/platform/workspaces/${workspaceId}/email-templates`,
+    { method: 'GET' },
+    authToken
+  );
 }
 
 /**
  * Get a specific email template
  */
 export async function getEmailTemplate(
-  groupId: string,
+  workspaceId: string,
   templateId: string,
   authToken?: string
 ): Promise<EmailTemplateRead> {
-  const response = await apiClient(`/groups/${groupId}/email-templates/${templateId}`, {
-    method: 'GET',
-    authToken,
-  });
-  return response.json();
+  return fetchApi<EmailTemplateRead>(
+    `/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
+    { method: 'GET' },
+    authToken
+  );
 }
 
 /**
  * Create a new email template
  */
 export async function createEmailTemplate(
-  groupId: string,
+  workspaceId: string,
   data: EmailTemplateCreate,
   authToken?: string
 ): Promise<EmailTemplateRead> {
-  const response = await apiClient(`/groups/${groupId}/email-templates`, {
-    method: 'POST',
-    authToken,
-    body: JSON.stringify(data),
-  });
-  return response.json();
+  return fetchApi<EmailTemplateRead>(
+    `/platform/workspaces/${workspaceId}/email-templates`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    authToken
+  );
 }
 
 /**
  * Update an email template
  */
 export async function updateEmailTemplate(
-  groupId: string,
+  workspaceId: string,
   templateId: string,
   data: EmailTemplateUpdate,
   authToken?: string
 ): Promise<EmailTemplateRead> {
-  const response = await apiClient(`/groups/${groupId}/email-templates/${templateId}`, {
-    method: 'PATCH',
-    authToken,
-    body: JSON.stringify(data),
-  });
-  return response.json();
+  return fetchApi<EmailTemplateRead>(
+    `/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    authToken
+  );
 }
 
 /**
  * Delete an email template
  */
 export async function deleteEmailTemplate(
-  groupId: string,
+  workspaceId: string,
   templateId: string,
   authToken?: string
 ): Promise<void> {
-  await apiClient(`/groups/${groupId}/email-templates/${templateId}`, {
-    method: 'DELETE',
-    authToken,
-  });
+  await fetchApi<void>(
+    `/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
+    { method: 'DELETE' },
+    authToken
+  );
 }
