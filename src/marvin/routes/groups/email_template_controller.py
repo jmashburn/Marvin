@@ -131,13 +131,24 @@ class EmailTemplateController(BaseUserController):
         import uuid
         from datetime import datetime
 
-        # Remove None values and ensure ID + timestamps are generated
-        clean_data = {k: v for k, v in create_data.items() if v is not None}
-        clean_data["id"] = uuid.uuid4()
-        clean_data["created_at"] = datetime.utcnow()
-        clean_data["update_at"] = datetime.utcnow()
+        # Create empty model instance and set attributes
+        template = EmailTemplateModel()
+        template.id = uuid.uuid4()
+        template.group_id = group_id
+        template.template_type = data.template_type
+        template.name = data.name
+        template.subject = data.subject
+        template.description = data.description
+        template.header_text = data.header_text
+        template.message_top = data.message_top
+        template.message_bottom = data.message_bottom
+        template.button_text = data.button_text
+        template.custom_html = data.custom_html
+        template.available_variables = data.available_variables
+        template.enabled = data.enabled if data.enabled is not None else True
+        template.created_at = datetime.utcnow()
+        template.update_at = datetime.utcnow()
 
-        template = EmailTemplateModel(**clean_data)
         self.repos.session.add(template)
         self.repos.session.commit()
         self.repos.session.refresh(template)
