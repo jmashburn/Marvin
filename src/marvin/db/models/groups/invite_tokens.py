@@ -8,11 +8,13 @@ to invite users to a specific group. Each token can have a limited number of use
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import ForeignKey, Integer, String, orm
-from sqlalchemy.orm import Mapped, Session, mapped_column  # Added Session for __init__
+from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.types import Enum as SqlAlchemyEnum
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
+from ..users.roles import WorkspaceRole
 
 if TYPE_CHECKING:
     from .groups import Groups
@@ -31,6 +33,12 @@ class GroupInviteToken(SqlAlchemyBase, BaseMixins):
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the invite token.")
     token: Mapped[str] = mapped_column(String, index=True, nullable=False, unique=True, doc="The unique token string itself.")
     uses_left: Mapped[int] = mapped_column(Integer, nullable=False, default=1, doc="Number of times this token can still be used.")
+    workspace_role: Mapped[WorkspaceRole] = mapped_column(
+        SqlAlchemyEnum(WorkspaceRole),
+        nullable=False,
+        default=WorkspaceRole.EDITOR,
+        doc="The role that invited users will receive when they join this workspace.",
+    )
 
     # Foreign key to the Groups model
     group_id: Mapped[GUID | None] = mapped_column(GUID, ForeignKey("groups.id"), index=True, doc="ID of the group this invite token belongs to.")

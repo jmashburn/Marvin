@@ -1,0 +1,147 @@
+---
+import "../styles/global.css";
+import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
+import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+interface Props {
+  title: string;
+  eyebrow?: string;
+}
+
+const { title, eyebrow = "Marvin Platform" } = Astro.props;
+const path = Astro.url.pathname;
+
+// Check if user is admin and get platform role
+const authToken = getAuthToken(Astro.cookies);
+let isAdmin = false;
+let isSuperAdmin = false;
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  isAdmin = currentUser?.admin === true;
+  // API returns camelCase (platformRole) not snake_case (platform_role)
+  isSuperAdmin = currentUser?.platformRole === 'SUPER_ADMIN';
+
+  // Debug logging
+  if (import.meta.env.DEV) {
+    console.log('[AppLayout] User role check:', {
+      admin: isAdmin,
+      superAdmin: isSuperAdmin,
+      platformRole: currentUser?.platformRole,
+      workspaceMemberships: currentUser?.workspaceMemberships,
+    });
+    console.log('[AppLayout] Full user object:', currentUser);
+  }
+} catch (e) {
+  // Not logged in or error
+}
+
+// Simplified navigation following 80% rule
+// Primary sidebar contains only daily-use features
+const navGroups = [
+  {
+    label: null,
+    items: [
+      { href: "/", label: "Dashboard", icon: "⌂" },
+    ]
+  },
+  {
+    label: "Content",
+    items: [
+      { href: "/workspace/entries", label: "Entries", icon: "📝" },
+      { href: "/workspace/collections", label: "Collections", icon: "📚" },
+      { href: "/workspace/assets", label: "Assets", icon: "🖼" },
+      { href: "/workspace/resources", label: "Resources", icon: "🔗" },
+    ]
+  },
+  {
+    label: "Workspace",
+    items: [
+      { href: "/workspace/settings", label: "Settings", icon: "⚙" },
+    ]
+  },
+];
+
+const finalNavGroups = [
+  ...navGroups,
+  {
+    label: null,
+    items: [
+      { href: "/user/profile", label: "Profile", icon: "👤" },
+    ]
+  },
+];
+
+// Admin settings link - only for super admins (platform-wide)
+// Added at the very end with a separator label for visual distinction
+if (isSuperAdmin) {
+  finalNavGroups.push({
+    label: "Administration",
+    items: [
+      { href: "/admin", label: "Admin Settings", icon: "⚙" },
+    ]
+  });
+}
+
+// Helper to check if path is active (exact or starts with for nested routes)
+function isActive(itemPath: string, currentPath: string): boolean {
+  if (itemPath === "/") {
+    return currentPath === "/";
+  }
+  return currentPath === itemPath || currentPath.startsWith(itemPath + "/");
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Marvin platform admin frontend" />
+    <title>{title} | Marvin</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <WorkspaceSwitcher />
+        </div>
+        {finalNavGroups.map((group, groupIndex) => (
+          <div class:list={["nav-group", { "nav-group-admin": group.label === "Administration" }]}>
+            {group.label && (
+              <div class="nav-group-label">{group.label}</div>
+            )}
+            <nav class="nav" aria-label={group.label || "Primary"}>
+              {group.items.map((item) => (
+                <a href={item.href} aria-current={isActive(item.href, path) ? "page" : undefined}>
+                  <span aria-hidden="true">{item.icon}</span>
+                  <span>{item.label}</span>
+                </a>
+              ))}
+            </nav>
+          </div>
+        ))}
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-left">
+            <div class="topbar-title">
+              <p>{eyebrow}</p>
+              <h1>{title}</h1>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <a class="button secondary" href="/workspace/entries?status=needs_review,approved">Review Queue</a>
+            <form method="POST" action="/api/auth/logout" style="display:inline;">
+              <button type="submit" class="button secondary">Logout</button>
+            </form>
+          </div>
+        </header>
+        <section class="content">
+          <slot />
+        </section>
+      </main>
+      <ThemeSwitcher />
+    </div>
+  </body>
+</html>

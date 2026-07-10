@@ -1,0 +1,570 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import SchemaForm from "@/components/SchemaForm.astro";
+import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
+import { createEntry } from "@/lib/api/entries";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/auth/login');
+}
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+
+    // Collect dataJson.* fields from form
+    const dataJson: Record<string, any> = {};
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('dataJson.')) {
+        const fieldKey = key.replace('dataJson.', '');
+        // Handle boolean checkboxes (they submit "true" string or are absent)
+        if (value === 'true' || value === 'false') {
+          dataJson[fieldKey] = value === 'true';
+        } else if (value) {
+          dataJson[fieldKey] = value;
+        } else {
+          dataJson[fieldKey] = null;
+        }
+      }
+    }
+
+    const data: Record<string, any> = {
+      entry_type_id: formData.get('entry_type_id') as string,
+      title: formData.get('title') as string,
+      slug: (formData.get('slug') as string) || null,
+      summary: (formData.get('summary') as string) || null,
+      description: (formData.get('description') as string) || null,
+      status: formData.get('status') as string,
+      data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
+    };
+
+    const entry = await createEntry(data, authToken);
+    return Astro.redirect(`/workspace/entries/${entry.id}`);
+  } catch (e) {
+    console.error('[NewEntry] Failed to create entry:', e);
+    // Error will be shown below
+  }
+}
+
+// Get pre-selected type from query parameter (e.g., from Quick Create)
+const preSelectedTypeId = Astro.url.searchParams.get('type');
+
+let entryTypes: EntryTypeRead[] = [];
+let error: string | null = null;
+
+try {
+  entryTypes = await listEntryTypes(authToken);
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[NewEntry] Failed to load entry types:', error);
+}
+
+const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
+
+// Get pre-selected entry type schema if available
+const preSelectedType = preSelectedTypeId ? entryTypes.find(t => t.id === preSelectedTypeId) : null;
+const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schemaJson as any).fields?.length > 0
+  ? preSelectedType.schemaJson
+  : null;
+---
+
+<AppLayout title="New Entry" eyebrow="Entries">
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading entry types:</strong> {error}</p>
+      <a href="/workspace/entries" class="button secondary">Back to Entries</a>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Create Entry</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Create a draft entry. Add content and publish from the editor.</p>
+        </div>
+        <a class="button secondary" href="/workspace/entries">Cancel</a>
+      </div>
+
+      <section class="form-section">
+        <form method="POST" class="form" id="entry-form">
+          <div class="form-group">
+            <label for="entry_type_id">Entry Type *</label>
+            <select id="entry_type_id" name="entry_type_id" required>
+              <option value="">Select an entry type...</option>
+              {sortedTypes.map((type) => (
+                <option value={type.id} selected={type.id === preSelectedTypeId}>
+                  {type.icon && `${type.icon} `}{type.name}
+                </option>
+              ))}
+            </select>
+            <p class="form-help">Choose the type of content you're creating</p>
+          </div>
+
+          <div class="form-group">
+            <label for="title">Title *</label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              required
+              placeholder="e.g., My First Project"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="slug">Slug</label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              placeholder="Auto-generated from title, or enter custom"
+            />
+            <p class="form-help">Auto-generated from title, or enter a custom slug</p>
+          </div>
+
+          <div class="form-group">
+            <label for="summary">Summary</label>
+            <textarea
+              id="summary"
+              name="summary"
+              rows="2"
+              placeholder="Brief description or excerpt"
+            ></textarea>
+            <p class="form-help">Short summary shown in lists and previews</p>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea
+              id="description"
+              name="description"
+              rows="3"
+              placeholder="Longer description or metadata"
+            ></textarea>
+            <p class="form-help">Additional details about this entry</p>
+          </div>
+
+          {/* Schema-driven content fields - dynamically populated */}
+          <div id="schema-fields-container">
+            {preSelectedSchema && <SchemaForm schema={preSelectedSchema} />}
+          </div>
+
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <option value="inbox">Inbox</option>
+              <option value="draft" selected>Draft</option>
+            </select>
+            <p class="form-help">New entries start as drafts. Add content and publish from the editor.</p>
+          </div>
+
+          <div class="form-group" id="data-json-group" style={preSelectedSchema ? '' : 'display: none;'}>
+            <label for="data_json_editor">Data JSON (Schema Fields)</label>
+            <p class="form-help">Paste complete JSON to populate form fields above.</p>
+            <textarea
+              id="data_json_editor"
+              rows="8"
+              placeholder='{"text_field": "value", "number_field": 42}'
+              class="data-json-editor"
+            >{preSelectedSchema ? JSON.stringify(
+              preSelectedSchema.fields.reduce((acc: any, field: any) => {
+                acc[field.key] = field.defaultValue ?? null;
+                return acc;
+              }, {}),
+              null,
+              2
+            ) : '{}'}</textarea>
+            <button type="button" id="apply-data-json-btn" class="button secondary" style="margin-top: 0.5rem;">Apply JSON to Form</button>
+            <small style="font-size: 11px; color: var(--muted); display: block; margin-top: 0.5rem;">
+              Changes here will update the form fields above when you click "Apply JSON to Form"
+            </small>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="button">Create Entry</button>
+            <a href="/workspace/entries" class="button secondary">Cancel</a>
+          </div>
+        </form>
+      </section>
+    </>
+  )}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  select,
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  select {
+    cursor: pointer;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  /* Schema fields container styling - ensure consistency */
+  #schema-fields-container :global(.form-group) {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  #schema-fields-container :global(.form-group):last-child {
+    margin-bottom: 0;
+  }
+
+  #schema-fields-container :global(label) {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  #schema-fields-container :global(input[type="text"]),
+  #schema-fields-container :global(input[type="number"]),
+  #schema-fields-container :global(input[type="date"]),
+  #schema-fields-container :global(input[type="datetime-local"]),
+  #schema-fields-container :global(select),
+  #schema-fields-container :global(textarea) {
+    padding: 0.5rem 0.75rem !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 6px !important;
+    background: var(--bg) !important;
+    font-size: 0.875rem !important;
+    font-family: inherit !important;
+  }
+
+  #schema-fields-container :global(select) {
+    cursor: pointer;
+  }
+
+  #schema-fields-container :global(textarea) {
+    resize: vertical;
+  }
+
+  #schema-fields-container :global(.form-help) {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  #schema-fields-container :global(input[type="checkbox"]) {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+
+  /* Data JSON editor styling */
+  .data-json-editor {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    line-height: 1.6;
+  }
+</style>
+
+<script define:vars={{ entryTypes: sortedTypes }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Auto-generate slug from title (unless user manually edits it)
+    const titleInput = document.getElementById('title');
+    const slugInput = document.getElementById('slug');
+
+    if (titleInput && slugInput) {
+      titleInput.addEventListener('input', () => {
+        // Only auto-generate if user hasn't manually edited the slug
+        if (!slugInput.dataset.manuallyEdited) {
+          const slug = titleInput.value
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          slugInput.value = slug;
+        }
+      });
+
+      // Track if user manually edits slug field
+      slugInput.addEventListener('input', () => {
+        slugInput.dataset.manuallyEdited = 'true';
+      });
+    }
+
+    // Function to sync form fields to JSON editor (defined early so it can be called later)
+    function updateDataJsonFromForm() {
+      const form = document.getElementById('entry-form');
+      const dataJsonEditor = document.getElementById('data_json_editor');
+      if (!form || !dataJsonEditor) return;
+
+      const dataJson = {};
+      const dataJsonFields = form.querySelectorAll('[name^="dataJson."]');
+
+      dataJsonFields.forEach(field => {
+        const fieldKey = field.name.replace('dataJson.', '');
+
+        if (field.type === 'checkbox') {
+          dataJson[fieldKey] = field.checked;
+        } else if (field.value) {
+          dataJson[fieldKey] = field.value;
+        } else {
+          dataJson[fieldKey] = null;
+        }
+      });
+
+      dataJsonEditor.value = JSON.stringify(dataJson, null, 2);
+    }
+
+    // Dynamically render schema fields when entry type changes
+    const entryTypeSelect = document.getElementById('entry_type_id');
+    const schemaContainer = document.getElementById('schema-fields-container');
+
+    if (entryTypeSelect && schemaContainer) {
+      entryTypeSelect.addEventListener('change', () => {
+        console.log('[NewEntry] Entry type changed:', entryTypeSelect.value);
+        const selectedTypeId = entryTypeSelect.value;
+        const dataJsonGroup = document.getElementById('data-json-group');
+        const dataJsonEditor = document.getElementById('data_json_editor');
+
+        if (!selectedTypeId) {
+          schemaContainer.innerHTML = '';
+          if (dataJsonGroup) dataJsonGroup.style.display = 'none';
+          return;
+        }
+
+        // Find the selected entry type
+        const selectedType = entryTypes.find(t => t.id === selectedTypeId);
+        console.log('[NewEntry] Selected type:', selectedType);
+
+        if (!selectedType || !selectedType.schemaJson || !selectedType.schemaJson.fields?.length) {
+          schemaContainer.innerHTML = '';
+          if (dataJsonGroup) dataJsonGroup.style.display = 'none';
+          return;
+        }
+
+        // Show Data JSON editor and populate with empty template
+        if (dataJsonGroup) {
+          dataJsonGroup.style.display = '';
+
+          // Create template with all field keys and null/default values
+          const template = {};
+          console.log('[NewEntry] Schema fields:', selectedType.schemaJson.fields);
+          selectedType.schemaJson.fields.forEach(field => {
+            template[field.key] = field.defaultValue ?? null;
+          });
+
+          console.log('[NewEntry] Data JSON template:', template);
+          if (dataJsonEditor) {
+            dataJsonEditor.value = JSON.stringify(template, null, 2);
+          }
+        }
+
+        // Render schema fields dynamically
+        const schema = selectedType.schemaJson;
+        const fieldsHtml = schema.fields.map(field => {
+          const fieldName = `dataJson.${field.key}`;
+          const required = field.required ? 'required' : '';
+          const placeholder = field.placeholder || '';
+          const helpText = field.helpText || '';
+
+          switch (field.type) {
+            case 'text':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="text" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'textarea':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <textarea id="${fieldName}" name="${fieldName}" rows="4" placeholder="${placeholder}" ${required}></textarea>
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'number':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="number" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}"
+                    ${field.min !== undefined ? `min="${field.min}"` : ''}
+                    ${field.max !== undefined ? `max="${field.max}"` : ''}
+                    ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'boolean':
+              return `
+                <div class="form-group">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="${fieldName}" name="${fieldName}" value="true" />
+                    <label for="${fieldName}" style="margin: 0;">${field.label}</label>
+                  </div>
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'select':
+              const options = field.options || [];
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <select id="${fieldName}" name="${fieldName}" ${required}>
+                    <option value="">Select...</option>
+                    ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                  </select>
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'date':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="date" id="${fieldName}" name="${fieldName}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'datetime':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="datetime-local" id="${fieldName}" name="${fieldName}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+            case 'markdown':
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <textarea id="${fieldName}" name="${fieldName}" rows="8" placeholder="${placeholder}" ${required}></textarea>
+                  <p class="form-help">Markdown supported${helpText ? ` • ${helpText}` : ''}</p>
+                </div>
+              `;
+            default:
+              return `
+                <div class="form-group">
+                  <label for="${fieldName}">${field.label}${field.required ? ' *' : ''}</label>
+                  <input type="text" id="${fieldName}" name="${fieldName}" placeholder="${placeholder}" ${required} />
+                  ${helpText ? `<p class="form-help">${helpText}</p>` : ''}
+                </div>
+              `;
+          }
+        }).join('');
+
+        schemaContainer.innerHTML = fieldsHtml;
+      });
+    }
+
+    // Data JSON editor - bidirectional sync with form fields
+    const form = document.getElementById('entry-form');
+    const dataJsonEditor = document.getElementById('data_json_editor');
+    const applyDataJsonBtn = document.getElementById('apply-data-json-btn');
+
+    if (form && dataJsonEditor && applyDataJsonBtn) {
+      // Listen for changes to schema fields (updateDataJsonFromForm is defined above)
+      form.addEventListener('input', (e) => {
+        const target = e.target;
+        if (target.name && target.name.startsWith('dataJson.')) {
+          updateDataJsonFromForm();
+        }
+      });
+
+      // Update form fields when "Apply JSON to Form" button is clicked
+      applyDataJsonBtn.addEventListener('click', () => {
+        try {
+          const dataJson = JSON.parse(dataJsonEditor.value);
+
+          // Update all matching form fields
+          let fieldsUpdated = 0;
+          for (const [key, value] of Object.entries(dataJson)) {
+            const fieldName = `dataJson.${key}`;
+            const field = form.querySelector(`[name="${fieldName}"]`);
+
+            if (field) {
+              if (field.type === 'checkbox') {
+                field.checked = !!value;
+              } else {
+                field.value = value !== null && value !== undefined ? String(value) : '';
+              }
+              fieldsUpdated++;
+            }
+          }
+
+          if (fieldsUpdated === 0) {
+            alert('No matching form fields found. Make sure you have selected an entry type first.');
+          } else {
+            console.log(`[NewEntry] Applied JSON to ${fieldsUpdated} form fields`);
+          }
+        } catch (e) {
+          alert('Invalid JSON. Please check your syntax and try again.');
+          console.error('[NewEntry] Failed to parse JSON:', e);
+        }
+      });
+
+      // Do initial sync if fields are pre-populated
+      const schemaContainer = document.getElementById('schema-fields-container');
+      if (schemaContainer && schemaContainer.querySelectorAll('[name^="dataJson."]').length > 0) {
+        updateDataJsonFromForm();
+      }
+    }
+  });
+</script>

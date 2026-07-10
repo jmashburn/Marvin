@@ -13,6 +13,8 @@ docs/site/
 
 .DS_Store
 node_modules
+frontend/.astro/
+frontend/dist/
 
 
 # local env files
@@ -128,6 +130,9 @@ node_modules/
 *.db
 *.sqlite
 
+# Development data (user-generated content and runtime files)
+# All contents of src/dev/data/ are created at runtime
+src/dev/data/*
 
 .run/
 .task/*

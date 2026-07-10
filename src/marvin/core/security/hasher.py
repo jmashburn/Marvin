@@ -52,6 +52,15 @@ class BcryptHasher:
     A hasher that uses the bcrypt algorithm for password hashing.
     """
 
+    def __init__(self, rounds: int = 12):
+        """
+        Initialize the BcryptHasher with a configurable cost factor.
+
+        Args:
+            rounds (int): Bcrypt cost factor (4-31). Higher = more secure but slower. Default: 12
+        """
+        self.rounds = max(4, min(31, rounds))  # Clamp to valid bcrypt range
+
     def hash(self, password: str) -> str:
         """
         Hashes a password using bcrypt.
@@ -63,7 +72,7 @@ class BcryptHasher:
             str: The hashed password.
         """
         password_bytes = password.encode("utf-8")
-        hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+        hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=self.rounds))
         return hashed.decode("utf-8")
 
     def verify(self, password: str, hashed: str) -> bool:
@@ -88,7 +97,7 @@ def get_hasher() -> Hasher:
     Returns the appropriate password hasher based on application settings.
 
     If the application is in TESTING mode, a FakeHasher is returned.
-    Otherwise, a BcryptHasher is returned.
+    Otherwise, a BcryptHasher is returned with the configured cost factor.
 
     Returns:
         Hasher: The password hasher instance.
@@ -98,4 +107,4 @@ def get_hasher() -> Hasher:
     if settings.TESTING:
         return FakeHasher()
 
-    return BcryptHasher()
+    return BcryptHasher(rounds=settings.SECURITY_BCRYPT_ROUNDS)

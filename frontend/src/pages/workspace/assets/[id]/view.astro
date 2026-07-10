@@ -1,0 +1,331 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
+
+const authToken = getAuthToken(Astro.cookies);
+const { id } = Astro.params;
+
+let asset: PlatformAsset | null = null;
+let error: string | null = null;
+
+if (!id) {
+  error = "Asset ID is required";
+} else if (!authToken) {
+  error = "Authentication required";
+} else {
+  try {
+    const sdk = createSdkClient(authToken);
+    asset = await sdk.assets.get(id);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Asset View] Failed to load:', error);
+  }
+}
+
+const isImage = asset?.mimeType?.startsWith('image/');
+const isVideo = asset?.mimeType?.startsWith('video/');
+const isAudio = asset?.mimeType?.startsWith('audio/');
+const isPdf = asset?.mimeType?.includes('pdf');
+---
+
+<AppLayout title={asset ? `View: ${asset.name}` : "View Asset"}>
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading asset:</strong> {error}</p>
+      <a href="/workspace/assets" class="button secondary">Back to Assets</a>
+    </div>
+  ) : asset && asset.publicUrl ? (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">{asset.name}</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">{asset.mimeType}</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <a href={asset.publicUrl} download={asset.originalFilename} class="button">
+            Download
+          </a>
+          <a href={asset.publicUrl} target="_blank" rel="noopener noreferrer" class="button secondary">
+            Open Raw ↗
+          </a>
+          <a href={`/workspace/assets/${asset.id}`} class="button secondary">
+            Edit
+          </a>
+          <a href="/workspace/assets" class="button secondary">
+            Back
+          </a>
+        </div>
+      </div>
+
+      <div class="viewer-container">
+        {isImage && (
+          <div class="image-viewer">
+            <img
+              src={asset.publicUrl}
+              alt={asset.altText || asset.name}
+            />
+            {asset.altText && (
+              <div class="alt-text-display">
+                <strong>Alt text:</strong> {asset.altText}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isVideo && (
+          <div class="video-viewer">
+            <video controls>
+              <source src={asset.publicUrl} type={asset.mimeType} />
+              Your browser does not support video playback.
+            </video>
+          </div>
+        )}
+
+        {isAudio && (
+          <div class="audio-viewer">
+            <audio controls>
+              <source src={asset.publicUrl} type={asset.mimeType} />
+              Your browser does not support audio playback.
+            </audio>
+          </div>
+        )}
+
+        {isPdf && (
+          <div class="pdf-viewer">
+            <iframe
+              src={asset.publicUrl}
+              title={asset.name}
+            ></iframe>
+          </div>
+        )}
+
+        {!isImage && !isVideo && !isAudio && !isPdf && (
+          <div class="file-info">
+            <div class="file-icon">📄</div>
+            <h3>{asset.originalFilename}</h3>
+            <p class="file-meta">{asset.mimeType} • {(asset.fileSize / 1024).toFixed(1)} KB</p>
+            <p style="color:var(--muted);margin-top:1rem;">
+              Preview not available for this file type. Use the Download or Open Raw buttons above.
+            </p>
+          </div>
+        )}
+
+        {asset.description && (
+          <div class="description-panel">
+            <h4>Description</h4>
+            <p>{asset.description}</p>
+          </div>
+        )}
+
+        {asset.metadata_ && Object.keys(asset.metadata_).length > 0 && (
+          <div class="custom-metadata-panel">
+            <h4>File Metadata</h4>
+            <dl class="metadata-list">
+              {Object.entries(asset.metadata_).map(([key, value]) => (
+                <div class="metadata-item">
+                  <dt>{key}</dt>
+                  <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        <div class="metadata-panel">
+          <dl class="info-list">
+            <dt>File Size</dt>
+            <dd>{(asset.fileSize / 1024).toFixed(1)} KB</dd>
+
+            {asset.width && asset.height && (
+              <>
+                <dt>Dimensions</dt>
+                <dd>{asset.width} × {asset.height}px</dd>
+              </>
+            )}
+
+            <dt>Type</dt>
+            <dd><code>{asset.mimeType}</code></dd>
+
+            <dt>Slug</dt>
+            <dd><code>{asset.slug}</code></dd>
+          </dl>
+        </div>
+      </div>
+    </>
+  ) : (
+    <div class="error-banner">
+      <p>Asset file URL not available</p>
+      <a href="/workspace/assets" class="button secondary">Back to Assets</a>
+    </div>
+  )}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .viewer-container {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .image-viewer {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .image-viewer img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  .alt-text-display {
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+    width: 100%;
+    font-size: 0.875rem;
+  }
+
+  .video-viewer,
+  .audio-viewer {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 2rem;
+  }
+
+  .video-viewer video,
+  .audio-viewer audio {
+    width: 100%;
+    max-width: 800px;
+    display: block;
+    margin: 0 auto;
+  }
+
+  .pdf-viewer {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .pdf-viewer iframe {
+    width: 100%;
+    height: 80vh;
+    border: none;
+  }
+
+  .file-info {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .file-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+
+  .file-info h3 {
+    margin: 0.5rem 0;
+  }
+
+  .file-meta {
+    color: var(--muted);
+    margin: 0.5rem 0;
+  }
+
+  .description-panel,
+  .metadata-panel,
+  .custom-metadata-panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+  }
+
+  .description-panel h4,
+  .metadata-panel h4,
+  .custom-metadata-panel h4 {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+  }
+
+  .description-panel p {
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  .metadata-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+  }
+
+  .metadata-item {
+    padding: 0.75rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
+  }
+
+  .info-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+  }
+
+  .info-list dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .info-list dd {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+  }
+</style>

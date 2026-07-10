@@ -30,11 +30,15 @@ from sqlalchemy.orm.interfaces import LoaderOption
 # Marvin core and database model imports
 from marvin.core.config import get_app_settings
 from marvin.db.models.users import Users as UsersSQLModel  # SQLAlchemy User model, aliased
+from marvin.db.models.users.roles import PlatformRole, WorkspaceRole  # Role enums
 from marvin.db.models.users.users import (
     AuthMethod,
 )  # AuthMethod enum and Token model
 from marvin.db.models.users.users import (
     LongLiveToken as LongLiveTokenSQLModel,
+)
+from marvin.db.models.users.workspace_members import (
+    WorkspaceMembers as WorkspaceMembersSQLModel,
 )
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvin schemas
 from marvin.schemas.response.pagination import PaginationBase  # Base for pagination responses
@@ -51,7 +55,9 @@ class LongLiveTokenCreate(_MarvinModel):
     """
 
     name: str
-    """A user-defined name for the token to help identify its purpose (e.g., "GitHub Actions Token")."""
+    """A user-defined name for the token to help identify its purpose (e.g., "CI/CD Token")."""
+    description: str | None = None
+    """Optional description of the token's purpose or usage."""
     integration_id: str = settings._DEFAULT_INTEGRATION_ID
     """
     An optional identifier for an external integration this token might be used with.
@@ -59,10 +65,26 @@ class LongLiveTokenCreate(_MarvinModel):
     """
 
 
+class LongLiveTokenUpdate(_MarvinModel):
+    """
+    Schema for updating an existing long-lived API token.
+    All fields are optional.
+    """
+
+    name: str | None = None
+    """Updated name for the token."""
+    description: str | None = None
+    """Updated description for the token."""
+    enabled: bool | None = None
+    """Enable or disable the token."""
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LongLiveTokenRead(_MarvinModel):
     """
     Schema for representing a long-lived API token when read from the system.
-    This view typically excludes the sensitive token string itself.
+    Excludes the sensitive token string itself (never return token_hash).
+    Includes security fields: enabled, last_used_at, revoked_at.
     """
 
     id: UUID4
@@ -71,18 +93,24 @@ class LongLiveTokenRead(_MarvinModel):
     """The unique identifier of the user to whom this token belongs."""
     name: str
     """The user-defined name of the API token."""
-    created_at: datetime | None = None  # Should be `datetime` if always present from BaseMixins
+    description: str | None = None
+    """Optional description of the token's purpose."""
+    enabled: bool
+    """Whether the token is currently active and can authenticate."""
+    last_used_at: datetime | None = None
+    """Timestamp (UTC) of when the token was last used for authentication."""
+    revoked_at: datetime | None = None
+    """Timestamp (UTC) of when the token was revoked (soft delete)."""
+    created_at: datetime | None = None
     """Timestamp (UTC) of when the token was created."""
-
-    update_at: datetime | None = None  # Should be `datetime` if always present from BaseMixins
-    """Timestamp (UTC) of when the token was created."""
-
+    update_at: datetime | None = None
+    """Timestamp (UTC) of when the token was last updated."""
     integration_id: str = settings._DEFAULT_INTEGRATION_ID
     """
     An optional identifier for an external integration this token might be used with.
     Defaults to "generic".
     """
-    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def loader_options(cls) -> list[LoaderOption]:
@@ -90,29 +118,60 @@ class LongLiveTokenRead(_MarvinModel):
         Provides SQLAlchemy loader options for optimizing queries for `LongLiveTokenRead`.
         Configures eager loading for the `user` relationship of the token.
         """
-        # Eagerly load the 'user' related to the LongLiveTokenSQLModel
         return [joinedload(LongLiveTokenSQLModel.user)]
 
 
 class LongLiveTokenSummary(_MarvinModel):
+    """
+    Schema for summarized token information in lists.
+    """
+
     id: UUID4
     """The unique identifier of the API token."""
     name: str
     """The user-defined name of the API token."""
-    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+    enabled: bool
+    """Whether the token is currently active."""
+    last_used_at: datetime | None = None
+    """Timestamp (UTC) of when the token was last used."""
+    model_config = ConfigDict(from_attributes=True)
 
 
-class LongLiveTokenCreateResponse(_MarvinModel):  # Extends LongLiveTokenRead to include common fields
+class LongLiveTokenWithToken(_MarvinModel):
     """
+    Schema for the response when a new token is created or rotated.
+    Includes the actual `token` string, which is shown ONLY ONCE.
+
+    IMPORTANT: The plaintext token is never stored in the database.
+    Only the bcrypt hash is stored.
+    """
+
+    id: UUID4
+    """The unique identifier of the API token."""
+    user_id: UUID4
+    """The unique identifier of the user to whom this token belongs."""
+    name: str
+    """The user-defined name of the API token."""
+    description: str | None = None
+    """Optional description of the token's purpose."""
+    enabled: bool
+    """Whether the token is currently active."""
+    token: str
+    """The plaintext API token. SHOWN ONCE. Format: marvin_tk_{random}"""
+    created_at: datetime | None = None
+    """Timestamp (UTC) of when the token was created."""
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LongLiveTokenCreateResponse(_MarvinModel):
+    """
+    DEPRECATED: Use LongLiveTokenWithToken instead.
     Schema for the response when a new long-lived API token is created.
-    Crucially, this schema includes the actual `token` string, which should
-    ONLY be returned at the time of creation and not stored or displayed again.
     """
 
     token: str
     """The generated API token string. This is sensitive and should be handled securely."""
-    # Inherits id, name, created_at from LongLiveTokenRead
-    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LongLiveTokenPagination(PaginationBase):
@@ -125,17 +184,61 @@ class LongLiveTokenPagination(PaginationBase):
     """The list of groups for the current page, serialized as `LongLiveTokenSummary`."""
 
 
-class TokenCreate(LongLiveTokenCreate):  # Extends LongLiveTokenCreate for request data
+class WorkspaceMembershipRead(_MarvinModel):
     """
-    Schema used internally for creating a token record in the database.
-    Includes the user ID and the hashed token string (if hashing were applied here,
-    though JWTs are typically stored as is).
+    Schema for reading a user's workspace membership with role.
+    Represents the relationship between a user and a workspace.
+    Includes user details when loaded with joinedload.
+    """
+
+    id: UUID4
+    """Unique identifier for the membership."""
+    user_id: UUID4
+    """ID of the user."""
+    group_id: UUID4
+    """ID of the workspace (group)."""
+    workspace_role: WorkspaceRole
+    """The role this user has within this workspace."""
+    user: "UserSummary | None" = None
+    """User details (populated when joined)."""
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def loader_options(cls) -> list[LoaderOption]:
+        """
+        Provides SQLAlchemy loader options for optimizing workspace membership queries.
+        """
+        return []
+
+
+class WorkspaceMembershipSummary(_MarvinModel):
+    """
+    Schema for summarized workspace membership information.
+    Used in user profiles to show which workspaces they belong to.
+    """
+
+    group_id: UUID4
+    """ID of the workspace (group)."""
+    workspace_role: WorkspaceRole
+    """The role this user has within this workspace."""
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TokenCreate(LongLiveTokenCreate):
+    """
+    DEPRECATED: Internal schema for creating a token record.
+    Repository now handles token generation and hashing directly.
+
+    This schema is kept for backward compatibility but should not be used
+    for new code. Use LongLiveTokenCreate instead.
     """
 
     user_id: UUID4
     """The unique identifier of the user to whom this token belongs."""
-    token: str
-    """The actual token string to be stored."""
+    token_hash: str
+    """The bcrypt hash of the token (not the plaintext token)."""
+    created_by: UUID4
+    """The unique identifier of the user who created this token."""
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -178,8 +281,12 @@ class UserCreate(_MarvinModel):
     """The user's email address. Will be converted to lowercase and stripped of whitespace."""
     auth_method: AuthMethod = AuthMethod.MARVIN
     """The authentication method for the user. Defaults to `MARVIN` (standard password)."""
+    platform_role: PlatformRole = PlatformRole.NONE
+    """Platform-level role. Defaults to NONE (standard user)."""
     admin: bool = False
-    """Whether the user has administrative privileges. Defaults to False."""
+    """DEPRECATED: Use workspace roles instead. Whether the user has administrative privileges. Defaults to False."""
+    is_superuser: bool = False
+    """DEPRECATED: Use platform_role instead. Whether the user is a platform-level super administrator. Defaults to False."""
     group: str | None = None  # Represents group name or ID for assignment. Validator handles object-to-name conversion.
     """
     Name or identifier of the group to assign the user to.
@@ -237,6 +344,23 @@ class UserCreate(_MarvinModel):
             return v
 
 
+class UserProfileUpdate(_MarvinModel):
+    """
+    Schema for updating a user's profile information (without password).
+    All fields are optional for partial updates.
+    Used by the /api/self endpoint for users updating their own profile.
+    """
+
+    username: str | None = None
+    """Updated username."""
+    email: str | None = None
+    """Updated email address."""
+    full_name: str | None = None
+    """Updated full name."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserUpdate(UserCreate):
     """
     Schema likely used internally for saving a user to the database,
@@ -264,12 +388,18 @@ class UserRead(UserCreate):  # UserRead inheriting UserCreate (which has passwor
 
     id: UUID4
     """The unique identifier of the user."""
+    platform_role: PlatformRole
+    """Platform-level role (NONE or SUPER_ADMIN)."""
     group: str  # In UserCreate this was `str | None`. Here it's `str`. Might imply group is always resolved.
     """The name of the group the user belongs to."""
     group_id: UUID4
     """The unique identifier of the group the user belongs to."""
     group_slug: str  # Added based on original properties, likely from ORM.
     """The slug of the group the user belongs to."""
+    active_group_id: UUID4 | None = None
+    """The workspace currently active for this user (or None to use group_id)."""
+    workspace_memberships: list[WorkspaceMembershipSummary] = []
+    """List of workspaces this user is a member of with their roles."""
     # tokens: list[LongLiveTokenRead] | None = None # Commented out in original, might be populated conditionally.
     cache_key: str | None  # Made optional as per UserSQLModel default
     """A cache key associated with the user, potentially for ETag or client-side caching."""
@@ -285,15 +415,54 @@ class UserRead(UserCreate):  # UserRead inheriting UserCreate (which has passwor
         # Compares user's email (normalized) with the default email from settings (normalized).
         return self.email.strip().lower() == settings._DEFAULT_EMAIL.strip().lower()
 
+    @property
+    def is_platform_admin(self) -> bool:
+        """Check if user has platform admin privileges (SUPER_ADMIN role)."""
+        return self.platform_role == PlatformRole.SUPER_ADMIN
+
+    def get_workspace_role(self, group_id: UUID4) -> WorkspaceRole | None:
+        """
+        Get the user's role in a specific workspace.
+
+        Args:
+            group_id: UUID of the workspace to check.
+
+        Returns:
+            WorkspaceRole if user is a member of the workspace, None otherwise.
+        """
+        for membership in self.workspace_memberships:
+            if membership.group_id == group_id:
+                return membership.workspace_role
+        return None
+
+    def has_workspace_role(self, group_id: UUID4, required_role: WorkspaceRole) -> bool:
+        """
+        Check if user has at least the required role in a workspace.
+
+        Args:
+            group_id: UUID of the workspace to check.
+            required_role: Minimum role required.
+
+        Returns:
+            True if user has the required role or higher, False otherwise.
+        """
+        from marvin.db.models.users.roles import workspace_role_has_higher_or_equal_privilege
+
+        user_role = self.get_workspace_role(group_id)
+        if user_role is None:
+            return False
+        return workspace_role_has_higher_or_equal_privilege(user_role, required_role)
+
     @classmethod
     def loader_options(cls) -> list[LoaderOption]:
         """
         Provides SQLAlchemy loader options for optimizing `UserRead` queries.
-        Eagerly loads the user's `group` and `tokens` relationships.
+        Eagerly loads the user's `group`, `tokens`, and `workspace_memberships` relationships.
         """
         return [
             joinedload(UsersSQLModel.group),  # Eager load user's group
             joinedload(UsersSQLModel.tokens),  # Eager load user's API tokens
+            joinedload(UsersSQLModel.workspace_memberships),  # Eager load workspace memberships
         ]
 
 
@@ -309,7 +478,9 @@ class UserSummary(_MarvinModel):
     """The unique identifier of the group the user belongs to."""
     username: str
     """The user's username."""
-    full_name: str | None  # Made optional to match UserSQLModel
+    email: str | None = None
+    """The user's email address."""
+    full_name: str | None = None  # Made optional to match UserSQLModel
     """The user's full name."""
     model_config = ConfigDict(from_attributes=True)
 
@@ -377,6 +548,11 @@ class PrivateUser(UserRead):  # Extends UserRead, so includes fields like passwo
         # Compare with current UTC time
         return lockout_expires_at > datetime.now(UTC)
 
+    @property
+    def effective_workspace_id(self) -> UUID4:
+        """Returns active workspace if set, otherwise falls back to group_id."""
+        return self.active_group_id or self.group_id
+
     def directory(self) -> Path:  # This method seems to imply a static method was intended or user-specific dir logic
         """
         Returns the directory path for this user.
@@ -399,11 +575,12 @@ class PrivateUser(UserRead):  # Extends UserRead, so includes fields like passwo
     def loader_options(cls) -> list[LoaderOption]:
         """
         Provides SQLAlchemy loader options for optimizing `PrivateUser` queries.
-        Eagerly loads the user's `group` and `tokens` relationships.
+        Eagerly loads the user's `group`, `tokens`, and `workspace_memberships` relationships.
         """
         return [
             joinedload(UsersSQLModel.group),  # Eager load user's group
             joinedload(UsersSQLModel.tokens),  # Eager load user's API tokens
+            joinedload(UsersSQLModel.workspace_memberships),  # Eager load workspace memberships
         ]
 
 

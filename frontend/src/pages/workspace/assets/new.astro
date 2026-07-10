@@ -1,0 +1,501 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import ImageCropper from "@/components/ImageCropper.astro";
+import SlugInput from "@/components/SlugInput.astro";
+---
+
+<AppLayout title="Upload Asset" eyebrow="Assets">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0;font-size:20px;">Upload Asset</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Upload images, videos, documents, and other files</p>
+    </div>
+    <a href="/workspace/assets" class="button secondary">Cancel</a>
+  </div>
+
+  <section class="form-section">
+    <form id="uploadForm" enctype="multipart/form-data" class="form">
+      <!-- File Upload Area -->
+      <div class="form-group">
+        <label for="file">File *</label>
+        <div class="file-upload-area" id="dropZone">
+          <input
+            type="file"
+            id="file"
+            name="file"
+            required
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+            hidden
+          />
+          <div class="upload-placeholder" id="uploadPlaceholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <p style="margin: 1rem 0 0.5rem; font-weight: 600;">Click to upload or drag and drop</p>
+            <p style="margin: 0; font-size: 0.875rem; color: var(--muted);">Images, videos, PDFs, documents</p>
+          </div>
+          <div class="upload-preview" id="uploadPreview" style="display: none;">
+            <div id="previewContent"></div>
+            <button type="button" class="button secondary small" id="removeFile">Change File</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Name Field (Auto-populated from filename) -->
+      <div class="form-group">
+        <label for="name">Name *</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          required
+          placeholder="e.g., Product Hero Image"
+        />
+        <p class="form-help">Auto-populated from filename, edit as needed</p>
+      </div>
+
+      <!-- Slug (Auto-generated, read-only) -->
+      <SlugInput nameFieldId="name" />
+
+      <!-- Alt Text -->
+      <div class="form-group">
+        <label for="alt_text">Alt Text</label>
+        <input
+          type="text"
+          id="alt_text"
+          name="alt_text"
+          placeholder="Describe this asset for accessibility"
+        />
+        <p class="form-help">Important for accessibility and SEO (especially for images)</p>
+      </div>
+
+      <!-- Description -->
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows="4"
+          placeholder="Additional details about this asset"
+        ></textarea>
+      </div>
+
+      <!-- Metadata (JSON) -->
+      <div class="form-group">
+        <label for="metadata">Custom Metadata (JSON)</label>
+        <textarea
+          id="metadata"
+          name="metadata"
+          rows="6"
+          placeholder='{"photographer": "Jane Doe", "license": "CC-BY"}'
+          class="metadata-editor"
+        ></textarea>
+        <p class="form-help">Optional custom metadata as JSON</p>
+      </div>
+
+      <!-- Upload Progress -->
+      <div id="uploadProgress" style="display: none;">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p id="progressText" style="margin: 0.5rem 0 0; font-size: 0.875rem; color: var(--muted); text-align: center;">Uploading...</p>
+      </div>
+
+      <!-- Error Message -->
+      <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button type="submit" class="button" id="submitButton">Upload Asset</button>
+        <a href="/workspace/assets" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </section>
+
+  <ImageCropper />
+</AppLayout>
+
+<style>
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .file-upload-area {
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+
+  .file-upload-area:hover {
+    border-color: var(--ink);
+    background: var(--panel-2);
+  }
+
+  .file-upload-area.dragover {
+    border-color: var(--brand);
+    background: var(--panel-2);
+  }
+
+  .upload-placeholder svg {
+    color: var(--muted);
+  }
+
+  .upload-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .upload-preview img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 6px;
+  }
+
+  .upload-preview .file-info {
+    text-align: center;
+  }
+
+  .upload-preview .file-name {
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .upload-preview .file-size {
+    font-size: 0.875rem;
+    color: var(--muted);
+    margin: 0.25rem 0 0;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--panel-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--brand);
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
+  .error-message {
+    padding: 1rem;
+    background: #fdecea;
+    border: 1px solid #f5c6cb;
+    border-radius: 6px;
+    color: #721c24;
+    font-size: 0.875rem;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
+  }
+
+  .button.small {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+  }
+</style>
+
+<script>
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
+  const form = document.getElementById('uploadForm') as HTMLFormElement;
+  const fileInput = document.getElementById('file') as HTMLInputElement;
+  const dropZone = document.getElementById('dropZone') as HTMLElement;
+  const uploadPlaceholder = document.getElementById('uploadPlaceholder') as HTMLElement;
+  const uploadPreview = document.getElementById('uploadPreview') as HTMLElement;
+  const previewContent = document.getElementById('previewContent') as HTMLElement;
+  const removeFileBtn = document.getElementById('removeFile') as HTMLButtonElement;
+  const nameInput = document.getElementById('name') as HTMLInputElement;
+  const slugInput = document.getElementById('slug') as HTMLInputElement;
+  const submitButton = document.getElementById('submitButton') as HTMLButtonElement;
+  const progressContainer = document.getElementById('uploadProgress') as HTMLElement;
+  const progressFill = document.getElementById('progressFill') as HTMLElement;
+  const progressText = document.getElementById('progressText') as HTMLElement;
+  const errorMessage = document.getElementById('errorMessage') as HTMLElement;
+
+  let selectedFile: File | null = null;
+  let progressInterval: number | null = null;
+
+  // Click to select file
+  dropZone.addEventListener('click', (e) => {
+    if (e.target !== removeFileBtn && !removeFileBtn.contains(e.target as Node)) {
+      fileInput.click();
+    }
+  });
+
+  // File selection handler
+  fileInput.addEventListener('change', (e) => {
+    const files = (e.target as HTMLInputElement).files;
+    if (files && files.length > 0) {
+      handleFile(files[0]);
+    }
+  });
+
+  // Drag and drop
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      fileInput.files = files;
+      handleFile(files[0]);
+    }
+  });
+
+  // Remove file
+  removeFileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectedFile = null;
+    fileInput.value = '';
+    uploadPlaceholder.style.display = 'block';
+    uploadPreview.style.display = 'none';
+    nameInput.value = '';
+    slugInput.value = '';
+  });
+
+  // Handle file selection
+  function handleFile(file: File) {
+    // Auto-populate name from filename
+    const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+    nameInput.value = fileName.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    // Generate slug
+    updateSlug();
+
+    // Show cropper for images
+    if (file.type.startsWith('image/')) {
+      const cropper = new (window as any).ImageCropper();
+      cropper.show(file, (blob: Blob) => {
+        // Create a new File from the cropped blob
+        selectedFile = new File([blob], file.name, { type: 'image/jpeg' });
+        showPreview(selectedFile);
+      });
+    } else {
+      selectedFile = file;
+      showPreview(file);
+    }
+  }
+
+  function showPreview(file: File) {
+    // Show preview
+    uploadPlaceholder.style.display = 'none';
+    uploadPreview.style.display = 'flex';
+
+    // Create preview content
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewContent.innerHTML = `<img src="${e.target?.result}" alt="Preview" />`;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      previewContent.innerHTML = `
+        <div class="file-info">
+          <p class="file-name">${file.name}</p>
+          <p class="file-size">${formatFileSize(file.size)}</p>
+          <p class="file-size">${file.type || 'Unknown type'}</p>
+        </div>
+      `;
+    }
+  }
+
+  // Auto-generate slug from name
+  nameInput.addEventListener('input', updateSlug);
+
+  function updateSlug() {
+    const slug = nameInput.value
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    slugInput.value = slug;
+  }
+
+  // Format file size
+  function formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  }
+
+  // Form submission
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (!selectedFile) {
+      showError('Please select a file to upload');
+      return;
+    }
+
+    // Hide error
+    errorMessage.style.display = 'none';
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('slug', slugInput.value);
+    formData.append('name', nameInput.value);
+
+    const altText = (document.getElementById('alt_text') as HTMLInputElement).value;
+    const description = (document.getElementById('description') as HTMLTextAreaElement).value;
+    const metadata = (document.getElementById('metadata') as HTMLTextAreaElement).value;
+
+    if (altText) formData.append('alt_text', altText);
+    if (description) formData.append('description', description);
+    if (metadata) {
+      try {
+        JSON.parse(metadata); // Validate JSON
+        formData.append('metadata', metadata);
+      } catch (e) {
+        showError('Invalid JSON in metadata field');
+        return;
+      }
+    }
+
+    // Disable submit button and show progress
+    submitButton.disabled = true;
+    submitButton.textContent = 'Uploading...';
+    progressContainer.style.display = 'block';
+
+    try {
+      // Prepare metadata for SDK
+      const uploadData = {
+        slug: slugInput.value,
+        name: nameInput.value,
+        altText: altText || undefined,
+        description: description || undefined,
+        metadata: metadata ? JSON.parse(metadata) : undefined,
+      };
+
+      // Use SDK to upload
+      // Note: SDK uses fetch which doesn't support upload progress tracking
+      // For a better UX, we simulate progress
+      simulateProgress();
+
+      const asset = await sdk.assets.upload(selectedFile, uploadData);
+
+      // Clear progress simulation
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+
+      progressFill.style.width = '100%';
+      progressText.textContent = 'Upload complete! Redirecting...';
+
+      setTimeout(() => {
+        window.location.href = '/workspace/assets';
+      }, 1000);
+    } catch (error: any) {
+      const message = error?.message || error?.detail || 'Upload failed';
+      showError(message);
+      resetForm();
+    }
+  });
+
+  // Simulate upload progress (since fetch doesn't support progress tracking)
+  function simulateProgress() {
+    let progress = 0;
+    progressInterval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress > 90) {
+        if (progressInterval) clearInterval(progressInterval);
+        progress = 90;
+      }
+      progressFill.style.width = progress + '%';
+      progressText.textContent = `Uploading... ${Math.round(progress)}%`;
+    }, 200) as unknown as number;
+  }
+
+  function showError(message: string) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+  }
+
+  function resetForm() {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+    submitButton.disabled = false;
+    submitButton.textContent = 'Upload Asset';
+    progressContainer.style.display = 'none';
+    progressFill.style.width = '0%';
+  }
+</script>

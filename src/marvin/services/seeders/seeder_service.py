@@ -7,7 +7,7 @@ the database with initial or default data for various parts of the application.
 """
 
 from marvin.repos.repository_factory import AllRepositories  # For accessing data repositories
-from marvin.repos.seed.seeders import NotifierOptionSeeder  # Specific seeder for notifier options
+from marvin.repos.seed.seeders import NotifierOptionSeeder, SystemEntryTypeSeeder  # Specific seeders
 
 # The line `# $from marvin.repos.seeders` seems like a placeholder or an artifact;
 # actual seeder classes are imported directly.
@@ -56,3 +56,24 @@ class SeederService(BaseService):
         # Execute the seed operation
         notifier_seeder.seed(name)
         self.logger.info(f"Completed seeding of notifier options for configuration: '{name or 'default'}'")
+
+    def seed_system_entry_types(self, name: str | None = None) -> None:
+        """
+        Seeds the database with system-level entry types.
+
+        Instantiates `SystemEntryTypeSeeder` and calls its `seed` method.
+        System entry types are globally available to all workspaces and
+        are created with group_id=NULL.
+
+        Args:
+            name (str | None, optional): The name of the seeder configuration or
+                                         data file to use (e.g., "system_entry_types").
+                                         Passed to the seeder's `seed` method.
+                                         If None, the seeder might use a default.
+        """
+        self.logger.info(f"Initiating seeding of system entry types with configuration: '{name or 'default'}'")
+        # Instantiate the specific seeder for system entry types
+        system_entry_type_seeder = SystemEntryTypeSeeder(db=self.repos, logger=self.logger)
+        # Execute the seed operation
+        system_entry_type_seeder.seed(name)
+        self.logger.info(f"Completed seeding of system entry types for configuration: '{name or 'default'}'")

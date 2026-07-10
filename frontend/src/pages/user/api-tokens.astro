@@ -1,0 +1,307 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+let tokens = [];
+let error: string | null = null;
+const newToken = Astro.url.searchParams.get('token');
+const newTokenName = Astro.url.searchParams.get('token_name');
+
+try {
+  tokens = await fetchApi<any[]>('/api/self/api-tokens', {}, authToken);
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+}
+
+function formatDate(date: string | null | undefined): string {
+  if (!date) return 'Never';
+  const d = new Date(date);
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return 'Today';
+  if (diff < 7) return `${diff}d ago`;
+  return d.toLocaleDateString();
+}
+---
+
+<AppLayout title="API Tokens" eyebrow="User Settings">
+  <div class="toolbar">
+    <div>
+      <h2>Personal API Tokens</h2>
+      <p>Tokens for scripts and integrations (marvin_tk_*)</p>
+    </div>
+    <a href="/user/api-tokens/new" class="button">Create Token</a>
+  </div>
+
+  <div class="page-container">
+    {newToken && newTokenName && (
+      <div class="alert alert-success">
+        <strong>✓ Token Created: {newTokenName}</strong>
+        <p>Copy this token now. It won't be shown again.</p>
+        <div class="token-display-wrapper">
+          <code class="token-display">{newToken}</code>
+          <button class="copy-button" id="copy-token-btn" data-token={newToken}>📋 Copy</button>
+        </div>
+      </div>
+    )}
+
+    {error ? (
+      <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+    ) : tokens.length === 0 ? (
+      <div class="empty-state">
+        <div class="empty-icon">🔑</div>
+        <p class="empty-title">No API tokens</p>
+        <p class="empty-description">Create a token to access Marvin from scripts</p>
+        <a href="/user/api-tokens/new" class="button">Create Token</a>
+      </div>
+    ) : (
+      <div class="tokens-list">
+        {tokens.map((token) => (
+          <div class="token-card">
+            <div class="token-info">
+              <strong>{token.name}</strong>
+              {token.description && <p class="token-desc">{token.description}</p>}
+              <div class="token-meta">
+                <span>Last used: {formatDate(token.lastUsedAt)}</span>
+                <span>•</span>
+                <span>Created: {formatDate(token.createdAt)}</span>
+                {!token.enabled && <span class="token-revoked"> • Revoked</span>}
+              </div>
+            </div>
+            <div class="token-actions">
+              <button class="button secondary small" data-action="rotate" data-id={token.id} data-name={token.name}>Rotate</button>
+              <button class="button secondary small" data-action="delete" data-id={token.id} data-name={token.name}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+
+</AppLayout>
+
+<script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
+  import { fetchApi } from '@/lib/api/client';
+
+  // Copy token button
+  const copyBtn = document.getElementById('copy-token-btn');
+  copyBtn?.addEventListener('click', () => {
+    const token = copyBtn.getAttribute('data-token');
+    if (token) {
+      navigator.clipboard.writeText(token);
+      copyBtn.textContent = '✓ Copied';
+      setTimeout(() => copyBtn.textContent = '📋 Copy', 2000);
+    }
+  });
+
+  // Rotate token
+  document.querySelectorAll('[data-action="rotate"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const name = btn.getAttribute('data-name');
+
+      if (!confirm(`Rotate the token "${name}"? The old token will stop working.`)) return;
+
+      try {
+        const data = await fetchApi<{ token: string }>(`/api/self/api-tokens/${id}/rotate`, {
+          method: 'POST',
+        });
+
+        window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(name)}`;
+      } catch (error) {
+        alert('Failed to rotate token');
+      }
+    });
+  });
+
+  // Delete token
+  document.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const name = btn.getAttribute('data-name');
+
+      if (!confirm(`Delete the token "${name}"? This cannot be undone.`)) return;
+
+      try {
+        await fetchApi(`/api/self/api-tokens/${id}`, {
+          method: 'DELETE',
+        });
+
+        window.location.reload();
+      } catch (error) {
+        alert('Failed to delete token');
+      }
+    });
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 900px;
+  }
+
+  .alert {
+    padding: 20px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    border: 1px solid;
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .alert-success {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .alert strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 16px;
+  }
+
+  .alert p {
+    margin: 0 0 12px;
+    font-size: 14px;
+  }
+
+  .token-display-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: var(--radius);
+  }
+
+  .token-display {
+    flex: 1;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    word-break: break-all;
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .copy-button {
+    padding: 6px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--ink);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .copy-button:hover {
+    background: var(--panel-2);
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .tokens-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .token-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .token-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .token-info strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .token-desc {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .token-meta {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .token-revoked {
+    color: var(--color-error);
+    font-weight: 600;
+  }
+
+  .token-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .button.small {
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+</style>

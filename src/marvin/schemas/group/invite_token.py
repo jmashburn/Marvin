@@ -6,8 +6,11 @@ These schemas are used for creating, updating, and representing invitation token
 as well as for handling requests and responses for sending email invitations.
 """
 
-from pydantic import UUID4, ConfigDict  # Field can be used for more detailed field definitions if needed
+from datetime import datetime
 
+from pydantic import UUID4, ConfigDict, Field
+
+from marvin.db.models.users.roles import WorkspaceRole
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model
 from marvin.schemas.response.pagination import PaginationBase  # Base for pagination responses
 
@@ -15,12 +18,13 @@ from marvin.schemas.response.pagination import PaginationBase  # Base for pagina
 class InviteTokenCreate(_MarvinModel):
     """
     Schema for creating a new group invitation token.
-    Specifies the initial number of uses and the group it belongs to.
+    Specifies the initial number of uses, role, and the group it belongs to.
     """
 
-    uses_left: int  # Renamed from `uses` for clarity, assuming it means uses_left from the start.
-    # If `uses` was meant as total allowed uses, the model/logic should reflect that.
+    uses_left: int
     """The number of times this token can be used. Set upon creation."""
+    workspace_role: WorkspaceRole = Field(default=WorkspaceRole.EDITOR)
+    """The role that invited users will receive. Defaults to EDITOR."""
 
     model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
 
@@ -45,11 +49,17 @@ class InviteTokenSave(InviteTokenCreate):
 
 class InviteTokenSummary(InviteTokenCreate):
     """
-    Schema for a summary representation of a invite token .
+    Schema for a summary representation of a invite token.
     """
 
+    id: UUID4
+    """The unique identifier of the invitation token."""
     token: str
-    # """The token string"""
+    """The token string"""
+    workspace_role: WorkspaceRole
+    """The role that invited users will receive."""
+    created_at: datetime | None = None
+    """When the token was created."""
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -89,6 +99,8 @@ class InviteTokenRead(_MarvinModel):
     """The unique token string."""
     uses_left: int
     """The remaining number of times this token can be used."""
+    workspace_role: WorkspaceRole
+    """The role that invited users will receive."""
     group_id: UUID4
     """The unique identifier of the group this token belongs to."""
 

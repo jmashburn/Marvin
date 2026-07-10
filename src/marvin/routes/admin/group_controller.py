@@ -108,10 +108,14 @@ class AdminGroupManagementRoutes(BaseAdminController):
     @router.post("", response_model=GroupRead, status_code=status.HTTP_201_CREATED, summary="Create a New Group")
     def create_one(self, data: GroupCreate) -> GroupRead:
         """
-        Creates a new group.
+        Creates a new group with default content.
 
-        This endpoint delegates group creation to the `GroupService`, which
-        handles business logic such as slug generation and ensuring uniqueness.
+        This endpoint creates a workspace and bootstraps it with:
+        - Default entry types (page, post, project)
+        - Default collections (featured, recent)
+        - Creator as OWNER
+        - All SUPER_ADMIN users as ADMIN
+
         Accessible only by administrators.
 
         Args:
@@ -121,8 +125,47 @@ class AdminGroupManagementRoutes(BaseAdminController):
         Returns:
             GroupRead: The Pydantic schema of the newly created group.
         """
-        # Group creation logic is handled by the GroupService
-        return GroupService.create_group(self.repos, data)
+        from marvin.services.event_bus_service.event_types import (
+            EventTypes,
+            EventWorkspaceCreatedData,
+        )
+        from marvin.services.workspace.workspace_bootstrap_service import (
+            WorkspaceBootstrapService,
+        )
+
+        # Create the workspace
+        group = GroupService.create_group(self.repos, data)
+
+        # Get the underlying model instance for bootstrap
+        from marvin.db.models.groups import Groups
+        from sqlalchemy import select
+
+        group_model = self.repos.session.execute(select(Groups).where(Groups.id == group.id)).scalar_one()
+
+        # Bootstrap with default content and memberships
+        WorkspaceBootstrapService.bootstrap(
+            repos=self.repos,
+            workspace=group_model,
+            creator_id=self.user.id,
+        )
+
+        # Dispatch workspace.created event
+        self.event_bus.dispatch(
+            integration_id="workspace_management",
+            group_id=group.id,
+            event_type=EventTypes.workspace_created,
+            document_data=EventWorkspaceCreatedData(
+                workspace_id=group.id,
+                workspace_name=group.name,
+                creator_id=self.user.id,
+            ),
+            message=f"Workspace '{group.name}' created by {self.user.username}",
+        )
+
+        # Commit transaction
+        self.repos.session.commit()
+
+        return group
 
     @router.get("/{item_id}", response_model=GroupRead, summary="Get a Specific Group by ID")
     def get_one(self, item_id: UUID4) -> GroupRead:
@@ -199,50 +242,98 @@ class AdminGroupManagementRoutes(BaseAdminController):
         # If repo.update already returns the schema, this explicit get might be redundant.
         # However, to ensure all changes (name, preferences via relationship) are reflected:
         self.session.refresh(group_model_instance)  # Refresh to capture potential relationship updates
-        return self.repo.schema.model_validate(group_model_instance)
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a Group")
-    def delete_one(self, item_id: UUID4) -> None:
+        result = self.repo.schema.model_validate(group_model_instance)
+
+        # Dispatch workspace_updated event
+        from marvin.services.event_bus_service.event_types import EventWorkspaceData, EventOperation, EventTypes
+
+        self.event_bus.dispatch(
+            integration_id="workspace_management_admin",
+            group_id=item_id,
+            event_type=EventTypes.workspace_updated,
+            document_data=EventWorkspaceData(
+                operation=EventOperation.update,
+                workspace_id=item_id,
+                workspace_name=result.name,
+                workspace_slug=result.slug,
+            ),
+            message=f"Workspace '{result.name}' updated",
+            user_id=None,  # Admin endpoints don't have current_user in this method
+            entity_id=item_id,
+            entity_type="workspace",
+        )
+
+        return result
+
+    @router.delete("/{item_id}", summary="Delete a Group")
+    def delete_one(self, item_id: UUID4, force: bool = False) -> dict:
         """
-        Deletes a group by its unique ID.
+        Deletes a workspace by its unique ID.
 
-        A group cannot be deleted if it still has users associated with it.
+        Safety checks:
+        - Cannot delete if workspace has users with it as their primary group_id
+        - Cannot delete if workspace has workspace members (unless force=True)
+        - Cannot delete if workspace has entries, collections, or assets (unless force=True)
+
         Accessible only by administrators.
 
         Args:
-            item_id (UUID4): The ID of the group to delete.
+            item_id (UUID4): The ID of the workspace to delete.
+            force (bool): If True, cascade delete all related content. Defaults to False.
 
         Raises:
-            HTTPException (404 Not Found): If the group with the given ID does not exist.
-            HTTPException (400 Bad Request): If the group still has associated users.
+            HTTPException (404 Not Found): If the workspace doesn't exist.
+            HTTPException (400 Bad Request): If workspace has content and force=False.
         """
+        from marvin.services.event_bus_service.event_types import EventTypes
+
         # Retrieve the group to check for associated users
-        group_to_delete = self.repo.get_one(item_id)  # Returns Pydantic model
-        if not group_to_delete:  # Should be caught by get_one if not found
-            # This is defensive; mixins.get_one would typically raise 404.
-            # If it returns None, this ensures correct 404.
-            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Group not found.")
+        group_to_delete = self.repo.get_one(item_id)
+        if not group_to_delete:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Workspace not found.")
 
-        # Check if the group has any associated users.
-        # This requires the GroupRead schema or underlying model to have user count/list.
-        # Assuming `group_to_delete.users` is available from the schema/model.
-        # If `self.repo.get_one` doesn't load users, an explicit fetch might be needed:
-        # db_group = self.repo.get_one_raw(item_id)
-        # num_users = len(db_group.users) # Accessing SQLAlchemy model's relationship
-        # For now, assuming GroupRead from self.repo.get_one has `users` field or similar.
-        # This check might need adjustment based on actual schema/repo capabilities.
-
-        # A more direct way using the repository for users count:
+        # Check for users with this as their primary group (always block this)
         user_count_in_group = self.repos.users.count_all(match_key="group_id", match_value=item_id)
-
         if user_count_in_group > 0:
-            # Prevent deletion if group has users
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=ErrorResponse.respond(message="Cannot delete a group that still has users assigned to it."),
+                detail=ErrorResponse.respond(
+                    message=f"Cannot delete workspace: {user_count_in_group} users still have this as their primary workspace. Reassign them first."
+                ),
             )
 
-        # If no users, proceed with deletion using the mixin
+        # Check for workspace content (if not force mode)
+        if not force:
+            # Check for workspace members
+            member_count = len(self.repos.workspace_members.get_members_by_workspace(item_id))
+            if member_count > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse.respond(message=f"Workspace has {member_count} members. Use force=true to delete anyway."),
+                )
+
+            # Check for entries
+            from marvin.db.models.entries import Entries
+            from sqlalchemy import select, func
+
+            entry_count = self.repos.session.execute(select(func.count(Entries.id)).where(Entries.group_id == item_id)).scalar()
+            if entry_count and entry_count > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorResponse.respond(message=f"Workspace has {entry_count} entries. Use force=true to delete anyway."),
+                )
+
+        # Dispatch workspace.deleted event before deletion
+        self.event_bus.dispatch(
+            integration_id="workspace_management",
+            group_id=item_id,
+            event_type=EventTypes.workspace_deleted,
+            document_data=None,
+            message=f"Workspace '{group_to_delete.name}' deleted by {self.user.username}",
+        )
+
+        # Proceed with deletion
         self.mixins.delete_one(item_id)
-        # HTTP 204 No Content response is automatically handled by FastAPI for None return with this status code.
-        return None
+        self.repos.session.commit()
+        return {"status": "ok", "message": "Workspace deleted successfully"}

@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from marvin.core.config import get_app_plugins, get_app_settings
 from marvin.core.root_logger import get_logger
 
-from . import admin, app, auth, events, groups, users
+from . import admin, app, auth, events, groups, platform, publish, users
 
 settings = get_app_settings()
 logger = get_logger()
@@ -18,6 +18,8 @@ router.include_router(groups.router)
 router.include_router(users.router)
 router.include_router(events.router)
 router.include_router(admin.router)
+router.include_router(platform.router, prefix="/platform")
+router.include_router(publish.router)
 
 
 # Load Plugins. Plugins dir takes precendent the lib plugins

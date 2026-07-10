@@ -1,0 +1,241 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import SlugInput from "@/components/SlugInput.astro";
+import EmojiPicker from "@/components/EmojiPicker.astro";
+import { createCollection } from "@/lib/api/collections";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/auth/login');
+}
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (value !== '') {
+        // Handle checkbox
+        if (key === 'is_smart') {
+          data[key] = value === 'true';
+        }
+        // Handle JSON fields
+        else if (key === 'query' || key === 'metadata') {
+          try {
+            data[key] = JSON.parse(value as string);
+          } catch (e) {
+            // Invalid JSON, skip it
+          }
+        }
+        // Handle number fields
+        else if (key === 'sort_order') {
+          data[key] = parseInt(value as string, 10);
+        }
+        else {
+          data[key] = value;
+        }
+      }
+    });
+
+    const collection = await createCollection(data, authToken);
+    return Astro.redirect(`/workspace/collections/${collection.id}`);
+  } catch (e) {
+    console.error('[NewCollection] Failed to create collection:', e);
+    // Error will be shown below
+  }
+}
+---
+
+<AppLayout title="Create Collection">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0;font-size:20px;">New Collection</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Create a curated grouping of entries.</p>
+    </div>
+    <a class="button secondary" href="/workspace/collections">Cancel</a>
+  </div>
+
+  <section class="form-section">
+    <form method="POST" class="form">
+      <div class="form-group">
+        <label for="name">Name *</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          required
+          placeholder="e.g., Featured Projects, Recent Articles"
+        />
+      </div>
+
+      <SlugInput nameFieldId="name" />
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="icon">Icon</label>
+          <EmojiPicker inputId="icon" />
+          <p class="form-help">Emoji or symbol</p>
+        </div>
+
+        <div class="form-group">
+          <label for="color">Color</label>
+          <input
+            type="color"
+            id="color"
+            name="color"
+            value="#a94d3f"
+          />
+          <p class="form-help">Theme color</p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows="3"
+          placeholder="Optional description of this collection"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="sort_order">Sort Order</label>
+        <input
+          type="number"
+          id="sort_order"
+          name="sort_order"
+          value="0"
+          min="0"
+        />
+        <p class="form-help">Lower numbers appear first</p>
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input
+            type="checkbox"
+            name="is_smart"
+            id="is_smart"
+            value="true"
+          />
+          Smart Collection
+        </label>
+        <p class="form-help">Smart collections automatically populate based on query criteria</p>
+      </div>
+
+      <div class="form-group" id="query-field" style="display: none;">
+        <label for="query">Query (JSON)</label>
+        <textarea
+          id="query"
+          name="query"
+          rows="8"
+          placeholder='&#123;"type": "blog", "status": "published"&#125;'
+        ></textarea>
+        <p class="form-help">JSON query for filtering entries. Example: &#123;"type": "blog", "status": "published"&#125;</p>
+      </div>
+
+      <div class="form-group">
+        <label for="metadata">Metadata (JSON)</label>
+        <textarea
+          id="metadata"
+          name="metadata"
+          rows="6"
+          placeholder='&#123;"featured": true, "priority": 1&#125;'
+          class="metadata-editor"
+        ></textarea>
+        <p class="form-help">Custom metadata as JSON. Example: &#123;"featured": true, "priority": 1&#125;</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Collection</button>
+        <a href="/workspace/collections" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </section>
+</AppLayout>
+
+<script>
+  // Toggle query field visibility based on smart collection checkbox
+  const smartCheckbox = document.getElementById('is_smart') as HTMLInputElement;
+  const queryField = document.getElementById('query-field');
+
+  if (smartCheckbox && queryField) {
+    smartCheckbox.addEventListener('change', () => {
+      queryField.style.display = smartCheckbox.checked ? 'grid' : 'none';
+    });
+  }
+</script>
+
+<style>
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="color"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  input[type="color"] {
+    height: 40px;
+    cursor: pointer;
+  }
+
+  input[type="checkbox"] {
+    margin-right: 0.5rem;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+</style>

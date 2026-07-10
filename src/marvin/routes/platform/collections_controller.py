@@ -1,0 +1,195 @@
+"""Collection routes."""
+
+import sqlalchemy as sa
+from fastapi import APIRouter, HTTPException, status
+from pydantic import UUID4, BaseModel, Field, ConfigDict
+
+from marvin.db.models.platform import EntryCollections
+from marvin.routes._base import BaseUserController, controller
+from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate, EntryRead
+from marvin.services.event_bus_service.event_types import EventCollectionData, EventOperation, EventTypes
+
+router = APIRouter(prefix="/collections")
+
+
+class EntryOrderItem(BaseModel):
+    """Schema for a single entry order update."""
+
+    entry_id: UUID4 = Field(validation_alias="entryId")
+    sort_order: int = Field(validation_alias="sortOrder")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ReorderEntriesRequest(BaseModel):
+    """Schema for bulk reordering entries in a collection."""
+
+    entries: list[EntryOrderItem]
+
+
+@controller(router)
+class CollectionsController(BaseUserController):
+    """Authenticated CRUD routes for collections."""
+
+    @router.get("", response_model=list[CollectionRead], summary="List Collections")
+    def list_collections(self) -> list[CollectionRead]:
+        return self.repos.collections.get_all(order_by="name")
+
+    @router.post("", response_model=CollectionRead, status_code=status.HTTP_201_CREATED, summary="Create Collection")
+    def create_collection(self, data: CollectionCreate) -> CollectionRead:
+        collection = self.repos.collections.create(data)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="collection_management",
+            group_id=self.group_id,
+            event_type=EventTypes.collection_created,
+            document_data=EventCollectionData(
+                operation=EventOperation.create,
+                collection_id=collection.id,
+                collection_name=collection.name,
+                workspace_id=collection.group_id,
+            ),
+            message=f"Collection '{collection.name}' created",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
+        )
+
+        return collection
+
+    @router.get("/{item_id}", response_model=CollectionRead, summary="Get Collection")
+    def get_collection(self, item_id: UUID4) -> CollectionRead:
+        collection = self.repos.collections.get_one(item_id)
+        if not collection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+        return collection
+
+    @router.patch("/{item_id}", response_model=CollectionRead, summary="Update Collection")
+    def update_collection(self, item_id: UUID4, data: CollectionUpdate) -> CollectionRead:
+        if not self.repos.collections.get_one(item_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+
+        collection = self.repos.collections.update(item_id, data)
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="collection_management",
+            group_id=self.group_id,
+            event_type=EventTypes.collection_updated,
+            document_data=EventCollectionData(
+                operation=EventOperation.update,
+                collection_id=collection.id,
+                collection_name=collection.name,
+                workspace_id=collection.group_id,
+            ),
+            message=f"Collection '{collection.name}' updated",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
+        )
+
+        return collection
+
+    @router.delete("/{item_id}", summary="Delete Collection")
+    def delete_collection(self, item_id: UUID4) -> dict:
+        collection = self.repos.collections.get_one(item_id)
+        if not collection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+
+        # Emit event before deletion
+        self.event_bus.dispatch(
+            integration_id="collection_management",
+            group_id=self.group_id,
+            event_type=EventTypes.collection_deleted,
+            document_data=EventCollectionData(
+                operation=EventOperation.delete,
+                collection_id=collection.id,
+                collection_name=collection.name,
+                workspace_id=collection.group_id,
+            ),
+            message=f"Collection '{collection.name}' deleted",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
+        )
+
+        self.repos.collections.delete(item_id)
+        return {"status": "ok", "message": "Collection deleted successfully"}
+
+    @router.get("/{item_id}/entries", response_model=list[EntryRead], summary="Get Collection Entries")
+    def get_collection_entries(self, item_id: UUID4) -> list[EntryRead]:
+        """Get all entries in a collection, ordered by sort_order."""
+        collection = self.repos.collections.get_one(item_id)
+        if not collection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+
+        # Query entries via junction table, eagerly load entry_collections for the order field
+        from marvin.db.models.platform.entries import Entries
+
+        entries = (
+            self.session.query(Entries)
+            .join(EntryCollections, Entries.id == EntryCollections.entry_id)
+            .filter(EntryCollections.collection_id == item_id)
+            .order_by(
+                sa.case(
+                    (EntryCollections.sort_order.is_(None), 1),
+                    else_=0,
+                ),
+                EntryCollections.sort_order.asc(),
+                Entries.published_at.desc(),
+            )
+            .all()
+        )
+
+        return [EntryRead.model_validate(entry) for entry in entries]
+
+    @router.patch("/{item_id}/entries/order", summary="Reorder Collection Entries")
+    def reorder_collection_entries(self, item_id: UUID4, data: ReorderEntriesRequest) -> dict:
+        """Bulk update sort_order for entries in a collection."""
+        collection = self.repos.collections.get_one(item_id)
+        if not collection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+
+        # Verify all entries belong to this collection
+        entry_ids = [item.entry_id for item in data.entries]
+        existing_junctions = (
+            self.session.query(EntryCollections).filter(EntryCollections.collection_id == item_id, EntryCollections.entry_id.in_(entry_ids)).all()
+        )
+
+        existing_entry_ids = {j.entry_id for j in existing_junctions}
+        missing_entries = set(entry_ids) - existing_entry_ids
+
+        if missing_entries:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Some entries are not in this collection: {missing_entries}",
+            )
+
+        # Update sort_order for each entry
+        for item in data.entries:
+            junction = next((j for j in existing_junctions if j.entry_id == item.entry_id), None)
+            if junction:
+                junction.sort_order = item.sort_order
+                junction.update_at = sa.func.now()
+
+        self.session.commit()
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="collection_management",
+            group_id=self.group_id,
+            event_type=EventTypes.collection_updated,
+            document_data=EventCollectionData(
+                operation=EventOperation.update,
+                collection_id=collection.id,
+                collection_name=collection.name,
+                workspace_id=collection.group_id,
+            ),
+            message=f"Collection '{collection.name}' entries reordered",
+            user_id=self.user.id if self.user else None,
+            entity_id=collection.id,
+            entity_type="collection",
+        )
+
+        return {"status": "ok", "message": f"Reordered {len(data.entries)} entries"}

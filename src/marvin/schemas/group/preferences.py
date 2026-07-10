@@ -37,27 +37,79 @@ class GroupPreferencesCreate(_MarvinModel):
     Defaults to 0 (Sunday).
     """
 
+    # Site/Workspace Configuration
+    site_title: str | None = None
+    """The public title of the site/workspace."""
+    site_tagline: str | None = None
+    """A short tagline or slogan for the site."""
+    site_description: str | None = None
+    """A description of the site/workspace."""
+    site_canonical_url: str | None = None
+    """The canonical URL where this site is published."""
+    site_logo: str | None = None
+    """Path or URL to the site logo."""
+    site_favicon: str | None = None
+    """Path or URL to the site favicon."""
+    site_locale: str | None = "en-US"
+    """The locale for the site (e.g., en-US, en-GB)."""
+    site_timezone: str | None = "America/New_York"
+    """The timezone for the site (e.g., America/New_York)."""
+    site_contact_email: str | None = None
+    """Primary contact email for the site."""
+    site_social_json: dict | None = None
+    """DEPRECATED: Social media links. Use site_metadata_json with 'social' key instead."""
+    site_metadata_json: dict | None = None
+    """Flexible metadata for framework-specific settings. Include social links under 'social' key, SEO under 'seo', etc."""
+
     model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
 
 
 class GroupPreferencesUpdate(_MarvinModel):  # Typically, update schemas allow partial updates.
     """
-    Schema for updating existing group preferences.
-    Requires the `id` of the preferences record to update.
-    All other fields are optional for partial updates.
+    Schema for updating existing group preferences and workspace settings.
+    All fields are optional for partial updates.
+    The id and group_id are set by the controller based on the URL path.
     """
 
-    id: UUID4
-    """The unique identifier of the group preferences record to update."""
+    id: UUID4 | None = None
+    """The unique identifier of the group preferences record to update (set by controller)."""
 
     group_id: UUID4 | None = None  # Group ID is usually not updatable for existing preferences.
     """The group ID. Typically not changed during an update."""
+
+    # Workspace-level settings (stored in Groups model, not preferences)
+    name: str | None = None
+    """Optional: The name of the workspace. Slug is auto-generated from name."""
 
     private_group: bool | None = None
     """Optional: New value for the private group setting."""
 
     first_day_of_week: int | None = None
     """Optional: New value for the first day of the week setting."""
+
+    # Site/Workspace Configuration (all optional for partial updates)
+    site_title: str | None = None
+    """Optional: The public title of the site/workspace."""
+    site_tagline: str | None = None
+    """Optional: A short tagline or slogan for the site."""
+    site_description: str | None = None
+    """Optional: A description of the site/workspace."""
+    site_canonical_url: str | None = None
+    """Optional: The canonical URL where this site is published."""
+    site_logo: str | None = None
+    """Optional: Path or URL to the site logo."""
+    site_favicon: str | None = None
+    """Optional: Path or URL to the site favicon."""
+    site_locale: str | None = None
+    """Optional: The locale for the site (e.g., en-US, en-GB)."""
+    site_timezone: str | None = None
+    """Optional: The timezone for the site (e.g., America/New_York)."""
+    site_contact_email: str | None = None
+    """Optional: Primary contact email for the site."""
+    site_social_json: dict | None = None
+    """Optional: DEPRECATED - Social media links. Use site_metadata_json with 'social' key instead."""
+    site_metadata_json: dict | None = None
+    """Optional: Flexible metadata for framework-specific settings. Include social links under 'social' key, SEO under 'seo', etc."""
 
     model_config = ConfigDict(from_attributes=True)
 

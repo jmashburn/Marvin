@@ -1,0 +1,261 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import FilterBar from "@/components/FilterBar.astro";
+import { getAssets } from "@/lib/api/platform";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let assets = [];
+let error: string | null = null;
+
+try {
+  assets = await getAssets(authToken);
+} catch (e) {
+  error = e instanceof Error ? e.message : String(e);
+  console.error('[Assets] Failed to load:', error);
+}
+
+// Categorize by MIME type
+function getMimeCategory(mimeType: string): string {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.includes('pdf')) return 'document';
+  return 'other';
+}
+---
+
+<AppLayout title="Assets">
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading assets:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Media library</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">{assets.length} reusable uploads available to entries.</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <FilterBar
+            searchPlaceholder="Search assets..."
+            filters={[
+              {
+                id: "type-filter",
+                label: "Types",
+                options: [
+                  { value: "image", label: "Images" },
+                  { value: "video", label: "Videos" },
+                  { value: "audio", label: "Audio" },
+                  { value: "document", label: "Documents" },
+                  { value: "other", label: "Other" }
+                ]
+              }
+            ]}
+          />
+          <a class="button" href="/workspace/assets/new">Upload Asset</a>
+        </div>
+      </div>
+
+      {assets.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon">🖼️</div>
+          <h3>No assets yet</h3>
+          <p>Assets are images, videos, documents, and files that you can reference in your entries.</p>
+          <a href="/workspace/assets/new" class="button">Upload Your First Asset</a>
+        </div>
+      ) : (
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Preview</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Dimensions</th>
+              <th>Size</th>
+              <th>Alt Text</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assets.map((asset: any) => (
+              <tr class="asset-row" data-type={getMimeCategory(asset.mimeType)}>
+                <td>
+                  <div class="preview">
+                    {asset.publicUrl && (
+                      <img
+                        src={asset.publicUrl}
+                        alt={asset.altText ?? asset.name}
+                        style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
+                      />
+                    )}
+                  </div>
+                </td>
+                <td class="asset-name">
+                  <strong>{asset.name}</strong>
+                  {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
+                </td>
+                <td class="asset-type"><span class="type-badge">{asset.mimeType}</span></td>
+                <td>
+                  {asset.width && asset.height
+                    ? `${asset.width} × ${asset.height}`
+                    : '—'}
+                </td>
+                <td>
+                  {asset.fileSize
+                    ? `${(asset.fileSize / 1024).toFixed(1)} KB`
+                    : '—'}
+                </td>
+                <td class="alt-text-cell">{asset.altText || '—'}</td>
+                <td>
+                  <div class="actions">
+                    <a href={`/workspace/assets/${asset.id}/view`} class="button secondary small">View</a>
+                    <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
+                    <form method="POST" action={`/api/assets/${asset.id}/delete`} style="display:inline;">
+                      <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this asset?')">
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )}
+</AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+  const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+
+  function filterAssets() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const typeQuery = typeFilter?.value || '';
+    const rows = document.querySelectorAll('.asset-row');
+
+    rows.forEach(row => {
+      const name = row.querySelector('.asset-name')?.textContent?.toLowerCase() || '';
+      const type = row.getAttribute('data-type') || '';
+
+      const matchesSearch = !searchQuery || name.includes(searchQuery);
+      const matchesType = !typeQuery || type === typeQuery;
+
+      (row as HTMLElement).style.display = (matchesSearch && matchesType) ? '' : 'none';
+    });
+  }
+
+  searchInput?.addEventListener('input', filterAssets);
+  typeFilter?.addEventListener('change', filterAssets);
+</script>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .empty-state p {
+    margin: 0;
+    color: var(--muted);
+    max-width: 32rem;
+  }
+
+  .preview {
+    width: 80px;
+    height: 80px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--panel-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .slug {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .type-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--panel-2);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .alt-text-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .button.small {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+
+  .button.danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg);
+  }
+</style>

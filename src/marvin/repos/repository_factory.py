@@ -9,9 +9,13 @@ efficiently.
 """
 
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 from pydantic import UUID4
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from .users.long_live_tokens import LongLiveTokensRepository
 
 # Import all necessary DB models
 from marvin.db.models.events import EventNotifierOptionsModel
@@ -47,6 +51,20 @@ from ._utils import NOT_SET, NotSet  # Sentinel for optional group_id
 from .groups import RepositoryGroup  # Specialized group repository
 from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
 from .users import RepositoryUsers  # Specialized user repository
+from .workspace_members import RepositoryWorkspaceMembers  # Workspace member management
+from .platform import (
+    APIClientsRepository,
+    AssetsRepository,
+    CollectionsRepository,
+    EntriesRepository,
+    EntryTypesRepository,
+    EventLogRepository,
+    FormsRepository,
+    FormSubmissionsRepository,
+    ResourcesRepository,
+    ScheduledTaskExecutionLogRepository,
+    ScheduledTasksRepository,
+)
 
 # Constants for primary key / lookup key names used in repositories
 PK_ID = "id"  # Standard primary key
@@ -109,12 +127,19 @@ class AllRepositories:
         return RepositoryUsers(self.session, PK_ID, Users, PrivateUser, group_id=self.group_id)
 
     @cached_property
-    def api_tokens(self) -> GroupRepositoryGeneric[LongLiveTokenRead, LongLiveToken]:
+    def api_tokens(self) -> "LongLiveTokensRepository":
         """
-        Provides access to the repository for `LongLiveToken` entities (user API tokens).
-        Scoped by `group_id` if provided.
+        Provides access to the specialized repository for `LongLiveToken` entities (user API tokens).
+
+        Uses LongLiveTokensRepository which provides secure token management:
+        - Bcrypt-hashed token storage
+        - Token rotation support
+        - Soft deletion (revocation)
+        - Usage tracking
         """
-        return GroupRepositoryGeneric(self.session, PK_ID, LongLiveToken, LongLiveTokenRead, group_id=self.group_id)
+        from .users.long_live_tokens import LongLiveTokensRepository
+
+        return LongLiveTokensRepository(self.session, PK_ID, LongLiveToken, LongLiveTokenRead)
 
     @cached_property
     def tokens_pw_reset(self) -> GroupRepositoryGeneric[PrivatePasswordResetToken, PasswordResetModel]:
@@ -219,3 +244,77 @@ class AllRepositories:
         Scoped by `group_id`.
         """
         return GroupRepositoryGeneric(self.session, PK_ID, GroupWebhooksModel, WebhookRead, group_id=self.group_id)
+
+    @cached_property
+    def entry_types(self) -> EntryTypesRepository:
+        """Provides access to workspace-scoped entry type records."""
+        return EntryTypesRepository(self.session, self.group_id)
+
+    @cached_property
+    def entries(self) -> EntriesRepository:
+        """Provides access to workspace-scoped entry records."""
+        return EntriesRepository(self.session, self.group_id)
+
+    @cached_property
+    def collections(self) -> CollectionsRepository:
+        """Provides access to workspace-scoped collection records."""
+        return CollectionsRepository(self.session, self.group_id)
+
+    @cached_property
+    def api_clients(self) -> APIClientsRepository:
+        """Provides access to workspace-scoped API client records."""
+        return APIClientsRepository(self.session, self.group_id)
+
+    @cached_property
+    def resources(self) -> ResourcesRepository:
+        """Provides access to workspace-scoped resource records."""
+        return ResourcesRepository(self.session, self.group_id)
+
+    @cached_property
+    def assets(self) -> AssetsRepository:
+        """Provides access to workspace-scoped asset records."""
+        return AssetsRepository(self.session, self.group_id)
+
+    @cached_property
+    def workspace_members(self) -> RepositoryWorkspaceMembers:
+        """
+        Provides access to the repository for workspace member management.
+
+        Note: This repository is NOT group-scoped as it manages memberships
+        across all workspaces. Individual methods handle workspace-specific
+        filtering via workspace_id parameters.
+        """
+        from marvin.db.models.users.workspace_members import WorkspaceMembers as WorkspaceMembersModel
+        from marvin.schemas.user.user import WorkspaceMembershipRead
+
+        return RepositoryWorkspaceMembers(
+            self.session,
+            PK_ID,
+            WorkspaceMembersModel,
+            WorkspaceMembershipRead,
+        )
+
+    @cached_property
+    def event_log(self) -> EventLogRepository:
+        """Provides access to workspace-scoped event log records."""
+        return EventLogRepository(self.session, self.group_id)
+
+    @cached_property
+    def scheduled_tasks(self) -> ScheduledTasksRepository:
+        """Provides access to workspace-scoped scheduled task records."""
+        return ScheduledTasksRepository(self.session, self.group_id)
+
+    @cached_property
+    def scheduled_task_executions(self) -> ScheduledTaskExecutionLogRepository:
+        """Provides access to workspace-scoped scheduled task execution logs."""
+        return ScheduledTaskExecutionLogRepository(self.session, self.group_id)
+
+    @cached_property
+    def forms(self) -> FormsRepository:
+        """Provides access to workspace-scoped forms."""
+        return FormsRepository(self.session, self.group_id)
+
+    @cached_property
+    def form_submissions(self) -> FormSubmissionsRepository:
+        """Provides access to workspace-scoped form submissions."""
+        return FormSubmissionsRepository(self.session, self.group_id)

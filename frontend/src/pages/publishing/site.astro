@@ -1,0 +1,541 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { fetchApi } from "@/lib/api/client";
+import type { Workspace, GroupPreferencesRead } from "@/lib/api/types";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace: Workspace | null = null;
+let preferences: GroupPreferencesRead | null = null;
+let error: string | null = null;
+let success: boolean = false;
+
+// Check for success/error query params
+const urlParams = Astro.url.searchParams;
+if (urlParams.get('success')) {
+  success = true;
+}
+if (urlParams.get('error')) {
+  error = "Failed to save site configuration. Please try again.";
+}
+
+try {
+  workspace = await fetchApi<Workspace>('/api/self/workspaces/current', {}, authToken);
+
+  if (workspace?.id) {
+    // Get preferences for this workspace
+    preferences = await fetchApi<GroupPreferencesRead>(
+      `/api/groups/${workspace.id}/preferences`,
+      {},
+      authToken
+    );
+  } else {
+    error = "No active workspace found. Please activate a workspace first.";
+  }
+} catch (e) {
+  console.error('[site] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title="Site Configuration" eyebrow="Publishing">
+  <div class="toolbar">
+    <div>
+      <h2>Site Configuration</h2>
+      <p>Configure your workspace's public identity and publishing settings</p>
+    </div>
+    <a class="button secondary" href="/publishing/clients">Manage Clients</a>
+  </div>
+
+  {success && (
+    <div class="alert alert-success">
+      <strong>Saved!</strong> Site configuration updated successfully.
+    </div>
+  )}
+
+  {error && (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  )}
+
+  {workspace?.id && preferences ? (
+    <form method="POST" data-workspace-id={workspace.id} class="site-form" id="site-form">
+      <section class="form-section">
+        <h3>Identity</h3>
+        <p class="section-description">How your site identifies itself to the world</p>
+        <div class="form-grid">
+          <label class="span-2">
+            <span>Site Title</span>
+            <input
+              type="text"
+              name="siteTitle"
+              value={preferences.siteTitle || ""}
+              placeholder={workspace.name}
+            />
+            <small>Defaults to workspace name if not set</small>
+          </label>
+          <label class="span-2">
+            <span>Tagline</span>
+            <input
+              type="text"
+              name="siteTagline"
+              value={preferences.siteTagline || ""}
+              placeholder="A short slogan or motto"
+            />
+          </label>
+          <label class="span-2">
+            <span>Description</span>
+            <textarea
+              name="siteDescription"
+              rows="3"
+              placeholder="Describe what this site is about"
+            >{preferences.siteDescription || ""}</textarea>
+          </label>
+          <label class="span-2">
+            <span>Canonical URL</span>
+            <input
+              type="url"
+              name="siteCanonicalUrl"
+              value={preferences.siteCanonicalUrl || ""}
+              placeholder="https://example.com"
+            />
+            <small>Where this site is published</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Branding</h3>
+        <p class="section-description">Visual identity assets</p>
+        <div class="form-grid">
+          <label>
+            <span>Logo URL</span>
+            <input
+              type="url"
+              name="siteLogo"
+              value={preferences.siteLogo || ""}
+              placeholder="https://example.com/logo.png"
+            />
+          </label>
+          <label>
+            <span>Favicon URL</span>
+            <input
+              type="url"
+              name="siteFavicon"
+              value={preferences.siteFavicon || ""}
+              placeholder="https://example.com/favicon.ico"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Localization</h3>
+        <p class="section-description">Language and timezone settings</p>
+        <div class="form-grid">
+          <label>
+            <span>Locale</span>
+            <input
+              type="text"
+              name="siteLocale"
+              value={preferences.siteLocale || "en-US"}
+              placeholder="en-US"
+            />
+            <small>e.g., en-US, en-GB, fr-FR</small>
+          </label>
+          <label>
+            <span>Timezone</span>
+            <input
+              type="text"
+              name="siteTimezone"
+              value={preferences.siteTimezone || "America/New_York"}
+              placeholder="America/New_York"
+            />
+            <small>IANA timezone identifier</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Contact</h3>
+        <p class="section-description">How people can reach you</p>
+        <div class="form-grid">
+          <label class="span-2">
+            <span>Contact Email</span>
+            <input
+              type="email"
+              name="siteContactEmail"
+              value={preferences.siteContactEmail || ""}
+              placeholder="hello@example.com"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Metadata</h3>
+        <p class="section-description">Custom metadata for framework-specific settings, social links, SEO, analytics, etc.</p>
+        <div class="form-grid">
+          <label class="span-2">
+            <span>Custom Metadata (JSON)</span>
+            <textarea
+              id="metadata-editor"
+              name="siteMetadataJson"
+              rows="10"
+              placeholder='{"social": {"instagram": "...", "twitter": "..."}, "seo": {"image": "..."}, "analytics": {"id": "..."}}'
+              class="metadata-editor"
+            >{(() => {
+              const metadata = preferences.siteMetadataJson;
+              const social = preferences.siteSocialJson;
+
+              // Merge social into metadata if it exists
+              if (social && Object.keys(social).length > 0) {
+                const combined = { ...(metadata || {}), social };
+                return JSON.stringify(combined, null, 2);
+              }
+
+              // Show metadata if it exists and has content
+              if (metadata && Object.keys(metadata).length > 0) {
+                return JSON.stringify(metadata, null, 2);
+              }
+
+              // Empty state
+              return "";
+            })()}</textarea>
+            <small>Additional metadata for your publishing framework. Include social links under "social" key.</small>
+
+            {(() => {
+              const metadata = preferences.siteMetadataJson;
+              const social = preferences.siteSocialJson;
+
+              let mergedMetadata = metadata || {};
+              if (social && Object.keys(social).length > 0) {
+                mergedMetadata = { ...mergedMetadata, social };
+              }
+
+              if (mergedMetadata && Object.keys(mergedMetadata).length > 0) {
+                return (
+                  <div class="metadata-preview">
+                    <p class="metadata-preview-title">Current Metadata:</p>
+                    <dl class="metadata-preview-list">
+                      {Object.entries(mergedMetadata).map(([key, value]) => (
+                        <div class="metadata-preview-item">
+                          <dt>{key}</dt>
+                          <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+          </label>
+        </div>
+      </section>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Save Site Configuration</button>
+        <a href="/publishing/clients" class="button secondary">Manage Clients</a>
+      </div>
+    </form>
+  ) : !error && (
+    <div class="empty-state">
+      <p>Loading site configuration...</p>
+    </div>
+  )}
+</AppLayout>
+
+<script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
+  const form = document.getElementById('site-form') as HTMLFormElement;
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const workspaceId = form.dataset.workspaceId;
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      const formData = new FormData(form);
+      const data: Record<string, any> = {};
+
+      // Convert form data to object, handling JSON fields
+      formData.forEach((value, key) => {
+        if (key === 'siteMetadataJson') {
+          try {
+            const parsed = value ? JSON.parse(value as string) : null;
+            data[key] = parsed && Object.keys(parsed).length > 0 ? parsed : null;
+
+            // If metadata has a "social" key, also set siteSocialJson for backward compatibility
+            if (parsed && parsed.social) {
+              data['siteSocialJson'] = parsed.social;
+            } else {
+              data['siteSocialJson'] = null;
+            }
+          } catch {
+            data[key] = null;
+            data['siteSocialJson'] = null;
+          }
+        } else {
+          data[key] = value || null;
+        }
+      });
+
+      try {
+        const { fetchApi } = await import('@/lib/api/client');
+
+        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+
+        window.location.href = '/publishing/site?success=1';
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to save';
+        window.location.href = '/publishing/site?error=' + encodeURIComponent(errorMessage);
+      }
+    });
+  }
+
+  // Metadata preview update
+  const metadataEditor = document.getElementById('metadata-editor') as HTMLTextAreaElement;
+  const metadataPreviewContainer = metadataEditor?.closest('.form-grid')?.querySelector('.metadata-preview');
+
+  if (metadataEditor) {
+    metadataEditor.addEventListener('input', () => {
+      const value = metadataEditor.value.trim();
+
+      if (!value) {
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(value);
+        const entries = Object.entries(parsed);
+
+        if (entries.length === 0) {
+          if (metadataPreviewContainer) {
+            metadataPreviewContainer.remove();
+          }
+          return;
+        }
+
+        let previewHTML = `
+          <div class="metadata-preview">
+            <p class="metadata-preview-title">Current Metadata:</p>
+            <dl class="metadata-preview-list">
+        `;
+
+        entries.forEach(([key, value]) => {
+          const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+          previewHTML += `
+            <div class="metadata-preview-item">
+              <dt>${key}</dt>
+              <dd>${displayValue}</dd>
+            </div>
+          `;
+        });
+
+        previewHTML += `</dl></div>`;
+
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.outerHTML = previewHTML;
+        } else {
+          const label = metadataEditor.closest('label');
+          const smallElement = label?.querySelector('small');
+          if (smallElement) {
+            smallElement.insertAdjacentHTML('afterend', previewHTML);
+          }
+        }
+      } catch (error) {
+        // Invalid JSON - remove preview
+        if (metadataPreviewContainer) {
+          metadataPreviewContainer.remove();
+        }
+      }
+    });
+  }
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .alert-success {
+    background: rgb(53 122 85 / 0.1);
+    color: var(--good);
+    border: 1px solid var(--good);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .site-form {
+    display: grid;
+    gap: 32px;
+  }
+
+  .form-section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .form-section h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .form-grid label {
+    display: grid;
+    gap: 6px;
+  }
+
+  .form-grid label.span-2 {
+    grid-column: 1 / -1;
+  }
+
+  .form-grid label > span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .form-grid input,
+  .form-grid textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .form-grid input:focus,
+  .form-grid textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .form-grid textarea {
+    resize: vertical;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  .form-grid small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    padding-top: 8px;
+  }
+
+  .empty-state {
+    padding: 64px 24px;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .metadata-preview {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .metadata-preview-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .metadata-preview-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+
+  .metadata-preview-item {
+    padding: 0.5rem;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .metadata-preview-item dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .metadata-preview-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    word-break: break-word;
+    white-space: pre-wrap;
+    font-family: monospace;
+  }
+</style>

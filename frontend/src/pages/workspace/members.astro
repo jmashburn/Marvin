@@ -1,0 +1,810 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listWorkspaceMembers, type WorkspaceMemberRead } from "@/lib/api/workspaceMembers";
+import type { WorkspaceRole } from "@/lib/api/types";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let members: WorkspaceMemberRead[] = [];
+let inviteTokens: any[] = [];
+let error: string | null = null;
+let currentUserRole: WorkspaceRole | null = null;
+let currentUserId: string | null = null;
+
+if (!authToken) {
+  error = 'Not authenticated';
+} else {
+  try {
+    workspace = await getCurrentWorkspace(authToken);
+
+    if (workspace) {
+      members = await listWorkspaceMembers(workspace.id, authToken);
+
+      // Get current user info to find their role
+      const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+      if (currentUser) {
+        currentUserId = currentUser.id;
+        const currentMembership = members.find(m => m.userId === currentUser.id);
+        currentUserRole = currentMembership?.workspaceRole || null;
+      }
+
+      // Fetch invite tokens for this workspace
+      try {
+        inviteTokens = await fetchApi<any[]>('/api/groups/invitations', {}, authToken) || [];
+      } catch (e) {
+        console.error('[members] Error loading invite tokens:', e);
+        // Don't fail the whole page if invite tokens fail to load
+      }
+    }
+  } catch (e) {
+    console.error('[members] Error loading:', e);
+    error = e instanceof Error ? e.message : String(e);
+  }
+}
+
+// Role display names
+const roleLabels: Record<WorkspaceRole, string> = {
+  OWNER: "Owner",
+  ADMIN: "Admin",
+  EDITOR: "Editor",
+  AUTHOR: "Author",
+  VIEWER: "Viewer",
+};
+
+// Role descriptions
+const roleDescriptions: Record<WorkspaceRole, string> = {
+  OWNER: "Full control, can delete workspace",
+  ADMIN: "Manage settings, members, and publishing",
+  EDITOR: "Create and edit all content",
+  AUTHOR: "Create and edit own content",
+  VIEWER: "Read-only access",
+};
+
+// Check if current user can manage members
+const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
+
+// Count owners to detect if someone is the last owner
+const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
+---
+
+<AppLayout title="Workspace Members" eyebrow="Workspace">
+  <div data-workspace-id={workspace?.id} data-can-manage={canManage ? 'true' : 'false'} style="display:none;"></div>
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings?tab=members" },
+    { label: "Team Members" }
+  ]} />
+
+  <div class="toolbar">
+    <div>
+      <h2>Workspace Members</h2>
+      <p>Manage who has access to {workspace?.name || 'this workspace'}</p>
+    </div>
+    {canManage && (
+      <a href="/workspace/members/new" class="button">Add Member</a>
+    )}
+  </div>
+
+  {error ? (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  ) : members.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">👥</div>
+      <p class="empty-title">No members found</p>
+      <p class="empty-description">Add members to collaborate on this workspace</p>
+      {canManage && (
+        <a href="/workspace/members/new" class="button">Add Member</a>
+      )}
+    </div>
+  ) : (
+    <div class="members-list">
+      {members.map((member) => {
+        const user = member.user;
+        const fullName = user?.fullName;
+        const username = user?.username;
+        const email = user?.email;
+        const isSelf = member.userId === currentUserId;
+        const isLastOwner = member.workspaceRole === 'OWNER' && ownerCount === 1;
+        const canEditRole = canManage && !isSelf && !isLastOwner;
+        return (
+          <div class="member-card">
+            <div class="member-info">
+              <div class="member-avatar">
+                {fullName?.charAt(0) || username?.charAt(0) || '?'}
+              </div>
+              <div class="member-details">
+                <strong>{fullName || username || 'Unknown'}</strong>
+                <span class="member-email">{email || 'No email'}</span>
+              </div>
+            </div>
+
+            <div class="member-role-section">
+              {canEditRole ? (
+                <div class="role-control">
+                  <select
+                    class="role-select"
+                    data-member-id={member.id}
+                    data-user-id={member.userId}
+                    data-current-role={member.workspaceRole}
+                  >
+                    {Object.entries(roleLabels).map(([role, label]) => (
+                      <option value={role} selected={member.workspaceRole === role}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    class="button small save-role-btn"
+                    data-user-id={member.userId}
+                    style="display: none;"
+                  >
+                    Save
+                  </button>
+                </div>
+              ) : isSelf ? (
+                <div>
+                  <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
+                    {roleLabels[member.workspaceRole]} (You)
+                  </span>
+                  <span class="role-description">
+                    {roleDescriptions[member.workspaceRole]}
+                  </span>
+                </div>
+              ) : isLastOwner ? (
+                <div>
+                  <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
+                    {roleLabels[member.workspaceRole]} (Last Owner)
+                  </span>
+                  <span class="role-description">
+                    Cannot change role - workspace must have at least one owner
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <span class={`role-badge role-${member.workspaceRole.toLowerCase()}`}>
+                    {roleLabels[member.workspaceRole]}
+                  </span>
+                  <span class="role-description">
+                    {roleDescriptions[member.workspaceRole]}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {canManage && (
+              <button
+                class="button secondary small remove-btn"
+                data-member-id={member.id}
+                data-user-id={member.userId}
+                data-username={username}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+
+  <!-- Pending Invitations Section -->
+  {canManage && inviteTokens.length > 0 && (
+    <div class="invitations-section">
+      <h3>Pending Invitations ({inviteTokens.length})</h3>
+      <p class="section-description">Invitation links that haven't been used yet</p>
+
+      <div class="invitations-list">
+        {inviteTokens.map((token) => (
+          <div class="invitation-card">
+            <div class="invitation-info">
+              <div class="invitation-icon">📧</div>
+              <div class="invitation-details">
+                <strong>Invitation Token</strong>
+                <span class="invitation-meta">
+                  {token.usesLeft} {token.usesLeft === 1 ? 'use' : 'uses'} remaining
+                  {(token.createdAt || token.created_at) && ` • Created ${new Date(token.createdAt || token.created_at).toLocaleDateString()}`}
+                </span>
+              </div>
+            </div>
+
+            <div class="invitation-actions">
+              <button
+                class="button secondary small copy-invitation-btn"
+                data-token={token.token}
+                title="Copy invitation link"
+              >
+                Copy Link
+              </button>
+              <button
+                class="button secondary small resend-invitation-btn"
+                data-token={token.token}
+                title="Resend invitation email"
+              >
+                Resend Email
+              </button>
+              <button
+                class="button secondary small danger revoke-invitation-btn"
+                data-token-id={token.id}
+                title="Revoke this invitation"
+              >
+                Revoke
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <!-- Confirm Remove Modal -->
+  <dialog id="confirm-remove-modal" class="modal">
+    <div class="modal-content">
+      <h3>Remove Member?</h3>
+      <p id="remove-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="button" id="confirm-remove">Remove</button>
+        <button type="button" class="button secondary" id="cancel-remove">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Resend Email Modal -->
+  <dialog id="resend-email-modal" class="modal">
+    <div class="modal-content">
+      <h3>Resend Invitation Email</h3>
+      <p class="modal-subtitle">Enter the email address to send the invitation to</p>
+      <form id="resend-email-form">
+        <label>
+          <span>Email Address</span>
+          <input type="email" name="email" required placeholder="user@example.com" />
+        </label>
+        <div class="modal-actions">
+          <button type="submit" class="button">Send Email</button>
+          <button type="button" class="button secondary" id="cancel-resend">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+</AppLayout>
+
+<script>
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
+
+  // Get workspace ID from page context
+  const workspaceId = document.querySelector('[data-workspace-id]')?.getAttribute('data-workspace-id');
+  const canManage = document.querySelector('[data-can-manage]')?.getAttribute('data-can-manage') === 'true';
+
+  // Role change - show save button when changed
+  if (canManage) {
+    document.querySelectorAll('.role-select').forEach(select => {
+      select.addEventListener('change', (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLSelectElement)) return;
+        const userId = target.dataset.userId;
+        const currentRole = target.dataset.currentRole;
+        const newRole = target.value;
+
+        // Show save button if role changed
+        const saveBtn = document.querySelector(`.save-role-btn[data-user-id="${userId}"]`);
+        if (saveBtn instanceof HTMLButtonElement) {
+          if (newRole !== currentRole) {
+            saveBtn.style.display = 'inline-flex';
+          } else {
+            saveBtn.style.display = 'none';
+          }
+        }
+      });
+    });
+
+    // Save role button click
+    document.querySelectorAll('.save-role-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLButtonElement)) return;
+
+        const userId = target.dataset.userId;
+        const selectElement = document.querySelector(`.role-select[data-user-id="${userId}"]`);
+        if (!(selectElement instanceof HTMLSelectElement)) return;
+
+        const currentRole = selectElement.dataset.currentRole;
+        const newRole = selectElement.value;
+
+        if (!userId || newRole === currentRole) return;
+
+        const originalText = target.textContent;
+        target.disabled = true;
+        target.textContent = 'Saving...';
+
+        try {
+          await sdk.workspaceMembers.updateRole(workspaceId, userId, {
+            workspaceRole: newRole,
+          });
+
+          window.location.reload();
+        } catch (error) {
+          console.error('Update role error:', error);
+          alert(error instanceof Error ? error.message : 'Failed to update role');
+          selectElement.value = currentRole || ''; // Revert on error
+          target.disabled = false;
+          target.textContent = originalText;
+          target.style.display = 'none';
+        }
+      });
+    });
+  }
+
+  // Remove member
+  const removeButtons = document.querySelectorAll('.remove-btn');
+  const confirmRemoveModal = document.getElementById('confirm-remove-modal');
+  const removeMessage = document.getElementById('remove-message');
+  const confirmRemoveBtn = document.getElementById('confirm-remove');
+  const cancelRemoveBtn = document.getElementById('cancel-remove');
+  let userToRemove = null;
+
+  removeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn;
+      userToRemove = target.dataset.userId || null;
+      const username = target.dataset.username || 'this user';
+
+      if (removeMessage) {
+        removeMessage.textContent = `Remove ${username} from this workspace? They will lose all access immediately.`;
+      }
+
+      confirmRemoveModal?.showModal();
+    });
+  });
+
+  cancelRemoveBtn?.addEventListener('click', () => {
+    confirmRemoveModal?.close();
+    userToRemove = null;
+  });
+
+  confirmRemoveBtn?.addEventListener('click', async () => {
+    if (!userToRemove) return;
+
+    try {
+      await sdk.workspaceMembers.remove(workspaceId, userToRemove);
+      window.location.reload();
+    } catch (error) {
+      console.error('Remove member error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to remove member');
+      confirmRemoveModal?.close();
+    }
+  });
+
+  // Copy invitation link
+  document.querySelectorAll('.copy-invitation-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const token = btn.dataset.token;
+      if (token) {
+        const invitationUrl = `${window.location.origin}/register?token=${token}`;
+        await navigator.clipboard.writeText(invitationUrl);
+
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      }
+    });
+  });
+
+  // Resend invitation email
+  const resendEmailModal = document.getElementById('resend-email-modal');
+  const resendEmailForm = document.getElementById('resend-email-form');
+  const cancelResendBtn = document.getElementById('cancel-resend');
+  let tokenToResend = null;
+
+  document.querySelectorAll('.resend-invitation-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tokenToResend = btn.dataset.token;
+      resendEmailModal?.showModal();
+    });
+  });
+
+  cancelResendBtn?.addEventListener('click', () => {
+    resendEmailModal?.close();
+    tokenToResend = null;
+  });
+
+  resendEmailForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!tokenToResend) return;
+
+    const formData = new FormData(resendEmailForm);
+    const email = formData.get('email');
+
+    try {
+      await fetchApi('/api/groups/invitations/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          token: tokenToResend,
+        }),
+      });
+
+      alert(`Invitation email sent to ${email}`);
+      resendEmailModal?.close();
+      tokenToResend = null;
+      resendEmailForm.reset();
+    } catch (error) {
+      console.error('Resend email error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to send email');
+    }
+  });
+
+  // Revoke invitation
+  document.querySelectorAll('.revoke-invitation-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const tokenId = btn.dataset.tokenId;
+      if (!tokenId) return;
+
+      if (!confirm('Revoke this invitation? The link will stop working immediately.')) {
+        return;
+      }
+
+      try {
+        await sdk.invites.delete(tokenId);
+        window.location.reload();
+      } catch (error) {
+        console.error('Revoke invitation error:', error);
+        alert(error instanceof Error ? error.message : 'Failed to revoke invitation');
+      }
+    });
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 64px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+  }
+
+  .members-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .member-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .member-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .member-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .member-details {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .member-details strong {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .member-email {
+    font-size: 12px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .member-role-section {
+    display: grid;
+    gap: 4px;
+    min-width: 200px;
+  }
+
+  .role-control {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .role-select {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .role-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .save-role-btn {
+    padding: 6px 16px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .role-badge {
+    display: inline-flex;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .role-owner {
+    background: rgb(169 77 63 / 0.15);
+    color: var(--accent);
+  }
+
+  .role-admin {
+    background: rgb(47 111 115 / 0.15);
+    color: var(--accent-2);
+  }
+
+  .role-editor {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+  }
+
+  .role-author {
+    background: rgb(189 145 64 / 0.15);
+    color: var(--gold);
+  }
+
+  .role-viewer {
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+
+  .role-description {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .remove-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  /* Modal Styles */
+  .modal {
+    border: none;
+    border-radius: var(--radius);
+    padding: 0;
+    max-width: 500px;
+    width: 90vw;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.15);
+  }
+
+  .modal::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .modal-content {
+    padding: 24px;
+    background: var(--panel);
+  }
+
+  .modal h3 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .modal-subtitle {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .modal form {
+    display: grid;
+    gap: 16px;
+  }
+
+  .modal label {
+    display: grid;
+    gap: 6px;
+  }
+
+  .modal label > span {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .modal input,
+  .modal select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 14px;
+  }
+
+  .modal input:focus,
+  .modal select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .modal small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+
+  /* Invitations Section */
+  .invitations-section {
+    margin-top: 48px;
+  }
+
+  .invitations-section h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .invitations-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .invitation-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .invitation-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .invitation-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--panel-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .invitation-details {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .invitation-details strong {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .invitation-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .invitation-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .invitation-actions .button {
+    padding: 6px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+</style>

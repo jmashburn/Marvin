@@ -1,0 +1,205 @@
+---
+import EntryCard from "@/components/EntryCard.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
+import FilterBar from "@/components/FilterBar.astro";
+import { listEntries, type EntryRead } from "@/lib/api/entries";
+import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
+import { listCollections, type CollectionRead } from "@/lib/api/collections";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+// Get URL parameters for pre-filtering
+const statusParam = Astro.url.searchParams.get('status');
+const statusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : [];
+
+let entries: EntryRead[] = [];
+let entryTypes: EntryTypeRead[] = [];
+let collections: CollectionRead[] = [];
+let error: string | null = null;
+
+// Ensure we have auth token before making requests
+if (!authToken) {
+  error = 'Authentication required';
+} else {
+  try {
+    [entries, entryTypes, collections] = await Promise.all([
+      listEntries(authToken),
+      listEntryTypes(authToken),
+      listCollections(authToken),
+    ]);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[Entries] Failed to load:', error);
+  }
+}
+
+// Create a map of collection ID to collection for quick lookup
+const collectionsMap = new Map(collections.map(c => [c.id, c]));
+
+// Sort entry types by sort_order
+const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
+---
+
+<AppLayout title="Entries">
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading entries:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Entries</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Manage all your content entries.</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <FilterBar
+            searchPlaceholder="Search entries..."
+            filters={[
+              {
+                id: "type-filter",
+                label: "Types",
+                options: sortedTypes.map(type => ({
+                  value: type.id,
+                  label: type.name
+                }))
+              },
+              {
+                id: "status-filter",
+                label: "Statuses",
+                options: [
+                  { value: "inbox", label: "Inbox" },
+                  { value: "draft", label: "Draft" },
+                  { value: "in_progress", label: "In Progress" },
+                  { value: "in_review", label: "In Review" },
+                  { value: "published", label: "Published" },
+                  { value: "archived", label: "Archived" }
+                ]
+              }
+            ]}
+          />
+          <a class="button" href="/workspace/entries/new">New Entry</a>
+        </div>
+      </div>
+
+      {entries.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon">📝</div>
+          <h3>No entries yet</h3>
+          <p>Entries are your content items like blog posts, products, pages, or any structured content.</p>
+          <a href="/workspace/entries/new" class="button">Create Your First Entry</a>
+        </div>
+      ) : (
+        <section class="grid" aria-label="Entries">
+          {entries.map((entry) => {
+            // Check if entry matches URL status filters
+            const matchesStatusFilter = statusFilters.length === 0 || statusFilters.includes(entry.status);
+            return (
+              <div class="entry-wrapper"
+                data-type={entry.entryTypeId}
+                data-status={entry.status}
+                data-title={entry.title.toLowerCase()}
+                data-summary={(entry.summary || '').toLowerCase()}
+                style={matchesStatusFilter ? '' : 'display: none;'}>
+                <EntryCard entry={entry} collectionsMap={collectionsMap} />
+              </div>
+            );
+          })}
+        </section>
+      )}
+    </>
+  )}
+</AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+  const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+  const statusFilter = document.getElementById('status-filter') as HTMLSelectElement;
+
+  // Get URL status filters
+  const urlParams = new URLSearchParams(window.location.search);
+  const statusParam = urlParams.get('status');
+  const urlStatusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : [];
+
+  function filterEntries() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const typeQuery = typeFilter?.value || '';
+    const statusQuery = statusFilter?.value || '';
+    const wrappers = document.querySelectorAll('.entry-wrapper');
+
+    wrappers.forEach(wrapper => {
+      const title = wrapper.getAttribute('data-title') || '';
+      const summary = wrapper.getAttribute('data-summary') || '';
+      const type = wrapper.getAttribute('data-type') || '';
+      const status = wrapper.getAttribute('data-status') || '';
+
+      const matchesSearch = !searchQuery || title.includes(searchQuery) || summary.includes(searchQuery);
+      const matchesType = !typeQuery || type === typeQuery;
+
+      // Check both dropdown filter and URL filters
+      let matchesStatus = true;
+      if (statusQuery) {
+        // Dropdown has priority
+        matchesStatus = status === statusQuery;
+      } else if (urlStatusFilters.length > 0) {
+        // Fall back to URL filters if no dropdown selection
+        matchesStatus = urlStatusFilters.includes(status);
+      }
+
+      (wrapper as HTMLElement).style.display = (matchesSearch && matchesType && matchesStatus) ? '' : 'none';
+    });
+  }
+
+  // Apply filters on page load
+  filterEntries();
+
+  searchInput?.addEventListener('input', filterEntries);
+  typeFilter?.addEventListener('change', filterEntries);
+  statusFilter?.addEventListener('change', filterEntries);
+</script>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .empty-state p {
+    margin: 0;
+    color: var(--muted);
+    max-width: 32rem;
+  }
+</style>

@@ -1,6 +1,6 @@
 [project]
 name = "marvin"
-version = "0.1.0"
+version = "0.2.0"
 description = "Marvin"
 readme = "README.md"
 
@@ -10,7 +10,9 @@ dependencies = [
     "apprise>=1.9.3",
     "authlib>=1.5.2",
     "bcrypt>=4.3.0",
+    "boto3>=1.35.0",
     "dotenv>=0.9.9",
+    "email-validator>=2.3.0",
     "fastapi>=0.115.12",
     "go-task-bin>=3.43.3",
     "html2text>=2025.4.15",
@@ -19,6 +21,7 @@ dependencies = [
     "mangum>=0.19.0",
     "mcp[cli]>=1.7.1",
     "numpy>=2.2.6",
+    "pillow>=11.1.0",
     "pre-commit>=4.2.0",
     "pydantic-core>=2.33.2",
     "pydantic-settings>=2.9.1",
@@ -41,7 +44,7 @@ dependencies = [
 ]
 
 [project.scripts]
-marvin = "marvin.app:main"
+marvin-server = "marvin.app:main"
 #healthz = "marvin.scripts.healthcheck"
 
 [build-system]
@@ -52,7 +55,7 @@ build-backend = "hatchling.build"
 dev = [
     "coverage>=7.8.0",
     "freezegun>=1.5.1",
-    "materialx>=1.39.3",
+    # "materialx>=1.39.3",  # Disabled: CMake build fails with version 4.3.4
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.6.14",
     "mypy>=1.15.0",

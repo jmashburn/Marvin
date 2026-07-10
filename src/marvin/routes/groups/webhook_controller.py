@@ -211,8 +211,8 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         # The mixin's update_one method is called. It expects data of type U, which is WebhookCreate here.
         return self.mixins.update_one(item_id=item_id, data=data)  # Corrected param order
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a Webhook")
-    def delete_one(self, item_id: UUID4) -> None:  # Return None for 204
+    @router.delete("/{item_id}", summary="Delete a Webhook")
+    def delete_one(self, item_id: UUID4) -> dict:
         """
         Deletes a webhook configuration by its ID.
 
@@ -222,9 +222,7 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
             item_id (UUID4): The ID of the webhook to delete.
 
         Returns:
-            None: HTTP 204 No Content on successful deletion.
+            dict: Status message on successful deletion.
         """
-        # The type: ignore was in the original, likely due to mixin's delete_one returning R (WebhookRead)
-        # but FastAPI handles None return + 204 status code correctly.
         self.mixins.delete_one(item_id)  # type: ignore
-        return None
+        return {"status": "ok", "message": "Webhook deleted successfully"}

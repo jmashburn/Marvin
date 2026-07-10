@@ -19,10 +19,29 @@ from marvin.routes._base import BaseAdminController, controller  # Base admin co
 from marvin.schemas.admin import MaintenanceSummary  # Pydantic schema for maintenance summary
 from marvin.schemas.admin.maintenance import MaintenanceStorageDetails  # Schema for storage details
 from marvin.schemas.response import ErrorResponse, SuccessResponse  # Standardized response schemas
+from pydantic import BaseModel  # For stats response model
 
 # APIRouter for admin maintenance section, prefixed with /maintenance
 # All routes here will be under /admin/maintenance.
 router = APIRouter(prefix="/maintenance")
+
+
+class SystemStats(BaseModel):
+    """System statistics response model."""
+    users_count: int
+    groups_count: int
+    entries_count: int
+    assets_count: int
+    api_tokens_count: int
+    webhooks_count: int
+    database_size: str
+    database_path: str
+    assets_size: str
+    assets_path: str
+    backups_size: str
+    backups_path: str
+    total_size: str
+    data_dir_path: str
 
 
 def tail_log(log_file: Path, n: int) -> list[str]:
@@ -129,3 +148,182 @@ class AdminMaintenanceController(BaseAdminController):
             ) from e
 
         return SuccessResponse.respond("Temporary (.temp) directory has been cleaned successfully.")
+
+    @router.post("/cleanup-tokens", response_model=SuccessResponse, summary="Clean Revoked Tokens")
+    def cleanup_expired_tokens(self) -> SuccessResponse:
+        """
+        Clean up revoked API tokens.
+
+        Removes all revoked long-live tokens from the database to reclaim space.
+        Tokens that have been disabled or revoked are permanently deleted.
+        Accessible only by administrators.
+
+        Returns:
+            SuccessResponse: A Pydantic model indicating the success of the operation.
+        """
+        from marvin.db.db_setup import session_context
+        from marvin.db.models.users.users import LongLiveToken
+        from marvin.db.models.platform.api_clients import APIClients
+
+        try:
+            with session_context() as session:
+                # Delete revoked long-live tokens
+                revoked_tokens_count = session.query(LongLiveToken).filter(
+                    LongLiveToken.revoked_at.isnot(None)
+                ).delete(synchronize_session=False)
+
+                # Delete revoked API client tokens
+                revoked_clients_count = session.query(APIClients).filter(
+                    APIClients.revoked_at.isnot(None)
+                ).delete(synchronize_session=False)
+
+                session.commit()
+
+                total_deleted = revoked_tokens_count + revoked_clients_count
+                self.logger.info(f"Deleted {revoked_tokens_count} revoked user tokens and {revoked_clients_count} revoked API clients")
+
+            return SuccessResponse.respond(
+                f"Token cleanup completed. Removed {revoked_tokens_count} revoked user tokens "
+                f"and {revoked_clients_count} revoked API clients (total: {total_deleted})."
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to clean up tokens: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse.respond(message="Failed to clean up revoked tokens.", exception=str(e)),
+            ) from e
+
+    @router.post("/cleanup-events", response_model=SuccessResponse, summary="Clean Old Event Logs")
+    def cleanup_old_events(self) -> SuccessResponse:
+        """
+        Clean up old event logs.
+
+        Currently event logging is not implemented, so this endpoint is a placeholder.
+        When event logging is added, this will remove old log entries to keep database size manageable.
+        Accessible only by administrators.
+
+        Returns:
+            SuccessResponse: A Pydantic model indicating the operation status.
+        """
+        # Event logging not yet implemented
+        # When implemented, this would clean up actual event log entries, not notifier configurations
+        self.logger.info("Event cleanup called - event logging not yet implemented")
+        return SuccessResponse.respond("Event cleanup skipped - event logging not yet implemented.")
+
+    @router.post("/optimize-db", response_model=SuccessResponse, summary="Optimize Database")
+    def optimize_database(self) -> SuccessResponse:
+        """
+        Optimize database by running VACUUM and ANALYZE.
+
+        Runs SQLite optimization commands to reclaim space and update statistics.
+        This can improve query performance and reduce database size.
+        Accessible only by administrators.
+
+        Returns:
+            SuccessResponse: A Pydantic model indicating the success of the operation.
+        """
+        from marvin.db.db_setup import session_context
+
+        try:
+            with session_context() as session:
+                # Run VACUUM to reclaim space
+                session.execute("VACUUM")
+                self.logger.info("Database VACUUM completed")
+
+                # Run ANALYZE to update statistics
+                session.execute("ANALYZE")
+                self.logger.info("Database ANALYZE completed")
+
+            return SuccessResponse.respond("Database optimization completed successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to optimize database: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse.respond(message="Failed to optimize database.", exception=str(e)),
+            ) from e
+
+    @router.post("/clear-cache", response_model=SuccessResponse, summary="Clear Application Cache")
+    def clear_cache(self) -> SuccessResponse:
+        """
+        Clear application caches and temporary files.
+
+        Removes cached data including the temporary directory and any application-level caches.
+        Accessible only by administrators.
+
+        Returns:
+            SuccessResponse: A Pydantic model indicating the success of the operation.
+        """
+        try:
+            # Clear temp directory
+            temp_result = self.clean_temp()
+
+            # Could add more cache clearing here in the future
+            # For example: Redis cache, file caches, etc.
+
+            return SuccessResponse.respond("Cache cleared successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to clear cache: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse.respond(message="Failed to clear cache.", exception=str(e)),
+            ) from e
+
+    @router.get("/stats", response_model=SystemStats, summary="Get System Statistics")
+    def get_system_stats(self) -> SystemStats:
+        """
+        Retrieves system-wide statistics including database counts and storage sizes.
+
+        Returns counts for users, groups, entries, assets, API tokens, and webhooks,
+        along with storage usage information.
+        Accessible only by administrators.
+
+        Returns:
+            SystemStats: A Pydantic model containing system statistics and storage info.
+        """
+        from marvin.db.db_setup import session_context
+        from marvin.db.models.users.users import Users, LongLiveToken
+        from marvin.db.models.groups.groups import Groups
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.assets import Assets
+        from marvin.db.models.groups.webhooks import GroupWebhooksModel
+
+        # Count records using SQLAlchemy
+        with session_context() as session:
+            users_count = session.query(Users).count()
+            groups_count = session.query(Groups).count()
+            entries_count = session.query(Entries).count()
+            assets_count = session.query(Assets).count()
+            api_tokens_count = session.query(LongLiveToken).count()
+            webhooks_count = session.query(GroupWebhooksModel).count()
+
+        # Get directory sizes
+        dirs = self.directories
+        data_dir_size = fs_stats.get_dir_size(dirs.DATA_DIR)
+        backups_size = fs_stats.get_dir_size(dirs.BACKUP_DIR)
+
+        # For assets, check if there's an assets directory in data
+        assets_dir = dirs.DATA_DIR / "assets"
+        assets_size = fs_stats.get_dir_size(assets_dir) if assets_dir.exists() else 0
+
+        # Database size - check the actual SQLite file
+        db_file = dirs.DATA_DIR / "marvin.db"
+        db_size = db_file.stat().st_size if db_file.exists() else 0
+
+        total_size = data_dir_size
+
+        return SystemStats(
+            users_count=users_count,
+            groups_count=groups_count,
+            entries_count=entries_count,
+            assets_count=assets_count,
+            api_tokens_count=api_tokens_count,
+            webhooks_count=webhooks_count,
+            database_size=fs_stats.pretty_size(db_size),
+            database_path=str(db_file),
+            assets_size=fs_stats.pretty_size(assets_size),
+            assets_path=str(assets_dir),
+            backups_size=fs_stats.pretty_size(backups_size),
+            backups_path=str(dirs.BACKUP_DIR),
+            total_size=fs_stats.pretty_size(total_size),
+            data_dir_path=str(dirs.DATA_DIR),
+        )

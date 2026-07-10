@@ -5,6 +5,7 @@ from . import (
     forgot_password_controller,
     registration_controller,
     user_controller,
+    workspace_activation_controller,
 )
 
 user_prefix = "/users"
@@ -18,3 +19,4 @@ router.include_router(user_controller.user_router)
 # router.include_router(user_controller.admin_router)
 router.include_router(forgot_password_controller.router, prefix=user_prefix, tags=["Users: Passwords"])
 router.include_router(api_token_controller.router)
+router.include_router(workspace_activation_controller.router)

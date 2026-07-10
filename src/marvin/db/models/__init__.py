@@ -1,16 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer
+from sqlalchemy import Integer
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from text_unidecode import unidecode
 
-from ._model_utils.datetime import get_utc_now
+from ._model_utils.datetime import get_utc_now, NaiveDateTime
 
 
 class SqlAlchemyBase(DeclarativeBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=get_utc_now, index=True)
-    update_at: Mapped[datetime | None] = mapped_column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+    created_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, default=get_utc_now, index=True)
+    update_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, default=get_utc_now, onupdate=get_utc_now)
 
     @classmethod
     def normalize(cls, val: str) -> str:
@@ -28,3 +28,9 @@ class BaseMixins:
         for k, v in kwargs.items():
             if hasattr(self, k) and v == []:
                 setattr(self, k, v)
+
+
+from .groups import *  # noqa: E402, F401, F403
+from .users import *  # noqa: E402, F401, F403
+from .platform import APIClients, Collections, EntryCollections, Entries, EntryTypes  # noqa: E402, F401
+from .events import EventNotifierOptionsModel  # noqa: E402, F401

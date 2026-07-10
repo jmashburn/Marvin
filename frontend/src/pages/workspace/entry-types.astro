@@ -1,0 +1,323 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import FilterBar from "@/components/FilterBar.astro";
+import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
+import { listEntries, type EntryRead } from "@/lib/api/entries";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let entryTypes: EntryTypeRead[] = [];
+let entries: EntryRead[] = [];
+let error: string | null = null;
+
+if (!authToken) {
+  error = 'Authentication required';
+  console.error('[EntryTypes] No auth token available');
+} else {
+  try {
+    [entryTypes, entries] = await Promise.all([
+      listEntryTypes(authToken),
+      listEntries(authToken),
+    ]);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[EntryTypes] Failed to load:', error);
+  }
+}
+
+// Count entries per type
+const entryCounts = new Map<string, number>();
+entries.forEach(entry => {
+  const count = entryCounts.get(entry.entryTypeId) || 0;
+  entryCounts.set(entry.entryTypeId, count + 1);
+});
+
+// Sort by sortOrder (camelCase from SDK)
+const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
+const systemTypes = sortedTypes.filter(t => t.isSystem);
+const customTypes = sortedTypes.filter(t => !t.isSystem);
+---
+
+<AppLayout title="Entry Types">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings?tab=entry-types" },
+    { label: "Entry Types" }
+  ]} />
+
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading entry types:</strong> {error}</p>
+      <button onclick="location.reload()" class="button secondary">Retry</button>
+    </div>
+  ) : (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Entry Types</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">Define content types for your workspace.</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;">
+          <FilterBar searchPlaceholder="Search entry types..." />
+          <a class="button" href="/workspace/entry-types/new">Create Entry Type</a>
+        </div>
+      </div>
+
+      {systemTypes.length > 0 && (
+        <section>
+          <h3 style="margin:0 0 1rem;font-size:1rem;color:var(--muted);">System Types</h3>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Icon</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Slug</th>
+                <th>Description</th>
+                <th>Entries</th>
+                <th>Sort Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              {systemTypes.map((type) => {
+                const count = entryCounts.get(type.id) || 0;
+                return (
+                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`}
+                    data-system="true"
+                    data-name={type.name.toLowerCase()}
+                    data-slug={type.slug.toLowerCase()}
+                    data-description={(type.description || '').toLowerCase()}>
+                    <td>
+                      {type.icon && (
+                        <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
+                          {type.icon}
+                        </span>
+                      )}
+                    </td>
+                    <td class="type-name"><strong>{type.name}</strong></td>
+                    <td><span class="system-badge">System</span></td>
+                    <td><code>{type.slug}</code></td>
+                    <td>{type.description || '—'}</td>
+                    <td>
+                      {count === 0 ? (
+                        <span class="empty-badge">Empty</span>
+                      ) : (
+                        <span class="count-badge">{count}</span>
+                      )}
+                    </td>
+                    <td>{type.sortOrder}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {customTypes.length === 0 ? (
+        <div class="empty-state">
+          <p class="empty-title">No custom entry types yet</p>
+          <p class="empty-description">
+            Create custom entry types to organize your content beyond the default system types.
+          </p>
+          <a href="/workspace/entry-types/new" class="button">Create Entry Type</a>
+        </div>
+      ) : (
+        <section>
+          <h3 style="margin:2rem 0 1rem;font-size:1rem;color:var(--muted);">Custom Types</h3>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Icon</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Slug</th>
+                <th>Description</th>
+                <th>Entries</th>
+                <th>Sort Order</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customTypes.map((type) => {
+                const count = entryCounts.get(type.id) || 0;
+                return (
+                  <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`}
+                    data-system="false"
+                    data-name={type.name.toLowerCase()}
+                    data-slug={type.slug.toLowerCase()}
+                    data-description={(type.description || '').toLowerCase()}>
+                    <td>
+                      {type.icon && (
+                        <span style={`font-size:1.5rem;${type.color ? `color:${type.color}` : ''}`}>
+                          {type.icon}
+                        </span>
+                      )}
+                    </td>
+                    <td class="type-name"><strong>{type.name}</strong></td>
+                    <td><span class="custom-badge">Custom</span></td>
+                    <td><code>{type.slug}</code></td>
+                    <td>{type.description || '—'}</td>
+                    <td>
+                      {count === 0 ? (
+                        <span class="empty-badge">Empty</span>
+                      ) : (
+                        <span class="count-badge">{count}</span>
+                      )}
+                    </td>
+                    <td>{type.sortOrder}</td>
+                    <td>
+                      <div class="actions">
+                        <a href={`/workspace/entry-types/${type.id}`} class="button secondary small">Edit</a>
+                        <form method="POST" action={`/api/entry-types/${type.id}/delete`} style="display:inline;">
+                          <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this entry type?')">
+                            Delete
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </>
+  )}
+</AppLayout>
+
+<script>
+  const searchInput = document.getElementById('filter-search') as HTMLInputElement;
+
+  function filterEntryTypes() {
+    const searchQuery = searchInput?.value.toLowerCase() || '';
+    const rows = document.querySelectorAll('.entry-type-row');
+
+    rows.forEach(row => {
+      const name = row.getAttribute('data-name') || '';
+      const slug = row.getAttribute('data-slug') || '';
+      const description = row.getAttribute('data-description') || '';
+
+      const matchesSearch = !searchQuery ||
+        name.includes(searchQuery) ||
+        slug.includes(searchQuery) ||
+        description.includes(searchQuery);
+
+      (row as HTMLElement).style.display = matchesSearch ? '' : 'none';
+    });
+  }
+
+  searchInput?.addEventListener('input', filterEntryTypes);
+</script>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    text-align: center;
+  }
+
+  .empty-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .empty-description {
+    margin: 0;
+    color: var(--muted);
+    max-width: 32rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .button.small {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.875rem;
+  }
+
+  .button.danger {
+    color: var(--color-error);
+    border-color: var(--color-error);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg);
+  }
+
+  .empty-type {
+    background: rgba(255, 193, 7, 0.05);
+  }
+
+  .empty-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(255, 193, 7, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .count-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .system-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563EB;
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .custom-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(124, 58, 237, 0.1);
+    color: #7C3AED;
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+</style>

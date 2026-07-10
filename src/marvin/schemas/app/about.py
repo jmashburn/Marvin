@@ -39,40 +39,99 @@ class AppInfo(_MarvinModel):
 
 class AppTheme(_MarvinModel):
     """
-    Schema defining the color palette for the application's light and dark themes.
-    Provides default hex color values for various UI elements, intended for client-side use.
+    Schema defining the complete color system for the application's light and dark themes.
+    Includes background, surface, text, border, and accent colors.
+    Actual color values are defined in core/settings/theme.py
     """
 
-    # Light Theme Colors
-    light_primary: str = "#E58325"  # Primary color for light theme.
-    light_accent: str = "#007A99"  # Accent color for light theme.
-    light_secondary: str = "#973542"  # Secondary color for light theme.
-    light_success: str = "#43A047"  # Success color for light theme.
-    light_info: str = "#1976D2"  # Informational color for light theme.
-    light_warning: str = "#FF6D00"  # Warning color for light theme.
-    light_error: str = "#EF5350"  # Error color for light theme.
+    # Light theme - Background & Surface
+    light_bg: str
+    light_panel: str
+    light_panel_secondary: str
 
-    # Dark Theme Colors
-    dark_primary: str = "#E58325"  # Primary color for dark theme.
-    dark_accent: str = "#007A99"  # Accent color for dark theme.
-    dark_secondary: str = "#973542"  # Secondary color for dark theme.
-    dark_success: str = "#43A047"  # Success color for dark theme.
-    dark_info: str = "#1976D2"  # Informational color for dark theme.
-    dark_warning: str = "#FF6D00"  # Warning color for dark theme.
-    dark_error: str = "#EF5350"  # Error color for dark theme.
+    # Light theme - Text & Borders
+    light_text: str
+    light_text_muted: str
+    light_border: str
+
+    # Light theme - Accent Colors
+    light_primary: str
+    light_accent: str
+    light_secondary: str
+    light_success: str
+    light_info: str
+    light_warning: str
+    light_error: str
+
+    # Dark theme - Background & Surface
+    dark_bg: str
+    dark_panel: str
+    dark_panel_secondary: str
+
+    # Dark theme - Text & Borders
+    dark_text: str
+    dark_text_muted: str
+    dark_border: str
+
+    # Dark theme - Accent Colors
+    dark_primary: str
+    dark_accent: str
+    dark_secondary: str
+    dark_success: str
+    dark_info: str
+    dark_warning: str
+    dark_error: str
+
+
+class FeatureStatus(_MarvinModel):
+    """Schema for feature status with enabled flag and optional description."""
+
+    enabled: bool
+    description: str | None = None
 
 
 class AppStartupInfo(_MarvinModel):
     """
     Schema for information relevant to the application's startup state.
 
-    NOTE: This model is currently defined as a placeholder (`...`).
-    It might be intended for future use to convey specific startup details,
-    or its definition might exist elsewhere (e.g., `marvin.schemas.admin.about.AppStartupInfo`
-    has fields `is_first_login` and `is_demo`).
+    Includes feature flags and configuration status for various integrations.
     """
 
-    ...  # Ellipsis indicates a placeholder, no fields defined here.
+    # SMTP / Email
+    smtp_enabled: bool
+    """Whether SMTP email is configured and enabled."""
+    smtp_feature: FeatureStatus | None = None
+    """Detailed SMTP feature status."""
+
+    # Apprise Notifications
+    apprise_enabled: bool = False
+    """Whether Apprise notifications are configured and enabled."""
+    apprise_feature: FeatureStatus | None = None
+    """Detailed Apprise feature status."""
+
+    # LDAP Authentication
+    ldap_enabled: bool = False
+    """Whether LDAP authentication is configured and enabled."""
+    ldap_feature: FeatureStatus | None = None
+    """Detailed LDAP feature status."""
+
+    # OIDC Authentication
+    oidc_enabled: bool = False
+    """Whether OIDC authentication is configured and enabled."""
+    oidc_feature: FeatureStatus | None = None
+    """Detailed OIDC feature status."""
+
+    # OpenAI Integration
+    openai_enabled: bool = False
+    """Whether OpenAI integration is configured and enabled."""
+    openai_feature: FeatureStatus | None = None
+    """Detailed OpenAI feature status."""
+
+    # Plugin System
+    plugin_enabled: bool = False
+    """Whether the plugin system is enabled."""
+    plugin_feature: FeatureStatus | None = None
+    """Detailed plugin feature status."""
 
 
 class AdminAboutInfo(AppInfo):  # Note: This extends the AppInfo defined *in this file*.

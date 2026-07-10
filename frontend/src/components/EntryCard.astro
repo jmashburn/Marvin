@@ -1,0 +1,295 @@
+---
+import type { EntryRead, CollectionRead } from "@/lib/api/types";
+
+interface Props {
+  entry: EntryRead;
+  collectionsMap?: Map<string, CollectionRead>;
+}
+
+const { entry, collectionsMap } = Astro.props;
+
+// Get collections for this entry
+const entryCollections = entry.collections
+  ?.map(id => collectionsMap?.get(id))
+  .filter(Boolean) as CollectionRead[] | undefined;
+const asset = entry.assets?.find((item) => item.role === "featured" || item.role === "hero") ?? entry.assets?.[0];
+
+// Format relative time
+function formatRelativeTime(timestamp: string | null | undefined): string {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  return `${Math.floor(diffDays / 365)}y ago`;
+}
+---
+
+<a href={`/workspace/entries/${entry.id}`} class="card">
+  <div class="media">
+    {asset?.publicUrl ? (
+      <img src={asset.publicUrl} alt={asset.altText ?? entry.title} style={`object-position: ${asset.focalPoint ?? "50% 50%"}`} />
+    ) : (
+      <div class="media-placeholder">
+        <span class="placeholder-icon">📄</span>
+      </div>
+    )}
+  </div>
+  <div class="card-body">
+    <div class="card-header">
+      <h2 class="card-title">{entry.title}</h2>
+      {entry.updateAt && (
+        <span class="timestamp">Updated {formatRelativeTime(entry.updateAt)}</span>
+      )}
+    </div>
+    {entry.summary && <p class="card-summary">{entry.summary}</p>}
+    {entryCollections && entryCollections.length > 0 && (
+      <div class="collections-row">
+        {entryCollections.map(collection => (
+          <span class="pill collection" style={`background-color: ${collection.color || '#a94d3f'}15; color: ${collection.color || '#a94d3f'};`}>
+            {collection.icon && <span class="collection-icon">{collection.icon}</span>}
+            {collection.name}
+          </span>
+        ))}
+      </div>
+    )}
+    <div class="card-footer">
+      <div class="meta">
+        {entry.assets && entry.assets.length > 0 && (
+          <span class="pill secondary">{entry.assets.length} asset{entry.assets.length === 1 ? '' : 's'}</span>
+        )}
+        {entry.resources && entry.resources.length > 0 && (
+          <span class="pill secondary">{entry.resources.length} resource{entry.resources.length === 1 ? '' : 's'}</span>
+        )}
+      </div>
+      <span class={`pill ${entry.status}`}>{entry.status}</span>
+    </div>
+  </div>
+  <div class="card-action">
+    <span class="action-arrow">→</span>
+  </div>
+</a>
+
+<style>
+  .card {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    gap: 16px;
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition: all 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .card:hover .action-arrow {
+    transform: translateX(4px);
+  }
+
+  .media {
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--panel-2);
+    flex-shrink: 0;
+  }
+
+  .media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .media-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel-2);
+  }
+
+  .placeholder-icon {
+    font-size: 48px;
+    opacity: 0.3;
+  }
+
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .card-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .card-summary {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .collections-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .card-footer {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .pill {
+    display: inline-flex;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .pill.published {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+  }
+
+  .pill.draft {
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+
+  .pill.inbox {
+    background: rgb(169 77 63 / 0.15);
+    color: var(--accent);
+  }
+
+  .pill.in_progress {
+    background: rgb(47 111 115 / 0.15);
+    color: var(--accent-2);
+  }
+
+  .pill.in_review,
+  .pill.needs_review {
+    background: rgb(169 99 47 / 0.15);
+    color: var(--warn);
+  }
+
+  .pill.approved {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+  }
+
+  .pill.archived {
+    background: var(--panel-2);
+    color: var(--muted);
+    opacity: 0.6;
+  }
+
+  .pill.secondary {
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .pill.collection {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .collection-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .timestamp {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .card-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
+  .action-arrow {
+    font-size: 20px;
+    color: var(--accent);
+    transition: transform 0.2s;
+  }
+
+  @media (max-width: 768px) {
+    .card {
+      grid-template-columns: 80px 1fr auto;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .media {
+      width: 80px;
+      height: 80px;
+    }
+
+    .card-title {
+      font-size: 14px;
+    }
+
+    .card-summary {
+      font-size: 13px;
+    }
+  }
+</style>

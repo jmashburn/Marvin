@@ -101,6 +101,28 @@ class RegistrationService:
         # For now, assuming it works with UserCreate or a compatible dict.
         created_user = self.repos.users.create(new_user_data)  # type: ignore
         self.logger.info(f"User '{created_user.username}' created successfully in group '{target_group.name}'.")
+
+        # Add user to workspace_members with appropriate role
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+
+        # Determine role: OWNER for new group creators, otherwise use token's specified role
+        if is_new_group:
+            workspace_role = "OWNER"
+        else:
+            # Get role from the invitation token (stored in self.registration context)
+            # The token was fetched earlier in register_user, we need to pass it down
+            workspace_role = getattr(self, "_invite_token_role", "EDITOR")
+
+        workspace_member = WorkspaceMembers(
+            session=self.repos.session,
+            user_id=created_user.id,
+            group_id=target_group.id,
+            workspace_role=workspace_role,
+        )
+        self.repos.session.add(workspace_member)
+        self.repos.session.commit()  # Commit the workspace membership
+        self.logger.info(f"User '{created_user.username}' added to workspace '{target_group.name}' with role '{workspace_role}'.")
+
         return created_user
 
     def _register_new_group(self) -> GroupRead:
@@ -187,6 +209,9 @@ class RegistrationService:
                 self.logger.error(f"Group ID {group_invite_token_entry.group_id} from token not found.")
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Group associated with token not found.")
 
+            # Store the token's workspace role for use when creating workspace membership
+            self._invite_token_role = group_invite_token_entry.workspace_role
+
         elif self.registration.group:  # User is specifying a new group name to create
             is_new_group_being_created = True
             target_group = self._register_new_group()  # This creates the group and its preferences
@@ -221,26 +246,34 @@ class RegistrationService:
 
         # If a group invitation token was used, decrement its uses or delete it
         if group_invite_token_entry and new_user:  # Ensure user creation was successful
-            group_invite_token_entry.uses_left -= 1
-            if group_invite_token_entry.uses_left <= 0:
-                self.logger.info(f"Deleting used group invitation token: {group_invite_token_entry.token}")
-                self.repos.group_invite_tokens.delete(group_invite_token_entry.token, match_key="token")
+            # Check if token is unlimited (-1) - if so, don't decrement
+            if group_invite_token_entry.uses_left == -1:
+                self.logger.info(f"Unlimited invitation token used: {group_invite_token_entry.token} (uses_left stays at -1)")
+                # No action needed - unlimited tokens are never decremented or deleted
             else:
-                self.logger.info(
-                    f"Updating uses_left for group invitation token: {group_invite_token_entry.token} to {group_invite_token_entry.uses_left}"
-                )
-                # The update method expects a Pydantic schema or dict.
-                # `group_invite_token_entry` is likely a Pydantic Read schema.
-                # We need to pass an Update schema or compatible dict.
-                from marvin.schemas.group.invite_token import InviteTokenUpdate  # Local import
+                # Decrement limited tokens
+                group_invite_token_entry.uses_left -= 1
+                if group_invite_token_entry.uses_left <= 0:
+                    self.logger.info(f"Deleting used group invitation token: {group_invite_token_entry.token}")
+                    self.repos.group_invite_tokens.delete(group_invite_token_entry.token, match_key="token")
+                else:
+                    self.logger.info(
+                        f"Updating uses_left for group invitation token: {group_invite_token_entry.token} to {group_invite_token_entry.uses_left}"
+                    )
+                    # The update method expects a Pydantic schema or dict.
+                    # `group_invite_token_entry` is likely a Pydantic Read schema.
+                    # We need to pass an Update schema or compatible dict.
+                    from marvin.schemas.group.invite_token import InviteTokenUpdate  # Local import
 
-                update_data = InviteTokenUpdate(
-                    id=group_invite_token_entry.id,  # Assuming ID is needed for update by PK
-                    uses_left=group_invite_token_entry.uses_left,
-                    group_id=group_invite_token_entry.group_id,  # Pass required fields for the schema
-                    token=group_invite_token_entry.token,
-                )
-                self.repos.group_invite_tokens.update(group_invite_token_entry.token, update_data)  # Update by ID
+                    update_data = InviteTokenUpdate(
+                        id=group_invite_token_entry.id,  # Assuming ID is needed for update by PK
+                        uses_left=group_invite_token_entry.uses_left,
+                        group_id=group_invite_token_entry.group_id,  # Pass required fields for the schema
+                        token=group_invite_token_entry.token,
+                    )
+                    self.repos.group_invite_tokens.update(group_invite_token_entry.token, update_data)  # Update by ID
+                    # Commit the token update
+                    self.repos.group_invite_tokens.session.commit()
 
         self.logger.info(f"User '{new_user.username}' successfully registered with ID {new_user.id}.")
         return new_user

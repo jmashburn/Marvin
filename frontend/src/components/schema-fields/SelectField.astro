@@ -1,0 +1,120 @@
+---
+/**
+ * SelectField Component
+ * Renders a dropdown select field with predefined options
+ */
+export interface Props {
+  field: {
+    key: string;
+    label: string;
+    type: 'select';
+    options: string[];
+    required?: boolean;
+    defaultValue?: string;
+    placeholder?: string;
+    helpText?: string;
+    readOnly?: boolean;
+    multiple?: boolean;
+  };
+  value?: string | string[];
+  error?: string;
+}
+
+const { field, value, error } = Astro.props;
+const inputId = `field-${field.key}`;
+const selectedValue = value || field.defaultValue;
+---
+
+<div class="field-group">
+  <label for={inputId}>
+    {field.label}
+    {field.required && <span class="required">*</span>}
+  </label>
+
+  <select
+    id={inputId}
+    name={`dataJson.${field.key}`}
+    required={field.required}
+    disabled={field.readOnly}
+    multiple={field.multiple}
+    class:list={['field-select', { error }]}
+  >
+    {!field.required && !field.multiple && (
+      <option value="">{field.placeholder || 'Select an option...'}</option>
+    )}
+    {field.options.map((option) => (
+      <option
+        value={option}
+        selected={
+          Array.isArray(selectedValue)
+            ? selectedValue.includes(option)
+            : selectedValue === option
+        }
+      >
+        {option}
+      </option>
+    ))}
+  </select>
+
+  {field.helpText && <p class="field-help">{field.helpText}</p>}
+  {error && <p class="field-error">{error}</p>}
+</div>
+
+<style>
+  .field-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  .required {
+    color: var(--color-error);
+    margin-left: 2px;
+  }
+
+  .field-select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .field-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-alpha);
+  }
+
+  .field-select:disabled {
+    background: var(--muted-bg);
+    cursor: not-allowed;
+  }
+
+  .field-select.error {
+    border-color: var(--color-error);
+  }
+
+  .field-select[multiple] {
+    min-height: 120px;
+  }
+
+  .field-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .field-error {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--color-error);
+  }
+</style>

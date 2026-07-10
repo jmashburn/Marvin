@@ -1,0 +1,208 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="New Webhook" eyebrow="Automation">
+  <div class="page-header">
+    <div>
+      <h2>Create Webhook</h2>
+      <p>Configure HTTP callback for workspace events</p>
+    </div>
+  </div>
+
+  <div class="form-container">
+    <form id="create-webhook-form" class="form">
+      <div class="form-section">
+        <h3>Webhook Details</h3>
+
+        <label class="form-field">
+          <span class="label">Name *</span>
+          <input
+            type="text"
+            name="name"
+            required
+            placeholder="Production deployment notification"
+            class="input"
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="label">URL *</span>
+          <input
+            type="url"
+            name="url"
+            required
+            placeholder="https://api.example.com/webhook"
+            class="input"
+          />
+        </label>
+
+        <div class="form-row">
+          <label class="form-field">
+            <span class="label">Method</span>
+            <select name="method" class="input">
+              <option value="POST">POST</option>
+              <option value="GET">GET</option>
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span class="label">Type</span>
+            <select name="webhook_type" class="input">
+              <option value="generic">Generic</option>
+              <option value="user">User</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="form-field">
+          <span class="label">Scheduled Time (UTC) *</span>
+          <input
+            type="datetime-local"
+            name="scheduled_time"
+            required
+            class="input"
+          />
+          <small class="hint">When should this webhook be triggered?</small>
+        </label>
+
+        <label class="checkbox-field">
+          <input type="checkbox" name="enabled" checked />
+          <span>Enabled</span>
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Webhook</button>
+        <a href="/automation/webhooks" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</AppLayout>
+
+<script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
+  import { fetchApi } from '@/lib/api/client';
+
+  // Set default scheduled time to now
+  const now = new Date();
+  const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  (document.querySelector('[name="scheduled_time"]') as HTMLInputElement).value = localDateTime;
+
+  const form = document.getElementById('create-webhook-form');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+
+    const payload = {
+      name: formData.get('name'),
+      url: formData.get('url'),
+      method: formData.get('method'),
+      webhook_type: formData.get('webhook_type'),
+      scheduled_time: formData.get('scheduled_time'),
+      enabled: formData.get('enabled') === 'on',
+    };
+
+    try {
+      await fetchApi('/api/groups/webhooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      window.location.href = '/automation/webhooks?created=true';
+    } catch (error) {
+      alert('Failed to create webhook. Please try again.');
+      console.error('Error creating webhook:', error);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-container {
+    max-width: 700px;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: auto;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+</style>

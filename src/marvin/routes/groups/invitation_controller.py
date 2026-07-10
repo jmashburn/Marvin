@@ -26,6 +26,7 @@ from marvin.schemas.group.invite_token import (  # Pydantic schemas for invite t
 from marvin.schemas.mapper import cast  # Utility for casting between schema types
 from marvin.schemas.response.pagination import PaginationQuery  # For pagination parameters
 from marvin.services.email.email_service import EmailService  # Service for sending emails
+from marvin.services.event_bus_service.event_types import EventInvitationData, EventOperation, EventTypes
 
 # APIRouter for group invitations, prefixed accordingly.
 # All routes here will be under /groups/invitations based on router prefix in main app and this.
@@ -60,7 +61,7 @@ class GroupInvitationsController(BaseUserController):
         # `self.repo` is already group-scoped.
         paginated_response = self.repos.group_invite_tokens.page_all(
             pagination=q,
-            override_schema=InviteTokenRead,  # Serialize items using InviteTokenPagination
+            override_schema=InviteTokenSummary,  # Serialize items using InviteTokenSummary
         )
         # Set HATEOAS pagination guide URLs
         paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
@@ -86,17 +87,33 @@ class GroupInvitationsController(BaseUserController):
         self.checks.can_invite()
 
         # Prepare the final token data for creation, generating a secure token string
-        # Note: The input `token_data` (InviteTokenCreate) has `uses`, but the model uses `uses_left`.
-        # Assuming `token_data.uses` is meant for `uses_left`.
         final_token_payload = InviteTokenCreate(
-            uses_left=token_data.uses_left,  # uses_left from input schema
+            uses_left=token_data.uses_left,
+            workspace_role=token_data.workspace_role,  # Role from input, defaults to EDITOR
         )
 
         save_data = cast(final_token_payload, InviteTokenSave, token=url_safe_token(), group_id=self.group_id)
         # Create the token using the group_invite_tokens repository
         created_token = self.repos.group_invite_tokens.create(save_data)
         self.logger.info(f"Invite token created by user {self.user.username} for group {self.group_id}")
-        return created_token
+
+        # Emit event
+        self.event_bus.dispatch(
+            integration_id="invitation_management",
+            group_id=self.group_id,
+            event_type=EventTypes.invitation_created,
+            document_data=EventInvitationData(
+                operation=EventOperation.create,
+                invitation_id=created_token.token,
+                workspace_id=self.group_id,
+                inviter_id=self.user.id,
+                uses_left=created_token.uses_left,
+            ),
+            message=f"Invitation token created with {created_token.uses_left} uses",
+        )
+
+        # Cast to InviteTokenSummary for proper JSON serialization
+        return cast(created_token, InviteTokenSummary)
 
     @router.post("/email", response_model=EmailInitationResponse, summary="Send Email Invitation")
     def email_invitation(
@@ -147,9 +164,29 @@ class GroupInvitationsController(BaseUserController):
 
         try:
             # Attempt to send the invitation email
-            email_sent_successfully = email_service.send_invitation(recipient_address=invite_data.email, invitation_url=registration_url)
+            email_sent_successfully = email_service.send_invitation(
+                recipient_address=invite_data.email,
+                invitation_url=registration_url,
+                group_id=str(self.group_id) if self.group_id else None,
+            )
             if email_sent_successfully:
                 self.logger.info(f"Invitation email sent to {invite_data.email} with token {invite_data.token}")
+
+                # Emit event for successful email send
+                self.event_bus.dispatch(
+                    integration_id="invitation_management",
+                    group_id=self.group_id,
+                    event_type=EventTypes.invitation_sent,
+                    document_data=EventInvitationData(
+                        operation=EventOperation.info,
+                        invitation_id=invite_data.token,
+                        workspace_id=self.group_id,
+                        inviter_id=self.user.id,
+                        invitee_email=invite_data.email,
+                        uses_left=token.uses_left,
+                    ),
+                    message=f"Invitation sent to {invite_data.email}",
+                )
             else:
                 # If service returns False without an exception
                 error_message = "Email service reported failure to send invitation without raising an exception."
@@ -161,3 +198,49 @@ class GroupInvitationsController(BaseUserController):
             error_message = str(e)
 
         return EmailInitationResponse(success=email_sent_successfully, error=error_message)
+
+    @router.delete("/{token_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete an Invite Token")
+    def delete_invite_token(self, token_id: str) -> None:
+        """
+        Deletes (revokes) an invitation token.
+
+        This allows administrators to manually revoke invitation tokens before they
+        are exhausted or expire. The token_id can be either the UUID or the token string.
+
+        Args:
+            token_id: The UUID or token string of the invitation to delete
+
+        Raises:
+            HTTPException (404 Not Found): If the token does not exist
+            HTTPException (403 Forbidden): If the user lacks permission to delete tokens
+        """
+        self.checks.can_invite()  # Ensure user has permission to manage invitations
+
+        # Try to find the token by ID first, then by token string
+        token = self.repos.group_invite_tokens.get_one(token_id)
+        if not token:
+            # Try by token string
+            token = self.repos.group_invite_tokens.get_one(token_id, "token")
+
+        if not token:
+            self.logger.warning(f"Attempt to delete non-existent token: {token_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation token not found")
+
+        # Emit event before deletion
+        self.event_bus.dispatch(
+            integration_id="invitation_management",
+            group_id=self.group_id,
+            event_type=EventTypes.invitation_revoked,
+            document_data=EventInvitationData(
+                operation=EventOperation.delete,
+                invitation_id=token.token,
+                workspace_id=self.group_id,
+                inviter_id=self.user.id,
+                uses_left=token.uses_left,
+            ),
+            message=f"Invitation token revoked",
+        )
+
+        # Delete the token
+        self.repos.group_invite_tokens.delete(token.token, match_key="token")
+        self.logger.info(f"Invite token {token.token} deleted by user {self.user.username}")

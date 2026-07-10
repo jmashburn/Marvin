@@ -1,0 +1,143 @@
+---
+import "../styles/global.css";
+import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
+
+interface Props {
+  title: string;
+  eyebrow?: string;
+}
+
+const { title, eyebrow = "Admin" } = Astro.props;
+const path = Astro.url.pathname;
+
+// Admin-specific navigation
+const adminNavGroups = [
+  {
+    label: null,
+    items: [
+      { href: "/admin", label: "Dashboard", icon: "⌂" },
+    ]
+  },
+  {
+    label: "Platform Management",
+    items: [
+      { href: "/admin/users", label: "Users", icon: "👥" },
+      { href: "/admin/workspaces", label: "Workspaces", icon: "◫" },
+      { href: "/admin/system", label: "System", icon: "📊" },
+    ]
+  },
+  {
+    label: "Configuration",
+    items: [
+      { href: "/admin/site-settings", label: "Site Settings", icon: "⚙" },
+      { href: "/admin/email-settings", label: "Email Settings", icon: "📧" },
+      { href: "/admin/backups", label: "Backups", icon: "💾" },
+      { href: "/admin/maintenance", label: "Maintenance", icon: "🔧" },
+    ]
+  },
+  {
+    label: "Back to User",
+    items: [
+      { href: "/", label: "User Settings", icon: "◄" },
+    ]
+  },
+];
+
+// Helper to check if path is active
+function isActive(itemPath: string, currentPath: string): boolean {
+  if (itemPath === "/admin") {
+    return currentPath === "/admin";
+  }
+  return currentPath === itemPath || currentPath.startsWith(itemPath + "/");
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Marvin platform admin" />
+    <title>{title} | Marvin Admin</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar admin-sidebar">
+        <a class="brand" href="/admin">
+          <strong>Marvin Admin</strong>
+          <span>Platform administration</span>
+        </a>
+        {adminNavGroups.map((group) => (
+          <div class="nav-group">
+            {group.label && (
+              <div class="nav-group-label">{group.label}</div>
+            )}
+            <nav class="nav" aria-label={group.label || "Primary"}>
+              {group.items.map((item) => (
+                <a href={item.href} aria-current={isActive(item.href, path) ? "page" : undefined}>
+                  <span aria-hidden="true">{item.icon}</span>
+                  <span>{item.label}</span>
+                </a>
+              ))}
+            </nav>
+          </div>
+        ))}
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="topbar-left">
+            <div class="topbar-title">
+              <p>{eyebrow}</p>
+              <h1>{title}</h1>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <a class="button secondary" href="/">Back to User View</a>
+            <form method="POST" action="/api/auth/logout" style="display:inline;">
+              <button type="submit" class="button secondary">Logout</button>
+            </form>
+          </div>
+        </header>
+        <section class="content">
+          <slot />
+        </section>
+      </main>
+      <ThemeSwitcher />
+    </div>
+  </body>
+</html>
+
+<style>
+  /* Admin sidebar has different styling to distinguish it from user sidebar */
+  .admin-sidebar {
+    background: var(--panel);
+    border-right: 2px solid var(--accent);
+  }
+
+  .admin-sidebar .brand {
+    border-bottom-color: var(--line);
+  }
+
+  .admin-sidebar .nav-group-label {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .admin-sidebar .nav a {
+    color: var(--ink);
+    opacity: 0.8;
+  }
+
+  .admin-sidebar .nav a:hover {
+    background: var(--panel-2);
+    color: var(--ink);
+    opacity: 1;
+  }
+
+  .admin-sidebar .nav a[aria-current="page"] {
+    background: var(--color-primary-bg);
+    color: var(--accent);
+    opacity: 1;
+    font-weight: 600;
+  }
+</style>

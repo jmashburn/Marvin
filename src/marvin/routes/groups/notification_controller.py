@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status  # Added status fo
 from pydantic import UUID4  # For UUID type validation
 
 # Marvin base controllers, schemas, and services
+from marvin.core.config import get_app_settings  # For checking Apprise availability
 from marvin.routes._base import MarvinCrudRoute  # Custom route class
 from marvin.routes._base.base_controllers import BaseUserController  # Base for user-auth routes
 from marvin.routes._base.controller import controller  # CBV decorator
@@ -54,6 +55,21 @@ class GroupEventsNotifierController(BaseUserController):
 
     # Dependency injection for the EventBusService
     event_bus: EventBusService = Depends(EventBusService.as_dependency)
+
+    def _check_apprise_available(self) -> None:
+        """
+        Verifies that Apprise is enabled and available.
+
+        Raises:
+            HTTPException (503 Service Unavailable): If Apprise is not enabled or configured.
+        """
+        settings = get_app_settings()
+        if not settings.APPRISE_READY:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Apprise notification service is not enabled or configured. "
+                "Please enable APPRISE_ENABLED in settings to use notifications.",
+            )
 
     @cached_property
     def repo(self):  # Type hint could be GroupRepositoryGeneric[GroupEventNotifierRead, GroupEventNotifierModel, ...]
@@ -106,6 +122,7 @@ class GroupEventsNotifierController(BaseUserController):
         Returns:
             GroupEventNotifierPagination: Paginated list of group event notifiers.
         """
+        self._check_apprise_available()
         # `self.repo` is already group-scoped.
         paginated_response = self.repo.page_all(
             pagination=q,
@@ -133,6 +150,7 @@ class GroupEventsNotifierController(BaseUserController):
         Returns:
             GroupEventNotifierRead: The Pydantic schema of the newly created notifier.
         """
+        self._check_apprise_available()
         # Cast the input `GroupEventNotifierCreate` data to `GroupEventNotifierSave` schema,
         # injecting the current user's group_id. This prepares the data for the repository.
         save_data = cast(data, GroupEventNotifierSave, group_id=self.group_id)
@@ -156,6 +174,7 @@ class GroupEventsNotifierController(BaseUserController):
             HTTPException (404 Not Found): If the notifier with the given ID is not found
                                          or does not belong to the user's group.
         """
+        self._check_apprise_available()
         # `self.mixins.get_one` uses `self.repo` which is group-scoped.
         return self.mixins.get_one(item_id)
 
@@ -179,6 +198,7 @@ class GroupEventsNotifierController(BaseUserController):
         Raises:
             HTTPException (404 Not Found): If the notifier is not found.
         """
+        self._check_apprise_available()
         # If apprise_url is not included in the update request (is None),
         # fetch the current notifier's private data (which includes the URL)
         # and reuse the existing URL. This prevents accidental deletion of the URL.
@@ -192,8 +212,8 @@ class GroupEventsNotifierController(BaseUserController):
         # `self.mixins.update_one` uses `self.repo` which is group-scoped.
         return self.mixins.update_one(item_id=item_id, data=data)  # Corrected param order
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a Group Event Notifier")
-    def delete_one(self, item_id: UUID4) -> None:  # Return None for 204
+    @router.delete("/{item_id}", summary="Delete a Group Event Notifier")
+    def delete_one(self, item_id: UUID4) -> dict:
         """
         Deletes an event notifier configuration by its ID.
 
@@ -203,25 +223,22 @@ class GroupEventsNotifierController(BaseUserController):
             item_id (UUID4): The ID of the group event notifier to delete.
 
         Returns:
-            None: HTTP 204 No Content on successful deletion.
+            dict: Status message on successful deletion.
 
         Raises:
             HTTPException (404 Not Found): If the notifier is not found.
         """
-        # `self.mixins.delete_one` uses `self.repo` which is group-scoped.
-        # The `type: ignore` was present in original; usually means a type mismatch perceived by the linter
-        # but functionally correct. HttpRepo.delete_one returns R (GroupEventNotifierRead),
-        # but FastAPI handles None return + 204 status code correctly.
+        self._check_apprise_available()
         self.mixins.delete_one(item_id)  # type: ignore
-        return None
+        return {"status": "ok", "message": "Event notifier deleted successfully"}
 
     # =======================================================================
     # Test Event Notifications
     # =======================================================================
 
     # TODO: "properly re-implement this with new event listeners" - as per original code comment
-    @router.post("/{item_id}/test", status_code=status.HTTP_204_NO_CONTENT, summary="Test a Group Event Notifier")
-    def test_notification(self, item_id: UUID4) -> None:
+    @router.post("/{item_id}/test", summary="Test a Group Event Notifier")
+    def test_notification(self, item_id: UUID4) -> dict:
         """
         Sends a test notification message to a specified group event notifier.
 
@@ -232,11 +249,12 @@ class GroupEventsNotifierController(BaseUserController):
             item_id (UUID4): The ID of the group event notifier to test.
 
         Returns:
-            None: HTTP 204 No Content on successful dispatch of the test.
+            dict: Status message on successful dispatch of the test.
 
         Raises:
             HTTPException (404 Not Found): If the notifier is not found.
         """
+        self._check_apprise_available()
         # Fetch the notifier configuration, ensuring it's the private schema to get apprise_url
         notifier_config: GroupEventNotifierPrivate | None = self.repo.get_one(item_id, override_schema=GroupEventNotifierPrivate)
         if not notifier_config:  # Should be caught by get_one if not found
@@ -268,7 +286,7 @@ class GroupEventsNotifierController(BaseUserController):
             # Consider if an error response should be sent to the client here,
             # e.g., a 500 error if Apprise fails. Currently, it would still return 204.
             # For a more robust test, this might raise an HTTPException.
-            # For now, matching original behavior of logging and returning 204 regardless of Apprise outcome.
+            # For now, matching original behavior of logging and returning status regardless of Apprise outcome.
             pass
 
-        return None  # HTTP 204 No Content
+        return {"status": "ok", "message": "Test notification sent successfully"}

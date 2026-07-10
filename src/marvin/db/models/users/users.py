@@ -25,10 +25,12 @@ from marvin.db.models._model_utils.datetime import NaiveDateTime
 from marvin.db.models._model_utils.guid import GUID
 
 from .. import BaseMixins, SqlAlchemyBase
+from .roles import PlatformRole
 
 if TYPE_CHECKING:
     from ..groups import Groups
     from .password_reset import PasswordResetModel
+    from .workspace_members import WorkspaceMembers
 
 
 class AuthMethod(enum.Enum):
@@ -45,40 +47,67 @@ class LongLiveToken(SqlAlchemyBase, BaseMixins):
     """
     SQLAlchemy model for long-lived API tokens (Personal Access Tokens).
 
-    These tokens allow users to authenticate with the API programmatically.
-    The `id` (PK), `created_at`, `updated_at` are inherited from `BaseMixins`.
+    Security model matches APIClients - tokens are hashed with bcrypt,
+    support rotation, soft deletion, and usage tracking.
+
+    The `id` (PK), `created_at`, `update_at` are inherited from `BaseMixins`.
     """
 
     __tablename__ = "long_live_tokens"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate, doc="Unique identifier for the token.")
-    name: Mapped[str] = mapped_column(String, nullable=False, doc="User-defined name for the token (e.g., 'My Script Token').")
-    token: Mapped[str] = mapped_column(
+    name: Mapped[str] = mapped_column(String, nullable=False, doc="User-defined name for the token (e.g., 'CI/CD Token').")
+    description: Mapped[str | None] = mapped_column(String, nullable=True, doc="Optional description of token purpose.")
+
+    # Token security (hashed storage - matches APIClients pattern)
+    token_hash: Mapped[str] = mapped_column(
         String,
         nullable=False,
         index=True,
         unique=True,
-        doc="The actual token string (should be stored hashed if sensitive, though current schema implies plaintext).",
-    )  # Added unique=True
+        doc="Bcrypt hash of the token. Plaintext token never stored.",
+    )
 
-    # Foreign key to the Users model
-    user_id: Mapped[GUID | None] = mapped_column(GUID, ForeignKey("users.id"), index=True, doc="ID of the user this token belongs to.")
+    # Lifecycle management
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        doc="Whether the token is currently active. Disabled tokens cannot authenticate.",
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        NaiveDateTime,
+        nullable=True,
+        doc="Timestamp of last successful authentication with this token.",
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        NaiveDateTime,
+        nullable=True,
+        doc="Timestamp when token was revoked (soft delete).",
+    )
+
+    # Audit trail
+    user_id: Mapped[GUID] = mapped_column(
+        GUID,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+        doc="ID of the user this token belongs to.",
+    )
+    created_by: Mapped[GUID] = mapped_column(
+        GUID,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=False,
+        doc="ID of the user who created this token (audit trail).",
+    )
+
     # Relationship to the User who owns this token
-    user: Mapped[Optional["Users"]] = orm.relationship("Users", back_populates="tokens")  # Added back_populates
+    user: Mapped[Optional["Users"]] = orm.relationship("Users", back_populates="tokens", foreign_keys=[user_id])
 
-    def __init__(self, name: str, token: str, user_id: GUID, **kwargs) -> None:
-        """
-        Initializes a LongLiveToken instance.
-
-        Args:
-            name (str): The name for the token.
-            token (str): The token string.
-            user_id (GUID): The ID of the user this token belongs to.
-            **kwargs: Additional keyword arguments for `BaseMixins`.
-        """
-        self.name = name
-        self.token = token
-        self.user_id = user_id
+    @auto_init()
+    def __init__(self, session: Session, **kwargs) -> None:
+        """Initialize via Marvin's auto-init model helper."""
+        pass
 
 
 class Users(SqlAlchemyBase, BaseMixins):
@@ -105,14 +134,40 @@ class Users(SqlAlchemyBase, BaseMixins):
         default=False,
         doc="Indicates if the user has administrative privileges system-wide. Defaults to False.",
     )
+    is_superuser: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        doc="DEPRECATED: Use platform_role instead. Platform-level administrator with access to all workspaces. Kept for backward compatibility.",
+    )
+    platform_role: Mapped[PlatformRole] = mapped_column(
+        SqlAlchemyEnum(PlatformRole),
+        nullable=False,
+        default=PlatformRole.NONE,
+        doc="Platform-level role. Determines platform-wide permissions. SUPER_ADMIN has unrestricted access.",
+    )
     advanced: Mapped[bool | None] = mapped_column(
-        Boolean, default=False, doc="Indicates if the user has access to advanced features. Defaults to False."
+        Boolean, default=False, doc="DEPRECATED: Legacy field. Indicates if the user has access to advanced features. Defaults to False."
     )
 
     # Foreign key to the Groups model
     group_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("groups.id"), nullable=False, index=True, doc="ID of the group this user belongs to.")
     # Relationship to the Group the user belongs to
-    group: Mapped["Groups"] = orm.relationship("Groups", back_populates="users")
+    group: Mapped["Groups"] = orm.relationship("Groups", back_populates="users", foreign_keys=[group_id])
+
+    # Active workspace tracking (multi-workspace support)
+    active_group_id: Mapped[GUID | None] = mapped_column(
+        GUID,
+        ForeignKey("groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="The workspace the user is currently working in. Falls back to group_id if NULL.",
+    )
+    active_workspace: Mapped["Groups | None"] = orm.relationship(
+        "Groups",
+        foreign_keys=[active_group_id],
+        doc="Active workspace relationship",
+    )
 
     # Security and state fields
     cache_key: Mapped[str | None] = mapped_column(
@@ -147,9 +202,21 @@ class Users(SqlAlchemyBase, BaseMixins):
     }
 
     # Relationship to LongLiveToken (one-to-many: one user can have many API tokens)
-    tokens: Mapped[list["LongLiveToken"]] = orm.relationship("LongLiveToken", **_token_relationship_args)
+    # Use foreign_keys to specify which FK to use (user_id, not created_by)
+    tokens: Mapped[list["LongLiveToken"]] = orm.relationship(
+        "LongLiveToken",
+        foreign_keys="LongLiveToken.user_id",
+        **_token_relationship_args
+    )
     # Relationship to PasswordResetModel (one-to-many: one user can have multiple password reset tokens over time)
     password_reset_tokens: Mapped[list["PasswordResetModel"]] = orm.relationship("PasswordResetModel", **_token_relationship_args)
+
+    # Relationship to WorkspaceMembers (one-to-many: one user can be a member of many workspaces)
+    workspace_memberships: Mapped[list["WorkspaceMembers"]] = orm.relationship(
+        "WorkspaceMembers",
+        back_populates="user",
+        cascade="all, delete, delete-orphan",
+    )
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -157,6 +224,7 @@ class Users(SqlAlchemyBase, BaseMixins):
         exclude={
             "password",  # Never serialize password hashes.
             "admin",  # Admin status might be exposed via other means if needed.
+            "is_superuser",  # Superuser status should be controlled via specific schemas.
             "can_manage",  # Permissions might be part of a dedicated permissions endpoint.
             "can_invite",
             "group",  # Group details might be fetched separately or via a nested schema.
@@ -173,8 +241,57 @@ class Users(SqlAlchemyBase, BaseMixins):
         """
         Returns the slug of the group this user belongs to.
         Returns None if the group or group slug is not set.
+
+        DEPRECATED: This uses the legacy single group_id.
+        For multi-workspace support, iterate workspace_memberships instead.
         """
         return self.group.slug if self.group else None
+
+    def is_platform_admin(self) -> bool:
+        """Check if user is a platform administrator (SUPER_ADMIN)."""
+        return self.platform_role == PlatformRole.SUPER_ADMIN
+
+    def get_effective_workspace_id(self) -> GUID:
+        """
+        Returns active workspace if set, otherwise falls back to primary group_id.
+
+        Returns:
+            GUID: The workspace ID to use for scoping operations.
+        """
+        return self.active_group_id or self.group_id
+
+    def get_workspace_role(self, group_id: str) -> "WorkspaceRole | None":
+        """
+        Get the user's role in a specific workspace.
+
+        Args:
+            group_id: The workspace/group ID to check.
+
+        Returns:
+            WorkspaceRole if user is a member, None otherwise.
+        """
+        from .roles import WorkspaceRole
+        for membership in self.workspace_memberships:
+            if str(membership.group_id) == str(group_id):
+                return membership.workspace_role
+        return None
+
+    def has_workspace_role(self, group_id: str, required_role: "WorkspaceRole") -> bool:
+        """
+        Check if user has a specific role (or higher) in a workspace.
+
+        Args:
+            group_id: The workspace/group ID to check.
+            required_role: The minimum required role.
+
+        Returns:
+            True if user has the required role or higher privilege.
+        """
+        from .roles import workspace_role_has_higher_or_equal_privilege
+        user_role = self.get_workspace_role(group_id)
+        if user_role is None:
+            return False
+        return workspace_role_has_higher_or_equal_privilege(user_role, required_role)
 
     @auto_init()
     def __init__(self, session: Session, full_name: str, password: str, group: str | None = None, **kwargs) -> None:
@@ -289,6 +406,7 @@ class Users(SqlAlchemyBase, BaseMixins):
     def _set_permissions(
         self,
         admin: bool | None = None,
+        is_superuser: bool = False,
         can_manage: bool = False,
         can_invite: bool = False,
         can_organize: bool = False,
@@ -306,12 +424,16 @@ class Users(SqlAlchemyBase, BaseMixins):
 
         Args:
             admin (bool | None, optional): System-wide admin status. If None, existing status is maintained unless other flags imply changes.
+            is_superuser (bool, optional): Platform-level super admin status. Super admins can access all workspaces. Defaults to False.
             can_manage (bool, optional): Permission to manage the group. Defaults to False.
             can_invite (bool, optional): Permission to invite users to the group. Defaults to False.
             can_organize (bool, optional): Placeholder for organizational permissions. Not a DB field. Defaults to False.
         """
         if admin is not None:
             self.admin = admin
+
+        # Set is_superuser - this must be explicitly passed, not derived from admin
+        self.is_superuser = is_superuser
 
         if self.admin:  # If user is admin, grant all other managed permissions
             self.can_manage = True

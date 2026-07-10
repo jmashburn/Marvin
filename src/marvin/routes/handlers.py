@@ -12,6 +12,7 @@ from collections.abc import Callable  # For type hinting the handler function si
 from fastapi import FastAPI, Request, status  # Core FastAPI components
 from fastapi.exceptions import ResponseValidationError  # Specific exception to handle
 from fastapi.responses import JSONResponse  # For crafting custom JSON error responses
+from sqlalchemy.exc import IntegrityError  # Database integrity errors
 
 from marvin.core.config import get_app_settings  # Access application settings
 from marvin.core.root_logger import get_logger  # Application logger

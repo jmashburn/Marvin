@@ -27,6 +27,8 @@ from marvin.db.fixes.fix_migration_data import fix_migration_data
 from marvin.repos.all_repositories import get_repositories
 from marvin.repos.repository_factory import AllRepositories
 from marvin.repos.seed.init_users import default_user_init
+from marvin.repos.seed.workspace_data_seeder import WorkspaceDataSeeder
+from marvin.repos.seed.workspace_seed_loader import WorkspaceSeedLoader
 from marvin.schemas.group.group import GroupCreate, GroupRead
 from marvin.services.group.group_service import GroupService
 from marvin.services.seeders.seeder_service import SeederService
@@ -83,6 +85,29 @@ def init_db(session: orm.Session) -> None:
 
     seeder_service = SeederService(group_repos)
     seeder_service.seed_notifier_options("notification_options")
+
+    # Seed system-level entry types (globally available to all workspaces)
+    system_seeder_service = SeederService(instance_repos)  # Use instance_repos (no group_id) for system types
+    system_seeder_service.seed_system_entry_types("system_entry_types")
+
+    # Seed workspace-specific data from seeds directory if it exists
+    data_dir = settings.DATA_DIR
+    if data_dir:
+        seed_dir = Path(data_dir) / "seeds"
+        if seed_dir.exists():
+            logger.info(f"Seeding workspace data from: {seed_dir}")
+
+            # Look for complete workspace seed files (workspace-*.json)
+            workspace_seeds = list(seed_dir.glob("workspace-*.json"))
+            if workspace_seeds:
+                # Use instance_repos (no group_id) so loader can create/find workspaces
+                workspace_loader = WorkspaceSeedLoader(instance_repos, logger)
+                for seed_file in workspace_seeds:
+                    workspace_loader.load_seed_file(seed_file)
+
+            # Also process legacy entry-only seeds
+            workspace_seeder = WorkspaceDataSeeder(group_repos, logger)
+            workspace_seeder.seed_from_directory(seed_dir)
 
 
 def default_group_init(repos: AllRepositories, name: str) -> GroupRead:

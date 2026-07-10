@@ -1,0 +1,296 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { requireAdmin } from "@/lib/auth";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+// Require admin authentication
+const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+const authToken = getAuthToken(Astro.cookies);
+
+let stats: any = null;
+try {
+  stats = await fetchApi<any>('/api/admin/maintenance/stats', {}, authToken);
+} catch (e) {
+  console.error('[admin/maintenance] Failed to fetch stats:', e);
+}
+---
+
+<AdminLayout title="Maintenance">
+  <div class="toolbar">
+    <div>
+      <h2>Maintenance & Cleanup</h2>
+      <p>Run maintenance and cleanup operations</p>
+    </div>
+  </div>
+
+  <div class="page-container">
+    <div class="maintenance-grid">
+      <!-- Cleanup Tasks -->
+      <section class="card">
+        <h3>Cleanup Tasks</h3>
+        <p class="card-description">Run maintenance and cleanup operations</p>
+        <div class="cleanup-tasks">
+          <div class="task-item">
+            <div class="task-info">
+              <strong>Clean Expired Tokens</strong>
+              <p>Remove expired API tokens and user sessions</p>
+            </div>
+            <button class="button secondary small" id="cleanup-tokens">Run Cleanup</button>
+          </div>
+          <div class="task-item">
+            <div class="task-info">
+              <strong>Clean Old Events</strong>
+              <p>Remove event logs older than 90 days</p>
+            </div>
+            <button class="button secondary small" id="cleanup-events">Run Cleanup</button>
+          </div>
+          <div class="task-item">
+            <div class="task-info">
+              <strong>Optimize Database</strong>
+              <p>Run VACUUM and ANALYZE on database tables</p>
+            </div>
+            <button class="button secondary small" id="optimize-db">Run Optimization</button>
+          </div>
+          <div class="task-item">
+            <div class="task-info">
+              <strong>Clear Cache</strong>
+              <p>Clear application caches and temporary files</p>
+            </div>
+            <button class="button secondary small" id="clear-cache">Clear Cache</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Storage Information -->
+      <section class="card">
+        <h3>Storage Overview</h3>
+        <p class="card-description">Data size across all storage</p>
+        <div class="storage-list">
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Database Size</span>
+              <span class="storage-path">{stats?.database_path || '/var/lib/marvin/marvin.db'}</span>
+            </div>
+            <span class="storage-size">{stats?.database_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Assets Storage</span>
+              <span class="storage-path">{stats?.assets_path || '/var/lib/marvin/assets/'}</span>
+            </div>
+            <span class="storage-size">{stats?.assets_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Backup Storage</span>
+              <span class="storage-path">{stats?.backups_path || '/var/lib/marvin/backups/'}</span>
+            </div>
+            <span class="storage-size">{stats?.backups_size || 'Unknown'}</span>
+          </div>
+          <div class="storage-item">
+            <div class="storage-info">
+              <span class="storage-label">Total Storage Used</span>
+              <span class="storage-path">{stats?.data_dir_path || 'All data combined'}</span>
+            </div>
+            <span class="storage-size total">{stats?.total_size || 'Unknown'}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  import { createSdkClient } from '@/lib/sdk';
+
+  // SDK uses cookie-based auth automatically via credentials: 'include'
+  // No need to extract the HttpOnly token - the browser sends it automatically
+  const sdk = createSdkClient();
+
+  // Cleanup tokens
+  document.getElementById('cleanup-tokens')?.addEventListener('click', async () => {
+    if (!confirm('Clean up expired tokens? This will remove all expired API tokens and sessions.')) return;
+
+    try {
+      const sdk = getSdk();
+      const result = await sdk.adminMaintenance.cleanupTokens();
+      alert(result.message || 'Cleanup completed successfully');
+      window.location.reload();
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
+
+  // Cleanup events
+  document.getElementById('cleanup-events')?.addEventListener('click', async () => {
+    if (!confirm('Clean up old events? This will remove old event log entries.')) return;
+
+    try {
+      const sdk = getSdk();
+      const result = await sdk.adminMaintenance.cleanupEvents();
+      alert(result.message || 'Cleanup completed successfully');
+      window.location.reload();
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
+
+  // Optimize database
+  document.getElementById('optimize-db')?.addEventListener('click', async () => {
+    if (!confirm('Optimize database? This may take a few moments.')) return;
+
+    try {
+      const sdk = getSdk();
+      const result = await sdk.adminMaintenance.optimizeDatabase();
+      alert(result.message || 'Database optimized successfully');
+      window.location.reload();
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
+
+  // Clear cache
+  document.getElementById('clear-cache')?.addEventListener('click', async () => {
+    if (!confirm('Clear application cache?')) return;
+
+    try {
+      const sdk = getSdk();
+      const result = await sdk.adminMaintenance.clearCache();
+      alert(result.message || 'Cache cleared successfully');
+      window.location.reload();
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 1200px;
+  }
+
+  .maintenance-grid {
+    display: grid;
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .card h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .card-description {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .cleanup-tasks {
+    display: grid;
+    gap: 12px;
+  }
+
+  .task-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .task-info {
+    flex: 1;
+  }
+
+  .task-info strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .task-info p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .button.small {
+    padding: 6px 14px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .storage-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .storage-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .storage-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .storage-label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .storage-path {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+  }
+
+  .storage-size {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .storage-size.total {
+    font-size: 18px;
+  }
+</style>

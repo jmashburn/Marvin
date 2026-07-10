@@ -1,0 +1,768 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { getWorkspacePreferences } from "@/lib/api/workspaceSettings";
+import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import type { WorkspaceRole } from "@/lib/api/types";
+
+const authToken = getAuthToken(Astro.cookies);
+let workspace = null;
+let preferences = null;
+let error: string | null = null;
+let currentUserRole: WorkspaceRole | null = null;
+let isPlatformAdmin = false;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+
+  if (workspace) {
+    // Get workspace preferences
+    try {
+      preferences = await getWorkspacePreferences(workspace.id, authToken);
+    } catch (e) {
+      console.error('[settings] Error loading preferences:', e);
+    }
+
+    // Get current user's role and admin status
+    const members = await listWorkspaceMembers(workspace.id, authToken);
+    const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+    if (currentUser) {
+      const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+      currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
+      isPlatformAdmin = currentUser.admin === true;
+    }
+  }
+} catch (e) {
+  console.error('[settings] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUserRole === 'ADMIN');
+
+const urlParams = Astro.url.searchParams;
+const success = urlParams.get('success') === '1';
+---
+
+<AppLayout title="Workspace Details" eyebrow="Workspace">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings" },
+    { label: "General" }
+  ]} />
+
+  <div class="toolbar">
+    <div>
+      <h2>Workspace Details</h2>
+      <p>Manage your workspace configuration and preferences</p>
+    </div>
+  </div>
+
+  {success && (
+    <div class="alert alert-success">
+      <strong>Success!</strong> Workspace settings updated successfully
+    </div>
+  )}
+
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error:</strong> {error}</p>
+    </div>
+  ) : workspace ? (
+    <div class="settings-container">
+      {!canManage ? (
+        <div class="alert alert-info">
+          You need OWNER or ADMIN role to manage workspace settings.
+        </div>
+      ) : null}
+
+      <section class="settings-section">
+        <h3>General Settings</h3>
+        <form
+          id="workspace-settings-form"
+          data-workspace-id={workspace.id}
+          class="settings-form"
+        >
+          <div class="form-grid">
+            <label>
+              <span>Workspace Name</span>
+              <input
+                type="text"
+                name="name"
+                value={workspace.name}
+                disabled={!canManage}
+              />
+              <small>Slug is auto-generated from the name</small>
+            </label>
+          </div>
+
+          {canManage && (
+            <div class="form-actions">
+              <button type="submit" id="submit-btn" class="button">Save Changes</button>
+              <button type="reset" class="button secondary">Reset</button>
+            </div>
+          )}
+        </form>
+      </section>
+
+      <section class="settings-section">
+        <h3>Site Configuration</h3>
+        <form
+          id="site-settings-form"
+          data-workspace-id={workspace.id}
+          class="settings-form"
+        >
+          <div class="form-grid">
+            <label>
+              <span>Site Title</span>
+              <input
+                type="text"
+                name="site_title"
+                value={preferences?.siteTitle || ''}
+                disabled={!canManage}
+                placeholder="My Awesome Site"
+              />
+              <small>The public title of your site</small>
+            </label>
+
+            <label>
+              <span>Site Tagline</span>
+              <input
+                type="text"
+                name="site_tagline"
+                value={preferences?.siteTagline || ''}
+                disabled={!canManage}
+                placeholder="Building amazing things"
+              />
+              <small>A short tagline or slogan</small>
+            </label>
+
+            <label>
+              <span>Site Description</span>
+              <textarea
+                name="site_description"
+                rows="3"
+                disabled={!canManage}
+                placeholder="A comprehensive description of your site"
+              >{preferences?.siteDescription || ''}</textarea>
+              <small>Description for SEO and social sharing</small>
+            </label>
+
+            <label>
+              <span>Canonical URL</span>
+              <input
+                type="url"
+                name="site_canonical_url"
+                value={preferences?.siteCanonicalUrl || ''}
+                disabled={!canManage}
+                placeholder="https://example.com"
+              />
+              <small>The canonical URL where this site is published</small>
+            </label>
+
+            <label>
+              <span>Site Logo</span>
+              <input
+                type="text"
+                name="site_logo"
+                value={preferences?.siteLogo || ''}
+                disabled={!canManage}
+                placeholder="/assets/logo.png"
+              />
+              <small>Path or URL to the site logo</small>
+            </label>
+
+            <label>
+              <span>Site Favicon</span>
+              <input
+                type="text"
+                name="site_favicon"
+                value={preferences?.siteFavicon || ''}
+                disabled={!canManage}
+                placeholder="/assets/favicon.ico"
+              />
+              <small>Path or URL to the site favicon</small>
+            </label>
+
+            <label>
+              <span>Locale</span>
+              <input
+                type="text"
+                name="site_locale"
+                value={preferences?.siteLocale || 'en-US'}
+                disabled={!canManage}
+                placeholder="en-US"
+              />
+              <small>The locale for your site (e.g., en-US, en-GB, fr-FR)</small>
+            </label>
+
+            <label>
+              <span>Timezone</span>
+              <input
+                type="text"
+                name="site_timezone"
+                value={preferences?.siteTimezone || 'America/New_York'}
+                disabled={!canManage}
+                placeholder="America/New_York"
+              />
+              <small>Timezone for your site (e.g., America/New_York, Europe/London)</small>
+            </label>
+
+            <label>
+              <span>Contact Email</span>
+              <input
+                type="email"
+                name="site_contact_email"
+                value={preferences?.siteContactEmail || ''}
+                disabled={!canManage}
+                placeholder="contact@example.com"
+              />
+              <small>Primary contact email for the site</small>
+            </label>
+
+            <label>
+              <span>Social Links (JSON)</span>
+              <textarea
+                name="site_social_json"
+                rows="6"
+                disabled={!canManage}
+                placeholder='{"twitter": "https://twitter.com/...", "github": "https://github.com/..."}'
+                class="metadata-editor"
+              >{preferences?.siteSocialJson ? JSON.stringify(preferences.siteSocialJson, null, 2) : ''}</textarea>
+              <small>Social media links as JSON (deprecated - use Site Metadata instead)</small>
+            </label>
+
+            <label>
+              <span>Site Metadata (JSON)</span>
+              <textarea
+                name="site_metadata_json"
+                rows="8"
+                disabled={!canManage}
+                placeholder='{"social": {"twitter": "...", "github": "..."}, "seo": {"keywords": [...]}}'
+                class="metadata-editor"
+              >{preferences?.siteMetadataJson ? JSON.stringify(preferences.siteMetadataJson, null, 2) : ''}</textarea>
+              <small>Flexible metadata for framework-specific settings (include social links under 'social' key)</small>
+            </label>
+          </div>
+
+          {canManage && (
+            <div class="form-actions">
+              <button type="submit" id="submit-site-btn" class="button">Save Site Settings</button>
+              <button type="reset" class="button secondary">Reset</button>
+            </div>
+          )}
+        </form>
+      </section>
+
+      <section class="settings-section">
+        <h3>Workspace Information</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Workspace ID</span>
+            <code class="info-value">{workspace.id}</code>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Slug</span>
+            <code class="info-value">{workspace.slug || "Not set"}</code>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Your Role</span>
+            <span class="info-value role-badge">{currentUserRole}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Active Status</span>
+            <span class="info-value">{true ? "Active" : "Inactive"}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Backups</h3>
+        <p>Download your workspace data as JSON for backup or migration purposes.</p>
+
+        <div class="backup-actions">
+          <button
+            type="button"
+            id="export-workspace-btn"
+            class="button"
+            data-workspace-id={workspace.id}
+          >
+            Download Workspace Backup
+          </button>
+          <small>Exports collections, entry types, entries, and site configuration as JSON</small>
+        </div>
+      </section>
+
+      <section class="settings-section danger-zone">
+        <h3>Danger Zone</h3>
+        <p>Irreversible and destructive actions.</p>
+
+        {isPlatformAdmin ? (
+          <div class="danger-actions">
+            <button
+              type="button"
+              id="delete-workspace-btn"
+              class="button danger"
+              data-workspace-id={workspace.id}
+              data-workspace-name={workspace.name}
+            >
+              Delete Workspace
+            </button>
+            <small>⚠️ Platform admin only - This will permanently delete the workspace and all its data</small>
+          </div>
+        ) : (
+          <p class="muted">Only platform administrators can delete workspaces.</p>
+        )}
+      </section>
+    </div>
+  ) : (
+    <div class="empty-state">
+      <p>No workspace selected</p>
+    </div>
+  )}
+</AppLayout>
+
+<script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
+  import { fetchApi } from '@/lib/api/client';
+  const form = document.getElementById('workspace-settings-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const siteForm = document.getElementById('site-settings-form') as HTMLFormElement;
+  const submitSiteBtn = document.getElementById('submit-site-btn') as HTMLButtonElement;
+  const deleteBtn = document.getElementById('delete-workspace-btn') as HTMLButtonElement;
+
+  // Settings form submission
+  if (form && submitBtn) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const workspaceId = form.dataset.workspaceId;
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      try {
+        const formData = new FormData(form);
+        const data = {
+          name: formData.get('name') as string,
+        };
+
+        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+
+        window.location.href = '/workspace/settings?success=1';
+      } catch (err) {
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to update workspace settings'));
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+      }
+    });
+  }
+
+  // Site settings form submission
+  if (siteForm && submitSiteBtn) {
+    siteForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const workspaceId = siteForm.dataset.workspaceId;
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      submitSiteBtn.disabled = true;
+      submitSiteBtn.textContent = 'Saving...';
+
+      try {
+        const formData = new FormData(siteForm);
+        const data: any = {
+          site_title: formData.get('site_title') as string || null,
+          site_tagline: formData.get('site_tagline') as string || null,
+          site_description: formData.get('site_description') as string || null,
+          site_canonical_url: formData.get('site_canonical_url') as string || null,
+          site_logo: formData.get('site_logo') as string || null,
+          site_favicon: formData.get('site_favicon') as string || null,
+          site_locale: formData.get('site_locale') as string || null,
+          site_timezone: formData.get('site_timezone') as string || null,
+          site_contact_email: formData.get('site_contact_email') as string || null,
+        };
+
+        // Parse JSON fields
+        const socialJson = formData.get('site_social_json') as string;
+        const metadataJson = formData.get('site_metadata_json') as string;
+
+        if (socialJson && socialJson.trim()) {
+          try {
+            data.site_social_json = JSON.parse(socialJson);
+          } catch (e) {
+            alert('Invalid JSON in Social Links field');
+            submitSiteBtn.disabled = false;
+            submitSiteBtn.textContent = 'Save Site Settings';
+            return;
+          }
+        }
+
+        if (metadataJson && metadataJson.trim()) {
+          try {
+            data.site_metadata_json = JSON.parse(metadataJson);
+          } catch (e) {
+            alert('Invalid JSON in Site Metadata field');
+            submitSiteBtn.disabled = false;
+            submitSiteBtn.textContent = 'Save Site Settings';
+            return;
+          }
+        }
+
+        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+
+        window.location.href = '/workspace/settings?success=1';
+      } catch (err) {
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to update site settings'));
+        submitSiteBtn.disabled = false;
+        submitSiteBtn.textContent = 'Save Site Settings';
+      }
+    });
+  }
+
+  // Export workspace
+  const exportBtn = document.getElementById('export-workspace-btn') as HTMLButtonElement;
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      const workspaceId = exportBtn.dataset.workspaceId;
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      exportBtn.disabled = true;
+      exportBtn.textContent = 'Exporting...';
+
+      try {
+        // Use fetch directly to handle file download
+        const response = await fetch(`/api/platform/workspace/export/pretty`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Export failed');
+        }
+
+        // Get the blob and create download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        // Generate filename with workspace slug and timestamp
+        const timestamp = new Date().toISOString().split('T')[0];
+        a.download = `workspace-backup-${timestamp}.json`;
+
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        exportBtn.disabled = false;
+        exportBtn.textContent = 'Download Workspace Backup';
+      } catch (err) {
+        console.error('Export error:', err);
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to export workspace'));
+        exportBtn.disabled = false;
+        exportBtn.textContent = 'Download Workspace Backup';
+      }
+    });
+  }
+
+  // Delete workspace
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', async () => {
+      const workspaceId = deleteBtn.dataset.workspaceId;
+      const workspaceName = deleteBtn.dataset.workspaceName;
+
+      if (!workspaceId) {
+        alert('Workspace ID not found');
+        return;
+      }
+
+      // Double confirmation for destructive action
+      const confirmation = confirm(
+        `⚠️ DELETE WORKSPACE: "${workspaceName}"\n\n` +
+        `This will permanently delete:\n` +
+        `• The workspace and all settings\n` +
+        `• All workspace members\n` +
+        `• All entries and collections\n` +
+        `• All assets and media\n\n` +
+        `This action CANNOT be undone.\n\n` +
+        `Are you absolutely sure you want to proceed?`
+      );
+
+      if (!confirmation) return;
+
+      // Second confirmation
+      const secondConfirmation = confirm(
+        `FINAL WARNING\n\n` +
+        `You are about to permanently delete workspace "${workspaceName}".\n\n` +
+        `Type the workspace name to confirm, or click Cancel.`
+      );
+
+      if (!secondConfirmation) return;
+
+      deleteBtn.disabled = true;
+      deleteBtn.textContent = 'Deleting...';
+
+      try {
+        await fetchApi(`/api/admin/groups/${workspaceId}?force=true`, {
+          method: 'DELETE',
+        });
+
+        alert('Workspace deleted successfully. Redirecting...');
+        window.location.href = '/';
+      } catch (err) {
+        console.error('Delete error:', err);
+        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to delete workspace'));
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = 'Delete Workspace';
+      }
+    });
+  }
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .settings-container {
+    max-width: 800px;
+  }
+
+  .settings-section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .settings-section h3 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .settings-section > p {
+    margin: 0 0 16px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .form-grid {
+    display: grid;
+    gap: 20px;
+  }
+
+  .form-grid label {
+    display: grid;
+    gap: 8px;
+  }
+
+  .form-grid label > span {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .form-grid small {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: -4px;
+  }
+
+  .form-grid input,
+  .form-grid textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .form-grid textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-grid input:disabled,
+  .form-grid textarea:disabled {
+    background: var(--panel-2);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .info-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .info-item {
+    display: grid;
+    gap: 6px;
+  }
+
+  .info-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .info-value {
+    font-size: 14px;
+  }
+
+  .info-value code {
+    font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    background: var(--panel-2);
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  .role-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--color-primary-bg);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .danger-zone {
+    border-color: var(--warn);
+  }
+
+  .danger-zone h3 {
+    color: var(--warn);
+  }
+
+  .backup-actions {
+    display: grid;
+    gap: 8px;
+  }
+
+  .backup-actions small {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .danger-actions {
+    display: grid;
+    gap: 8px;
+  }
+
+  .danger-actions small {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .button.danger {
+    background: var(--warn);
+    color: white;
+    border: none;
+  }
+
+  .button.danger:hover:not(:disabled) {
+    background: var(--accent);
+  }
+
+  .button.danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-info {
+    background: rgb(47 111 115 / 0.1);
+    color: var(--accent-2);
+    border: 1px solid var(--accent-2);
+  }
+
+  .error-banner {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .muted {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert-success {
+    background: rgb(53 122 85 / 0.1);
+    color: var(--good);
+    border: 1px solid var(--good);
+  }
+
+  .button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+</style>

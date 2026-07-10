@@ -11,11 +11,26 @@ from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvi
 
 class AppStatistics(_MarvinModel):
     """
-    Schema for basic application statistics.
+    Schema for comprehensive application statistics.
     """
 
+    # User & Group stats
     total_users: int  # The total number of registered users in the system.
-    total_groups: int  # The total number of groups in the system.
+    total_groups: int  # The total number of groups/workspaces in the system.
+
+    # Content stats
+    total_entries: int  # The total number of content entries.
+    total_collections: int  # The total number of collections.
+    total_entry_types: int  # The total number of entry type definitions.
+
+    # Asset & Resource stats
+    total_assets: int  # The total number of uploaded assets/files.
+    total_resources: int  # The total number of resources.
+
+    # API & Integration stats
+    total_api_tokens: int  # The total number of user API tokens.
+    total_api_clients: int  # The total number of API clients.
+    total_webhooks: int  # The total number of configured webhooks.
 
 
 class AppInfo(_MarvinModel):
@@ -35,31 +50,6 @@ class AppInfo(_MarvinModel):
     oidc_provider_name: str  # Display name of the configured OIDC provider.
     enable_openai: bool  # Indicates if OpenAI integration is enabled.
     enable_openai_image_services: bool  # Indicates if OpenAI image-related services are specifically enabled.
-
-
-class AppTheme(_MarvinModel):
-    """
-    Schema defining the color palette for the application's light and dark themes.
-    Provides default hex color values for various UI elements.
-    """
-
-    # Light Theme Colors
-    light_primary: str = "#E58325"  # Primary color for light theme.
-    light_accent: str = "#007A99"  # Accent color for light theme.
-    light_secondary: str = "#973542"  # Secondary color for light theme.
-    light_success: str = "#43A047"  # Success color (e.g., for positive feedback) for light theme.
-    light_info: str = "#1976D2"  # Informational color for light theme.
-    light_warning: str = "#FF6D00"  # Warning color for light theme.
-    light_error: str = "#EF5350"  # Error color (e.g., for error messages) for light theme.
-
-    # Dark Theme Colors (currently same as light, likely placeholders or to be customized)
-    dark_primary: str = "#E58325"  # Primary color for dark theme.
-    dark_accent: str = "#007A99"  # Accent color for dark theme.
-    dark_secondary: str = "#973542"  # Secondary color for dark theme.
-    dark_success: str = "#43A047"  # Success color for dark theme.
-    dark_info: str = "#1976D2"  # Informational color for dark theme.
-    dark_warning: str = "#FF6D00"  # Warning color for dark theme.
-    dark_error: str = "#EF5350"  # Error color for dark theme.
 
 
 class AppStartupInfo(_MarvinModel):
@@ -104,5 +94,6 @@ class CheckAppConfig(_MarvinModel):
     ldap_ready: bool  # True if LDAP authentication settings are configured and enabled.
     oidc_ready: bool  # True if OIDC authentication settings are configured and enabled.
     enable_openai: bool  # True if OpenAI integration is configured and enabled.
+    apprise_ready: bool  # True if Apprise notification service is configured and enabled.
     base_url_set: bool  # True if the application's BASE_URL has been changed from its default value.
     is_up_to_date: bool  # True if the current application version is the latest available, or if it's a development build.

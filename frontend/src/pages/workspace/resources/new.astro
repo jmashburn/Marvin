@@ -1,0 +1,243 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import SlugInput from "@/components/SlugInput.astro";
+import { createResource } from "@/lib/api/resources";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+if (!authToken) {
+  return Astro.redirect('/auth/login');
+}
+
+let error: string | null = null;
+
+// Handle form submission (server-side)
+if (Astro.request.method === 'POST') {
+  try {
+    const formData = await Astro.request.formData();
+    const data: Record<string, any> = {};
+
+    formData.forEach((value, key) => {
+      if (value !== '') {
+        // Handle JSON metadata field
+        if (key === 'metadata_') {
+          try {
+            data[key] = JSON.parse(value as string);
+          } catch (e) {
+            // Invalid JSON, skip it
+          }
+        } else {
+          data[key] = value;
+        }
+      }
+    });
+
+    console.log('[NewResource] Creating resource with data:', data);
+    const resource = await createResource(data, authToken);
+    console.log('[NewResource] Resource created:', resource);
+    return Astro.redirect(`/workspace/resources/${resource.id}`);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[NewResource] Failed to create resource:', e);
+  }
+}
+---
+
+<AppLayout title="New Resource" eyebrow="Resources">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0;font-size:20px;">New Resource</h2>
+      <p style="margin:4px 0 0;color:var(--muted);">Add an external reference, supplier, tool, or material</p>
+    </div>
+    <a href="/workspace/resources" class="button secondary">Cancel</a>
+  </div>
+
+  <section class="form-section">
+    {error && (
+      <div class="error-banner" style="margin-bottom: 1rem;">
+        <p><strong>Error:</strong> {error}</p>
+      </div>
+    )}
+    <form method="POST" class="form">
+      <div class="form-group">
+        <label for="name">Name *</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          required
+          placeholder="e.g., Organic Cotton Supplier, Figma, GitHub Repo"
+        />
+      </div>
+
+      <SlugInput nameFieldId="name" />
+
+      <div class="form-group">
+        <label for="resource_type">Type *</label>
+        <input
+          type="text"
+          id="resource_type"
+          name="resource_type"
+          required
+          placeholder="e.g., supplier, tool, fabric, documentation"
+        />
+        <p class="form-help">Category for this resource</p>
+      </div>
+
+      <div class="form-group">
+        <label for="url">URL</label>
+        <input
+          type="url"
+          id="url"
+          name="url"
+          placeholder="https://example.com"
+        />
+        <p class="form-help">External website or documentation</p>
+      </div>
+
+      <div class="form-group">
+        <label for="external_id">External ID</label>
+        <input
+          type="text"
+          id="external_id"
+          name="external_id"
+          placeholder="SKU, ISBN, or other identifier"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows="4"
+          placeholder="What is this resource? How is it used?"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="metadata_">Metadata (JSON)</label>
+        <p class="form-help">Custom metadata fields for this resource</p>
+        <textarea
+          id="metadata_"
+          name="metadata_"
+          rows="6"
+          placeholder='{"key": "value"}'
+          class="metadata-editor"
+        ></textarea>
+        <small style="font-size: 11px; color: var(--muted);">
+          Must be valid JSON. Example: {`{"supplier_code": "ABC123", "contact": "john@example.com"}`}
+        </small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Resource</button>
+        <a href="/workspace/resources" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </section>
+</AppLayout>
+
+<script>
+  // Validate metadata JSON on form submit
+  const form = document.querySelector('form');
+  const metadataField = document.getElementById('metadata_') as HTMLTextAreaElement | null;
+
+  if (form && metadataField) {
+    metadataField.addEventListener('blur', () => {
+      const value = metadataField.value.trim();
+      if (!value) return;
+
+      try {
+        JSON.parse(value);
+        metadataField.style.borderColor = 'var(--line)';
+      } catch (error) {
+        metadataField.style.borderColor = '#ef5350';
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      const metadataValue = metadataField.value.trim();
+
+      if (metadataValue) {
+        try {
+          JSON.parse(metadataValue);
+        } catch (error) {
+          e.preventDefault();
+          alert('Metadata must be valid JSON. Please check your syntax.');
+          metadataField.focus();
+          return;
+        }
+      }
+    });
+  }
+</script>
+
+<style>
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="url"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .metadata-editor {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--panel-2);
+  }
+
+  .error-banner {
+    padding: 1rem;
+    background: #fee;
+    border: 1px solid #c00;
+    border-radius: var(--radius);
+    color: #c00;
+  }
+</style>

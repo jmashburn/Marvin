@@ -42,6 +42,24 @@ tasks:
     cmds:
       - uv run -m mkdocs serve
 
+  frontend:setup:
+    desc: Install Astro frontend dependencies
+    dir: frontend
+    cmds:
+      - npm install
+
+  frontend:
+    desc: Runs the Astro frontend
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  frontend:build:
+    desc: Builds the Astro frontend
+    dir: frontend
+    cmds:
+      - npm run build
+
   setup:py:
     desc: Setup python dependencies
     cmds:
@@ -173,3 +191,18 @@ tasks:
     desc: Build up to uv
     cmds:
       - docker build -f docker/Dockerfile --target production --build-arg="UV_IMAGE=ghcr.io/astral-sh/uv" --tag=marvin:latest .
+
+  dev:reset-and-seed:
+    desc: Reset dev environment and seed with Mash & Burn Co. data
+    cmds:
+      - echo "Stopping Marvin service..."
+      - pkill -f "marvin-server|uvicorn.*marvin" || echo "No service running"
+      - sleep 2
+      - echo "Cleaning development environment..."
+      - task dev:clean
+      - echo "Starting Marvin backend..."
+      - task py &
+      - sleep 5
+      - echo "Seeding Mash & Burn Co. data..."
+      - uv run scripts/seed_mashandburnco.py
+      - echo "✅ Reset complete! Marvin running with fresh data."

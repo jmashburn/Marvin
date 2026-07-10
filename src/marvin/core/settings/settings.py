@@ -151,6 +151,9 @@ class AppSettings(BaseSettings):
 
     ALLOW_SIGNUP: bool = False
 
+    DATA_DIR: Path | None = None
+    """Root directory for application data (database, assets, seeds, etc.)"""
+
     @property
     def logger(self) -> logging.Logger:
         """
@@ -207,6 +210,78 @@ class AppSettings(BaseSettings):
 
     SECURITY_USER_LOCKOUT_TIME: int = 24
     "time in hours"
+
+    # Token Security Settings
+    SECURITY_TOKEN_PREFIX_USER: str = "marvin_tk_"
+    """Prefix for user API tokens (Personal Access Tokens). Default: marvin_tk_"""
+
+    SECURITY_TOKEN_PREFIX_CLIENT: str = "marvin_sk_"
+    """Prefix for API client secret keys. Default: marvin_sk_"""
+
+    SECURITY_TOKEN_RANDOM_BYTES: int = 32
+    """Number of random bytes for token generation (32 bytes = 43 chars base64url). Default: 32"""
+
+    SECURITY_BCRYPT_ROUNDS: int = 12
+    """Bcrypt cost factor (work factor). Higher = more secure but slower. Range: 4-31. Default: 12"""
+
+    # ===============================================
+    # Authentication Configuration
+
+    AUTH_COOKIE_NAME: str = "marvin.access_token"
+    """Name of the authentication cookie. Default: marvin.access_token"""
+
+    # ===============================================
+    # Publishing API Configuration
+
+    PUBLISHING_DEFAULT_STATUS: str = "published"
+    """Default entry status filter for publishing API. Default: published"""
+
+    PUBLISHING_DEFAULT_PAGE_SIZE: int = 20
+    """Default number of entries per page in publishing API. Default: 20"""
+
+    PUBLISHING_MAX_PAGE_SIZE: int = 100
+    """Maximum number of entries per page in publishing API. Default: 100"""
+
+    PUBLISHING_UNKNOWN_ENTRY_TYPE: str = "unknown"
+    """Fallback value when entry type is missing. Default: unknown"""
+
+    # ===============================================
+    # Storage Configuration
+
+    STORAGE_PROVIDER: str = "local"
+    """Storage provider to use: 'local' or 's3'. Default: local"""
+
+    STORAGE_LOCAL_ROOT: Path | None = None
+    """Root directory for local file storage. Defaults to {DATA_DIR}/assets"""
+
+    STORAGE_LOCAL_PUBLIC_URL: str = "/assets"
+    """Base URL for accessing local files. Default: /assets"""
+
+    STORAGE_S3_ENDPOINT: str | None = None
+    """S3-compatible endpoint URL (for R2, MinIO, etc). Optional for AWS S3."""
+
+    STORAGE_S3_BUCKET: str | None = None
+    """S3 bucket name. Required when STORAGE_PROVIDER=s3"""
+
+    STORAGE_S3_REGION: str = "auto"
+    """S3 region. Use 'auto' for Cloudflare R2. Default: auto"""
+
+    STORAGE_S3_ACCESS_KEY: str | None = None
+    """S3 access key ID. Required when STORAGE_PROVIDER=s3"""
+
+    STORAGE_S3_SECRET_KEY: MaskedNoneString | None = None
+    """S3 secret access key. Required when STORAGE_PROVIDER=s3. Masked in output."""
+
+    STORAGE_S3_PUBLIC_URL: str | None = None
+    """Public URL for S3 assets (CDN URL if using one). Optional."""
+
+    # Asset Upload Configuration
+
+    ASSET_MAX_FILE_SIZE: int = 100 * 1024 * 1024
+    """Maximum file size for asset uploads in bytes. Default: 100MB"""
+
+    ASSET_ALLOWED_MIME_TYPES: list[str] | None = None
+    """List of allowed MIME types for uploads. None = allow all. Default: None"""
 
     # ===============================================
     # Testing Config
@@ -542,6 +617,30 @@ class AppSettings(BaseSettings):
         return self.OPENAI_FEATURE.enabled
 
     # ===============================================
+    # Apprise Configuration
+
+    APPRISE_ENABLED: bool = True
+    """Flag to enable Apprise notification service."""
+    APPRISE_URL: str | None = None
+    """Base URL for Apprise API server. If None, uses local Apprise library."""
+
+    @property
+    def APPRISE_FEATURE(self) -> FeatureDetails:
+        """Details about the Apprise feature status."""
+        description = None if self.APPRISE_ENABLED else "APPRISE_ENABLED is false"
+
+        # Apprise is available if enabled (URL is optional - can use library directly)
+        return FeatureDetails(
+            enabled=self.APPRISE_ENABLED,
+            description=description,
+        )
+
+    @property
+    def APPRISE_READY(self) -> bool:
+        """Indicates if Apprise notification service is configured and ready to use."""
+        return self.APPRISE_FEATURE.enabled
+
+    # ===============================================
     # TLS
 
     TLS_CERTIFICATE_PATH: str | os.PathLike[str] | None = None
@@ -615,6 +714,7 @@ def app_settings_constructor(
         _secrets_dir=secrets_dir,  # type: ignore
         **{"SECRET": determine_secrets(data_dir, production)},
         **{"ENV_SECRETS": dotenv_values(env_secrets)},
+        **{"DATA_DIR": data_dir},
     )
 
     app_settings.DB_PROVIDER = db_provider_factory(

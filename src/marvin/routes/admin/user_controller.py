@@ -171,8 +171,8 @@ class AdminUserManagementRoutes(BaseAdminController):
         # HttpRepo.update_one expects an UpdateSchema (U), which is UserUpdate here.
         return self.mixins.update_one(item_id=item_id, data=data)  # Corrected param order
 
-    @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a User")
-    def delete_one(self, item_id: UUID4) -> None:  # Return None for 204
+    @router.delete("/{item_id}", summary="Delete a User")
+    def delete_one(self, item_id: UUID4) -> dict:
         """
         Deletes a user by their unique ID.
 
@@ -183,7 +183,7 @@ class AdminUserManagementRoutes(BaseAdminController):
             item_id (UUID4): The ID of the user to delete.
 
         Returns:
-            None: HTTP 204 No Content on successful deletion.
+            dict: Status message on successful deletion.
         """
         # TODO: Consider adding a check to prevent an admin from deleting themselves,
         # or ensure this is handled at a lower level if it's a requirement.
@@ -191,7 +191,7 @@ class AdminUserManagementRoutes(BaseAdminController):
         #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrators cannot delete themselves.")
 
         self.mixins.delete_one(item_id)
-        return None  # FastAPI returns 204 No Content for None response with this status code
+        return {"status": "ok", "message": "User deleted successfully"}
 
     @router.post(
         "/password-reset-token",

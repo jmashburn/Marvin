@@ -1,0 +1,651 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getSiteClients } from "@/lib/api/platform";
+import { getAuthToken } from "@/lib/api/client";
+import type { PlatformAPIClient } from "@inneropen/marvin-sdk/platform";
+
+const authToken = getAuthToken(Astro.cookies);
+let clients: PlatformAPIClient[] = [];
+let error: string | null = null;
+
+// Check for query params
+const urlParams = Astro.url.searchParams;
+const newToken = urlParams.get('token');
+const newClientName = urlParams.get('client_name');
+
+if (!authToken) {
+  error = "Authentication required";
+} else {
+  try {
+    clients = await getSiteClients(authToken);
+  } catch (e) {
+    console.error('[clients] Error loading:', e);
+    error = e instanceof Error ? e.message : String(e);
+  }
+}
+
+// Format last used timestamp
+function formatLastUsed(timestamp: string | null | undefined): string {
+  if (!timestamp) return "Never";
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  return date.toLocaleDateString();
+}
+---
+
+<AppLayout title="API Clients" eyebrow="Publishing">
+  <div class="toolbar">
+    <div>
+      <h2>API Clients</h2>
+      <p>Manage API tokens for external sites and integrations</p>
+    </div>
+    <a class="button" href="/publishing/clients/new">New Client</a>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error">
+      <strong>Error:</strong> {error}
+    </div>
+  ) : clients.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">⚡</div>
+      <p class="empty-title">No API clients yet</p>
+      <p class="empty-description">
+        Create a client to allow external sites (Astro, Next.js, mobile apps) to access published content
+      </p>
+      <a href="/publishing/clients/new" class="button">New Client</a>
+    </div>
+  ) : (
+    <div class="clients-grid">
+      {clients.map((client) => (
+        <article class={`client-card ${!client.enabled ? "disabled" : ""}`}>
+          <div class="client-header">
+            <div>
+              <h3>{client.name}</h3>
+              <code class="client-slug">{client.slug}</code>
+            </div>
+            <span class={`status-badge ${client.enabled ? "active" : "inactive"}`}>
+              {client.enabled ? "Active" : "Inactive"}
+            </span>
+          </div>
+
+          {client.description && (
+            <p class="client-description">{client.description}</p>
+          )}
+
+          <div class="client-meta">
+            <div class="meta-item">
+              <span class="meta-label">Last Used</span>
+              <span class="meta-value">{formatLastUsed(client.lastUsedAt)}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Created</span>
+              <span class="meta-value">
+                {new Date(client.createdAt || "").toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+
+          {client.permissions && Object.keys(client.permissions).length > 0 && (
+            <div class="client-permissions">
+              <span class="permissions-label">Permissions:</span>
+              {Object.entries(client.permissions).map(([key, value]) => {
+                // Normalize permission format: convert underscores to colons
+                const normalizedKey = key.replace(/_/g, ':');
+                return value && <span class="permission-badge">{normalizedKey}</span>;
+              })}
+            </div>
+          )}
+
+          <div class="client-actions">
+            <button
+              class="button secondary small"
+              data-action="preview"
+              data-client-slug={client.slug}
+              data-client-name={client.name}
+            >
+              Preview
+            </button>
+            <button
+              class="button secondary small"
+              data-action="rotate"
+              data-client-slug={client.slug}
+              data-client-name={client.name}
+            >
+              Rotate Token
+            </button>
+            <button
+              class="button secondary small"
+              data-action="toggle"
+              data-client-slug={client.slug}
+              data-enabled={client.enabled}
+            >
+              {client.enabled ? "Disable" : "Enable"}
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  )}
+
+  <!-- Token Modal (shown after create/rotate) -->
+  <dialog id="token-modal" class="modal">
+    <div class="modal-content">
+      <h3>API Client Token</h3>
+      <p class="warning">⚠️ This token will only be shown once. Copy it now.</p>
+      <div class="token-display-wrapper">
+        <code class="token-display" id="token-value"></code>
+        <button class="copy-button" id="copy-token" title="Copy to clipboard">
+          <span class="copy-icon">📋</span>
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button class="button" id="close-modal">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Preview Modal -->
+  <dialog id="preview-modal" class="modal">
+    <div class="modal-content modal-large">
+      <h3>Publishing API Preview</h3>
+      <p class="modal-subtitle" id="preview-subtitle"></p>
+      <pre id="preview-content" class="preview-json"></pre>
+      <div class="modal-actions">
+        <button class="button secondary" id="close-preview">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Confirm Modal -->
+  <dialog id="confirm-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="confirm-title">Confirm Action</h3>
+      <p id="confirm-message"></p>
+      <div class="modal-actions">
+        <button class="button" id="confirm-yes">Confirm</button>
+        <button class="button secondary" id="confirm-no">Cancel</button>
+      </div>
+    </div>
+  </dialog>
+</AppLayout>
+
+<script define:vars={{ newToken, newClientName }}>
+  // Show token modal if redirected from create/rotate
+  if (newToken && newClientName) {
+    window.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById('token-modal');
+      const tokenValue = document.getElementById('token-value');
+      if (modal && tokenValue) {
+        tokenValue.textContent = newToken;
+        if ('showModal' in modal) {
+          modal.showModal();
+        } else {
+          modal.setAttribute('open', '');
+        }
+      }
+    });
+  }
+</script>
+
+<script>
+  // HttpOnly cookie is automatically sent with credentials: 'include'
+  import { createSdkClient } from '@/lib/sdk';
+
+  const sdk = createSdkClient();
+
+  // Copy token to clipboard
+  document.getElementById('copy-token')?.addEventListener('click', async () => {
+    const tokenValue = document.getElementById('token-value')?.textContent;
+    if (tokenValue) {
+      await navigator.clipboard.writeText(tokenValue);
+      const button = document.getElementById('copy-token');
+      if (button) {
+        button.innerHTML = '<span class="copy-icon">✓</span>';
+        setTimeout(() => {
+          button.innerHTML = '<span class="copy-icon">📋</span>';
+        }, 2000);
+      }
+    }
+  });
+
+  // Close token modal
+  document.getElementById('close-modal')?.addEventListener('click', () => {
+    const modal = document.getElementById('token-modal');
+    if (modal && 'close' in modal) {
+      (modal as HTMLDialogElement).close();
+    }
+    // Clear query params
+    window.history.replaceState({}, '', '/publishing/clients');
+  });
+
+  // Preview payload
+  document.querySelectorAll('[data-action="preview"]').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const target = e.currentTarget as HTMLButtonElement;
+      const clientSlug = target.dataset.clientSlug;
+      const clientName = target.dataset.clientName;
+
+      if (!clientSlug) {
+        console.error('No client slug');
+        return;
+      }
+
+      try {
+        const data = await sdk.apiClients.preview(clientSlug);
+        const modal = document.getElementById('preview-modal');
+        const subtitle = document.getElementById('preview-subtitle');
+        const content = document.getElementById('preview-content');
+
+        if (modal && content && subtitle) {
+          subtitle.textContent = `What "${clientName}" receives from the publishing API`;
+          content.textContent = JSON.stringify(data, null, 2);
+          if ('showModal' in modal) {
+            (modal as HTMLDialogElement).showModal();
+          }
+        }
+      } catch (error) {
+        console.error('Preview error:', error);
+        alert('Failed to load preview: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      }
+    });
+  });
+
+  // Close preview modal
+  document.getElementById('close-preview')?.addEventListener('click', () => {
+    const modal = document.getElementById('preview-modal');
+    if (modal && 'close' in modal) {
+      (modal as HTMLDialogElement).close();
+    }
+  });
+
+  // Rotate token
+  document.querySelectorAll('[data-action="rotate"]').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const target = e.currentTarget as HTMLButtonElement;
+      const clientSlug = target.dataset.clientSlug;
+      const clientName = target.dataset.clientName;
+
+      if (!clientSlug || !clientName) return;
+
+      // Show confirmation
+      const confirmModal = document.getElementById('confirm-modal');
+      const confirmTitle = document.getElementById('confirm-title');
+      const confirmMessage = document.getElementById('confirm-message');
+      const confirmYes = document.getElementById('confirm-yes');
+      const confirmNo = document.getElementById('confirm-no');
+
+      if (!confirmModal || !confirmTitle || !confirmMessage || !confirmYes || !confirmNo) return;
+
+      confirmTitle.textContent = 'Rotate Token?';
+      confirmMessage.textContent = `The old token for "${clientName}" will be immediately invalidated. The new token will be shown once.`;
+
+      if ('showModal' in confirmModal) {
+        (confirmModal as HTMLDialogElement).showModal();
+      }
+
+      confirmNo.onclick = () => {
+        if ('close' in confirmModal) {
+          (confirmModal as HTMLDialogElement).close();
+        }
+      };
+      confirmYes.onclick = async () => {
+        if ('close' in confirmModal) {
+          (confirmModal as HTMLDialogElement).close();
+        }
+
+        try {
+          const result = await sdk.apiClients.rotateToken(clientSlug);
+
+          // Redirect with token in query (will be shown in modal)
+          window.location.href = `/publishing/clients?token=${encodeURIComponent(result.token)}&client_name=${encodeURIComponent(clientName)}`;
+        } catch (error) {
+          console.error('Rotate error:', error);
+          alert('Failed to rotate token: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        }
+      };
+    });
+  });
+
+  // Toggle enabled/disabled
+  document.querySelectorAll('[data-action="toggle"]').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const target = e.currentTarget as HTMLButtonElement;
+      const clientSlug = target.dataset.clientSlug;
+      const currentEnabled = target.dataset.enabled === 'true';
+
+      if (!clientSlug) return;
+
+      try {
+        await sdk.apiClients.update(clientSlug, { enabled: !currentEnabled });
+
+        // Reload page
+        window.location.reload();
+      } catch (error) {
+        console.error('Toggle error:', error);
+        alert('Failed to update client: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      }
+    });
+  });
+
+  // Close modals on ESC
+  document.querySelectorAll('dialog').forEach(dialog => {
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      dialog.close();
+    });
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 64px 24px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .empty-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .clients-grid {
+    display: grid;
+    gap: 20px;
+  }
+
+  .client-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: grid;
+    gap: 16px;
+    transition: opacity 0.2s;
+  }
+
+  .client-card.disabled {
+    opacity: 0.6;
+    background: var(--panel-2);
+  }
+
+  .client-card.disabled h3,
+  .client-card.disabled .meta-value {
+    color: var(--muted);
+  }
+
+  .client-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .client-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .client-slug {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 8px;
+    background: var(--panel-2);
+    border-radius: 4px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .status-badge {
+    display: inline-flex;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .status-badge.active {
+    background: rgb(53 122 85 / 0.15);
+    color: var(--good);
+  }
+
+  .status-badge.inactive {
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+
+  .client-description {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .client-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .meta-item {
+    display: grid;
+    gap: 4px;
+  }
+
+  .meta-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .meta-value {
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .client-permissions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .permissions-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+
+  .permission-badge {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--panel-2);
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--ink);
+    border: 1px solid var(--line);
+  }
+
+  .client-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .button.small {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  [data-action] {
+    cursor: pointer;
+  }
+
+  /* Modal Styles */
+  .modal {
+    border: none;
+    border-radius: var(--radius);
+    padding: 0;
+    max-width: 90vw;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.15);
+  }
+
+  .modal::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .modal-content {
+    padding: 24px;
+    background: var(--panel);
+  }
+
+  .modal-large {
+    width: 600px;
+    max-width: 90vw;
+  }
+
+  .modal h3 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .modal-subtitle {
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .warning {
+    margin: 8px 0 16px;
+    padding: 12px;
+    background: rgb(169 99 47 / 0.1);
+    border-left: 3px solid var(--warn);
+    color: var(--warn);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .token-display-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .token-display {
+    display: block;
+    padding: 16px 50px 16px 16px;
+    background: var(--bg);
+    color: var(--good);
+    border: 1px solid var(--line);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    border-radius: var(--radius);
+    word-break: break-all;
+    user-select: all;
+    line-height: 1.5;
+  }
+
+  .copy-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 0.2s;
+  }
+
+  .copy-button:hover {
+    background: var(--panel-2);
+  }
+
+  .copy-icon {
+    display: block;
+  }
+
+  .preview-json {
+    margin: 0 0 20px;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    max-height: 400px;
+    line-height: 1.6;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+</style>

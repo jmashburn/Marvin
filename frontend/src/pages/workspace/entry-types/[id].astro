@@ -1,0 +1,274 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import SchemaEditor from "@/components/SchemaEditor.astro";
+import { getEntryType } from "@/lib/api/entryTypes";
+import { getAuthToken } from '@/lib/api/client';
+
+const { id } = Astro.params;
+
+let entryType = null;
+let error: string | null = null;
+
+if (!id) {
+  error = "Entry type ID is required";
+} else {
+  try {
+    const authToken = await getAuthToken(Astro.cookies);
+    entryType = await getEntryType(id, authToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[EntryType] Failed to load:', error);
+  }
+}
+
+const isSystem = entryType?.isSystem ?? false;
+---
+
+<AppLayout title={entryType ? `Edit ${entryType.name}` : "Edit Entry Type"}>
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings?tab=entry-types" },
+    { label: "Entry Types", href: "/workspace/entry-types" },
+    { label: entryType?.name || "Edit" }
+  ]} />
+
+  {error ? (
+    <div class="error-banner">
+      <p><strong>Error loading entry type:</strong> {error}</p>
+      <a href="/workspace/entry-types" class="button secondary">Back to Entry Types</a>
+    </div>
+  ) : entryType ? (
+    <>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;font-size:20px;">Edit Entry Type</h2>
+          <p style="margin:4px 0 0;color:var(--muted);">
+            {isSystem ? "System entry types have limited editing" : "Update entry type details"}
+          </p>
+        </div>
+        <a class="button secondary" href="/workspace/entry-types">Back</a>
+      </div>
+
+      <section class="form-section">
+        <form method="POST" action={`/api/entry-types/${id}/update`} class="form">
+          <div class="form-group">
+            <label for="name">Name *</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              required
+              value={entryType.name}
+              disabled={isSystem}
+            />
+            <p class="form-help">{isSystem ? 'System entry type name cannot be changed' : 'Display name for this entry type'}</p>
+          </div>
+
+          <div class="form-group">
+            <label>Slug</label>
+            <input
+              type="text"
+              id="slug"
+              value={entryType.slug}
+              disabled
+              style="background: var(--panel-2); color: var(--muted);"
+            />
+            <p class="form-help" style="font-size: 12px; color: var(--muted);">Slug is fixed once created to avoid breaking references</p>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="icon">Icon</label>
+              <input
+                type="text"
+                id="icon"
+                name="icon"
+                value={entryType.icon || ""}
+                maxlength="4"
+              />
+              <p class="form-help">Emoji or symbol</p>
+            </div>
+
+            <div class="form-group">
+              <label for="color">Color</label>
+              <input
+                type="color"
+                id="color"
+                name="color"
+                value={entryType.color || "#a94d3f"}
+              />
+              <p class="form-help">Theme color</p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea
+              id="description"
+              name="description"
+              rows="3"
+            >{entryType.description || ""}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="sort_order">Sort Order</label>
+            <input
+              type="number"
+              id="sort_order"
+              name="sort_order"
+              value={entryType.sortOrder}
+              min="0"
+            />
+            <p class="form-help">Lower numbers appear first</p>
+          </div>
+
+          {/* Schema Editor */}
+          <div class="schema-section">
+            <SchemaEditor schema={entryType.schemaJson} />
+          </div>
+
+          {isSystem && (
+            <div class="notice">
+              <strong>⚠️ System Entry Type</strong>
+              <p>Name and slug cannot be changed for system entry types. Only visual properties can be updated.</p>
+            </div>
+          )}
+
+          <div class="form-actions">
+            <button type="submit" class="button">Save Changes</button>
+            <a href="/workspace/entry-types" class="button secondary">Cancel</a>
+          </div>
+        </form>
+      </section>
+    </>
+  ) : null}
+</AppLayout>
+
+<style>
+  .error-banner {
+    padding: 1.5rem;
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .error-banner p {
+    margin: 0;
+    color: var(--color-error);
+  }
+
+  .form-section {
+    max-width: 42rem;
+  }
+
+  .form {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="color"],
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+  }
+
+  input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  input[type="color"] {
+    height: 40px;
+    cursor: pointer;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .schema-section {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .notice {
+    padding: 1rem;
+    background: rgb(169 99 47 / 0.1);
+    border: 1px solid var(--warn);
+    border-radius: 6px;
+  }
+
+  .notice strong {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--warn);
+  }
+
+  .notice p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+</style>
+
+<script>
+  // Auto-generate slug preview from name (if not system type)
+  const nameInput = document.getElementById('name') as HTMLInputElement | null;
+  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
+
+  if (nameInput && slugInput && !nameInput.disabled) {
+    nameInput.addEventListener('input', () => {
+      const slug = nameInput.value
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      slugInput.value = slug;
+    });
+  }
+</script>

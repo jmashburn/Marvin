@@ -1,0 +1,250 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+let settings: any = null;
+
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  if (currentUser?.admin !== true) {
+    return Astro.redirect('/');
+  }
+
+  // Fetch all settings
+  try {
+    settings = await fetchApi<any>('/api/admin/about/startup-info', {}, authToken);
+  } catch (e) {
+    console.error('Could not fetch settings:', e);
+  }
+} catch (e) {
+  return Astro.redirect('/');
+}
+
+// Group settings by prefix
+const settingsGroups: Record<string, any> = {};
+const featureSettings: any[] = [];
+
+if (settings) {
+  Object.entries(settings).forEach(([key, value]) => {
+    // Extract features (enabled/feature pairs)
+    if (key.endsWith('Enabled') || key.endsWith('Ready')) {
+      const baseName = key.replace(/Enabled$|Ready$/, '');
+      const featureKey = baseName + 'Feature';
+      featureSettings.push({
+        name: baseName,
+        enabled: value,
+        feature: settings[featureKey]
+      });
+      return;
+    }
+    if (key.endsWith('Feature')) {
+      return; // Skip, handled above
+    }
+
+    // Group by prefix (first word before capital letter)
+    const match = key.match(/^([a-z]+)/);
+    const prefix = match ? match[1] : 'general';
+
+    if (!settingsGroups[prefix]) {
+      settingsGroups[prefix] = [];
+    }
+    settingsGroups[prefix].push({ key, value });
+  });
+}
+
+// Convert camelCase to Title Case
+function toTitleCase(str: string) {
+  return str
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (s) => s.toUpperCase())
+    .trim();
+}
+---
+
+<AdminLayout title="Site Settings">
+  <div class="toolbar">
+    <div>
+      <h2>Site Settings</h2>
+      <p>Configure platform-wide settings</p>
+    </div>
+  </div>
+
+  <div class="page-container">
+    <div class="settings-grid">
+      <!-- Feature Status -->
+      {featureSettings.length > 0 && (
+        <section class="card">
+          <h3>Features Status</h3>
+          <p class="card-description">Enabled integrations and features</p>
+          <div class="features-list">
+            {featureSettings.map(({name, enabled, feature}) => (
+              <div class="feature-item">
+                <div class="feature-info">
+                  <span class="feature-name">{toTitleCase(name)}</span>
+                  {!enabled && feature?.description && (
+                    <span class="feature-note">{feature.description}</span>
+                  )}
+                </div>
+                <span class={`feature-badge ${enabled ? 'enabled' : 'disabled'}`}>
+                  {enabled ? '● Enabled' : '○ Disabled'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- Dynamic Settings Groups -->
+      {Object.entries(settingsGroups).map(([prefix, items]) => (
+        <section class="card">
+          <h3>{toTitleCase(prefix)} Settings</h3>
+          <p class="card-description">Configuration for {prefix}</p>
+          <div class="settings-display">
+            {items.map(({key, value}) => (
+              <div class="setting-item">
+                <span class="setting-label">{toTitleCase(key)}</span>
+                <span class="setting-value">
+                  {typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
+                   typeof value === 'object' && value !== null ? JSON.stringify(value) :
+                   value?.toString() || '(not set)'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .page-container {
+    max-width: 1200px;
+  }
+
+  .settings-grid {
+    display: grid;
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .card h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .card-description {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .settings-display {
+    display: grid;
+    gap: 12px;
+  }
+
+  .setting-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 14px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .setting-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .setting-value {
+    font-size: 14px;
+    font-family: ui-monospace, monospace;
+    color: var(--text);
+  }
+
+  .features-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+  }
+
+  .feature-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .feature-name {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .feature-note {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .feature-badge {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .feature-badge.enabled {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+
+  .feature-badge.disabled {
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+</style>

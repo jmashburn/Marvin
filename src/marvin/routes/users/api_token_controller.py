@@ -2,180 +2,237 @@
 This module defines the FastAPI controller for managing user-specific API tokens
 (long-lived tokens) within the Marvin application.
 
-It provides endpoints for authenticated users to create and delete their own API tokens.
+Upgraded to use secure hashed token storage matching API Clients security model.
+
+Endpoints (all under /self/api-tokens for authenticated user):
+- GET /self/api-tokens - List user's tokens
+- POST /self/api-tokens - Create new token (returns plaintext token ONCE)
+- GET /self/api-tokens/{id} - Get specific token
+- PATCH /self/api-tokens/{id} - Update token metadata
+- DELETE /self/api-tokens/{id} - Delete token
+- POST /self/api-tokens/{id}/rotate - Rotate token (returns new plaintext token ONCE)
+- POST /self/api-tokens/{id}/revoke - Revoke token (soft delete)
 """
 
-from datetime import timedelta  # For setting token expiration
+from fastapi import HTTPException, status
+from pydantic import UUID4
 
-from fastapi import HTTPException, Depends, status  # APIRouter for instantiation
-from pydantic import UUID4  # For type hinting token_id, though it's int in delete method currently
-
-# Marvin core components, schemas, and base controller
-from marvin.core.security import create_access_token  # Utility for generating access tokens
-from marvin.routes._base import BaseUserController, controller  # Base controller for user-authenticated routes
-from marvin.routes._base.routers import UserAPIRouter  # Specific router for user-authenticated endpoints
-from marvin.schemas.user import (  # Pydantic schemas related to API tokens
+from marvin.routes._base import BaseUserController, controller
+from marvin.routes._base.routers import UserAPIRouter
+from marvin.schemas.user import (
     LongLiveTokenCreate,
-    LongLiveTokenCreateResponse,  # Response schema after creating a token, includes the token string
-    LongLiveTokenRead,  # Schema for reading token details (excluding the token string itself)
-    LongLiveTokenPagination,
-    TokenCreate,  # Internal schema for creating token model in DB
-    TokenResponseDelete,  # Response schema after deleting a token
+    LongLiveTokenUpdate,
+    LongLiveTokenRead,
+    LongLiveTokenWithToken,
+    TokenResponseDelete,
 )
-from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters
 
 
-# Router for user API token management.
-# All routes will be under /users/api-tokens due to UserAPIRouter prefix and this prefix.
-# Using UserAPIRouter ensures these endpoints require user authentication.
-router = UserAPIRouter(prefix="/api-tokens", tags=["User: Self Service"])  # Corrected prefix to be more specific
+router = UserAPIRouter(prefix="/self/api-tokens", tags=["User: Self Service"])
 
 
-@controller(router)  # Registers this class-based view with the defined router
+@controller(router)
 class UserApiTokensController(BaseUserController):
     """
-    Controller for managing user-specific API tokens (long-lived tokens).
+    Controller for managing user-specific API tokens (Personal Access Tokens).
 
-    Authenticated users can use these endpoints to create new API tokens for
-    programmatic access and to delete their existing tokens.
+    Security model:
+    - Tokens are bcrypt-hashed in database (no plaintext storage)
+    - Plaintext token shown only on create/rotate
+    - Token format: marvin_tk_{43-character-random}
+    - Supports rotation, revocation, usage tracking
     """
 
-    # TODO
-    # @router.get("", response_model=LongLiveTokenPagination, summary="List API Tokens")
-    # def get_all(self, q: PaginationQuery = Depends(PaginationQuery)) -> LongLiveTokenPagination:
-    #     """
-    #     Retrieves a paginated list of webhooks configured for the current user's group.
+    @router.get("", response_model=list[LongLiveTokenRead], summary="List API Tokens")
+    def list_tokens(self) -> list[LongLiveTokenRead]:
+        """
+        List all API tokens for the authenticated user.
 
-    #     Args:
-    #         q (PaginationQuery): FastAPI dependency for pagination query parameters.
-
-    #     Returns:
-    #         WebhookPagination: Paginated list of webhooks.
-    #     """
-    #     # `self.repo` is already group-scoped by BaseUserController logic.
-    #     paginated_response = self.repos.api_tokens.page_all(
-    #         pagination=q,
-    #         override_schema=LongLiveTokenRead,  # Ensure items are serialized as WebhookRead
-    #     )
-    #     paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
-    #     return paginated_response
+        Returns tokens without plaintext token string (security).
+        Shows metadata: name, description, enabled status, last_used_at, etc.
+        """
+        # Filter tokens by current user
+        all_tokens = self.repos.api_tokens.get_all(order_by="created_at")
+        user_tokens = [t for t in all_tokens if t.user_id == self.user.id]
+        return user_tokens
 
     @router.post(
         "",
         status_code=status.HTTP_201_CREATED,
-        response_model=LongLiveTokenCreateResponse,
-        summary="Create an API Token",
+        response_model=LongLiveTokenWithToken,
+        summary="Create API Token",
     )
-    def create_api_token(
-        self,
-        token_params: LongLiveTokenCreate,  # Request body with name and optional integration_id
-    ) -> LongLiveTokenCreateResponse:  # Return type includes the generated token string
+    def create_token(self, data: LongLiveTokenCreate) -> LongLiveTokenWithToken:
         """
-        Creates a new long-lived API token for the authenticated user.
+        Create a new long-lived API token.
 
-        The token is generated with a long expiration period (e.g., 5 years) and
-        is associated with the current user. The actual token string is returned
-        only upon creation.
+        **IMPORTANT**: The plaintext token is returned ONLY ONCE.
+        Store it securely. It cannot be retrieved again.
+
+        Token format: marvin_tk_{43-random-characters}
 
         Args:
-            token_params (LongLiveTokenCreate): Pydantic schema containing the desired
-                                                `name` and optional `integration_id` for the token.
+            data: Token name, description, integration_id
 
         Returns:
-            LongLiveTokenCreateResponse: Pydantic schema containing the details of the
-                                         created token, including the generated `token` string.
+            LongLiveTokenWithToken: Token metadata with plaintext token
         """
-        # Prepare data for JWT token generation
-        jwt_token_payload = {
-            "long_token": True,  # Flag indicating this is a long-lived token
-            "id": str(self.user.id),  # User ID associated with the token
-            "name": token_params.name,  # User-defined name for the token
-            "integration_id": token_params.integration_id,  # Optional integration identifier
-        }
+        # Inject user_id for token ownership
+        token_data = data.model_dump()
+        token_data["user_id"] = self.user.id
 
-        # Define a long expiration period for the token (e.g., 5 years)
-        five_years_delta = timedelta(days=1825)
-        # Generate the actual token string using the security utility
-        generated_token_string = create_access_token(jwt_token_payload, five_years_delta)
+        # Repository handles token generation, hashing, and storage
+        new_token = self.repos.api_tokens.create(token_data)
 
-        # Prepare data for saving the token metadata to the database
-        # Note: The `TokenCreate` schema is used here for DB storage, which includes the token string.
-        token_to_store_in_db = TokenCreate(
-            name=token_params.name,
-            token=generated_token_string,  # The generated JWT
-            user_id=self.user.id,  # Associate with the current user
-            integration_id=token_params.integration_id,
-        )
+        self.logger.info(f"API Token '{data.name}' created for user {self.user.username}")
+        return new_token
 
-        # Create the token entry in the database using the api_tokens repository
-        # `self.repos.api_tokens` is scoped to the current user's group, but tokens are user-specific.
-        # This implies `api_tokens` repository handles user-level creation correctly even if group-scoped.
-        new_token_db_entry = self.repos.api_tokens.create(token_to_store_in_db)
-
-        # The response should include the generated token string.
-        # `LongLiveTokenCreateResponse` should be designed to include `token` field.
-        # Assuming `new_token_db_entry` (which is likely `LongLiveTokenRead` from repo)
-        # doesn't directly contain the token string for security in reads,
-        # we construct the response with the generated token.
-        if new_token_db_entry:  # Check if DB creation was successful
-            self.logger.info(f"API Token '{token_params.name}' created for user ID {self.user.id}")
-            return LongLiveTokenCreateResponse(
-                # id=new_token_db_entry.id,
-                # name=new_token_db_entry.name,
-                # integration_id=new_token_db_entry.integration_id,
-                # user_id=new_token_db_entry.user_id,
-                # created_at=new_token_db_entry.created_at,
-                # updated_at=new_token_db_entry.updated_at,
-                token=generated_token_string,  # Return the actual token string on creation
-            )
-        else:
-            # This path should ideally not be reached if create raises an exception on failure.
-            self.logger.error(f"API Token creation failed for user ID {self.user.id} after DB operation.")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create API token after database operation.",
-            )
-
-    @router.delete("/{token_id}", response_model=TokenResponseDelete, summary="Delete an API Token")
-    def delete_api_token(self, token_id: UUID4) -> TokenResponseDelete:  # Changed token_id type to UUID4
+    @router.get("/{token_id}", response_model=LongLiveTokenRead, summary="Get API Token")
+    def get_token(self, token_id: UUID4) -> LongLiveTokenRead:
         """
-        Deletes a specific API token belonging to the authenticated user.
+        Get a specific API token by ID.
 
-        Users can only delete their own API tokens.
+        Users can only access their own tokens.
 
         Args:
-            token_id (UUID4): The ID of the API token to be deleted.
+            token_id: UUID of the token
 
         Returns:
-            TokenResponseDelete: A Pydantic model confirming the name of the deleted token.
+            LongLiveTokenRead: Token metadata (no plaintext token)
 
         Raises:
-            HTTPException (404 Not Found): If the token with the given ID is not found.
-            HTTPException (403 Forbidden): If the user attempts to delete a token
-                                         that does not belong to them.
+            HTTPException: 404 if not found, 403 if not owned by user
         """
-        # Retrieve the token details first to ensure it exists and belongs to the user.
-        # `self.repos.api_tokens` is group-scoped, but token ownership is by user.
-        # The `get_one` here should ideally also check user ownership if not handled by RLS or repo logic.
-        token_to_delete: LongLiveTokenRead | None = self.repos.api_tokens.get_one(token_id)
+        token = self.repos.api_tokens.get_one(token_id)
 
-        if not token_to_delete:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"API token with ID '{token_id}' not found.")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="API token not found."
+            )
 
-        # Verify that the token belongs to the currently authenticated user.
-        # `LongLiveTokenRead` schema needs to expose `user_id` or equivalent for this check.
-        # Assuming `token_to_delete.user_id` is available from the schema.
-        if not hasattr(token_to_delete, "user_id") or token_to_delete.user_id != self.user.id:
-            # If user_id is not on LongLiveTokenRead, or if it doesn't match, then Forbidden.
-            # The original code compared `token.user.email == self.user.email`.
-            # Comparing IDs is generally more robust if user_id is available on token schema.
-            # If checking by email (as original):
-            # if not hasattr(token_to_delete, 'user') or token_to_delete.user.email != self.user.email:
-            self.logger.warning(f"User {self.user.id} attempted to delete token {token_id} not belonging to them.")
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not authorized to delete this API token.")
+        # Verify ownership
+        if token.user_id != self.user.id:
+            self.logger.warning(f"User {self.user.id} attempted to access token {token_id} owned by {token.user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to access this token."
+            )
 
-        # Proceed with deletion
-        deleted_token_details = self.repos.api_tokens.delete(token_id)  # `delete` returns the deleted item's schema
-        self.logger.info(f"API Token ID {token_id} (Name: '{deleted_token_details.name}') deleted by user ID {self.user.id}")
+        return token
 
-        return TokenResponseDelete(token_delete=deleted_token_details.name)  # Return name of deleted token
+    @router.patch("/{token_id}", response_model=LongLiveTokenRead, summary="Update API Token")
+    def update_token(self, token_id: UUID4, data: LongLiveTokenUpdate) -> LongLiveTokenRead:
+        """
+        Update API token metadata (name, description, enabled status).
+
+        Cannot change user_id or token_hash.
+
+        Args:
+            token_id: UUID of the token
+            data: Fields to update (all optional)
+
+        Returns:
+            LongLiveTokenRead: Updated token metadata
+
+        Raises:
+            HTTPException: 404 if not found, 403 if not owned by user
+        """
+        # Verify token exists and belongs to user
+        token = self.get_token(token_id)  # Reuses ownership check
+
+        # Update token
+        updated = self.repos.api_tokens.update(token_id, data)
+        self.logger.info(f"API Token {token_id} updated by user {self.user.username}")
+        return updated
+
+    @router.delete("/{token_id}", response_model=TokenResponseDelete, summary="Delete API Token")
+    def delete_token(self, token_id: UUID4) -> TokenResponseDelete:
+        """
+        Permanently delete an API token.
+
+        Users can only delete their own tokens.
+
+        Args:
+            token_id: UUID of the token to delete
+
+        Returns:
+            TokenResponseDelete: Confirmation with token name
+
+        Raises:
+            HTTPException: 404 if not found, 403 if not owned by user
+        """
+        # Verify token exists and belongs to user
+        token = self.get_token(token_id)  # Reuses ownership check
+
+        # Delete token
+        deleted = self.repos.api_tokens.delete(token_id)
+        self.logger.info(f"API Token '{deleted.name}' (ID: {token_id}) deleted by user {self.user.username}")
+
+        return TokenResponseDelete(token_delete=deleted.name)
+
+    @router.post(
+        "/{token_id}/rotate",
+        response_model=LongLiveTokenWithToken,
+        summary="Rotate API Token",
+    )
+    def rotate_token(self, token_id: UUID4) -> LongLiveTokenWithToken:
+        """
+        Rotate/regenerate the token for an API client.
+
+        **IMPORTANT**:
+        - The old token is invalidated immediately
+        - The new token is returned ONLY ONCE
+        - Store it securely. It cannot be retrieved again.
+
+        Use this to:
+        - Rotate tokens periodically for security
+        - Regenerate if token may have been compromised
+        - Replace token without deleting metadata
+
+        Args:
+            token_id: UUID of the token to rotate
+
+        Returns:
+            LongLiveTokenWithToken: Token metadata with new plaintext token
+
+        Raises:
+            HTTPException: 404 if not found, 403 if not owned by user
+        """
+        # Verify token exists and belongs to user
+        token = self.get_token(token_id)  # Reuses ownership check
+
+        # Rotate token
+        rotated = self.repos.api_tokens.rotate_token(token_id)
+        self.logger.info(f"API Token '{token.name}' (ID: {token_id}) rotated by user {self.user.username}")
+
+        return rotated
+
+    @router.post("/{token_id}/revoke", response_model=LongLiveTokenRead, summary="Revoke API Token")
+    def revoke_token(self, token_id: UUID4) -> LongLiveTokenRead:
+        """
+        Revoke an API token (soft delete).
+
+        Sets enabled=false and revoked_at timestamp.
+        The token can no longer be used for authentication.
+
+        Revoked tokens remain in the database for audit purposes.
+        Use DELETE to permanently remove a token.
+
+        Args:
+            token_id: UUID of the token to revoke
+
+        Returns:
+            LongLiveTokenRead: Revoked token metadata
+
+        Raises:
+            HTTPException: 404 if not found, 403 if not owned by user
+        """
+        # Verify token exists and belongs to user
+        token = self.get_token(token_id)  # Reuses ownership check
+
+        # Revoke token
+        revoked = self.repos.api_tokens.revoke(token_id)
+        self.logger.info(f"API Token '{token.name}' (ID: {token_id}) revoked by user {self.user.username}")
+
+        return revoked

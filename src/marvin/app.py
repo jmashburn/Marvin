@@ -14,6 +14,7 @@ import uvicorn  # ASGI server for running FastAPI
 from fastapi import FastAPI  # The main FastAPI class
 from fastapi.middleware.cors import CORSMiddleware  # Middleware for CORS
 from fastapi.middleware.gzip import GZipMiddleware  # Middleware for GZip compression
+from fastapi.staticfiles import StaticFiles  # Static file serving
 
 # Marvin core components
 from marvin.core.config import get_app_settings  # Access application settings
@@ -117,21 +118,46 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)  # Compress responses larg
 
 # Configure CORS (Cross-Origin Resource Sharing) middleware for non-production environments
 if not settings.PRODUCTION:
-    # Define allowed origins for CORS (typically frontend development server)
-    allowed_origins = [
-        "http://localhost:3000",  # Example: React frontend
-        "http://localhost:8080",  # If API is also served/tested on a different port locally
-    ]
-    logger.info(f"CORS enabled for development. Allowed origins: {allowed_origins}")
+    # In development, allow all localhost origins to support flexible frontend ports
+    # This regex pattern matches http://localhost:* and http://127.0.0.1:*
+    logger.info("CORS enabled for development. Allowing all localhost origins.")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,  # List of allowed origins
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",  # Match any localhost port
         allow_credentials=True,  # Allow cookies to be included in cross-origin requests
         allow_methods=["*"],  # Allow all standard HTTP methods
         allow_headers=["*"],  # Allow all headers
     )
 else:
     logger.info("CORS middleware not enabled in production environment (or using different production CORS config).")
+
+# Add request logging middleware for development
+if not settings.PRODUCTION:
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request
+    import time
+
+    class RequestLoggingMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            start_time = time.time()
+
+            # Log incoming request
+            logger.info(f"➡️  {request.method} {request.url.path}")
+            if request.query_params:
+                logger.debug(f"   Query: {dict(request.query_params)}")
+
+            # Process request
+            response = await call_next(request)
+
+            # Log response
+            duration = (time.time() - start_time) * 1000  # Convert to milliseconds
+            status_emoji = "✅" if response.status_code < 400 else "❌"
+            logger.info(f"{status_emoji} {request.method} {request.url.path} → {response.status_code} ({duration:.0f}ms)")
+
+            return response
+
+    app.add_middleware(RequestLoggingMiddleware)
+    logger.info("Request logging middleware enabled for development.")
 
 
 async def start_scheduler() -> None:
@@ -151,8 +177,12 @@ async def start_scheduler() -> None:
         # scheduler_tasks.delete_old_checked_list_items,
     )
 
-    # Register minutely tasks (currently ping and post_group_webhooks)
-    SchedulerRegistry.register_minutely(scheduler_tasks.ping, scheduler_tasks.post_group_webhooks)
+    # Register minutely tasks (ping, webhooks, and scheduled tasks checker)
+    SchedulerRegistry.register_minutely(
+        scheduler_tasks.ping,
+        scheduler_tasks.post_group_webhooks,
+        scheduler_tasks.check_scheduled_tasks,
+    )
 
     # Register hourly tasks
     SchedulerRegistry.register_hourly(
@@ -184,6 +214,21 @@ def include_api_routers() -> None:  # Renamed from api_routers for clarity
 
 # Include all API routes from marvin.routes package
 include_api_routers()
+
+
+# Mount static files for local storage provider
+if settings.STORAGE_PROVIDER == "local":
+    from marvin.core.config import get_app_dirs
+
+    storage_root = settings.STORAGE_LOCAL_ROOT or get_app_dirs().ASSETS_DIR
+    storage_root.mkdir(parents=True, exist_ok=True)
+
+    app.mount(
+        settings.STORAGE_LOCAL_PUBLIC_URL,
+        StaticFiles(directory=str(storage_root)),
+        name="assets",
+    )
+    logger.info(f"Static file serving enabled for local storage at {storage_root} (public URL: {settings.STORAGE_LOCAL_PUBLIC_URL})")
 
 
 def main() -> None:

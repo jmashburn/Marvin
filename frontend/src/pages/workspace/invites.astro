@@ -1,0 +1,109 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listInviteTokens } from "@/lib/api/invites";
+
+// SDK type for invite token response (only has token and usesLeft)
+interface InviteTokenSummary {
+  token: string;
+  usesLeft: number;
+}
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+let invites: InviteTokenSummary[] = [];
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+  invites = await listInviteTokens(authToken);
+} catch (e) {
+  console.error('[invites] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const baseUrl = Astro.url.origin;
+---
+
+<AppLayout title="Workspace Invites" eyebrow="Workspace">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings?tab=members" },
+    { label: "Invitations" }
+  ]} />
+
+  <div class="toolbar">
+    <div>
+      <h2>Workspace Invites</h2>
+      <p>Create invitation links to add members to {workspace?.workspace?.name || 'this workspace'}</p>
+    </div>
+    <a href="/workspace/invites/new" class="button">Create Invite</a>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : invites.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">✉️</div>
+      <p class="empty-title">No invite tokens</p>
+      <p class="empty-description">Create an invite link to onboard new members</p>
+      <a href="/workspace/invites/new" class="button">Create Invite</a>
+    </div>
+  ) : (
+    <div class="invites-list">
+      {invites.map((invite) => (
+        <div class="invite-card">
+          <div class="invite-info">
+            <code class="invite-token">{invite.token}</code>
+            <span class="invite-meta">
+              {invite.usesLeft === -1 ? 'Unlimited uses' : `${invite.usesLeft} uses left`}
+            </span>
+          </div>
+          <div class="invite-actions">
+            <button class="button secondary small copy-btn" data-token={invite.token}>
+              Copy Link
+            </button>
+            <a href={`/workspace/invites/${invite.token}/email`} class="button secondary small">
+              Email
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+  </AppLayout>
+
+<script define:vars={{ baseUrl }}>
+  // Copy invite link
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const token = btn.dataset.token;
+      const link = `${baseUrl}/register?token=${token}`;
+      await navigator.clipboard.writeText(link);
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy Link', 2000);
+    });
+  });
+</script>
+
+<style>
+  .toolbar { display: flex; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .toolbar h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .toolbar p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+  .alert { padding: 16px; margin-bottom: 24px; border-radius: var(--radius); }
+  .alert-error { background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); }
+  .empty-state { padding: 64px 24px; text-align: center; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-description { margin: 0 0 24px; color: var(--muted); }
+  .invites-list { display: grid; gap: 12px; }
+  .invite-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+  .invite-info { display: grid; gap: 4px; flex: 1; min-width: 0; }
+  .invite-token { font-family: monospace; font-size: 14px; font-weight: 500; }
+  .invite-meta { font-size: 12px; color: var(--muted); }
+  .invite-actions { display: flex; gap: 8px; }
+  .button.small { padding: 6px 12px; font-size: 13px; }
+</style>

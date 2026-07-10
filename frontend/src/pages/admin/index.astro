@@ -1,0 +1,297 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const currentTab = Astro.url.searchParams.get('tab') || 'general';
+
+let isAdmin = false;
+let error: string | null = null;
+
+try {
+  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  isAdmin = currentUser?.admin === true;
+
+  if (!isAdmin) {
+    return Astro.redirect('/');
+  }
+} catch (e) {
+  console.error('[admin] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+  return Astro.redirect('/');
+}
+
+const tabs = [
+  { id: 'general', label: 'General', icon: '⚙' },
+  { id: 'users', label: 'Users', icon: '👥' },
+  { id: 'workspaces', label: 'Workspaces', icon: '◫' },
+  { id: 'email', label: 'Email', icon: '📧' },
+  { id: 'backups', label: 'Backups', icon: '💾' },
+  { id: 'maintenance', label: 'Maintenance', icon: '🔧' },
+];
+---
+
+<AdminLayout title="Administration">
+  <div class="settings-container">
+    <div class="settings-header">
+      <div>
+        <h1>Administration</h1>
+        <p>Manage platform settings, users, and workspaces</p>
+      </div>
+    </div>
+
+    <nav class="tabs">
+      {tabs.map(tab => (
+        <a
+          href={`/admin?tab=${tab.id}`}
+          class:list={['tab', { active: currentTab === tab.id }]}
+        >
+          <span class="tab-icon">{tab.icon}</span>
+          <span class="tab-label">{tab.label}</span>
+        </a>
+      ))}
+    </nav>
+
+    <div class="tab-content">
+      {currentTab === 'general' && (
+        <div class="content-section">
+          <h2>General Settings</h2>
+          <p class="section-description">Platform-wide configuration</p>
+
+          <div class="quick-links">
+            <a href="/admin/site-settings" class="link-card">
+              <strong>Site Settings</strong>
+              <p>Configure platform name, branding, and defaults</p>
+            </a>
+            <a href="/admin/system" class="link-card">
+              <strong>System Information</strong>
+              <p>View version, database, and environment details</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'users' && (
+        <div class="content-section">
+          <h2>User Management</h2>
+          <p class="section-description">Manage user accounts and permissions</p>
+
+          <div class="quick-links">
+            <a href="/admin/users" class="link-card">
+              <strong>All Users</strong>
+              <p>View and manage all platform users</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Roles & Permissions</strong>
+              <p>Coming soon</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'workspaces' && (
+        <div class="content-section">
+          <h2>Workspace Management</h2>
+          <p class="section-description">Manage groups and workspaces</p>
+
+          <div class="quick-links">
+            <a href="/admin/workspaces" class="link-card">
+              <strong>All Workspaces</strong>
+              <p>View and manage all workspaces</p>
+            </a>
+            <a href="/admin/groups" class="link-card">
+              <strong>Groups</strong>
+              <p>Manage workspace groups</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'email' && (
+        <div class="content-section">
+          <h2>Email Configuration</h2>
+          <p class="section-description">SMTP settings and email templates</p>
+
+          <div class="quick-links">
+            <a href="/admin/email-settings" class="link-card">
+              <strong>SMTP Configuration</strong>
+              <p>Configure email server and test delivery</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Email Logs</strong>
+              <p>View sent email history (Coming soon)</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'backups' && (
+        <div class="content-section">
+          <h2>Backup & Restore</h2>
+          <p class="section-description">Protect your data with backups</p>
+
+          <div class="quick-links">
+            <a href="/admin/backups" class="link-card">
+              <strong>Database Backups</strong>
+              <p>Create and restore database backups</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Scheduled Backups</strong>
+              <p>Automatic backup configuration (Coming soon)</p>
+            </div>
+            <div class="link-card disabled">
+              <strong>Asset Backups</strong>
+              <p>Backup uploaded files and media (Coming soon)</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'maintenance' && (
+        <div class="content-section">
+          <h2>Maintenance & Tools</h2>
+          <p class="section-description">System cleanup and utilities</p>
+
+          <div class="quick-links">
+            <a href="/admin/maintenance" class="link-card">
+              <strong>System Maintenance</strong>
+              <p>Run cleanup tasks and view statistics</p>
+            </a>
+            <div class="link-card disabled">
+              <strong>Database Tools</strong>
+              <p>Optimize and repair database (Coming soon)</p>
+            </div>
+            <div class="link-card disabled">
+              <strong>Logs</strong>
+              <p>View application logs (Coming soon)</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .settings-container {
+    max-width: 1200px;
+  }
+
+  .settings-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .settings-header h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 600;
+  }
+
+  .settings-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 32px;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow-x: auto;
+  }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+
+  .tab:hover {
+    background: var(--panel-2);
+    color: inherit;
+  }
+
+  .tab.active {
+    background: var(--bg);
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .tab-icon {
+    font-size: 16px;
+  }
+
+  .tab-content {
+    min-height: 400px;
+  }
+
+  .content-section h2 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .link-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+  }
+
+  .link-card:not(.disabled):hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .link-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .link-card strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .link-card p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+</style>
