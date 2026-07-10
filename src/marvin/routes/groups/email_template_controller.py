@@ -122,14 +122,16 @@ class EmailTemplateController(BaseUserController):
                 detail="Template group_id must match workspace group_id",
             )
 
-        # Set group_id from path
+        # Set group_id from path - convert UUID to string for SQLAlchemy
         create_data = data.model_dump()
         create_data["group_id"] = str(group_id)
 
         # Create template using SQLAlchemy directly
         from marvin.db.models.groups.email_templates import EmailTemplateModel
 
-        template = EmailTemplateModel(**create_data)
+        # Remove None values and convert UUIDs to strings
+        clean_data = {k: (str(v) if hasattr(v, "hex") else v) for k, v in create_data.items() if v is not None}
+        template = EmailTemplateModel(**clean_data)
         self.repos.session.add(template)
         self.repos.session.commit()
         self.repos.session.refresh(template)
