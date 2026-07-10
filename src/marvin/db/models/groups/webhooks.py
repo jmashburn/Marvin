@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import Boolean, ForeignKey, String, orm
-from sqlalchemy.dialects.postgresql import ARRAY
+import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, Session, mapped_column  # Added Session for __init__
 from sqlalchemy.types import Enum as SqlAlchemyEnum  # Explicit import for sqlalchemy Enum type
 
@@ -77,7 +77,7 @@ class GroupWebhooksModel(SqlAlchemyBase, BaseMixins):
         doc="Scheduled datetime (UTC) for the webhook to run, if it's a scheduled webhook. Defaults to current UTC datetime on creation.",
     )
     subscribed_events: Mapped[list[str] | None] = mapped_column(
-        ARRAY(String),
+        sa.JSON,
         nullable=True,
         doc="List of event types this webhook subscribes to (e.g., ['entry.published', 'asset.uploaded']). None means no event subscriptions.",
     )

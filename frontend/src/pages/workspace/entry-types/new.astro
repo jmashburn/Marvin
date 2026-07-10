@@ -3,6 +3,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import SlugInput from "@/components/SlugInput.astro";
 import EmojiPicker from "@/components/EmojiPicker.astro";
+import SchemaEditor from "@/components/SchemaEditor.astro";
 ---
 
 <AppLayout title="Create Entry Type">
@@ -76,6 +77,11 @@ import EmojiPicker from "@/components/EmojiPicker.astro";
         <p class="form-help">Lower numbers appear first</p>
       </div>
 
+      {/* Schema Editor */}
+      <div class="schema-section">
+        <SchemaEditor schema={null} />
+      </div>
+
       <div class="form-actions">
         <button type="submit" class="button">Create Entry Type</button>
         <a href="/workspace/entry-types" class="button secondary">Cancel</a>
@@ -140,6 +146,11 @@ import EmojiPicker from "@/components/EmojiPicker.astro";
     margin: 0;
     font-size: 0.75rem;
     color: var(--muted);
+  }
+
+  .schema-section {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
   }
 
   .form-actions {

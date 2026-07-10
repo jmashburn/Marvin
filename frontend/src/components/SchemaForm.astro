@@ -1,0 +1,184 @@
+---
+/**
+ * SchemaForm Component
+ * Dynamically renders a form based on an entry type's schema definition
+ */
+import TextField from './schema-fields/TextField.astro';
+import TextareaField from './schema-fields/TextareaField.astro';
+import MarkdownField from './schema-fields/MarkdownField.astro';
+import NumberField from './schema-fields/NumberField.astro';
+import BooleanField from './schema-fields/BooleanField.astro';
+import SelectField from './schema-fields/SelectField.astro';
+import DateField from './schema-fields/DateField.astro';
+import DateTimeField from './schema-fields/DateTimeField.astro';
+import AssetField from './schema-fields/AssetField.astro';
+import AssetListField from './schema-fields/AssetListField.astro';
+import ResourceField from './schema-fields/ResourceField.astro';
+import ResourceListField from './schema-fields/ResourceListField.astro';
+
+export interface FieldSchema {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  defaultValue?: any;
+  placeholder?: string;
+  helpText?: string;
+  readOnly?: boolean;
+  [key: string]: any;
+}
+
+export interface Props {
+  schema: {
+    fields: FieldSchema[];
+  } | null;
+  values?: Record<string, any>;
+  errors?: Record<string, string>;
+}
+
+const { schema, values = {}, errors = {} } = Astro.props;
+
+// If no schema provided, show empty state
+if (!schema || !schema.fields || schema.fields.length === 0) {
+  // Don't render anything - parent component should handle empty state
+  return;
+}
+
+// Helper to get field value from nested dataJson
+function getFieldValue(key: string) {
+  return values[key];
+}
+
+// Helper to get field error
+function getFieldError(key: string) {
+  return errors[key];
+}
+---
+
+<div class="schema-form">
+  {schema.fields.map((field) => {
+    const value = getFieldValue(field.key);
+    const error = getFieldError(field.key);
+
+    // Render appropriate component based on field type
+    switch (field.type) {
+      case 'text':
+        return <TextField field={field} value={value} error={error} />;
+
+      case 'textarea':
+        return <TextareaField field={field} value={value} error={error} />;
+
+      case 'markdown':
+        return <MarkdownField field={field} value={value} error={error} />;
+
+      case 'number':
+        return <NumberField field={field} value={value} error={error} />;
+
+      case 'boolean':
+        return <BooleanField field={field} value={value} error={error} />;
+
+      case 'select':
+        return <SelectField field={field} value={value} error={error} />;
+
+      case 'date':
+        return <DateField field={field} value={value} error={error} />;
+
+      case 'datetime':
+        return <DateTimeField field={field} value={value} error={error} />;
+
+      case 'asset':
+        return <AssetField field={field} value={value} error={error} />;
+
+      case 'asset-list':
+        return <AssetListField field={field} value={value} error={error} />;
+
+      case 'resource':
+        return <ResourceField field={field} value={value} error={error} />;
+
+      case 'resource-list':
+        return <ResourceListField field={field} value={value} error={error} />;
+
+      case 'json':
+        // JSON field - allow free-form JSON input
+        return (
+          <div class="field-group">
+            <label>
+              {field.label}
+              {field.required && <span class="required">*</span>}
+            </label>
+            <textarea
+              name={`dataJson.${field.key}`}
+              placeholder="Enter valid JSON"
+              rows="6"
+              required={field.required}
+              class="field-textarea json-field"
+            >{value ? JSON.stringify(value, null, 2) : ''}</textarea>
+            <p class="field-help">{field.helpText || 'Enter valid JSON data'}</p>
+          </div>
+        );
+
+      default:
+        // Unknown field type
+        return (
+          <div class="field-group unknown">
+            <label>{field.label}</label>
+            <div class="error-message">
+              <p><strong>Unknown field type:</strong> {field.type}</p>
+              <p class="muted">This field type is not recognized. Please check the schema definition.</p>
+            </div>
+          </div>
+        );
+    }
+  })}
+</div>
+
+<style>
+  .schema-form {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .field-group {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .field-group label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+  }
+
+  .required {
+    color: var(--color-error);
+    margin-left: 2px;
+  }
+
+  .unsupported-message,
+  .error-message {
+    padding: 1rem;
+    background: var(--muted-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  .unsupported-message p,
+  .error-message p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+
+  .unsupported-message p + p {
+    margin-top: 0.5rem;
+  }
+
+  .muted {
+    color: var(--muted);
+  }
+
+  .error-message {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+</style>

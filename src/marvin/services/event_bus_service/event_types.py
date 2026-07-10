@@ -134,6 +134,16 @@ class EventTypes(EventTypeBase):
     """Event dispatched when a workspace invitation is revoked."""
 
     # ==========================================================================
+    # Email Template Events
+    # ==========================================================================
+    email_template_created = auto()
+    """Event dispatched when an email template is created."""
+    email_template_updated = auto()
+    """Event dispatched when an email template is updated."""
+    email_template_deleted = auto()
+    """Event dispatched when an email template is deleted."""
+
+    # ==========================================================================
     # Entry Events (Content Management)
     # ==========================================================================
     entry_created = auto()

@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import SchemaForm from "@/components/SchemaForm.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
@@ -21,6 +22,20 @@ if (Astro.request.method === 'POST' && id && authToken) {
     const assetIds = formData.getAll('asset_ids') as string[];
     const resourceIds = formData.getAll('resource_ids') as string[];
 
+    // Parse dataJson from schema fields (dataJson.fieldKey format)
+    const dataJson: Record<string, any> = {};
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('dataJson.')) {
+        const fieldKey = key.replace('dataJson.', '');
+        // Handle boolean checkboxes (only present if checked)
+        if (value === 'true' || value === 'false') {
+          dataJson[fieldKey] = value === 'true';
+        } else {
+          dataJson[fieldKey] = value || null;
+        }
+      }
+    }
+
     // Parse metadata JSON
     const metadataJsonStr = formData.get('metadata_json') as string | null;
     let metadataJson = null;
@@ -39,7 +54,7 @@ if (Astro.request.method === 'POST' && id && authToken) {
       slug: (formData.get('slug') as string) || null,
       summary: (formData.get('summary') as string) || null,
       description: (formData.get('description') as string) || null,
-      content_markdown: (formData.get('content_markdown') as string) || null,
+      data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
       status: formData.get('status') as string,
       metadata_json: metadataJson,
       collection_ids: collectionIds,
@@ -88,6 +103,10 @@ const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
 const entryCollectionIds = new Set(entryCollections.map(c => c.id));
 const attachedAssetIds = new Set((entry?.assets || []).map((a: any) => a.id));
 const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.id));
+
+// Get entry type schema for schema-driven form
+const entryType = entry ? entryTypes.find(t => t.id === entry.entryTypeId) : null;
+const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?.length > 0;
 ---
 
 <AppLayout title={entry ? entry.title : "Edit Entry"}>
@@ -126,34 +145,54 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
               />
             </div>
 
+            {/* Schema-driven content fields */}
+            {hasSchema ? (
+              <div class="schema-content-section">
+                <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:600;">Content Fields</h3>
+                <SchemaForm
+                  schema={entryType.schemaJson}
+                  values={entry.dataJson || {}}
+                />
+              </div>
+            ) : (
+              <div class="legacy-content-section">
+                <div class="migration-notice">
+                  <p>
+                    <strong>⚠️ Legacy Content Mode</strong>
+                  </p>
+                  <p style="margin:0.5rem 0 0;">
+                    This entry type doesn't have a schema defined yet.
+                    Using the legacy markdown field.
+                    <a href={`/workspace/entry-types/${entry.entryTypeId}`}>Add a schema →</a>
+                  </p>
+                </div>
+
+                <div class="form-group">
+                  <label for="content_markdown">Content (Markdown)</label>
+                  <textarea
+                    id="content_markdown"
+                    name="dataJson.body"
+                    rows="20"
+                    placeholder="Write your content in Markdown..."
+                    class="content-markdown-field"
+                  >{entry.contentMarkdown || entry.dataJson?.body || ""}</textarea>
+                </div>
+              </div>
+            )}
+
             <div class="form-group">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-                <label for="content_markdown" style="margin:0;">
-                  Content (Markdown)
-                  {entry.contentMarkdown && (
-                    <span style="color:var(--muted);font-weight:normal;margin-left:8px;">
-                      ({entry.contentMarkdown.length} characters)
-                    </span>
-                  )}
-                </label>
-                <div class="markdown-tabs">
-                  <button type="button" class="tab-btn active" data-tab="edit">Edit</button>
-                  <button type="button" class="tab-btn" data-tab="preview">Preview</button>
-                </div>
-              </div>
-              <div class="markdown-editor-container">
-                <textarea
-                  id="content_markdown"
-                  name="content_markdown"
-                  rows="20"
-                  placeholder="Write your content in Markdown..."
-                  class="tab-content active"
-                  data-tab-content="edit"
-                >{entry.contentMarkdown || ""}</textarea>
-                <div class="markdown-preview tab-content" data-tab-content="preview">
-                  <p style="color:var(--muted);text-align:center;padding:2rem;">Start typing to see preview...</p>
-                </div>
-              </div>
+              <label for="data_json_editor">Data JSON (Schema Fields)</label>
+              <p class="form-help">View or edit schema field data as JSON. Paste complete JSON to populate form fields.</p>
+              <textarea
+                id="data_json_editor"
+                rows="8"
+                placeholder='{"text_field": "value", "number_field": 42}'
+                class="data-json-editor"
+              >{entry.dataJson ? JSON.stringify(entry.dataJson, null, 2) : "{}"}</textarea>
+              <button type="button" id="apply-data-json-btn" class="button secondary" style="margin-top: 0.5rem;">Apply JSON to Form</button>
+              <small style="font-size: 11px; color: var(--muted); display: block; margin-top: 0.5rem;">
+                Changes here will update the form fields above when you click "Apply JSON to Form"
+              </small>
             </div>
 
             <div class="form-group">
@@ -202,14 +241,18 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
             <h3>Entry Details</h3>
 
             <div class="form-group">
-              <label for="entry_type_id">Entry Type</label>
-              <select id="entry_type_id" name="entry_type_id" form="entry-form" value={entry.entryTypeId}>
+              <label for="entry_type_display">Entry Type</label>
+              <select id="entry_type_display" form="entry-form" disabled>
                 {sortedTypes.map((type) => (
-                  <option value={type.id}>
+                  <option value={type.id} selected={type.id === entry.entryTypeId}>
                     {type.icon && `${type.icon} `}{type.name}
                   </option>
                 ))}
               </select>
+              <p class="form-help" style="color: var(--muted); font-size: 0.75rem; margin-top: 0.25rem;">
+                Entry type cannot be changed after creation
+              </p>
+              <input type="hidden" name="entry_type_id" form="entry-form" value={entry.entryTypeId} />
             </div>
 
             <div class="form-group">
@@ -270,6 +313,31 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
                 value={entry.publishedAt ? new Date(entry.publishedAt).toISOString().slice(0, 16) : ""}
                 form="entry-form"
               />
+              <p class="form-help">Actual date/time this entry was published</p>
+            </div>
+
+            <div class="form-group">
+              <label for="publish_at">Scheduled Publish</label>
+              <input
+                type="datetime-local"
+                id="publish_at"
+                name="publish_at"
+                value={entry.publishAt ? new Date(entry.publishAt).toISOString().slice(0, 16) : ""}
+                form="entry-form"
+              />
+              <p class="form-help">Schedule when this entry should be published</p>
+            </div>
+
+            <div class="form-group">
+              <label for="expire_at">Expiration Date</label>
+              <input
+                type="datetime-local"
+                id="expire_at"
+                name="expire_at"
+                value={entry.expireAt ? new Date(entry.expireAt).toISOString().slice(0, 16) : ""}
+                form="entry-form"
+              />
+              <p class="form-help">When this entry should expire and be hidden</p>
             </div>
           </div>
 
@@ -703,10 +771,11 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
     color: var(--muted);
   }
 
-  .metadata-editor {
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  .metadata-editor,
+  .data-json-editor {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
     font-size: 12px;
-    line-height: 1.5;
+    line-height: 1.6;
     background: var(--panel-2);
     border: 1px solid var(--line);
     border-radius: 6px;
@@ -1006,6 +1075,66 @@ const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.i
       updateSaveButton();
       form.requestSubmit(saveButton);
     });
+  }
+
+  // Data JSON editor - sync between JSON and form fields
+  const dataJsonEditor = document.getElementById('data_json_editor') as HTMLTextAreaElement;
+  const applyDataJsonBtn = document.getElementById('apply-data-json-btn') as HTMLButtonElement;
+
+  if (dataJsonEditor && applyDataJsonBtn) {
+    // Update JSON when form fields change
+    function updateDataJsonFromForm() {
+      const dataJson: Record<string, any> = {};
+      const formData = new FormData(form);
+
+      for (const [key, value] of formData.entries()) {
+        if (key.startsWith('dataJson.')) {
+          const fieldKey = key.replace('dataJson.', '');
+          // Handle boolean checkboxes
+          if (value === 'true' || value === 'false') {
+            dataJson[fieldKey] = value === 'true';
+          } else {
+            dataJson[fieldKey] = value || null;
+          }
+        }
+      }
+
+      dataJsonEditor.value = JSON.stringify(dataJson, null, 2);
+    }
+
+    // Update form fields when JSON changes
+    applyDataJsonBtn.addEventListener('click', () => {
+      try {
+        const dataJson = JSON.parse(dataJsonEditor.value);
+
+        // Update all matching form fields
+        for (const [key, value] of Object.entries(dataJson)) {
+          const fieldName = `dataJson.${key}`;
+          const field = form.querySelector(`[name="${fieldName}"]`) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+          if (field) {
+            if (field.type === 'checkbox') {
+              (field as HTMLInputElement).checked = !!value;
+            } else {
+              field.value = value !== null && value !== undefined ? String(value) : '';
+            }
+          }
+        }
+      } catch (e) {
+        alert('Invalid JSON: ' + (e instanceof Error ? e.message : String(e)));
+      }
+    });
+
+    // Listen for changes to schema fields and update JSON
+    const schemaFieldsContainer = document.querySelector('.schema-content-section');
+    if (schemaFieldsContainer) {
+      schemaFieldsContainer.addEventListener('input', () => {
+        updateDataJsonFromForm();
+      });
+    }
+
+    // Initial sync
+    updateDataJsonFromForm();
   }
 
   // Handle delete button

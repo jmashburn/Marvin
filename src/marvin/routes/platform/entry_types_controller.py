@@ -1,11 +1,14 @@
 """Entry type routes."""
 
+import logging
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
 
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import EntryTypeCreate, EntryTypeRead, EntryTypeUpdate
 from marvin.services.event_bus_service.event_types import EventEntryTypeData, EventOperation, EventTypes
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entry-types")
 

@@ -7,7 +7,7 @@ all admin fields, internal metadata, and unpublished content.
 
 from datetime import datetime
 
-from pydantic import UUID4, ConfigDict
+from pydantic import UUID4, ConfigDict, Field
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -50,11 +50,8 @@ class PublishedAssetRead(_MarvinModel):
     public_url: str
     """Public URL to access the asset file."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
-
-    entries: list[str] = []
-    """List of entry slugs that use this asset."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -65,6 +62,9 @@ class PublishedEntryRead(_MarvinModel):
 
     Only includes public-facing fields. Excludes all admin metadata,
     internal fields, and user information.
+
+    BREAKING CHANGE: content_markdown removed, replaced with data.
+    Entry content is now schema-driven based on entry_type.schema_json.
     """
 
     slug: str
@@ -79,14 +79,14 @@ class PublishedEntryRead(_MarvinModel):
     summary: str | None = None
     """Optional short description/summary."""
 
-    content_markdown: str | None = None
-    """Full entry content in Markdown format."""
+    data: dict
+    """Entry content structured according to entry type schema."""
 
     published_at: datetime | None = None
     """Timestamp when the entry was published."""
 
-    metadata: dict | None = None
-    """Custom frontmatter/metadata as JSON object."""
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
+    """Custom non-schema metadata as JSON object."""
 
     collections: list["PublishedCollectionSummary"] = []
     """Collections this entry belongs to."""
@@ -132,15 +132,14 @@ class PublishedEntryListItem(_MarvinModel):
     collections: list[str] = []
     """List of collection slugs this entry belongs to."""
 
-    assets: list[str] = []
+    assets: list[str] = Field(default=[], serialization_alias="assetSlugs")
     """List of asset slugs included in this entry."""
+
+    resources: list[str] = Field(default=[], serialization_alias="resourceSlugs")
+    """List of resource slugs referenced by this entry."""
 
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
-    """List of asset slugs attached to this entry."""
-
-    resources: list[str] = []
-    """List of resource slugs referenced by this entry."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -197,7 +196,7 @@ class PublishedCollectionRead(_MarvinModel):
     smart_rules: dict | None = None
     """Smart collection rules (JSON object)."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     entry_count: int
@@ -212,6 +211,9 @@ class PublishedCollectionRead(_MarvinModel):
 class PublishedCollectionSummary(_MarvinModel):
     """
     Summary schema for published collections (for listing).
+
+    Minimal collection info for entry contexts - only includes
+    essential fields for display and ordering.
     """
 
     slug: str
@@ -220,29 +222,11 @@ class PublishedCollectionSummary(_MarvinModel):
     name: str
     """Collection display name."""
 
-    description: str | None = None
-    """Optional collection description."""
-
-    is_smart: bool = False
-    """Whether this is a smart collection with automatic rules."""
-
-    smart_rules: dict | None = None
-    """Smart collection rules (JSON object)."""
-
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
-
-    entry_count: int
-    """Number of published entries in this collection."""
 
     sort_order: int
     """Display order for UI."""
-
-    icon: str | None = None
-    """Optional icon identifier."""
-
-    color: str | None = None
-    """Optional color code."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -273,7 +257,7 @@ class PublishedResourceSummary(_MarvinModel):
     external_id: str | None = None
     """External identifier (SKU, ISBN, etc)."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     entries: list[str] = []
@@ -307,7 +291,7 @@ class PublishedResourceRead(_MarvinModel):
     external_id: str | None = None
     """External identifier (SKU, ISBN, etc)."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     # Entry-specific placement fields from junction table
@@ -378,7 +362,7 @@ class SiteConfiguration(_MarvinModel):
     social: dict | None = None
     """Social media links (e.g., {instagram: 'url', facebook: 'url'})."""
 
-    metadata: dict | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Framework-specific or custom site metadata."""
 
     model_config = ConfigDict(from_attributes=True)

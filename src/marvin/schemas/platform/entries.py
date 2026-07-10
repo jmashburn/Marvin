@@ -23,17 +23,31 @@ ENTRY_STATUSES = {
 
 
 class EntryCreate(_MarvinModel):
-    """Schema for creating an entry."""
+    """Schema for creating an entry.
+
+    BREAKING CHANGE: content_markdown removed, replaced with data_json.
+    Entry content is now schema-driven based on entry_type.schema_json.
+    """
 
     entry_type_id: UUID4
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     summary: str | None = None
     description: str | None = None
-    content_markdown: str | None = None
+    data_json: dict = Field(
+        default_factory=dict,
+        description="Schema-driven content data (validated against entry_type.schema_json)",
+        serialization_alias="dataJson",
+    )
     status: str = "inbox"
     published_at: datetime | None = None
-    metadata_json: dict | None = None
+    publish_at: datetime | None = None
+    expire_at: datetime | None = None
+    metadata_json: dict | None = Field(
+        default=None,
+        description="Custom non-schema metadata (API keys, external IDs, etc.)",
+        serialization_alias="metadataJson",
+    )
     collection_ids: list[UUID4] | None = None
     asset_ids: list[UUID4] | None = None
     resource_ids: list[UUID4] | None = None
@@ -49,17 +63,31 @@ class EntryCreate(_MarvinModel):
 
 
 class EntryUpdate(_MarvinModel):
-    """Schema for patching an entry."""
+    """Schema for patching an entry.
+
+    BREAKING CHANGE: content_markdown removed, replaced with data_json.
+    Entry content is now schema-driven based on entry_type.schema_json.
+    """
 
     entry_type_id: UUID4 | None = Field(default=None, validation_alias=AliasChoices("entry_type_id", "entryTypeId"))
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     summary: str | None = None
     description: str | None = None
-    content_markdown: str | None = Field(default=None, validation_alias=AliasChoices("content_markdown", "contentMarkdown"))
+    data_json: dict | None = Field(
+        default=None,
+        description="Schema-driven content data (validated against entry_type.schema_json)",
+        serialization_alias="dataJson",
+    )
     status: str | None = None
-    published_at: datetime | None = Field(default=None, validation_alias=AliasChoices("published_at", "publishedAt"))
-    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata_json", "metadataJson"))
+    published_at: datetime | None = None
+    publish_at: datetime | None = None
+    expire_at: datetime | None = None
+    metadata_json: dict | None = Field(
+        default=None,
+        description="Custom non-schema metadata (API keys, external IDs, etc.)",
+        serialization_alias="metadataJson",
+    )
     collection_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("collection_ids", "collectionIds"))
     asset_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("asset_ids", "assetIds"))
     resource_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("resource_ids", "resourceIds"))
@@ -71,10 +99,10 @@ class EntryUpdate(_MarvinModel):
             raise ValueError(f"status must be one of: {', '.join(sorted(ENTRY_STATUSES))}")
         return value
 
-    @field_validator("published_at", mode="before")
+    @field_validator("published_at", "publish_at", "expire_at", mode="before")
     @classmethod
-    def validate_published_at(cls, value: str | datetime | None) -> datetime | None:
-        """Convert empty strings to None for published_at."""
+    def validate_datetime_fields(cls, value: str | datetime | None) -> datetime | None:
+        """Convert empty strings to None for datetime fields."""
         if value == "":
             return None
         return value
@@ -83,7 +111,11 @@ class EntryUpdate(_MarvinModel):
 
 
 class EntryRead(_MarvinModel):
-    """Schema for reading an entry."""
+    """Schema for reading an entry.
+
+    BREAKING CHANGE: content_markdown removed, replaced with data_json.
+    Entry content is now schema-driven based on entry_type.schema_json.
+    """
 
     id: UUID4
     group_id: UUID4
@@ -92,11 +124,20 @@ class EntryRead(_MarvinModel):
     slug: str
     summary: str | None = None
     description: str | None = None
-    content_markdown: str | None = None
+    data_json: dict = Field(
+        default_factory=dict,
+        description="Schema-driven content data",
+        serialization_alias="dataJson",
+    )
     status: str
     published_at: datetime | None = None
-    metadata_json: dict | None = None
-    """Custom metadata fields for this entry."""
+    publish_at: datetime | None = None
+    expire_at: datetime | None = None
+    metadata_json: dict | None = Field(
+        default=None,
+        description="Custom non-schema metadata",
+        serialization_alias="metadataJson",
+    )
     created_by: UUID4 | None = None
     created_at: datetime | None = None
     update_at: datetime | None = None
@@ -113,6 +154,16 @@ class EntryRead(_MarvinModel):
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
+        """Custom validation to extract collection IDs from collection objects."""
+        if hasattr(obj, "collections") and obj.collections:
+            # If collections are Collection objects, extract their IDs
+            if obj.collections and hasattr(obj.collections[0], "id"):
+                collection_ids = [c.id for c in obj.collections]
+                # Create a dict with all attributes
+                data = {field: getattr(obj, field, None) for field in cls.model_fields}
+                data["collections"] = collection_ids
+                return super().model_validate(data, **kwargs)
+        return super().model_validate(obj, **kwargs)
         """Custom validation to extract collection IDs and build asset/resource details."""
         data = {field: getattr(obj, field, None) for field in cls.model_fields}
 
