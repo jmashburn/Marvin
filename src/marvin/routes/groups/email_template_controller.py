@@ -126,7 +126,13 @@ class EmailTemplateController(BaseUserController):
         create_data = data.model_dump()
         create_data["group_id"] = group_id
 
-        template = self.repo.create(create_data)
+        # Create template using SQLAlchemy directly
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+
+        template = EmailTemplateModel(**create_data)
+        self.repos.session.add(template)
+        self.repos.session.commit()
+        self.repos.session.refresh(template)
 
         # Dispatch event
         self.event_bus.dispatch(
