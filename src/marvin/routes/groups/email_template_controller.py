@@ -17,7 +17,7 @@ from marvin.schemas.group.email_template import (
 from pydantic import BaseModel, EmailStr
 from marvin.services.event_bus_service.event_types import EventOperation, EventTypes
 
-router = APIRouter(prefix="/platform/workspaces/{group_id}/email-templates", route_class=MarvinCrudRoute)
+router = APIRouter(prefix="/workspaces/{group_id}/email-templates", route_class=MarvinCrudRoute)
 
 
 class TestEmailRequest(BaseModel):
