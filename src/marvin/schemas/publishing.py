@@ -440,3 +440,51 @@ class PublishedAssetsResponse(_MarvinModel):
     """Pagination metadata."""
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PublishedFormRead(_MarvinModel):
+    """
+    Schema for published forms in the publishing API.
+
+    Provides form definition for frontend to render the form.
+    Does not expose internal fields like submissions_count.
+    """
+
+    slug: str
+    """URL-friendly identifier for the form."""
+
+    name: str
+    """Form display name."""
+
+    description: str | None = None
+    """Optional description of the form."""
+
+    schema: dict
+    """Form field definitions."""
+
+    metadata: dict | None = None
+    """Custom metadata (if publicly exposed)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FormSubmissionResponse(_MarvinModel):
+    """
+    Response after form submission.
+
+    Indicates success/failure and optionally provides redirect URL.
+    """
+
+    success: bool
+    """Whether submission was successful."""
+
+    message: str
+    """User-facing message."""
+
+    submission_id: UUID4 | None = None
+    """Submission ID (if persisted)."""
+
+    redirect_url: str | None = None
+    """Optional redirect URL."""
+
+    model_config = ConfigDict(from_attributes=True)
