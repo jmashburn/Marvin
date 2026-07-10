@@ -128,9 +128,12 @@ class EmailTemplateController(BaseUserController):
 
         # Create template using SQLAlchemy directly
         from marvin.db.models.groups.email_templates import EmailTemplateModel
+        import uuid
 
-        # Remove None values
+        # Remove None values and ensure ID is generated
         clean_data = {k: v for k, v in create_data.items() if v is not None}
+        clean_data["id"] = uuid.uuid4()
+
         template = EmailTemplateModel(**clean_data)
         self.repos.session.add(template)
         self.repos.session.commit()
