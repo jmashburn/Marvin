@@ -1,5 +1,6 @@
 """Pydantic schemas for email templates."""
 
+from datetime import datetime
 from pydantic import UUID4, Field
 
 from marvin.schemas._marvin import _MarvinModel
@@ -53,8 +54,8 @@ class EmailTemplateRead(_MarvinModel):
     custom_html: str | None
     available_variables: dict | None
     enabled: bool
-    created_at: str
-    update_at: str
+    created_at: datetime
+    update_at: datetime
 
     model_config = {"from_attributes": True}
 
