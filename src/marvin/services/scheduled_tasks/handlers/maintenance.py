@@ -6,7 +6,7 @@ pruning old data, and verifying system integrity.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from marvin.core.config import get_app_settings
@@ -59,7 +59,7 @@ class CleanupTempFilesHandler(ScheduledTaskHandler):
             logger.info("Temp directory does not exist: %s", temp_dir)
             return
 
-        cutoff = datetime.utcnow() - timedelta(hours=age_hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=age_hours)
         deleted_count = 0
         deleted_bytes = 0
 

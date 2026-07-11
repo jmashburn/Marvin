@@ -76,7 +76,7 @@ To get the route URL:
 📚 For more information:
    - Helm release info: helm status {{ .Release.Name }}
    - Helm release history: helm history {{ .Release.Name }}
-   - Chart README: https://github.com/yourusername/marvin/tree/main/marvin-chart
+   - Chart README: https://github.com/InnerOpen/marvin/tree/main/marvin-chart
 
 ⚠️  Important notes:
 {{- if not .Values.config.production }}

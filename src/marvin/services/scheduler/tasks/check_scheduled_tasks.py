@@ -5,7 +5,7 @@ This task runs every minute to find and trigger scheduled tasks that are due for
 It emits scheduled_task.triggered events that are handled by the ScheduledTaskListener.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from marvin.core import root_logger
 from marvin.db.db_setup import session_context
@@ -34,7 +34,7 @@ def check_scheduled_tasks() -> None:
             repos = AllRepositories(session, group_id=None)
             event_bus = EventBusService(bg_tasks=None)
 
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
             due_tasks = repos.scheduled_tasks.get_due_tasks(now)
 
             if not due_tasks:

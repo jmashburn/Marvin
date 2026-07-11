@@ -6,7 +6,7 @@ All routes require API client token authentication (marvin_sk_ prefix).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from marvin.core.config import get_app_settings
 from marvin.core.dependencies import get_publishing_context
@@ -164,10 +164,19 @@ async def list_published_entries(
     # Get repositories scoped to this workspace
     repos = get_repositories(session, group_id=group.id)
 
-    # Build query for published entries
-    query = session.query(Entries).filter(
-        Entries.group_id == group.id,
-        Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+    # Build query for published entries with eager loading to prevent N+1 queries
+    query = (
+        session.query(Entries)
+        .filter(
+            Entries.group_id == group.id,
+            Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+        )
+        .options(
+            # Eagerly load entry relationships to avoid N+1 queries
+            selectinload(Entries.entry_collections).joinedload("collection"),
+            selectinload(Entries.entry_assets).joinedload("asset"),
+            selectinload(Entries.entry_resources).joinedload("resource"),
+        )
     )
 
     # Filter by entry type if specified
@@ -225,8 +234,10 @@ async def list_published_entries(
             updated_dt = datetime.fromisoformat(updated_since.replace("Z", "+00:00"))
             query = query.filter(Entries.update_at >= updated_dt)
         except ValueError:
-            # Invalid datetime format, ignore filter
-            pass
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid date format for updated_since: {updated_since}. Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS with optional Z or timezone offset)",
+            )
 
     # Get total count
     total = query.count()
@@ -299,13 +310,18 @@ async def get_published_entry(
     # Require permission to read entries
     perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "published entry")
 
-    # Query published entry
+    # Query published entry with eager loading to prevent N+1 queries
     entry = (
         session.query(Entries)
         .filter(
             Entries.group_id == group.id,
             Entries.slug == slug,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+        )
+        .options(
+            selectinload(Entries.entry_collections).joinedload("collection"),
+            selectinload(Entries.entry_assets).joinedload("asset"),
+            selectinload(Entries.entry_resources).joinedload("resource"),
         )
         .first()
     )
@@ -504,11 +520,21 @@ async def get_published_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    # Get entries in this collection
+    # Get entries in this collection with eager loading to prevent N+1 queries
     # Filter by status based on permissions
     from marvin.db.models.platform import EntryCollections
 
-    query = session.query(Entries).join(EntryCollections).filter(EntryCollections.collection_id == collection.id)
+    query = (
+        session.query(Entries)
+        .join(EntryCollections)
+        .filter(EntryCollections.collection_id == collection.id)
+        .options(
+            selectinload(Entries.entry_collections).joinedload("collection"),
+            selectinload(Entries.entry_assets).joinedload("asset"),
+            selectinload(Entries.entry_resources).joinedload("resource"),
+            joinedload(Entries.entry_type),
+        )
+    )
 
     # Only filter to published entries if user doesn't have permission to read all
     if not perms.has_permission(Permissions.READ_ALL_ENTRIES):
@@ -592,9 +618,13 @@ async def list_published_assets(
     # Require permission to read assets
     perms.require_permission(Permissions.READ_ASSETS, "assets")
 
-    # Build query for assets
-    query = session.query(Assets).filter(
-        Assets.group_id == group.id,
+    # Build query for assets with eager loading to prevent N+1 queries
+    query = (
+        session.query(Assets)
+        .filter(Assets.group_id == group.id)
+        .options(
+            selectinload(Assets.entry_assets).joinedload("entry"),
+        )
     )
 
     # Filter by MIME type prefix if specified
@@ -678,6 +708,9 @@ async def get_published_asset(
         .filter(
             Assets.group_id == group.id,
             Assets.slug == asset_slug,
+        )
+        .options(
+            selectinload(Assets.entry_assets).joinedload("entry"),
         )
         .first()
     )
@@ -793,9 +826,13 @@ async def list_published_resources(
     # Require permission to read resources
     perms.require_permission(Permissions.READ_RESOURCES, "resources")
 
-    # Build query for resources
-    query = session.query(Resources).filter(
-        Resources.group_id == group.id,
+    # Build query for resources with eager loading to prevent N+1 queries
+    query = (
+        session.query(Resources)
+        .filter(Resources.group_id == group.id)
+        .options(
+            selectinload(Resources.entry_resources).joinedload("entry"),
+        )
     )
 
     # Filter by resource type if specified
@@ -866,12 +903,15 @@ async def get_published_resource(
     # Require permission to read resources
     perms.require_permission(Permissions.READ_RESOURCES, "resource")
 
-    # Query resource
+    # Query resource with eager loading to prevent N+1 queries
     resource = (
         session.query(Resources)
         .filter(
             Resources.group_id == group.id,
             Resources.slug == resource_slug,
+        )
+        .options(
+            selectinload(Resources.entry_resources).joinedload("entry"),
         )
         .first()
     )
@@ -938,7 +978,7 @@ async def get_resource_entries(
     if not resource:
         raise HTTPException(status_code=404, detail="Resource not found")
 
-    # Get published entries that reference this resource
+    # Get published entries that reference this resource with eager loading
     from marvin.db.models.platform import EntryResources
 
     entries = (
@@ -947,6 +987,12 @@ async def get_resource_entries(
         .filter(
             EntryResources.resource_id == resource.id,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+        )
+        .options(
+            selectinload(Entries.entry_collections).joinedload("collection"),
+            selectinload(Entries.entry_assets).joinedload("asset"),
+            selectinload(Entries.entry_resources).joinedload("resource"),
+            joinedload(Entries.entry_type),
         )
         .order_by(Entries.published_at.desc())
         .all()
