@@ -439,9 +439,6 @@ const success = urlParams.get('success') === '1';
       exportBtn.textContent = 'Exporting...';
 
       try {
-        const { createSdkClient } = await import('@/lib/sdk');
-        const sdk = createSdkClient();
-
         const data = await sdk.workspaces.export({ pretty: true });
         const jsonStr = JSON.stringify(data, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
