@@ -432,32 +432,21 @@ const success = urlParams.get('success') === '1';
   const exportBtn = document.getElementById('export-workspace-btn') as HTMLButtonElement;
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
-      const workspaceId = exportBtn.dataset.workspaceId;
-      if (!workspaceId) {
-        alert('Workspace ID not found');
-        return;
-      }
-
       exportBtn.disabled = true;
       exportBtn.textContent = 'Exporting...';
 
       try {
-        // Use fetch directly to handle file download
-        const response = await fetch(`/api/platform/workspace/export/pretty`, {
-          credentials: 'include',
-        });
+        const { createSdkClient } = await import('@/lib/sdk');
+        const sdk = createSdkClient();
 
-        if (!response.ok) {
-          throw new Error('Export failed');
-        }
-
-        // Get the blob and create download
-        const blob = await response.blob();
+        const data = await sdk.workspaces.export({ pretty: true });
+        const jsonStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
 
-        // Generate filename with workspace slug and timestamp
+        // Generate filename with timestamp
         const timestamp = new Date().toISOString().split('T')[0];
         a.download = `workspace-backup-${timestamp}.json`;
 
