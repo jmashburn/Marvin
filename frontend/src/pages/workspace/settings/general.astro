@@ -32,10 +32,10 @@ try {
     const members = await listWorkspaceMembers(workspace.id, authToken);
     const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
     currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
+    isPlatformAdmin = currentUser.admin === true;
     if (!currentUserRole && isPlatformAdmin) {
       currentUserRole = 'ADMIN' as WorkspaceRole;
     }
-    isPlatformAdmin = currentUser.admin === true;
   }
 } catch (e) {
   console.error('[settings] Error loading:', e);
