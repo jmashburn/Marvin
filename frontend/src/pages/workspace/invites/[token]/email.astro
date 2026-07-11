@@ -16,7 +16,7 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
-const registerUrl = `${Astro.url.origin}/register?invite=${token}`;
+const registerUrl = `${Astro.url.origin}/register?token=${token}`;
 ---
 
 <AppLayout title="Email Invite" eyebrow="Workspace">

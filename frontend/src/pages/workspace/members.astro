@@ -82,7 +82,10 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
       <p>Manage who has access to {workspace?.name || 'this workspace'}</p>
     </div>
     {canManage && (
-      <a href="/workspace/members/new" class="button">Add Member</a>
+      <div style="display:flex;gap:0.75rem;">
+        <a href="/workspace/invites/new" class="button secondary">Invite Members</a>
+        <a href="/workspace/members/new" class="button">Add Member</a>
+      </div>
     )}
   </div>
 

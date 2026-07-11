@@ -2,8 +2,8 @@
 import { register } from '@/lib/api/auth';
 import type { UserRegistration } from '@/lib/api/auth';
 
-// Get token from query params
-const token = Astro.url.searchParams.get('token');
+// Get token from query params (supports both ?token= and ?invite=)
+const token = Astro.url.searchParams.get('token') || Astro.url.searchParams.get('invite');
 
 // Check if user is already logged in
 const existingAuth = Astro.cookies.get('marvin_session');
