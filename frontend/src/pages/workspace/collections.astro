@@ -79,15 +79,17 @@ const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
             {sortedCollections.map((collection) => (
               <tr class="collection-row" data-type={collection.isSmart ? 'smart' : 'manual'}>
                 <td>
-                  {collection.icon && (
+                  {collection.icon ? (
                     <span style={`font-size:1.5rem;${collection.color ? `color:${collection.color}` : ''}`}>
                       {collection.icon}
                     </span>
+                  ) : (
+                    <span class="empty-value">EMPTY</span>
                   )}
                 </td>
-                <td class="collection-name"><strong>{collection.name}</strong></td>
-                <td><code>{collection.slug}</code></td>
-                <td>{collection.description || '—'}</td>
+                <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
+                <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
+                <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
                 <td>
                   <span class="pill">{collection.isSmart ? 'Smart' : 'Manual'}</span>
                 </td>
@@ -196,5 +198,12 @@ const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
 
   .button.danger:hover {
     background: var(--color-error-bg);
+  }
+
+  .empty-value {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-style: italic;
+    opacity: 0.6;
   }
 </style>
