@@ -74,18 +74,15 @@ const registerUrl = `${Astro.url.origin}/register?invite=${token}`;
     const formData = new FormData(e.target as HTMLFormElement);
 
     const payload = {
-      email: formData.get('email'),
-      token: formData.get('token'),
+      email: formData.get('email') as string,
+      token: formData.get('token') as string,
     };
 
     try {
-      const { fetchApi } = await import('@/lib/api/client');
+      const { createSdkClient } = await import('@/lib/sdk');
+      const sdk = createSdkClient();
 
-      await fetchApi('/api/groups/invitations/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      await sdk.invites.sendEmail(payload);
 
       window.location.href = '/workspace/invites?sent=true';
     } catch (error) {

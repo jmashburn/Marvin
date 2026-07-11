@@ -112,7 +112,8 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 </AppLayout>
 
 <script>
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
 
   const form = document.getElementById('add-member-form') as HTMLFormElement;
   const workspaceId = form?.dataset.workspaceId;
@@ -139,14 +140,10 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 
     try {
       // Step 1: Create an invite token
-      const tokenResponse = await fetchApi('/api/groups/invitations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uses_left: 1, // Single-use token
-          group_id: workspaceId,
-        }),
-      }) as { token: string };
+      const tokenResponse = await sdk.invites.create({
+        uses_left: 1,
+        group_id: workspaceId,
+      } as any) as { token: string };
 
       // Build the invitation URL
       const invitationUrl = `${window.location.origin}/register?token=${tokenResponse.token}`;
@@ -156,14 +153,10 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
       let emailError = '';
 
       try {
-        const emailResponse = await fetchApi('/api/groups/invitations/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: formData.get('email'),
-            token: tokenResponse.token,
-          }),
-        }) as { success: boolean; error?: string };
+        const emailResponse = await sdk.invites.sendEmail({
+          email: formData.get('email') as string,
+          token: tokenResponse.token,
+        } as any) as { success: boolean; error?: string };
 
         emailSuccess = emailResponse.success;
         emailError = emailResponse.error || '';

@@ -1,8 +1,10 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let eventOptions: any[] = [];
 let error: string | null = null;
@@ -10,7 +12,7 @@ let appriseReady = false;
 
 // Check if Apprise is available
 try {
-  const configCheck = await fetchApi<any>('/api/admin/about/check', {}, authToken);
+  const configCheck = await sdk.adminSystem.check() as any;
   appriseReady = configCheck?.apprise_ready === true;
 } catch (e) {
   console.error('[notifications/new] Error checking Apprise availability:', e);
@@ -22,8 +24,7 @@ if (!appriseReady) {
 }
 
 try {
-  const response = await fetchApi<any>('/api/event/options', {}, authToken);
-  eventOptions = response.items || [];
+  eventOptions = await sdk.events.getOptions();
 } catch (e) {
   console.error('[notifications/new] Error loading events:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -227,21 +228,17 @@ const defaultEvents = [
       .map(cb => cb.value);
 
     const payload = {
-      name: formData.get('name'),
-      apprise_url: formData.get('apprise_url'),
+      name: formData.get('name') as string,
+      apprise_url: formData.get('apprise_url') as string,
       enabled: formData.get('enabled') === 'on',
       options: selectedEvents,
-    };
+    } as any;
 
     try {
-      const { fetchApi } = await import('@/lib/api/client');
+      const { createSdkClient } = await import('@/lib/sdk');
+      const sdk = createSdkClient();
 
-      await fetchApi('/api/group/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
+      await sdk.notifications.create(payload);
       window.location.href = '/automation/notifications?created=true';
     } catch (error) {
       alert('Failed to create notification. Please try again.');

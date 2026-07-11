@@ -1,20 +1,12 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import { requireAdmin } from "@/lib/auth";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 
+const currentUser = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+
 const authToken = getAuthToken(Astro.cookies);
-
-// Check admin access
-try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-  if (currentUser?.admin !== true) {
-    return Astro.redirect('/');
-  }
-} catch (e) {
-  return Astro.redirect('/');
-}
-
 let workspaces: any[] = [];
 let error: string | null = null;
 
@@ -163,7 +155,7 @@ const platformRoles = [
     try {
       const { fetchApi } = await import('@/lib/api/client');
 
-      const response = await fetchApi('/api/admin/users', {
+      const response = await fetchApi<{ id: string }>('/api/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

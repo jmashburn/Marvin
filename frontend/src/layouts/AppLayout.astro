@@ -2,7 +2,8 @@
 import "../styles/global.css";
 import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
 import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 interface Props {
   title: string;
@@ -14,15 +15,14 @@ const path = Astro.url.pathname;
 
 // Check if user is admin and get platform role
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 let isAdmin = false;
 let isSuperAdmin = false;
 try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
+  const currentUser = await sdk.user.getProfile() as any;
   isAdmin = currentUser?.admin === true;
-  // API returns camelCase (platformRole) not snake_case (platform_role)
   isSuperAdmin = currentUser?.platformRole === 'SUPER_ADMIN';
 
-  // Debug logging
   if (import.meta.env.DEV) {
     console.log('[AppLayout] User role check:', {
       admin: isAdmin,

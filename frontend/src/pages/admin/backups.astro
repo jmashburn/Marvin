@@ -1,17 +1,8 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
 
-const authToken = getAuthToken(Astro.cookies);
-
-try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-  if (currentUser?.admin !== true) {
-    return Astro.redirect('/');
-  }
-} catch (e) {
-  return Astro.redirect('/');
-}
+await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 ---
 
 <AdminLayout title="Backups">

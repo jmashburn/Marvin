@@ -1,8 +1,10 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let notifications: any[] = [];
 let error: string | null = null;
@@ -10,7 +12,7 @@ let appriseReady = false;
 
 // Check if Apprise is available
 try {
-  const configCheck = await fetchApi<any>('/api/admin/about/check', {}, authToken);
+  const configCheck = await sdk.adminSystem.check() as any;
   appriseReady = configCheck?.apprise_ready === true;
 } catch (e) {
   console.error('[notifications] Error checking Apprise availability:', e);
@@ -19,8 +21,7 @@ try {
 // Only fetch notifications if Apprise is available
 if (appriseReady) {
   try {
-    const response = await fetchApi<any>('/api/group/notifications', {}, authToken);
-    notifications = response.items || [];
+    notifications = await sdk.notifications.list();
   } catch (e) {
     console.error('[notifications] Error:', e);
     error = e instanceof Error ? e.message : String(e);

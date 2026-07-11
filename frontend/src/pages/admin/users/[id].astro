@@ -1,24 +1,20 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import { requireAdmin } from "@/lib/auth";
+import { createSdkClient } from '@/lib/sdk';
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 
-const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
 if (!id) {
   return Astro.redirect('/admin/users');
 }
 
-// Check admin access
-try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-  if (currentUser?.admin !== true) {
-    return Astro.redirect('/');
-  }
-} catch (e) {
-  return Astro.redirect('/');
-}
+const currentUser = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let user: any = null;
 let workspaces: any[] = [];
@@ -26,9 +22,9 @@ let workspaceMap: Map<string, any> = new Map();
 let error: string | null = null;
 
 try {
-  user = await fetchApi<any>(`/api/admin/users/${id}`, {}, authToken);
+  user = await sdk.adminUsers.get(id);
 
-  // Fetch available workspaces for membership management
+  // Fetch available workspaces for membership management (SDK gap - no adminWorkspaces module)
   const workspacesResponse = await fetchApi<any>('/api/admin/groups', {}, authToken);
   workspaces = workspacesResponse.items || [];
 

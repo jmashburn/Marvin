@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from '@/lib/sdk';
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
 import { listEntries } from "@/lib/api/entries";
@@ -8,6 +9,7 @@ import { getAssets } from "@/lib/api/platform";
 import { getSiteClients } from "@/lib/api/platform";
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 const currentTab = Astro.url.searchParams.get('tab') || 'general';
 
 let workspace: any = null;
@@ -22,7 +24,7 @@ try {
 
 // Check if Apprise is available
 try {
-  const configCheck = await fetchApi<any>('/api/admin/about/check', {}, authToken);
+  const configCheck = await sdk.adminSystem.check() as any;
   appriseReady = configCheck?.apprise_ready === true;
 } catch (e) {
   console.error('[workspace/settings] Error checking Apprise availability:', e);

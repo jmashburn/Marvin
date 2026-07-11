@@ -1,11 +1,14 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { requireAuth } from "@/lib/auth";
+import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { getWorkspacePreferences } from "@/lib/api/workspaceSettings";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
 import type { WorkspaceRole } from "@/lib/api/types";
+
+const currentUser = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
 const authToken = getAuthToken(Astro.cookies);
 let workspace = null;
@@ -27,12 +30,9 @@ try {
 
     // Get current user's role and admin status
     const members = await listWorkspaceMembers(workspace.id, authToken);
-    const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-    if (currentUser) {
-      const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
-      currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
-      isPlatformAdmin = currentUser.admin === true;
-    }
+    const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+    currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
+    isPlatformAdmin = currentUser.admin === true;
   }
 } catch (e) {
   console.error('[settings] Error loading:', e);
@@ -324,7 +324,8 @@ const success = urlParams.get('success') === '1';
 
 <script>
   // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
   const form = document.getElementById('workspace-settings-form') as HTMLFormElement;
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
   const siteForm = document.getElementById('site-settings-form') as HTMLFormElement;
@@ -351,11 +352,7 @@ const success = urlParams.get('success') === '1';
           name: formData.get('name') as string,
         };
 
-        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
+        await sdk.workspaces.updatePreferences(workspaceId, data);
 
         window.location.href = '/workspace/settings?success=1';
       } catch (err) {
@@ -420,11 +417,7 @@ const success = urlParams.get('success') === '1';
           }
         }
 
-        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
+        await sdk.workspaces.updatePreferences(workspaceId, data);
 
         window.location.href = '/workspace/settings?success=1';
       } catch (err) {
@@ -522,9 +515,7 @@ const success = urlParams.get('success') === '1';
       deleteBtn.textContent = 'Deleting...';
 
       try {
-        await fetchApi(`/api/admin/groups/${workspaceId}?force=true`, {
-          method: 'DELETE',
-        });
+        await sdk.workspaces.delete(workspaceId, true);
 
         alert('Workspace deleted successfully. Redirecting...');
         window.location.href = '/';
