@@ -32,6 +32,9 @@ try {
     const members = await listWorkspaceMembers(workspace.id, authToken);
     const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
     currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
+    if (!currentUserRole && isPlatformAdmin) {
+      currentUserRole = 'ADMIN' as WorkspaceRole;
+    }
     isPlatformAdmin = currentUser.admin === true;
   }
 } catch (e) {
@@ -267,7 +270,7 @@ const success = urlParams.get('success') === '1';
           </div>
           <div class="info-item">
             <span class="info-label">Your Role</span>
-            <span class="info-value role-badge">{currentUserRole}</span>
+            <span class="info-value role-badge">{currentUserRole || 'None'}</span>
           </div>
           <div class="info-item">
             <span class="info-label">Active Status</span>
