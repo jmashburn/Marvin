@@ -15,6 +15,7 @@ from sqlalchemy.orm.session import Session
 
 from marvin.core import root_logger
 from marvin.core.config import get_app_dirs, get_app_settings
+from marvin.core.security.security import JWT_ALGORITHM
 from marvin.db.db_setup import generate_session
 from marvin.db.models.users.roles import PlatformRole, WorkspaceRole
 from marvin.repos.all_repositories import get_repositories
@@ -27,7 +28,7 @@ publishing_bearer_scheme = HTTPBearer(
     scheme_name="PublishingAPIToken",
     description="API client token (marvin_sk_ prefix) for Publishing API access",
 )
-ALGORITHM = "HS256"
+ALGORITHM = JWT_ALGORITHM  # Import from central location
 app_dirs = get_app_dirs()
 settings = get_app_settings()
 logger = root_logger.get_logger("dependencies")

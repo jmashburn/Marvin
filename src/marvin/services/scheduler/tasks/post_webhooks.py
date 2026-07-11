@@ -13,16 +13,15 @@ These functions typically interact with the event bus system to dispatch
 """
 
 import json
-import logging
 from datetime import UTC, datetime  # For datetime operations
 from pathlib import Path
 
 from pydantic import UUID4  # For UUID type hinting
 
-logger = logging.getLogger(__name__)
-
 # Marvin core components and utilities
 from marvin.core.root_logger import get_logger
+
+logger = get_logger(__name__)
 from marvin.db.db_setup import session_context  # Context manager for DB sessions
 from marvin.repos.all_repositories import get_repositories  # Factory for AllRepositories
 from marvin.schemas.group.webhook import WebhookRead  # Pydantic schema for webhook data

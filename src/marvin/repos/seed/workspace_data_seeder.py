@@ -1,10 +1,10 @@
 """Workspace data seeder for creating entries from seed files."""
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
+from marvin.core.root_logger import get_logger
 from marvin.repos.repository_factory import AllRepositories
 
 
@@ -50,7 +50,7 @@ class WorkspaceDataSeeder:
     }
     """
 
-    def __init__(self, repos: AllRepositories, logger: logging.Logger | None = None):
+    def __init__(self, repos: AllRepositories, logger=None):
         """Initialize seeder with repository access.
 
         Args:
@@ -58,7 +58,7 @@ class WorkspaceDataSeeder:
             logger: Optional logger instance
         """
         self.repos = repos
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     def seed_from_directory(self, seed_dir: Path) -> dict[str, int]:
         """Seed entries from all JSON files in the given directory.

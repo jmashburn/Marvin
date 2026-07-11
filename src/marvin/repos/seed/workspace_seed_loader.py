@@ -1,10 +1,10 @@
 """Complete workspace seed loader for importing workspace data from JSON."""
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
+from marvin.core.root_logger import get_logger
 from marvin.repos.repository_factory import AllRepositories
 
 
@@ -21,7 +21,7 @@ class WorkspaceSeedLoader:
     - assets
     """
 
-    def __init__(self, repos: AllRepositories, logger: logging.Logger | None = None):
+    def __init__(self, repos: AllRepositories, logger=None):
         """Initialize loader with repository access.
 
         Args:
@@ -29,7 +29,7 @@ class WorkspaceSeedLoader:
             logger: Optional logger instance
         """
         self.repos = repos
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     def load_seed_file(self, seed_file: Path) -> dict[str, int]:
         """Load a complete workspace seed from a JSON file.

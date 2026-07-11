@@ -22,7 +22,12 @@ from marvin.core.security.hasher import get_hasher
 
 from marvin.schemas.user.auth import CredentialsRequest, CredentialsRequestForm
 
-ALGORITHM = "HS256"
+# JWT algorithm constant - DO NOT CHANGE without migration plan
+# Used for encoding/decoding JWT tokens across the application
+JWT_ALGORITHM = "HS256"
+
+# Legacy alias for backward compatibility (deprecated - use JWT_ALGORITHM)
+ALGORITHM = JWT_ALGORITHM
 
 logger = root_logger.get_logger("security")
 

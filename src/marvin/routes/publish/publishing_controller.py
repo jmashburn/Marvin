@@ -437,20 +437,33 @@ async def list_published_collections(
     )
 
     # Build response with entry counts
+    from sqlalchemy import func
+
     from marvin.db.models.platform import EntryCollections
+
+    # Get entry counts for all collections in ONE query (prevents N+1)
+    collection_ids = [c.id for c in collections]
+    entry_counts_query = (
+        session.query(
+            EntryCollections.collection_id,
+            func.count(Entries.id).label("entry_count"),
+        )
+        .join(Entries)
+        .filter(
+            EntryCollections.collection_id.in_(collection_ids),
+            Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+        )
+        .group_by(EntryCollections.collection_id)
+        .all()
+    )
+
+    # Create a map of collection_id -> entry_count for O(1) lookup
+    entry_count_map = {collection_id: count for collection_id, count in entry_counts_query}
 
     result = []
     for collection in collections:
-        # Count published entries in this collection
-        entry_count = (
-            session.query(Entries)
-            .join(EntryCollections)
-            .filter(
-                EntryCollections.collection_id == collection.id,
-                Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
-            )
-            .count()
-        )
+        # Get entry count from the preloaded map (default to 0 if no entries)
+        entry_count = entry_count_map.get(collection.id, 0)
 
         result.append(
             PublishedCollectionSummary(

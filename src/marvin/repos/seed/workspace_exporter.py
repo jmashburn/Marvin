@@ -1,8 +1,8 @@
 """Workspace exporter for dumping workspace data to JSON format."""
 
-import logging
 from typing import Any
 
+from marvin.core.root_logger import get_logger
 from marvin.repos.repository_factory import AllRepositories
 
 
@@ -15,7 +15,7 @@ class WorkspaceExporter:
     - entries (with collection assignments)
     """
 
-    def __init__(self, repos: AllRepositories, logger: logging.Logger | None = None):
+    def __init__(self, repos: AllRepositories, logger=None):
         """Initialize exporter with repository access.
 
         Args:
@@ -23,7 +23,7 @@ class WorkspaceExporter:
             logger: Optional logger instance
         """
         self.repos = repos
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     def export_workspace(self, include_system_types: bool = False) -> dict[str, Any]:
         """Export complete workspace data to JSON-serializable dict.

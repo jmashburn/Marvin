@@ -6,10 +6,11 @@ import jwt
 from sqlalchemy.orm.session import Session
 
 from marvin.core.config import get_app_settings
+from marvin.core.security.security import JWT_ALGORITHM
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.user.user import PrivateUser
 
-ALGORITHM = "HS256"
+ALGORITHM = JWT_ALGORITHM  # Import from central location
 ISS = "marvin"
 remember_me_duration = timedelta(days=14)
 

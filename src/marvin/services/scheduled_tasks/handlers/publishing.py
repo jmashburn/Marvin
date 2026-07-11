@@ -4,9 +4,9 @@ Publishing task handlers for content management.
 These handlers manage scheduled publishing, unpublishing, and site rebuild triggers.
 """
 
-import logging
 from datetime import UTC, datetime
 
+from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
 from marvin.db.models.platform.entries import Entries
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
@@ -16,7 +16,7 @@ from marvin.services.event_bus_service.event_types import EventTypes
 
 from . import ScheduledTaskHandler, TaskHandlerRegistry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PublishScheduledEntriesHandler(ScheduledTaskHandler):

@@ -5,11 +5,11 @@ These handlers perform routine maintenance operations like cleaning up temp file
 pruning old data, and verifying system integrity.
 """
 
-import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from marvin.core.config import get_app_settings
+from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
 from marvin.repos.repository_factory import AllRepositories
@@ -17,7 +17,7 @@ from marvin.services.event_bus_service.event_bus_service import EventBusService
 
 from . import ScheduledTaskHandler, TaskHandlerRegistry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CleanupTempFilesHandler(ScheduledTaskHandler):

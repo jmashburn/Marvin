@@ -1,18 +1,18 @@
 """Entry type repository."""
 
 from typing import Any
-import logging
 
 from fastapi import HTTPException, status
 from pydantic import UUID4, ValidationError
 from sqlalchemy.orm import Session
 
+from marvin.core.root_logger import get_logger
 from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryTypeRead
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):

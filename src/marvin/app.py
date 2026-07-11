@@ -21,7 +21,10 @@ from marvin.core.config import get_app_settings  # Access application settings
 from marvin.core.root_logger import get_logger  # Application logger
 from marvin.core.settings.static import APP_VERSION  # Static application version
 from marvin.routes import router as main_api_router  # Main API router combining all app routes
-from marvin.routes.handlers import register_debug_handler  # Registers custom exception handlers
+from marvin.routes.handlers import (  # Registers custom exception handlers
+    register_core_exception_handlers,
+    register_debug_handler,
+)
 
 # Scheduler components
 from marvin.services.scheduler import SchedulerRegistry, SchedulerService
@@ -199,6 +202,9 @@ async def start_scheduler() -> None:
 # Register custom debug/error handlers for the application
 # This is conditional based on settings in register_debug_handler
 register_debug_handler(app)
+
+# Register global core exception handlers (always active)
+register_core_exception_handlers(app)
 
 
 def include_api_routers() -> None:  # Renamed from api_routers for clarity
