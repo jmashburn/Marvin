@@ -153,10 +153,8 @@ class ContentValidator(BaseService):
         field_key = field_schema.key
 
         # Dispatch to type-specific validator
-        if isinstance(field_schema, TextFieldSchema):
+        if isinstance(field_schema, (TextFieldSchema, TextareaFieldSchema)):
             self._validate_text_field(field_schema, value)
-        elif isinstance(field_schema, TextareaFieldSchema):
-            self._validate_textarea_field(field_schema, value)
         elif isinstance(field_schema, MarkdownFieldSchema):
             self._validate_markdown_field(field_schema, value)
         elif isinstance(field_schema, NumberFieldSchema):
@@ -175,23 +173,14 @@ class ContentValidator(BaseService):
             # Unknown field type - should not happen with discriminated union
             self.logger.warning(f"Unknown field type for field '{field_key}': {type(field_schema)}")
 
-    def _validate_text_field(self, field_schema: TextFieldSchema, value: Any) -> None:
-        """Validate text field."""
+    def _validate_text_field(self, field_schema: TextFieldSchema | TextareaFieldSchema, value: Any) -> None:
+        """Validate text or textarea field."""
         self._validate_string_constraints(
             field_key=field_schema.key,
             value=value,
             min_length=field_schema.min,
             max_length=field_schema.max,
-            pattern=field_schema.pattern,
-        )
-
-    def _validate_textarea_field(self, field_schema: TextareaFieldSchema, value: Any) -> None:
-        """Validate textarea field (same as text field but without pattern)."""
-        self._validate_string_constraints(
-            field_key=field_schema.key,
-            value=value,
-            min_length=field_schema.min,
-            max_length=field_schema.max,
+            pattern=getattr(field_schema, "pattern", None),
         )
 
     def _validate_markdown_field(self, field_schema: MarkdownFieldSchema, value: Any) -> None:

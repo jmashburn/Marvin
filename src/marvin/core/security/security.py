@@ -108,31 +108,24 @@ def validate_file_path(file_path: Path, allowed_base: Path) -> Path:
     except ValueError:
         raise ValueError(f"Path {file_path} is outside allowed directory {allowed_base}")
 
-    # Check for directory traversal attempts in the original path string
-    if ".." in str(file_path):
-        raise ValueError(f"Path traversal attempt detected in {file_path}")
-
     return abs_path
 
 
-def create_file_token(file_path: Path, allowed_base: Path | None = None) -> str:
+def create_file_token(file_path: Path, allowed_base: Path) -> str:
     """
     Creates a short-lived JWT access token specifically for accessing a file.
 
     Args:
         file_path (Path): The path to the file.
-        allowed_base (Path | None, optional): The base directory that file_path must be within.
-            If provided, validates that file_path doesn't escape this directory.
+        allowed_base (Path): The base directory that file_path must be within.
 
     Returns:
         str: The encoded JWT file access token.
 
     Raises:
-        ValueError: If allowed_base is provided and file_path is invalid or outside allowed_base.
+        ValueError: If file_path is invalid or outside allowed_base.
     """
-    # Validate path if allowed_base is provided
-    if allowed_base is not None:
-        file_path = validate_file_path(file_path, allowed_base)
+    file_path = validate_file_path(file_path, allowed_base)
 
     token_data = {"file": str(file_path)}
     return create_access_token(token_data, expires_delta=timedelta(minutes=30))

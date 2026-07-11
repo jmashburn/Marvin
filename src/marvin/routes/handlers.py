@@ -7,6 +7,7 @@ and for registering these handlers with the FastAPI application, typically
 during development or testing phases for enhanced debugging.
 """
 
+import logging
 from collections.abc import Callable  # For type hinting the handler function signature
 
 from fastapi import FastAPI, Request, status  # Core FastAPI components
@@ -113,6 +114,28 @@ def register_debug_handler(app: FastAPI) -> Callable | None:
     return validation_exception_handler
 
 
+_EXCEPTION_HANDLER_MAP: dict[type[Exception], tuple[int, int, str]] = {
+    PermissionDenied: (status.HTTP_403_FORBIDDEN, logging.WARNING, "You do not have permission to perform this action"),
+    NoEntryFound: (status.HTTP_404_NOT_FOUND, logging.INFO, "The requested resource was not found"),
+    SlugError: (status.HTTP_409_CONFLICT, logging.WARNING, "A resource with this slug already exists"),
+    RateLimitError: (status.HTTP_429_TOO_MANY_REQUESTS, logging.WARNING, "Rate limit exceeded. Please try again later"),
+    UserLockedOut: (status.HTTP_423_LOCKED, logging.WARNING, "User account is locked"),
+    MissingClaimException: (status.HTTP_401_UNAUTHORIZED, logging.WARNING, "Required authentication claim is missing"),
+    VideoDownloadError: (status.HTTP_500_INTERNAL_SERVER_ERROR, logging.ERROR, "Failed to download video"),
+}
+
+
+def _make_handler(exc_type: type[Exception], status_code: int, log_level: int, default_msg: str):
+    async def handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.log(log_level, f"{exc_type.__name__}: {request.method} {request.url.path} - {exc}")
+        return JSONResponse(
+            status_code=status_code,
+            content={"detail": str(exc) or default_msg},
+        )
+
+    return handler
+
+
 def register_core_exception_handlers(app: FastAPI) -> None:
     """
     Registers global exception handlers for core Marvin exceptions.
@@ -120,96 +143,19 @@ def register_core_exception_handlers(app: FastAPI) -> None:
     These handlers convert application-specific exceptions into appropriate HTTP responses,
     enabling consistent error handling across all routes without requiring HTTPException.
 
-    Registered exceptions:
-    - PermissionDenied: Returns 403 Forbidden when user lacks access rights
-    - NoEntryFound: Returns 404 Not Found when a requested resource doesn't exist
-    - SlugError: Returns 409 Conflict when a slug collision occurs
-    - RateLimitError: Returns 429 Too Many Requests when rate limit is exceeded
-    - UserLockedOut: Returns 423 Locked when user account is locked
-    - MissingClaimException: Returns 401 Unauthorized when required auth claim is missing
-    - VideoDownloadError: Returns 500 Internal Server Error for video download failures
-    - IntegrityError: Returns 409 Conflict for database integrity violations
-
-    Usage in routes:
-        Instead of: raise HTTPException(status_code=404, detail="Not found")
-        Use:        raise NoEntryFound("Resource not found")
-
     Args:
         app (FastAPI): The FastAPI application instance.
     """
+    for exc_type, (status_code, log_level, default_msg) in _EXCEPTION_HANDLER_MAP.items():
+        app.add_exception_handler(exc_type, _make_handler(exc_type, status_code, log_level, default_msg))
 
-    @app.exception_handler(PermissionDenied)
-    async def permission_denied_handler(request: Request, exc: PermissionDenied) -> JSONResponse:
-        """Handle PermissionDenied: user lacks required permissions."""
-        logger.warning(f"PermissionDenied: {request.method} {request.url.path} - {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content={"detail": str(exc) or "You do not have permission to perform this action"},
-        )
-
-    @app.exception_handler(NoEntryFound)
-    async def no_entry_found_handler(request: Request, exc: NoEntryFound) -> JSONResponse:
-        """Handle NoEntryFound: requested resource doesn't exist."""
-        logger.info(f"NoEntryFound: {request.method} {request.url.path} - {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={"detail": str(exc) or "The requested resource was not found"},
-        )
-
-    @app.exception_handler(SlugError)
-    async def slug_error_handler(request: Request, exc: SlugError) -> JSONResponse:
-        """Handle SlugError: slug already exists (conflict)."""
-        logger.warning(f"SlugError: {request.method} {request.url.path} - {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content={"detail": str(exc) or "A resource with this slug already exists"},
-        )
-
-    @app.exception_handler(RateLimitError)
-    async def rate_limit_error_handler(request: Request, exc: RateLimitError) -> JSONResponse:
-        """Handle RateLimitError: too many requests."""
-        logger.warning(f"RateLimitError: {request.method} {request.url.path} - {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            content={"detail": str(exc) or "Rate limit exceeded. Please try again later"},
-        )
-
-    @app.exception_handler(UserLockedOut)
-    async def user_locked_out_handler(request: Request, exc: UserLockedOut) -> JSONResponse:
-        """Handle UserLockedOut: user account is locked."""
-        logger.warning(f"UserLockedOut: {request.method} {request.url.path} - {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_423_LOCKED,
-            content={"detail": str(exc) or "User account is locked"},
-        )
-
-    @app.exception_handler(MissingClaimException)
-    async def missing_claim_handler(request: Request, exc: MissingClaimException) -> JSONResponse:
-        """Handle MissingClaimException: required authentication claim is missing."""
-        logger.warning(f"MissingClaimException: {request.method} {request.url.path} - {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"detail": str(exc) or "Required authentication claim is missing"},
-        )
-
-    @app.exception_handler(VideoDownloadError)
-    async def video_download_error_handler(request: Request, exc: VideoDownloadError) -> JSONResponse:
-        """Handle VideoDownloadError: video download failed."""
-        logger.error(f"VideoDownloadError: {request.method} {request.url.path} - {exc}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc) or "Failed to download video"},
-        )
-
+    # IntegrityError gets special handling: hardcoded message to avoid leaking DB details
     @app.exception_handler(IntegrityError)
     async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
-        """Handle IntegrityError: database integrity constraint violation."""
         logger.error(f"IntegrityError: {request.method} {request.url.path} - {exc}")
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"detail": "A database constraint was violated. This resource may already exist or references invalid data."},
         )
 
-    logger.info(
-        "Registered global core exception handlers (PermissionDenied, NoEntryFound, SlugError, RateLimitError, UserLockedOut, MissingClaimException, VideoDownloadError, IntegrityError)"
-    )
+    logger.info("Registered global core exception handlers")

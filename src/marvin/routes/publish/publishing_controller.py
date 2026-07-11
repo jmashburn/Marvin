@@ -38,6 +38,30 @@ settings = get_app_settings()
 router = APIRouter()
 
 
+def _entry_eager_options():
+    """Common eager loading options for entry relationships."""
+    return [
+        selectinload(Entries.entry_collections).joinedload("collection"),
+        selectinload(Entries.entry_assets).joinedload("asset"),
+        selectinload(Entries.entry_resources).joinedload("resource"),
+    ]
+
+
+def _entry_eager_options_with_type():
+    """Eager loading options for entries including entry_type (prevents N+1 on type access)."""
+    return _entry_eager_options() + [joinedload(Entries.entry_type)]
+
+
+def _asset_eager_options():
+    """Common eager loading options for asset relationships."""
+    return [selectinload(Assets.entry_assets).joinedload("entry")]
+
+
+def _resource_eager_options():
+    """Common eager loading options for resource relationships."""
+    return [selectinload(Resources.entry_resources).joinedload("entry")]
+
+
 def _entry_to_list_item(entry: Entries, include_order: bool = False) -> PublishedEntryListItem:
     """
     Convert an entry model to a PublishedEntryListItem with relationships.
@@ -210,12 +234,7 @@ async def list_published_entries(
             Entries.group_id == group.id,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
         )
-        .options(
-            # Eagerly load entry relationships to avoid N+1 queries
-            selectinload(Entries.entry_collections).joinedload("collection"),
-            selectinload(Entries.entry_assets).joinedload("asset"),
-            selectinload(Entries.entry_resources).joinedload("resource"),
-        )
+        .options(*_entry_eager_options_with_type())
     )
 
     # Filter by entry type if specified
@@ -335,11 +354,7 @@ async def get_published_entry(
             Entries.slug == slug,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
         )
-        .options(
-            selectinload(Entries.entry_collections).joinedload("collection"),
-            selectinload(Entries.entry_assets).joinedload("asset"),
-            selectinload(Entries.entry_resources).joinedload("resource"),
-        )
+        .options(*_entry_eager_options_with_type())
         .first()
     )
 
@@ -558,12 +573,7 @@ async def get_published_collection(
         session.query(Entries)
         .join(EntryCollections)
         .filter(EntryCollections.collection_id == collection.id)
-        .options(
-            selectinload(Entries.entry_collections).joinedload("collection"),
-            selectinload(Entries.entry_assets).joinedload("asset"),
-            selectinload(Entries.entry_resources).joinedload("resource"),
-            joinedload(Entries.entry_type),
-        )
+        .options(*_entry_eager_options_with_type())
     )
 
     # Only filter to published entries if user doesn't have permission to read all
@@ -629,13 +639,7 @@ async def list_published_assets(
     perms.require_permission(Permissions.READ_ASSETS, "assets")
 
     # Build query for assets with eager loading to prevent N+1 queries
-    query = (
-        session.query(Assets)
-        .filter(Assets.group_id == group.id)
-        .options(
-            selectinload(Assets.entry_assets).joinedload("entry"),
-        )
-    )
+    query = session.query(Assets).filter(Assets.group_id == group.id).options(*_asset_eager_options())
 
     # Filter by MIME type prefix if specified
     if type:
@@ -719,9 +723,7 @@ async def get_published_asset(
             Assets.group_id == group.id,
             Assets.slug == asset_slug,
         )
-        .options(
-            selectinload(Assets.entry_assets).joinedload("entry"),
-        )
+        .options(*_asset_eager_options())
         .first()
     )
 
@@ -837,13 +839,7 @@ async def list_published_resources(
     perms.require_permission(Permissions.READ_RESOURCES, "resources")
 
     # Build query for resources with eager loading to prevent N+1 queries
-    query = (
-        session.query(Resources)
-        .filter(Resources.group_id == group.id)
-        .options(
-            selectinload(Resources.entry_resources).joinedload("entry"),
-        )
-    )
+    query = session.query(Resources).filter(Resources.group_id == group.id).options(*_resource_eager_options())
 
     # Filter by resource type if specified
     if resource_type:
@@ -920,9 +916,7 @@ async def get_published_resource(
             Resources.group_id == group.id,
             Resources.slug == resource_slug,
         )
-        .options(
-            selectinload(Resources.entry_resources).joinedload("entry"),
-        )
+        .options(*_resource_eager_options())
         .first()
     )
 
@@ -998,12 +992,7 @@ async def get_resource_entries(
             EntryResources.resource_id == resource.id,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
         )
-        .options(
-            selectinload(Entries.entry_collections).joinedload("collection"),
-            selectinload(Entries.entry_assets).joinedload("asset"),
-            selectinload(Entries.entry_resources).joinedload("resource"),
-            joinedload(Entries.entry_type),
-        )
+        .options(*_entry_eager_options_with_type())
         .order_by(Entries.published_at.desc())
         .all()
     )

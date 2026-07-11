@@ -351,12 +351,8 @@ class AppSettings(BaseSettings):
 
     def model_post_init(self, __context) -> None:
         """Generate default password if not provided via environment."""
-        if self._DEFAULT_PASSWORD is None:
-            import string
-
-            # Generate a 16-character password with letters, digits, and punctuation
-            alphabet = string.ascii_letters + string.digits + string.punctuation
-            self._DEFAULT_PASSWORD = "".join(secrets.choice(alphabet) for _ in range(16))
+        if not self._DEFAULT_PASSWORD:
+            self._DEFAULT_PASSWORD = secrets.token_urlsafe(16)
 
     _DEFAULT_GROUP: str = "Default"
     """Default group for the initial admin user, if created."""

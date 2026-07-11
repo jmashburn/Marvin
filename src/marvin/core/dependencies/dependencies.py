@@ -60,7 +60,7 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
             token_model = repos.api_tokens.validate_token(plaintext_token=token)
             return token_model is not None
         except Exception as e:
-            logger.error(
+            logger.debug(
                 "Unexpected error validating API token in is_logged_in",
                 exc_info=True,
                 extra={"dependency": "is_logged_in", "token_type": "api_token"},
@@ -77,7 +77,7 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
                 if validate_long_live_token(session, token, payload.get("id")):
                     return True
             except Exception as e:
-                logger.error(
+                logger.debug(
                     "Unexpected error validating long-lived token in is_logged_in",
                     exc_info=True,
                     extra={"dependency": "is_logged_in", "token_type": "long_lived"},
@@ -87,7 +87,7 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
         return user_id is not None
 
     except Exception as e:
-        logger.error(
+        logger.debug(
             "Unexpected error decoding JWT in is_logged_in",
             exc_info=True,
             extra={"dependency": "is_logged_in", "token_type": "jwt"},
