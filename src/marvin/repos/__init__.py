@@ -6,7 +6,7 @@ from datetime import datetime
 from math import ceil
 from typing import Any, Generic, TypeVar
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from pydantic import UUID4, BaseModel
 from sqlalchemy import ColumnElement, Select, case, delete, func, nulls_first, nulls_last, select
 from sqlalchemy.orm import InstrumentedAttribute
@@ -357,7 +357,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
 
             except ValueError as e:
                 self.logger.error(e)
-                raise HTTPException(status_code=400, detail=str(e)) from e
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
         count_query = select(func.count()).select_from(query.subquery())
         count = self.session.scalar(count_query)

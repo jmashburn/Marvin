@@ -48,6 +48,59 @@ class ContentValidationError(ValueError):
 class ContentValidator(BaseService):
     """Service for validating entry content against entry type schemas."""
 
+    def _validate_string_constraints(
+        self,
+        field_key: str,
+        value: Any,
+        min_length: int | None = None,
+        max_length: int | None = None,
+        pattern: str | None = None,
+    ) -> None:
+        """Validate string type and length/pattern constraints.
+
+        Args:
+            field_key: The field name for error messages
+            value: The value to validate
+            min_length: Minimum string length (optional)
+            max_length: Maximum string length (optional)
+            pattern: Regex pattern to match (optional)
+
+        Raises:
+            ContentValidationError: If validation fails
+        """
+        if not isinstance(value, str):
+            raise ContentValidationError(
+                field_key,
+                f"Expected string, got {type(value).__name__}",
+            )
+
+        # Check length constraints
+        if min_length is not None and len(value) < min_length:
+            raise ContentValidationError(
+                field_key,
+                f"String length {len(value)} is less than minimum {min_length}",
+            )
+
+        if max_length is not None and len(value) > max_length:
+            raise ContentValidationError(
+                field_key,
+                f"String length {len(value)} exceeds maximum {max_length}",
+            )
+
+        # Check pattern
+        if pattern is not None:
+            try:
+                if not re.match(pattern, value):
+                    raise ContentValidationError(
+                        field_key,
+                        f"Value does not match pattern: {pattern}",
+                    )
+            except re.error as e:
+                raise ContentValidationError(
+                    field_key,
+                    f"Invalid regex pattern in schema: {e}",
+                )
+
     def validate_content(
         self,
         schema_definition: EntryTypeSchemaDefinition,
@@ -124,59 +177,22 @@ class ContentValidator(BaseService):
 
     def _validate_text_field(self, field_schema: TextFieldSchema, value: Any) -> None:
         """Validate text field."""
-        if not isinstance(value, str):
-            raise ContentValidationError(
-                field_schema.key,
-                f"Expected string, got {type(value).__name__}",
-            )
-
-        # Check length constraints
-        if field_schema.min is not None and len(value) < field_schema.min:
-            raise ContentValidationError(
-                field_schema.key,
-                f"String length {len(value)} is less than minimum {field_schema.min}",
-            )
-
-        if field_schema.max is not None and len(value) > field_schema.max:
-            raise ContentValidationError(
-                field_schema.key,
-                f"String length {len(value)} exceeds maximum {field_schema.max}",
-            )
-
-        # Check pattern
-        if field_schema.pattern is not None:
-            try:
-                if not re.match(field_schema.pattern, value):
-                    raise ContentValidationError(
-                        field_schema.key,
-                        f"Value does not match pattern: {field_schema.pattern}",
-                    )
-            except re.error as e:
-                raise ContentValidationError(
-                    field_schema.key,
-                    f"Invalid regex pattern in schema: {e}",
-                )
+        self._validate_string_constraints(
+            field_key=field_schema.key,
+            value=value,
+            min_length=field_schema.min,
+            max_length=field_schema.max,
+            pattern=field_schema.pattern,
+        )
 
     def _validate_textarea_field(self, field_schema: TextareaFieldSchema, value: Any) -> None:
-        """Validate textarea field (same as text field)."""
-        if not isinstance(value, str):
-            raise ContentValidationError(
-                field_schema.key,
-                f"Expected string, got {type(value).__name__}",
-            )
-
-        # Check length constraints
-        if field_schema.min is not None and len(value) < field_schema.min:
-            raise ContentValidationError(
-                field_schema.key,
-                f"String length {len(value)} is less than minimum {field_schema.min}",
-            )
-
-        if field_schema.max is not None and len(value) > field_schema.max:
-            raise ContentValidationError(
-                field_schema.key,
-                f"String length {len(value)} exceeds maximum {field_schema.max}",
-            )
+        """Validate textarea field (same as text field but without pattern)."""
+        self._validate_string_constraints(
+            field_key=field_schema.key,
+            value=value,
+            min_length=field_schema.min,
+            max_length=field_schema.max,
+        )
 
     def _validate_markdown_field(self, field_schema: MarkdownFieldSchema, value: Any) -> None:
         """Validate markdown field (string type)."""

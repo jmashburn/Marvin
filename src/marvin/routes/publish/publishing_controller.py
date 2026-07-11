@@ -38,6 +38,45 @@ settings = get_app_settings()
 router = APIRouter()
 
 
+def _entry_to_list_item(entry: Entries, include_order: bool = False) -> PublishedEntryListItem:
+    """
+    Convert an entry model to a PublishedEntryListItem with relationships.
+
+    Args:
+        entry: The entry model instance
+        include_order: Whether to include sort order from junction table
+
+    Returns:
+        PublishedEntryListItem with populated relationships
+    """
+    # Get collection slugs
+    collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+
+    # Get asset slugs
+    asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+
+    # Get resource slugs
+    resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
+    # Build base item
+    item_data = {
+        "slug": entry.slug,
+        "title": entry.title,
+        "entry_type": entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
+        "summary": entry.summary,
+        "published_at": entry.published_at,
+        "collections": collection_slugs,
+        "assets": asset_slugs,
+        "resources": resource_slugs,
+    }
+
+    # Add optional fields if present
+    if hasattr(entry, "status") and entry.status:
+        item_data["status"] = entry.status
+
+    return PublishedEntryListItem(**item_data)
+
+
 @router.get("/{workspace_slug}", response_model=WorkspaceInfo, summary="Get Workspace Info")
 async def get_workspace_info(
     context: tuple = Depends(get_publishing_context),
@@ -235,7 +274,7 @@ async def list_published_entries(
             query = query.filter(Entries.update_at >= updated_dt)
         except ValueError:
             raise HTTPException(
-                status_code=400,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid date format for updated_since: {updated_since}. Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS with optional Z or timezone offset)",
             )
 
@@ -246,29 +285,7 @@ async def list_published_entries(
     entries = query.order_by(Entries.published_at.desc()).offset(offset).limit(limit).all()
 
     # Convert to list items
-    data = []
-    for entry in entries:
-        # Get collection slugs
-        collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
-
-        # Get asset slugs
-        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
-
-        # Get resource slugs
-        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
-
-        data.append(
-            PublishedEntryListItem(
-                slug=entry.slug,
-                title=entry.title,
-                entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
-                summary=entry.summary,
-                published_at=entry.published_at,
-                collections=collection_slugs,
-                assets=asset_slugs,
-                resources=resource_slugs,
-            )
-        )
+    data = [_entry_to_list_item(entry) for entry in entries]
 
     return PublishedEntriesResponse(
         data=data,
@@ -327,7 +344,7 @@ async def get_published_entry(
     )
 
     if not entry:
-        raise HTTPException(status_code=404, detail="Entry not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
 
     # Get collections with full details
     collections = [
@@ -531,7 +548,7 @@ async def get_published_collection(
     )
 
     if not collection:
-        raise HTTPException(status_code=404, detail="Collection not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
 
     # Get entries in this collection with eager loading to prevent N+1 queries
     # Filter by status based on permissions
@@ -558,32 +575,12 @@ async def get_published_collection(
     # Convert to list items
     entry_items = []
     for entry in entries:
-        # Get collection slugs for each entry
-        collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
-
-        # Get asset slugs
-        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
-
-        # Get resource slugs
-        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
-
-        # Get sort order from the junction table for this collection
+        item = _entry_to_list_item(entry)
+        # Add collection-specific sort order
         order = next((ec.sort_order for ec in entry.entry_collections if ec.collection_id == collection.id), None)
-
-        entry_items.append(
-            PublishedEntryListItem(
-                slug=entry.slug,
-                title=entry.title,
-                entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
-                summary=entry.summary,
-                published_at=entry.published_at,
-                status=entry.status,
-                collections=collection_slugs,
-                assets=asset_slugs,
-                resources=resource_slugs,
-                order=order,
-            )
-        )
+        if order is not None:
+            item.order = order
+        entry_items.append(item)
 
     return PublishedCollectionRead(
         slug=collection.slug,
@@ -729,7 +726,7 @@ async def get_published_asset(
     )
 
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
     # Get published entry slugs that use this asset
     entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
@@ -791,7 +788,7 @@ async def serve_asset_file(
     )
 
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
     # For local storage, redirect to the static file URL
     if asset.storage_provider == "local":
@@ -802,7 +799,7 @@ async def serve_asset_file(
         return RedirectResponse(url=asset.public_url)
 
     # Fallback error
-    raise HTTPException(status_code=500, detail="Asset file URL not available")
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asset file URL not available")
 
 
 @router.get(
@@ -930,7 +927,7 @@ async def get_published_resource(
     )
 
     if not resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
 
     # Get published entry slugs that reference this resource
     entry_slugs = [er.entry.slug for er in resource.entry_resources if er.entry and er.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
@@ -989,7 +986,7 @@ async def get_resource_entries(
     )
 
     if not resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
 
     # Get published entries that reference this resource with eager loading
     from marvin.db.models.platform import EntryResources
@@ -1011,29 +1008,5 @@ async def get_resource_entries(
         .all()
     )
 
-    # Convert to list items
-    entry_items = []
-    for entry in entries:
-        # Get collection slugs for each entry
-        collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
-
-        # Get asset slugs
-        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
-
-        # Get resource slugs
-        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
-
-        entry_items.append(
-            PublishedEntryListItem(
-                slug=entry.slug,
-                title=entry.title,
-                entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
-                summary=entry.summary,
-                published_at=entry.published_at,
-                collections=collection_slugs,
-                assets=asset_slugs,
-                resources=resource_slugs,
-            )
-        )
-
-    return entry_items
+    # Convert to list items using shared helper
+    return [_entry_to_list_item(entry) for entry in entries]

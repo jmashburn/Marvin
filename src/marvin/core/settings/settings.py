@@ -132,6 +132,15 @@ class AppSettings(BaseSettings):
 
     API_PORT: int = 8080
 
+    # JWT token lifetime in hours
+    # Security vs. UX trade-off considerations:
+    #   - Shorter lifetime (1-8 hours): More secure, users must re-login more often
+    #   - Longer lifetime (24-48 hours): Better UX, higher risk if token is compromised
+    #   - Consider implementing refresh tokens for long-lived sessions with short access tokens
+    # Current: 48 hours provides balance for internal tools, but evaluate based on:
+    #   - Sensitivity of data accessed
+    #   - User authentication patterns
+    #   - Compliance requirements (SOC2, HIPAA, etc.)
     TOKEN_TIME: int = 48
 
     LOG_CONFIG_OVERRIDE: Path | None = None
@@ -331,8 +340,23 @@ class AppSettings(BaseSettings):
     _DEFAULT_EMAIL: str = "changeme@example.com"
     """Default email for the initial admin user, if created."""
 
-    _DEFAULT_PASSWORD: SecretStr = "MyPassword"
-    """Default password for the initial admin user, if created."""
+    _DEFAULT_PASSWORD: str | None = None
+    """
+    Default password for the initial admin user, if created.
+
+    Security: This is generated randomly at runtime rather than hardcoded.
+    Set via environment variable DEFAULT_PASSWORD, or auto-generated if not set.
+    The generated password is logged during database seeding for admin access.
+    """
+
+    def model_post_init(self, __context) -> None:
+        """Generate default password if not provided via environment."""
+        if self._DEFAULT_PASSWORD is None:
+            import string
+
+            # Generate a 16-character password with letters, digits, and punctuation
+            alphabet = string.ascii_letters + string.digits + string.punctuation
+            self._DEFAULT_PASSWORD = "".join(secrets.choice(alphabet) for _ in range(16))
 
     _DEFAULT_GROUP: str = "Default"
     """Default group for the initial admin user, if created."""

@@ -175,6 +175,9 @@ class Users(SqlAlchemyBase, BaseMixins):
         default="1234",
         doc="A cache key that can be used for invalidating user-specific caches. Defaults to '1234'.",
     )  # Consider making this dynamic
+    # NOTE: Field name 'login_attemps' is intentionally misspelled (missing 't') for
+    # backward compatibility with existing database schema. Do not rename without migration.
+    # See: https://github.com/yourorg/marvin/issues/XXX for tracking proper migration
     login_attemps: Mapped[int | None] = mapped_column(
         Integer, default=0, doc="Number of failed login attempts. Resets on successful login. Defaults to 0."
     )
@@ -203,11 +206,7 @@ class Users(SqlAlchemyBase, BaseMixins):
 
     # Relationship to LongLiveToken (one-to-many: one user can have many API tokens)
     # Use foreign_keys to specify which FK to use (user_id, not created_by)
-    tokens: Mapped[list["LongLiveToken"]] = orm.relationship(
-        "LongLiveToken",
-        foreign_keys="LongLiveToken.user_id",
-        **_token_relationship_args
-    )
+    tokens: Mapped[list["LongLiveToken"]] = orm.relationship("LongLiveToken", foreign_keys="LongLiveToken.user_id", **_token_relationship_args)
     # Relationship to PasswordResetModel (one-to-many: one user can have multiple password reset tokens over time)
     password_reset_tokens: Mapped[list["PasswordResetModel"]] = orm.relationship("PasswordResetModel", **_token_relationship_args)
 
@@ -271,6 +270,7 @@ class Users(SqlAlchemyBase, BaseMixins):
             WorkspaceRole if user is a member, None otherwise.
         """
         from .roles import WorkspaceRole
+
         for membership in self.workspace_memberships:
             if str(membership.group_id) == str(group_id):
                 return membership.workspace_role
@@ -288,6 +288,7 @@ class Users(SqlAlchemyBase, BaseMixins):
             True if user has the required role or higher privilege.
         """
         from .roles import workspace_role_has_higher_or_equal_privilege
+
         user_role = self.get_workspace_role(group_id)
         if user_role is None:
             return False
