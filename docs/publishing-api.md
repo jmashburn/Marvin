@@ -168,6 +168,56 @@ Returns a single published entry with full Markdown content and metadata.
 }
 ```
 
+### List Entry Types
+
+```http
+GET /api/publish/{group_slug}/entry-types
+Authorization: Bearer <site_client_token>
+```
+
+Returns all entry types in the workspace with their rendering and capability metadata.
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "slug": "page",
+      "name": "Page",
+      "is_rendered": true,
+      "rendering": {
+        "renderer": "page",
+        "package": "@inneropen/marvin-renderers-core",
+        "version": null,
+        "config": null
+      },
+      "capabilities": {
+        "publishable": true,
+        "submittable": false,
+        "routable": true
+      }
+    },
+    {
+      "slug": "navigation-item",
+      "name": "Navigation Item",
+      "is_rendered": true,
+      "rendering": {
+        "renderer": "navigation",
+        "package": "@inneropen/marvin-renderers-core"
+      },
+      "capabilities": {
+        "publishable": true,
+        "submittable": false,
+        "routable": false
+      }
+    }
+  ]
+}
+```
+
+Used by the SDK `renderers.list()` method and the CLI `publish renderers` command. The `is_rendered` flag allows frontends to filter to only entry types that have a corresponding renderer component.
+
 ### List Assets
 
 ```http

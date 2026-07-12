@@ -75,6 +75,29 @@ entry_collections
   created_at
 ```
 
+### Entry Types
+
+Define content structure, rendering, and capabilities for entries.
+
+```sql
+entry_types
+  id (primary key)
+  group_id (foreign key to groups)
+  name
+  slug (unique within group)
+  description (optional)
+  schema_json (jsonb, field definitions)
+  is_rendered (boolean, default false)
+  rendering_json (jsonb, nullable — renderer name, package, version, config)
+  capabilities_json (jsonb, nullable — publishable, submittable, routable)
+  created_at
+  updated_at
+```
+
+`is_rendered` marks entry types that have a corresponding frontend renderer component (e.g., page, article, faq, navigation-item). The Publishing API exposes this flag so SDKs and build tools can filter to only rendered types.
+
+`rendering_json` stores a `RenderingDefinition`: `{ renderer, package, version, config }`. `capabilities_json` stores a `CapabilitiesDefinition`: `{ publishable, submittable, routable }`.
+
 ### Resources
 
 Reusable objects referenced by entries (fabric, thread, tools, suppliers, repos, etc).

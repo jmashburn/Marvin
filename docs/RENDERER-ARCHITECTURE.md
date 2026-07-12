@@ -1,8 +1,9 @@
 # Renderer Architecture for Marvin
 
-**Status**: Proposal — awaiting review
+**Status**: Implemented (Phases 1–6 complete)
 **Created**: 2026-07-12
 **Author**: Claude (architectural review)
+**Last Updated**: 2026-07-12
 
 ---
 
@@ -203,21 +204,19 @@ This is backwards-compatible: `entry_type` remains a string slug. The new `entry
 
 ### 3.3 SDK Additions
 
-Extend the existing `MarvinEntryType` interface:
+The SDK defines a dedicated `PublishedEntryType` interface (separate from the platform `MarvinEntryType`):
 
 ```typescript
-export interface MarvinEntryType {
-  // ... existing fields ...
-
-  /** Renderer declaration for this entry type */
+export interface PublishedEntryType {
+  slug: string;
+  name: string;
+  isRendered: boolean;
   rendering?: {
     renderer?: string;
     package?: string;
     version?: string;
     config?: Record<string, unknown>;
   };
-
-  /** Behavioral capabilities */
   capabilities?: {
     publishable?: boolean;
     submittable?: boolean;
@@ -226,14 +225,17 @@ export interface MarvinEntryType {
 }
 ```
 
-No new SDK namespaces or methods needed initially. Consumers can derive renderer requirements from `entryTypes.list()`:
+The SDK exposes a dedicated `renderers` module (renamed from the proposed `entryTypes` approach for clarity):
 
 ```typescript
-const types = await client.entryTypes.list();
-const requiredRenderers = types
-  .filter(t => t.rendering?.renderer)
+const client = createMarvinClient();
+const renderers = await client.renderers.list();
+// Returns PublishedEntryType[] from GET /api/publish/{workspace}/entry-types
+
+const required = renderers
+  .filter(t => t.isRendered)
   .map(t => ({
-    renderer: t.rendering!.renderer,
+    renderer: t.rendering?.renderer,
     package: t.rendering?.package,
     version: t.rendering?.version,
   }));
@@ -321,24 +323,21 @@ const registry = {
 
 ### 3.6 Build-Time Validation
 
-A framework integration package (e.g., `@inneropen/marvin-astro`) can provide a Vite/Astro plugin:
+Build-time validation is integrated into `@inneropen/marvin-renderers-core` (not a separate package as originally proposed):
 
 ```typescript
 // astro.config.mjs
-import { marvinRendererCheck } from '@inneropen/marvin-astro';
+import { marvinIntegration } from '@inneropen/marvin-renderers-core/astro';
+import { astroRegistry } from '@inneropen/marvin-renderers-core/astro';
 
 export default defineConfig({
   integrations: [
-    marvinRendererCheck({
-      registry: renderers, // your renderer map
-      // Fetches entry types from Marvin at build time
-      // Warns/errors if any entry type requires a renderer not in the registry
-    }),
+    marvinIntegration({ registry: astroRegistry }),
   ],
 });
 ```
 
-This is a build-time check, not a runtime dependency. It reads the workspace's entry types via the SDK and compares against the provided registry. Missing renderers produce clear error messages:
+The integration runs at `astro:config:done`. It reads env vars (`MARVIN_API_URL`, `MARVIN_SITE_CLIENT_TOKEN`, `MARVIN_WORKSPACE_SLUG`), calls `client.renderers.list()`, filters to `isRendered` entry types, and checks each renderer name against the provided registry. Missing renderers produce warnings; set `strict: true` to throw errors.
 
 ```
 [marvin] Entry type "shopify-product" requires renderer "shopify-product"
@@ -348,20 +347,18 @@ This is a build-time check, not a runtime dependency. It reads the workspace's e
 
 ### 3.7 CLI Additions
 
-Two new subcommands under a `renderers` group:
+One subcommand under the `publish` group:
 
 ```bash
-# List renderers required by the workspace
-marvin renderers list
-# Output: table of entry types with their renderer, package, version
+# List renderers required by the workspace (isRendered types only)
+marvin publish renderers
+# Output: table with Name, Slug, Renderer, Package, Publishable, Routable
 
-# Validate a local project against workspace requirements
-marvin renderers validate --project-dir ./my-site
-# Reads the project's package.json and renderer registry
-# Reports missing/outdated renderer packages
+# Include all entry types (even non-rendered)
+marvin publish renderers --all
 ```
 
-`marvin renderers sync` (auto-install) is deferred — it requires understanding the project's package manager, lockfile format, and monorepo structure. Too much complexity for Phase 1.
+The `validate` and `sync` commands proposed originally are deferred — build-time validation in `marvin-renderers-core` covers the primary use case.
 
 ---
 
@@ -391,50 +388,51 @@ marvin renderers validate --project-dir ./my-site
 
 ### From current state to renderer-aware Entry Types
 
-**Phase 1: Backend foundation** (low risk, no breaking changes)
+**Phase 1: Backend foundation** ✅ Complete
 
-1. Add `rendering_json` and `capabilities_json` columns to `entry_types` table (migration, nullable, defaults to NULL)
-2. Add Pydantic schemas: `RenderingDefinition`, `CapabilitiesDefinition`
-3. Add validation in `EntryTypeCreate`/`EntryTypeUpdate` (same pattern as `content_schema`)
-4. Expose new fields in `EntryTypeRead` and `EntryTypeSummary`
-5. Update system entry types seed data with default renderers:
-   - `page` → `renderer: "page"`
-   - `article` → `renderer: "article"`
-   - `project` → `renderer: "page"` (rendered like a page with extra fields)
-   - `navigation-item` → `renderer: null`, `capabilities: { routable: false }`
-   - `faq` → `renderer: "faq"`
+1. ✅ Added `rendering_json` and `capabilities_json` columns to `entry_types` table
+2. ✅ Added `is_rendered` boolean flag to `entry_types` — marks which types have frontend renderers (not in original proposal; added for cleaner filtering)
+3. ✅ Added Pydantic schemas: `RenderingDefinition`, `CapabilitiesDefinition`
+4. ✅ Added validation in `EntryTypeCreate`/`EntryTypeUpdate`
+5. ✅ Exposed new fields in `EntryTypeRead` and `EntryTypeSummary`
+6. ✅ Updated system entry types seed data with default renderers:
+   - `page` → `renderer: "page"`, `is_rendered: true`
+   - `article` → `renderer: "article"`, `is_rendered: true`
+   - `faq` → `renderer: "faq"`, `is_rendered: true`
+   - `navigation-item` → `renderer: "navigation"`, `is_rendered: true`, `capabilities: { routable: false }`
 
-**Phase 2: Publishing API** (backwards-compatible)
+**Phase 2: Publishing API** ✅ Complete
 
-1. Add `PublishedEntryTypeInfo` to publishing schemas
-2. Include `entry_type_info` in `PublishedEntryRead` responses
-3. Existing consumers see no change — `entry_type` string slug remains
+1. ✅ Added `PublishedEntryTypeRead` schema with `is_rendered`, `rendering`, and `capabilities`
+2. ✅ Added dedicated `/api/publish/{workspace}/entry-types` endpoint
+3. ✅ Existing entry endpoints unchanged — backwards-compatible
 
-**Phase 3: SDK** (backwards-compatible)
+**Phase 3: SDK** ✅ Complete
 
-1. Extend `MarvinEntryType` interface with `rendering` and `capabilities`
-2. Update SDK to pass through new fields from Publishing API
-3. No new methods needed initially
+1. ✅ Added `PublishedEntryType` interface with `isRendered`, `rendering`, and `capabilities`
+2. ✅ Added `RenderersModule` with `renderers.list()` method (renamed from `entryTypes` to `renderers`)
+3. ✅ Workspace module exposes `workspace.renderers`
 
-**Phase 4: Frontend renderer package**
+**Phase 4: Frontend renderer package** ✅ Complete
 
-1. Create `@inneropen/marvin-renderers-core` package
-2. Start with Astro renderers for system entry types: page, article, faq
-3. Export a registry helper and individual components
-4. Publish to npm
+1. ✅ Created `@inneropen/marvin-renderers-core` package
+2. ✅ Astro renderers for system entry types: page, article, faq, navigation
+3. ✅ Registry helper, logic layer, and individual component exports
+4. ✅ Build-time validation via `validateRenderers()` (filters to `isRendered` types)
 
-**Phase 5: Build validation**
+**Phase 5: Build validation** ✅ Complete
 
-1. Create `@inneropen/marvin-astro` integration package
-2. Implement `marvinRendererCheck()` Vite/Astro plugin
-3. Wire up in Astro site config
+1. ✅ Build-time validation integrated into `marvin-renderers-core` (not a separate package)
+2. ✅ `marvinIntegration()` Astro integration validates at `astro:config:done`
+3. ✅ Uses SDK `createMarvinClient` for authenticated API access
 
-**Phase 6: CLI**
+**Phase 6: CLI** ✅ Complete (renamed from proposal)
 
-1. Add `marvin renderers list` command
-2. Add `marvin renderers validate` command
+1. ✅ Added `marvin publish renderers` command (under `publish` group, not top-level)
+2. ✅ `--all` flag to include non-rendered entry types (default: `isRendered` only)
+3. ✅ Table output with Name, Slug, Renderer, Package, Publishable, Routable columns
 
-**Phase 7: Forms migration** (can happen early — Forms is not yet in production use)
+**Phase 7: Forms migration** (future — not yet started)
 
 1. Create a `form` entry type with `renderer: "form"`, `capabilities: { submittable: true }`
 2. Build form submission handling as a generic capability-driven endpoint
@@ -449,10 +447,9 @@ marvin renderers validate --project-dir ./my-site
 |---|---|
 | **Backend (Marvin server)** | Stores `rendering_json` and `capabilities_json` on Entry Types. Validates structure. Exposes via Platform and Publishing APIs. Never interprets renderer values. |
 | **Publishing API** | Returns entry type metadata including renderer and capabilities alongside entry data. |
-| **SDK** | Passes through renderer/capability metadata in TypeScript types. No renderer logic. |
-| **CLI** | `renderers list` (read workspace), `renderers validate` (check project). No package management. |
-| **Renderer packages** | Provide framework-native components. Export registries. Own all rendering logic and presentation. |
-| **Framework integrations** | Build-time validation (missing renderers). Optional Vite/Astro plugins. |
+| **SDK** | `RenderersModule` with `renderers.list()`. Passes through `isRendered`, `rendering`, and `capabilities` as TypeScript types. |
+| **CLI** | `publish renderers` lists workspace renderers (with `--all` flag). No package management. |
+| **Renderer packages** | Provide framework-native components, registry, logic helpers, and build-time validation via Astro integration. |
 | **Consumer sites** | Maintain a renderer registry. Map entry types to components. Override or extend package renderers. |
 
 ---
@@ -469,4 +466,4 @@ marvin renderers validate --project-dir ./my-site
 
 ---
 
-*This document is a proposal. No implementation should begin until reviewed and approved.*
+*Phases 1–6 are implemented and shipped. Phase 7 (Forms migration) is planned for a future release.*

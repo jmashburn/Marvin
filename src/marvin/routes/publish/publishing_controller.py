@@ -5,14 +5,23 @@ Provides read-only access to published content for external sites (Astro, etc.).
 All routes require API client token authentication (marvin_sk_ prefix).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from marvin.core.config import get_app_settings
 from marvin.core.dependencies import get_publishing_context
 from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
-from marvin.db.models.platform import APIClients, Assets, Collections, Entries, Resources
+from marvin.db.models.platform import (
+    APIClients,
+    Assets,
+    Collections,
+    Entries,
+    EntryAssets,
+    EntryCollections,
+    EntryResources,
+    Resources,
+)
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group import GroupRead
 from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
@@ -46,9 +55,9 @@ router = APIRouter()
 def _entry_eager_options():
     """Common eager loading options for entry relationships."""
     return [
-        selectinload(Entries.entry_collections).joinedload("collection"),
-        selectinload(Entries.entry_assets).joinedload("asset"),
-        selectinload(Entries.entry_resources).joinedload("resource"),
+        selectinload(Entries.entry_collections).joinedload(EntryCollections.collection),
+        selectinload(Entries.entry_assets).joinedload(EntryAssets.asset),
+        selectinload(Entries.entry_resources).joinedload(EntryResources.resource),
     ]
 
 
@@ -59,12 +68,12 @@ def _entry_eager_options_with_type():
 
 def _asset_eager_options():
     """Common eager loading options for asset relationships."""
-    return [selectinload(Assets.entry_assets).joinedload("entry")]
+    return [selectinload(Assets.entry_assets).joinedload(EntryAssets.entry)]
 
 
 def _resource_eager_options():
     """Common eager loading options for resource relationships."""
-    return [selectinload(Resources.entry_resources).joinedload("entry")]
+    return [selectinload(Resources.entry_resources).joinedload(EntryResources.entry)]
 
 
 def _build_entry_type_info(entry: Entries) -> PublishedEntryTypeInfo | None:
