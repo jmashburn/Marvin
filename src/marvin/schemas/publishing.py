@@ -71,6 +71,34 @@ class PublishedEntryTypeInfo(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EntryTypeRendering(_MarvinModel):
+    """Rendering configuration for a published entry type."""
+
+    renderer: str | None = None
+    package: str | None = None
+    version: str | None = None
+    config: dict | None = None
+
+
+class EntryTypeCapabilities(_MarvinModel):
+    """Capabilities for a published entry type."""
+
+    publishable: bool = True
+    submittable: bool = False
+    routable: bool = True
+
+
+class PublishedEntryTypeRead(_MarvinModel):
+    """Schema for entry types in the publishing API."""
+
+    slug: str
+    name: str
+    rendering: EntryTypeRendering | None = None
+    capabilities: EntryTypeCapabilities | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PublishedEntryRead(_MarvinModel):
     """
     Schema for published entries in the publishing API.

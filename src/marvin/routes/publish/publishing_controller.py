@@ -17,6 +17,8 @@ from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group import GroupRead
 from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.publishing import (
+    EntryTypeCapabilities,
+    EntryTypeRendering,
     PaginationMeta,
     PublishedAssetRead,
     PublishedAssetsResponse,
@@ -27,6 +29,7 @@ from marvin.schemas.publishing import (
     PublishedEntryListItem,
     PublishedEntryRead,
     PublishedEntryTypeInfo,
+    PublishedEntryTypeRead,
     PublishedResourceRead,
     PublishedResourcesResponse,
     PublishedResourceSummary,
@@ -201,6 +204,59 @@ async def get_site_configuration(
         ),
         site=site_config,
     )
+
+
+@router.get(
+    "/{workspace_slug}/entry-types",
+    response_model=list[PublishedEntryTypeRead],
+    summary="List Entry Types",
+)
+async def list_entry_types(
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+) -> list[PublishedEntryTypeRead]:
+    """
+    List all entry types in the workspace with rendering and capabilities info.
+
+    Returns a lean response with only renderer-relevant fields, suitable for
+    build-time validation of renderer registries.
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries OR read:all_entries
+    """
+    api_client, group, perms = context
+
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "entry types")
+
+    from sqlalchemy import or_
+
+    from marvin.db.models.platform import EntryTypes
+
+    entry_types = (
+        session.query(EntryTypes)
+        .filter(or_(EntryTypes.group_id == group.id, EntryTypes.group_id.is_(None)))
+        .order_by(EntryTypes.sort_order, EntryTypes.name)
+        .all()
+    )
+
+    result = []
+    for et in entry_types:
+        rendering_dict = et.rendering_json or {}
+        capabilities_dict = et.capabilities_json or {}
+
+        rendering = EntryTypeRendering(**rendering_dict) if rendering_dict else None
+        capabilities = EntryTypeCapabilities(**capabilities_dict) if capabilities_dict else EntryTypeCapabilities()
+
+        result.append(
+            PublishedEntryTypeRead(
+                slug=et.slug,
+                name=et.name,
+                rendering=rendering,
+                capabilities=capabilities,
+            )
+        )
+
+    return result
 
 
 @router.get(
