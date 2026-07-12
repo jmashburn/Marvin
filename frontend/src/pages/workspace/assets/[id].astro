@@ -130,17 +130,26 @@ if (!id) {
         <aside class="sidebar">
           <div class="sidebar-section">
             <h3>Preview</h3>
-            {asset.publicUrl && (
+            {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
               <div class="asset-preview">
                 <img
                   src={asset.publicUrl}
                   alt={asset.altText || asset.name}
                 />
               </div>
-            )}
+            ) : asset.publicUrl ? (
+              <div class="asset-preview file-preview">
+                <span class="file-icon">{
+                  asset.mimeType?.startsWith('video/') ? '🎬' :
+                  asset.mimeType?.startsWith('audio/') ? '🎵' :
+                  asset.mimeType?.includes('pdf') ? '📄' : '📎'
+                }</span>
+                <span class="file-label">{asset.originalFilename || asset.name}</span>
+              </div>
+            ) : null}
             {asset.publicUrl && (
               <a href={asset.publicUrl} target="_blank" rel="noopener noreferrer" class="button secondary" style="width:100%;margin-top:1rem;">
-                View Full Size ↗
+                {asset.mimeType?.startsWith('image/') ? 'View Full Size ↗' : 'Download File ↗'}
               </a>
             )}
           </div>
@@ -276,6 +285,24 @@ if (!id) {
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .file-preview {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .file-icon {
+    font-size: 3rem;
+    opacity: 0.7;
+  }
+
+  .file-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+    word-break: break-all;
+    padding: 0 1rem;
   }
 
   .info-list {
