@@ -56,6 +56,21 @@ class PublishedAssetRead(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublishedEntryTypeInfo(_MarvinModel):
+    """Flattened entry type rendering and capabilities info for published entries."""
+
+    slug: str
+    renderer: str | None = None
+    package: str | None = None
+    version: str | None = None
+    config: dict | None = None
+    publishable: bool = True
+    submittable: bool = False
+    routable: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PublishedEntryRead(_MarvinModel):
     """
     Schema for published entries in the publishing API.
@@ -75,6 +90,9 @@ class PublishedEntryRead(_MarvinModel):
 
     entry_type: str
     """Entry type slug (e.g., 'page', 'article', 'project')."""
+
+    entry_type_info: PublishedEntryTypeInfo | None = Field(default=None, serialization_alias="entryTypeInfo")
+    """Rendering and capabilities info for this entry's type."""
 
     summary: str | None = None
     """Optional short description/summary."""
@@ -119,6 +137,9 @@ class PublishedEntryListItem(_MarvinModel):
 
     entry_type: str
     """Entry type slug (e.g., 'page', 'article', 'project')."""
+
+    entry_type_info: PublishedEntryTypeInfo | None = Field(default=None, serialization_alias="entryTypeInfo")
+    """Rendering and capabilities info for this entry's type."""
 
     summary: str | None = None
     """Optional short description/summary."""

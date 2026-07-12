@@ -45,6 +45,12 @@ class EntryTypes(SqlAlchemyBase, BaseMixins):
     schema_json: Mapped[dict] = mapped_column("schema_json", JSONB, nullable=False, default=dict, server_default="{}")
     """Schema definition for this entry type (EntryTypeSchemaDefinition)."""
 
+    rendering_json: Mapped[dict | None] = mapped_column("rendering_json", sa.JSON, nullable=True)
+    """Rendering configuration for this entry type (RenderingDefinition)."""
+
+    capabilities_json: Mapped[dict | None] = mapped_column("capabilities_json", sa.JSON, nullable=True)
+    """Behavioral capabilities for this entry type (CapabilitiesDefinition)."""
+
     entries: Mapped[list["Entries"]] = orm.relationship("Entries", back_populates="entry_type")
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)

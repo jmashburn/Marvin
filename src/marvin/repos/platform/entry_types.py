@@ -10,6 +10,7 @@ from marvin.core.root_logger import get_logger
 from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryTypeRead
+from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
 logger = get_logger(__name__)
@@ -150,23 +151,36 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         return [eff_schema.model_validate(item) for item in items]
 
     def _validate_schema_json(self, schema_json: dict | None) -> None:
-        """Validate schema_json against EntryTypeSchemaDefinition.
-
-        Args:
-            schema_json: The schema definition to validate
-
-        Raises:
-            HTTPException: If schema validation fails
-        """
         if schema_json is None:
             return
-
         try:
             EntryTypeSchemaDefinition.model_validate(schema_json)
         except ValidationError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid schema definition: {e}",
+            )
+
+    def _validate_rendering_json(self, rendering_json: dict | None) -> None:
+        if rendering_json is None:
+            return
+        try:
+            RenderingDefinition.model_validate(rendering_json)
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid rendering definition: {e}",
+            )
+
+    def _validate_capabilities_json(self, capabilities_json: dict | None) -> None:
+        if capabilities_json is None:
+            return
+        try:
+            CapabilitiesDefinition.model_validate(capabilities_json)
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid capabilities definition: {e}",
             )
 
     def create(self, data: Any) -> EntryTypeRead:
@@ -181,13 +195,21 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if not data_dict.get("slug") and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
-        # Map content_schema to schema_json (Pydantic field name to DB column name)
+        # Map Pydantic field names to DB column names
         if "content_schema" in data_dict:
             data_dict["schema_json"] = data_dict.pop("content_schema")
+        if "rendering" in data_dict:
+            data_dict["rendering_json"] = data_dict.pop("rendering")
+        if "capabilities" in data_dict:
+            data_dict["capabilities_json"] = data_dict.pop("capabilities")
 
-        # Validate schema_json if provided
+        # Validate JSON fields if provided
         if "schema_json" in data_dict:
             self._validate_schema_json(data_dict["schema_json"])
+        if "rendering_json" in data_dict:
+            self._validate_rendering_json(data_dict["rendering_json"])
+        if "capabilities_json" in data_dict:
+            self._validate_capabilities_json(data_dict["capabilities_json"])
 
         return super().create(data_dict)
 
@@ -206,16 +228,22 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         # to avoid breaking references in entries and external integrations
         data_dict.pop("slug", None)
 
-        # Map content_schema to schema_json (Pydantic field name to DB column name)
+        # Map Pydantic field names to DB column names
         if "content_schema" in data_dict:
             data_dict["schema_json"] = data_dict.pop("content_schema")
+        if "rendering" in data_dict:
+            data_dict["rendering_json"] = data_dict.pop("rendering")
+        if "capabilities" in data_dict:
+            data_dict["capabilities_json"] = data_dict.pop("capabilities")
 
-        # Validate schema_json if provided
+        # Validate JSON fields if provided
         if "schema_json" in data_dict:
             self._validate_schema_json(data_dict["schema_json"])
+        if "rendering_json" in data_dict:
+            self._validate_rendering_json(data_dict["rendering_json"])
+        if "capabilities_json" in data_dict:
+            self._validate_capabilities_json(data_dict["capabilities_json"])
 
-        # Don't auto-regenerate slug on update - slugs should remain stable once created
-        # to avoid breaking references in entries and external integrations
         data_dict.pop("slug", None)
         data_dict.pop("group_id", None)
         return super().update(match_value, data_dict, match_key=match_key)

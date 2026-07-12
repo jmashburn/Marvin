@@ -7,6 +7,7 @@ from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, 
 from pydantic_core.core_schema import ValidationInfo
 
 from marvin.schemas._marvin import _MarvinModel
+from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
 
@@ -26,17 +27,41 @@ class EntryTypeCreate(_MarvinModel):
         serialization_alias="schemaJson",
         validation_alias=AliasChoices("schema_json", "schemaJson"),
     )
+    rendering: dict | None = Field(
+        default=None,
+        description="Rendering configuration (RenderingDefinition)",
+        serialization_alias="renderingJson",
+        validation_alias=AliasChoices("rendering_json", "renderingJson"),
+    )
+    capabilities: dict | None = Field(
+        default=None,
+        description="Behavioral capabilities (CapabilitiesDefinition)",
+        serialization_alias="capabilitiesJson",
+        validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
+    )
 
     @field_validator("content_schema")
     @classmethod
     def validate_content_schema(cls, value: dict | None) -> dict | None:
-        """Validate content_schema against EntryTypeSchemaDefinition."""
         if value is None:
             return None
-
-        # Validate against EntryTypeSchemaDefinition
-        # This will raise ValidationError if invalid
         EntryTypeSchemaDefinition.model_validate(value)
+        return value
+
+    @field_validator("rendering")
+    @classmethod
+    def validate_rendering(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        RenderingDefinition.model_validate(value)
+        return value
+
+    @field_validator("capabilities")
+    @classmethod
+    def validate_capabilities(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        CapabilitiesDefinition.model_validate(value)
         return value
 
     model_config = ConfigDict(from_attributes=True)
@@ -58,16 +83,41 @@ class EntryTypeUpdate(_MarvinModel):
         serialization_alias="schemaJson",
         validation_alias=AliasChoices("schema_json", "schemaJson"),
     )
+    rendering: dict | None = Field(
+        default=None,
+        description="Rendering configuration (RenderingDefinition)",
+        serialization_alias="renderingJson",
+        validation_alias=AliasChoices("rendering_json", "renderingJson"),
+    )
+    capabilities: dict | None = Field(
+        default=None,
+        description="Behavioral capabilities (CapabilitiesDefinition)",
+        serialization_alias="capabilitiesJson",
+        validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
+    )
 
     @field_validator("content_schema")
     @classmethod
     def validate_content_schema(cls, value: dict | None) -> dict | None:
-        """Validate content_schema against EntryTypeSchemaDefinition."""
         if value is None:
             return None
-
-        # Validate against EntryTypeSchemaDefinition
         EntryTypeSchemaDefinition.model_validate(value)
+        return value
+
+    @field_validator("rendering")
+    @classmethod
+    def validate_rendering(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        RenderingDefinition.model_validate(value)
+        return value
+
+    @field_validator("capabilities")
+    @classmethod
+    def validate_capabilities(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        CapabilitiesDefinition.model_validate(value)
         return value
 
     model_config = ConfigDict(from_attributes=True)
@@ -81,7 +131,7 @@ class EntryTypeRead(_MarvinModel):
     """
 
     id: UUID4
-    group_id: UUID4 | None  # None for system types, UUID for workspace types
+    group_id: UUID4 | None
     name: str
     slug: str
     icon: str | None = None
@@ -94,6 +144,18 @@ class EntryTypeRead(_MarvinModel):
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
         validation_alias=AliasChoices("schema_json", "schemaJson"),
+    )
+    rendering: dict | None = Field(
+        default=None,
+        description="Rendering configuration (RenderingDefinition)",
+        serialization_alias="renderingJson",
+        validation_alias=AliasChoices("rendering_json", "renderingJson"),
+    )
+    capabilities: dict | None = Field(
+        default=None,
+        description="Behavioral capabilities (CapabilitiesDefinition)",
+        serialization_alias="capabilitiesJson",
+        validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
     )
     created_at: datetime | None = None
     update_at: datetime | None = None

@@ -15,6 +15,7 @@ from marvin.db.db_setup import generate_session
 from marvin.db.models.platform import APIClients, Assets, Collections, Entries, Resources
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group import GroupRead
+from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.publishing import (
     PaginationMeta,
     PublishedAssetRead,
@@ -25,6 +26,7 @@ from marvin.schemas.publishing import (
     PublishedEntriesResponse,
     PublishedEntryListItem,
     PublishedEntryRead,
+    PublishedEntryTypeInfo,
     PublishedResourceRead,
     PublishedResourcesResponse,
     PublishedResourceSummary,
@@ -62,6 +64,24 @@ def _resource_eager_options():
     return [selectinload(Resources.entry_resources).joinedload("entry")]
 
 
+def _build_entry_type_info(entry: Entries) -> PublishedEntryTypeInfo | None:
+    """Build PublishedEntryTypeInfo from an entry's type, or None if no type."""
+    if not entry.entry_type:
+        return None
+    rendering = RenderingDefinition(**(entry.entry_type.rendering_json or {}))
+    capabilities = CapabilitiesDefinition(**(entry.entry_type.capabilities_json or {}))
+    return PublishedEntryTypeInfo(
+        slug=entry.entry_type.slug,
+        renderer=rendering.renderer,
+        package=rendering.package,
+        version=rendering.version,
+        config=rendering.config,
+        publishable=capabilities.publishable,
+        submittable=capabilities.submittable,
+        routable=capabilities.routable,
+    )
+
+
 def _entry_to_list_item(entry: Entries, include_order: bool = False) -> PublishedEntryListItem:
     """
     Convert an entry model to a PublishedEntryListItem with relationships.
@@ -87,6 +107,7 @@ def _entry_to_list_item(entry: Entries, include_order: bool = False) -> Publishe
         "slug": entry.slug,
         "title": entry.title,
         "entry_type": entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
+        "entry_type_info": _build_entry_type_info(entry),
         "summary": entry.summary,
         "published_at": entry.published_at,
         "collections": collection_slugs,
@@ -419,8 +440,9 @@ async def get_published_entry(
         slug=entry.slug,
         title=entry.title,
         entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
+        entry_type_info=_build_entry_type_info(entry),
         summary=entry.summary,
-        data=entry.data_json,  # BREAKING: replaced content_markdown with schema-driven data_json
+        data=entry.data_json,
         published_at=entry.published_at,
         metadata=entry.metadata_json,
         collections=collections,

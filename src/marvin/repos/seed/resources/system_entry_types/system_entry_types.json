@@ -17,6 +17,9 @@
           "placeholder": "Write page content..."
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page"
     }
   },
   {
@@ -36,6 +39,9 @@
           "required": true
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "article"
     }
   },
   {
@@ -72,6 +78,9 @@
           "type": "date"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page"
     }
   },
   {
@@ -96,6 +105,9 @@
           "type": "text"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page"
     }
   },
   {
@@ -122,6 +134,9 @@
           "defaultValue": false
         }
       ]
+    },
+    "capabilitiesJson": {
+      "routable": false
     }
   },
   {
@@ -151,6 +166,9 @@
           "type": "text"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page"
     }
   },
   {
@@ -181,6 +199,9 @@
           "type": "text"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "faq"
     }
   }
 ]
