@@ -251,6 +251,7 @@ async def list_entry_types(
             PublishedEntryTypeRead(
                 slug=et.slug,
                 name=et.name,
+                is_rendered=et.is_rendered,
                 rendering=rendering,
                 capabilities=capabilities,
             )

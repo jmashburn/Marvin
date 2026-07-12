@@ -2,6 +2,8 @@
 
 from marvin.schemas._marvin import _MarvinModel
 
+KNOWN_CORE_RENDERERS: set[str] = {"page", "article", "faq", "navigation"}
+
 
 class RenderingDefinition(_MarvinModel):
     """Describes how entries of this type should be rendered on the frontend."""

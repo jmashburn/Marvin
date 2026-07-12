@@ -84,7 +84,12 @@ import SchemaEditor from "@/components/SchemaEditor.astro";
 
       {/* Rendering Configuration */}
       <div class="config-section">
-        <details>
+        <label class="checkbox-label" style="margin-bottom: 0.75rem;">
+          <input type="checkbox" id="is_rendered" name="is_rendered" />
+          Uses a renderer component
+        </label>
+        <p class="form-help" style="margin-bottom: 1rem;">Enable for types rendered by a registered renderer (e.g. page, article). Leave off for types that inject data into layouts or use custom components.</p>
+        <details id="rendering-details">
           <summary class="section-heading">Rendering</summary>
           <div class="config-fields">
             <div class="form-group">
@@ -109,7 +114,7 @@ import SchemaEditor from "@/components/SchemaEditor.astro";
 
       {/* Capabilities */}
       <div class="config-section">
-        <details>
+        <details id="capabilities-details">
           <summary class="section-heading">Capabilities</summary>
           <div class="config-fields">
             <label class="checkbox-label">
@@ -275,6 +280,20 @@ import SchemaEditor from "@/components/SchemaEditor.astro";
   document.getElementById('cap_publishable')?.addEventListener('change', syncCapabilitiesJson);
   document.getElementById('cap_submittable')?.addEventListener('change', syncCapabilitiesJson);
   document.getElementById('cap_routable')?.addEventListener('change', syncCapabilitiesJson);
+
+  const isRenderedCheckbox = document.getElementById('is_rendered') as HTMLInputElement;
+  const renderingDetails = document.getElementById('rendering-details') as HTMLDetailsElement;
+  const capabilitiesDetails = document.getElementById('capabilities-details') as HTMLDetailsElement;
+
+  isRenderedCheckbox?.addEventListener('change', () => {
+    if (isRenderedCheckbox.checked) {
+      renderingDetails.open = true;
+      capabilitiesDetails.open = true;
+    } else {
+      renderingDetails.open = false;
+      capabilitiesDetails.open = false;
+    }
+  });
 
   syncCapabilitiesJson();
 </script>

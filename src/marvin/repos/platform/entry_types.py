@@ -10,7 +10,7 @@ from marvin.core.root_logger import get_logger
 from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryTypeRead
-from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
+from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, KNOWN_CORE_RENDERERS, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
 logger = get_logger(__name__)
@@ -183,6 +183,19 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
                 detail=f"Invalid capabilities definition: {e}",
             )
 
+    def _check_renderer_warnings(self, data_dict: dict) -> list[str]:
+        if not data_dict.get("is_rendered"):
+            return []
+        rendering_json = data_dict.get("rendering_json")
+        if not rendering_json:
+            return ["Entry type is marked as rendered but has no rendering configuration"]
+        renderer = rendering_json.get("renderer")
+        if not renderer:
+            return ["Entry type is marked as rendered but has no renderer declared"]
+        if renderer not in KNOWN_CORE_RENDERERS:
+            return [f"Unknown renderer '{renderer}'. Known core renderers: {', '.join(sorted(KNOWN_CORE_RENDERERS))}"]
+        return []
+
     def create(self, data: Any) -> EntryTypeRead:
         from slugify import slugify
 
@@ -211,7 +224,11 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if "capabilities_json" in data_dict:
             self._validate_capabilities_json(data_dict["capabilities_json"])
 
-        return super().create(data_dict)
+        warnings = self._check_renderer_warnings(data_dict)
+        result = super().create(data_dict)
+        if warnings:
+            result.warnings = warnings
+        return result
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryTypeRead:
         # Check if this is a system entry type
@@ -244,9 +261,13 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if "capabilities_json" in data_dict:
             self._validate_capabilities_json(data_dict["capabilities_json"])
 
+        warnings = self._check_renderer_warnings(data_dict)
         data_dict.pop("slug", None)
         data_dict.pop("group_id", None)
-        return super().update(match_value, data_dict, match_key=match_key)
+        result = super().update(match_value, data_dict, match_key=match_key)
+        if warnings:
+            result.warnings = warnings
+        return result
 
     def delete(self, value: Any, match_key: str | None = None) -> EntryTypeRead:
         # Check if this is a system entry type

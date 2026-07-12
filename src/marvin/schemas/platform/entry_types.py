@@ -21,6 +21,7 @@ class EntryTypeCreate(_MarvinModel):
     description: str | None = None
     sort_order: int = 0
     is_system: bool = False
+    is_rendered: bool = False
     content_schema: dict | None = Field(
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
@@ -77,6 +78,7 @@ class EntryTypeUpdate(_MarvinModel):
     description: str | None = None
     sort_order: int | None = None
     is_system: bool | None = None
+    is_rendered: bool | None = None
     content_schema: dict | None = Field(
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
@@ -139,6 +141,7 @@ class EntryTypeRead(_MarvinModel):
     description: str | None = None
     sort_order: int
     is_system: bool
+    is_rendered: bool = False
     content_schema: dict | None = Field(
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
@@ -159,6 +162,7 @@ class EntryTypeRead(_MarvinModel):
     )
     created_at: datetime | None = None
     update_at: datetime | None = None
+    warnings: list[str] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

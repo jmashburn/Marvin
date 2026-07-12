@@ -27,6 +27,8 @@ class WorkspaceBootstrapService:
             "description": "A standard content page with markdown body content.",
             "sort_order": 100,
             "is_system": True,
+            "is_rendered": True,
+            "rendering_json": {"renderer": "page", "package": "@inneropen/marvin-renderers-core"},
             "schema_json": {
                 "fields": [
                     {
@@ -47,6 +49,8 @@ class WorkspaceBootstrapService:
             "description": "A publishable article, note, or long-form post.",
             "sort_order": 200,
             "is_system": True,
+            "is_rendered": True,
+            "rendering_json": {"renderer": "article", "package": "@inneropen/marvin-renderers-core"},
             "schema_json": {
                 "fields": [
                     {
@@ -207,6 +211,8 @@ class WorkspaceBootstrapService:
             "description": "A question and answer entry.",
             "sort_order": 700,
             "is_system": True,
+            "is_rendered": True,
+            "rendering_json": {"renderer": "faq", "package": "@inneropen/marvin-renderers-core"},
             "schema_json": {
                 "fields": [
                     {

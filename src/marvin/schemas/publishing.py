@@ -93,6 +93,7 @@ class PublishedEntryTypeRead(_MarvinModel):
 
     slug: str
     name: str
+    is_rendered: bool = False
     rendering: EntryTypeRendering | None = None
     capabilities: EntryTypeCapabilities | None = None
 

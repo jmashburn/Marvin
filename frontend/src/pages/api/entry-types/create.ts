@@ -25,6 +25,7 @@ export const POST: APIRoute = async ({ request, redirect, cookies }) => {
       color: (formData.get('color') as string) || undefined,
       description: (formData.get('description') as string) || undefined,
       sortOrder: parseInt(formData.get('sort_order') as string) || 0,
+      isRendered: formData.get('is_rendered') === 'on',
       schemaJson: parseJson('schema_json'),
       renderingJson: parseJson('rendering_json'),
       capabilitiesJson: parseJson('capabilities_json'),

@@ -42,6 +42,7 @@ class EntryTypes(SqlAlchemyBase, BaseMixins):
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     sort_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default="0")
     is_system: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default="false")
+    is_rendered: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.text("0"))
     schema_json: Mapped[dict] = mapped_column("schema_json", JSONB, nullable=False, default=dict, server_default="{}")
     """Schema definition for this entry type (EntryTypeSchemaDefinition)."""
 
