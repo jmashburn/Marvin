@@ -258,6 +258,7 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                         description=entry_type_schema.description,
                         sort_order=entry_type_schema.sort_order,
                         is_system=entry_type_schema.is_system,
+                        is_rendered=entry_type_schema.is_rendered,
                         schema_json=entry_type_schema.content_schema or {},
                         rendering_json=entry_type_schema.rendering,
                         capabilities_json=entry_type_schema.capabilities,

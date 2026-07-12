@@ -7,6 +7,7 @@
     "description": "A standard content page with markdown body content.",
     "sort_order": 100,
     "is_system": true,
+    "isRendered": true,
     "schema_json": {
       "fields": [
         {
@@ -37,6 +38,7 @@
     "description": "A publishable article, note, or long-form post.",
     "sortOrder": 200,
     "isSystem": true,
+    "isRendered": true,
     "schemaJson": {
       "fields": [
         {
@@ -146,6 +148,7 @@
     "description": "A generic navigation or menu link.",
     "sortOrder": 500,
     "isSystem": true,
+    "isRendered": true,
     "schemaJson": {
       "fields": [
         {
@@ -221,6 +224,7 @@
     "description": "A question and answer entry.",
     "sortOrder": 700,
     "isSystem": true,
+    "isRendered": true,
     "schemaJson": {
       "fields": [
         {
