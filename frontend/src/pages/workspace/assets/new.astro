@@ -192,22 +192,23 @@ import SlugInput from "@/components/SlugInput.astro";
     gap: 1rem;
   }
 
-  .upload-preview img {
+  .upload-preview :global(img) {
     max-width: 100%;
     max-height: 300px;
     border-radius: 6px;
+    object-fit: contain;
   }
 
-  .upload-preview .file-info {
+  .upload-preview :global(.file-info) {
     text-align: center;
   }
 
-  .upload-preview .file-name {
+  .upload-preview :global(.file-name) {
     font-weight: 600;
     margin: 0;
   }
 
-  .upload-preview .file-size {
+  .upload-preview :global(.file-size) {
     font-size: 0.875rem;
     color: var(--muted);
     margin: 0.25rem 0 0;
@@ -294,18 +295,26 @@ import SlugInput from "@/components/SlugInput.astro";
     }
   });
 
+  // Prevent browser from opening files dropped outside the zone
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => e.preventDefault());
+
   // Drag and drop
   dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropZone.classList.add('dragover');
   });
 
-  dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('dragover');
+  dropZone.addEventListener('dragleave', (e) => {
+    // Only remove highlight when leaving the drop zone itself, not its children
+    if (!dropZone.contains(e.relatedTarget as Node)) {
+      dropZone.classList.remove('dragover');
+    }
   });
 
   dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     dropZone.classList.remove('dragover');
 
     const files = e.dataTransfer?.files;
@@ -335,14 +344,23 @@ import SlugInput from "@/components/SlugInput.astro";
     // Generate slug
     updateSlug();
 
-    // Show cropper for images
+    // Show cropper for images (with fallback if cropper fails or is cancelled)
     if (file.type.startsWith('image/')) {
-      const cropper = new (window as any).ImageCropper();
-      cropper.show(file, (blob: Blob) => {
-        // Create a new File from the cropped blob
-        selectedFile = new File([blob], file.name, { type: 'image/jpeg' });
-        showPreview(selectedFile);
-      });
+      try {
+        const cropper = new (window as any).ImageCropper();
+        cropper.show(file, (blob: Blob) => {
+          selectedFile = new File([blob], file.name, { type: 'image/jpeg' });
+          showPreview(selectedFile);
+        }, () => {
+          // On cancel: use the original file without cropping
+          selectedFile = file;
+          showPreview(file);
+        });
+      } catch {
+        // Cropper unavailable — use the original file
+        selectedFile = file;
+        showPreview(file);
+      }
     } else {
       selectedFile = file;
       showPreview(file);
