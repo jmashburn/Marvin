@@ -23,6 +23,9 @@ if (!id) {
 }
 
 const isSystem = entryType?.isSystem ?? false;
+
+const rendering = (entryType?.renderingJson ?? {}) as Record<string, unknown>;
+const capabilities = (entryType?.capabilitiesJson ?? {}) as Record<string, unknown>;
 ---
 
 <AppLayout title={entryType ? `Edit ${entryType.name}` : "Edit Entry Type"}>
@@ -125,6 +128,53 @@ const isSystem = entryType?.isSystem ?? false;
           {/* Schema Editor */}
           <div class="schema-section">
             <SchemaEditor schema={entryType.schemaJson} />
+          </div>
+
+          {/* Rendering Configuration */}
+          <div class="config-section">
+            <details open={!!rendering.renderer}>
+              <summary class="section-heading">Rendering</summary>
+              <div class="config-fields">
+                <div class="form-group">
+                  <label for="renderer_name">Renderer Name</label>
+                  <input type="text" id="renderer_name" value={String(rendering.renderer || '')} placeholder="e.g., page, form, external-embed" />
+                  <p class="form-help">Identifies the renderer component to use</p>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="renderer_package">Package</label>
+                    <input type="text" id="renderer_package" value={String(rendering.package || '')} placeholder="e.g., @inneropen/marvin-renderers-core" />
+                  </div>
+                  <div class="form-group">
+                    <label for="renderer_version">Version</label>
+                    <input type="text" id="renderer_version" value={String(rendering.version || '')} placeholder="e.g., ^1.0.0" />
+                  </div>
+                </div>
+              </div>
+            </details>
+            <input type="hidden" name="rendering_json" id="rendering_json" />
+          </div>
+
+          {/* Capabilities */}
+          <div class="config-section">
+            <details open={Object.keys(capabilities).length > 0}>
+              <summary class="section-heading">Capabilities</summary>
+              <div class="config-fields">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="cap_publishable" checked={capabilities.publishable !== false} />
+                  Publishable
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="cap_submittable" checked={capabilities.submittable === true} />
+                  Submittable
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="cap_routable" checked={capabilities.routable !== false} />
+                  Routable
+                </label>
+              </div>
+            </details>
+            <input type="hidden" name="capabilities_json" id="capabilities_json" />
           </div>
 
           {isSystem && (
@@ -247,6 +297,40 @@ const isSystem = entryType?.isSystem ?? false;
     color: var(--muted);
   }
 
+  .config-section {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .section-heading {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+    padding: 0.25rem 0;
+  }
+
+  .config-fields {
+    display: grid;
+    gap: 1rem;
+    padding-top: 1rem;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 400;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+
   .form-actions {
     display: flex;
     gap: 0.75rem;
@@ -254,6 +338,44 @@ const isSystem = entryType?.isSystem ?? false;
     border-top: 1px solid var(--line);
   }
 </style>
+
+<script>
+  function syncRenderingJson() {
+    const name = (document.getElementById('renderer_name') as HTMLInputElement)?.value.trim();
+    const pkg = (document.getElementById('renderer_package') as HTMLInputElement)?.value.trim();
+    const version = (document.getElementById('renderer_version') as HTMLInputElement)?.value.trim();
+    const hidden = document.getElementById('rendering_json') as HTMLInputElement;
+
+    if (!name && !pkg && !version) {
+      hidden.value = '';
+      return;
+    }
+    hidden.value = JSON.stringify({
+      ...(name && { renderer: name }),
+      ...(pkg && { package: pkg }),
+      ...(version && { version }),
+    });
+  }
+
+  function syncCapabilitiesJson() {
+    const hidden = document.getElementById('capabilities_json') as HTMLInputElement;
+    hidden.value = JSON.stringify({
+      publishable: (document.getElementById('cap_publishable') as HTMLInputElement).checked,
+      submittable: (document.getElementById('cap_submittable') as HTMLInputElement).checked,
+      routable: (document.getElementById('cap_routable') as HTMLInputElement).checked,
+    });
+  }
+
+  document.getElementById('renderer_name')?.addEventListener('input', syncRenderingJson);
+  document.getElementById('renderer_package')?.addEventListener('input', syncRenderingJson);
+  document.getElementById('renderer_version')?.addEventListener('input', syncRenderingJson);
+  document.getElementById('cap_publishable')?.addEventListener('change', syncCapabilitiesJson);
+  document.getElementById('cap_submittable')?.addEventListener('change', syncCapabilitiesJson);
+  document.getElementById('cap_routable')?.addEventListener('change', syncCapabilitiesJson);
+
+  syncRenderingJson();
+  syncCapabilitiesJson();
+</script>
 
 <script>
   // Auto-generate slug preview from name (if not system type)

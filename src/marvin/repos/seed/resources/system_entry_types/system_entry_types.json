@@ -19,7 +19,14 @@
       ]
     },
     "renderingJson": {
-      "renderer": "page"
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -41,7 +48,14 @@
       ]
     },
     "renderingJson": {
-      "renderer": "article"
+      "renderer": "article",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -80,7 +94,14 @@
       ]
     },
     "renderingJson": {
-      "renderer": "page"
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -107,7 +128,14 @@
       ]
     },
     "renderingJson": {
-      "renderer": "page"
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -135,7 +163,14 @@
         }
       ]
     },
+    "renderingJson": {
+      "renderer": "navigation",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
     "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
       "routable": false
     }
   },
@@ -168,7 +203,14 @@
       ]
     },
     "renderingJson": {
-      "renderer": "page"
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -201,7 +243,14 @@
       ]
     },
     "renderingJson": {
-      "renderer": "faq"
+      "renderer": "faq",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": false
     }
   }
 ]

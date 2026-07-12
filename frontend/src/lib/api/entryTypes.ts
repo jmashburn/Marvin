@@ -14,6 +14,8 @@ export interface EntryTypeCreate {
   color?: string;
   sortOrder?: number;
   schemaJson?: Record<string, unknown>;
+  renderingJson?: Record<string, unknown>;
+  capabilitiesJson?: Record<string, unknown>;
 }
 
 export interface EntryTypeUpdate {
@@ -24,6 +26,8 @@ export interface EntryTypeUpdate {
   color?: string;
   sortOrder?: number;
   schemaJson?: Record<string, unknown>;
+  renderingJson?: Record<string, unknown>;
+  capabilitiesJson?: Record<string, unknown>;
 }
 
 // Re-export SDK types with legacy names for backward compatibility
