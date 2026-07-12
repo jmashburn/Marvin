@@ -310,7 +310,7 @@ class UserCreate(_MarvinModel):
                 "username": "NewUser",
                 "fullName": "New User Name",
                 "email": "newuser@example.com",
-                "group": settings._DEFAULT_GROUP,  # Example uses default group name from settings
+                "group": settings.DEFAULT_GROUP,  # Example uses default group name from settings
                 "password": "aSecurePassword123",
                 "admin": False,  # Example of boolean value
             }
@@ -413,7 +413,7 @@ class UserRead(UserCreate):  # UserRead inheriting UserCreate (which has passwor
         based on email matching the configured default email.
         """
         # Compares user's email (normalized) with the default email from settings (normalized).
-        return self.email.strip().lower() == settings._DEFAULT_EMAIL.strip().lower()
+        return self.email.strip().lower() == settings.DEFAULT_EMAIL.strip().lower()
 
     @property
     def is_platform_admin(self) -> bool:

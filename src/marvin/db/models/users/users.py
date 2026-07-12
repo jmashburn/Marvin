@@ -319,7 +319,7 @@ class Users(SqlAlchemyBase, BaseMixins):
 
         if group is None:
             settings = get_app_settings()
-            group_name = settings._DEFAULT_GROUP  # Use a different variable name
+            group_name = settings.DEFAULT_GROUP  # Use a different variable name
         else:
             group_name = group
 

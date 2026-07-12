@@ -337,10 +337,10 @@ class AppSettings(BaseSettings):
         """A public version of the database URL (credentials masked). Returns None if DB_PROVIDER is not set."""
         return self.DB_PROVIDER.db_url_public if self.DB_PROVIDER else None
 
-    _DEFAULT_EMAIL: str = "changeme@example.com"
+    DEFAULT_EMAIL: str = "changeme@example.com"
     """Default email for the initial admin user, if created."""
 
-    _DEFAULT_PASSWORD: str | None = None
+    DEFAULT_PASSWORD: str | None = None
     """
     Default password for the initial admin user, if created.
 
@@ -351,10 +351,10 @@ class AppSettings(BaseSettings):
 
     def model_post_init(self, __context) -> None:
         """Generate default password if not provided via environment."""
-        if not self._DEFAULT_PASSWORD:
-            self._DEFAULT_PASSWORD = secrets.token_urlsafe(16)
+        if not self.DEFAULT_PASSWORD:
+            self.DEFAULT_PASSWORD = secrets.token_urlsafe(16)
 
-    _DEFAULT_GROUP: str = "Default"
+    DEFAULT_GROUP: str = "Default"
     """Default group for the initial admin user, if created."""
 
     _DEFAULT_INTEGRATION_ID: str = "generic"

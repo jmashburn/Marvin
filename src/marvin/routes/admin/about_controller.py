@@ -56,7 +56,7 @@ class AdminAboutController(BaseAdminController):
             api_docs=settings.API_DOCS,
             db_type=settings.DB_ENGINE,
             db_url=settings.DB_URL_PUBLIC,  # Public (masked) database URL
-            default_group=settings._DEFAULT_GROUP,
+            default_group=settings.DEFAULT_GROUP,
             allow_signup=settings.ALLOW_SIGNUP,
             build_id=settings.GIT_COMMIT_HASH,  # Git commit hash for the build
             enable_oidc=settings.OIDC_AUTH_ENABLED,
@@ -83,16 +83,13 @@ class AdminAboutController(BaseAdminController):
             # User & Group stats
             total_users=self.repos.users.count_all(),
             total_groups=self.repos.groups.count_all(),
-
             # Content stats
             total_entries=self.repos.entries.count_all(),
             total_collections=self.repos.collections.count_all(),
             total_entry_types=self.repos.entry_types.count_all(),
-
             # Asset & Resource stats
             total_assets=self.repos.assets.count_all(),
             total_resources=self.repos.resources.count_all(),
-
             # API & Integration stats
             total_api_tokens=self.repos.api_tokens.count_all(),
             total_api_clients=self.repos.api_clients.count_all(),
