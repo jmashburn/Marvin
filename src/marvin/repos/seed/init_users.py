@@ -111,6 +111,7 @@ def default_user_init(db: AllRepositories) -> None:
     }
 
     logger.info("Generating Default User (Platform Admin with SUPER_ADMIN role)")
+    logger.info(f"Default admin credentials — email: {settings._DEFAULT_EMAIL}  password: {settings._DEFAULT_PASSWORD}")
     # Create the default admin user using the users repository
     admin_user = db.users.create(default_user)
     logger.info(f"Default admin user created: {admin_user.email} (platform_role={admin_user.platform_role.value})")
@@ -135,10 +136,7 @@ def default_user_init(db: AllRepositories) -> None:
 
             # Create the development user
             dev_user = db.users.create(user_data)
-            logger.info(
-                f"Development user created: {dev_user.username} "
-                f"(platform_role={dev_user.platform_role.value})"
-            )
+            logger.info(f"Development user created: {dev_user.username} " f"(platform_role={dev_user.platform_role.value})")
 
             # Create workspace membership for the dev user
             dev_membership = WorkspaceMembers(
@@ -149,6 +147,4 @@ def default_user_init(db: AllRepositories) -> None:
             )
             db.session.add(dev_membership)
             db.session.commit()
-            logger.info(
-                f"Workspace membership created: {dev_user.username} -> {settings._DEFAULT_GROUP} ({workspace_role.value})"
-            )
+            logger.info(f"Workspace membership created: {dev_user.username} -> {settings._DEFAULT_GROUP} ({workspace_role.value})")
