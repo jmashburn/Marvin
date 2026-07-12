@@ -151,6 +151,8 @@ class WorkspaceBootstrapService:
             "description": "A generic navigation or menu link.",
             "sort_order": 500,
             "is_system": True,
+            "is_rendered": True,
+            "rendering_json": {"renderer": "navigation", "package": "@inneropen/marvin-renderers-core"},
             "schema_json": {
                 "fields": [
                     {

@@ -35,6 +35,7 @@ def upgrade() -> None:
         "page": {"renderer": "page", "package": "@inneropen/marvin-renderers-core"},
         "article": {"renderer": "article", "package": "@inneropen/marvin-renderers-core"},
         "faq": {"renderer": "faq", "package": "@inneropen/marvin-renderers-core"},
+        "navigation-item": {"renderer": "navigation", "package": "@inneropen/marvin-renderers-core"},
     }
     for slug, rendering in CORE_RENDERER_TYPES.items():
         op.execute(
