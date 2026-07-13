@@ -494,9 +494,10 @@ async def get_published_entry(
             file_size=ea.asset.file_size,
             width=ea.asset.width,
             height=ea.asset.height,
-            alt_text=ea.asset.alt_text or ea.caption,  # Use caption if no alt_text
+            alt_text=ea.asset.alt_text or ea.caption,
             description=ea.asset.description,
             public_url=ea.asset.public_url or f"/api/publish/{group.slug}/assets/{ea.asset.slug}/file",
+            metadata=ea.asset.metadata_,
         )
         for ea in entry.entry_assets
         if ea.asset  # Defensive check
