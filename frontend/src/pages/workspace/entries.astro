@@ -150,9 +150,10 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
           {/* Grouped by collection view */}
           <div class="view-section" id="grouped-view" style="display:none;">
             {sortedGroups.map(({ collection, entries: groupEntries }) => (
-              <div class="collection-group" data-collection-id={collection.id}>
-                <div class="collection-header">
+              <details class="collection-group" data-collection-id={collection.id}>
+                <summary class="collection-header">
                   <h3 class="collection-title">
+                    <span class="collapse-chevron"></span>
                     {collection.icon && <span class="collection-icon">{collection.icon}</span>}
                     {collection.name}
                     <span class="collection-count">{groupEntries.length}</span>
@@ -160,7 +161,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                   {collection.description && (
                     <p class="collection-desc">{collection.description}</p>
                   )}
-                </div>
+                </summary>
                 <section class="grid" aria-label={`${collection.name} entries`}>
                   {groupEntries.map((entry) => (
                     <div class="entry-wrapper"
@@ -172,17 +173,18 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                     </div>
                   ))}
                 </section>
-              </div>
+              </details>
             ))}
 
             {uncollected.length > 0 && (
-              <div class="collection-group" data-collection-id="uncollected">
-                <div class="collection-header">
+              <details class="collection-group" data-collection-id="uncollected">
+                <summary class="collection-header">
                   <h3 class="collection-title">
+                    <span class="collapse-chevron"></span>
                     Uncollected
                     <span class="collection-count">{uncollected.length}</span>
                   </h3>
-                </div>
+                </summary>
                 <section class="grid" aria-label="Uncollected entries">
                   {uncollected.map((entry) => (
                     <div class="entry-wrapper"
@@ -194,7 +196,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                     </div>
                   ))}
                 </section>
-              </div>
+              </details>
             )}
           </div>
         </>
@@ -353,13 +355,28 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
   }
 
   .collection-group {
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .collection-group > .grid {
+    margin-top: 1rem;
   }
 
   .collection-header {
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
+    padding: 0.625rem 0.75rem;
     border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  .collection-header::-webkit-details-marker {
+    display: none;
+  }
+
+  .collection-header:hover {
+    background: var(--panel-2);
+    border-radius: 6px;
   }
 
   .collection-title {
@@ -369,6 +386,28 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  .collapse-chevron {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    transition: transform 0.15s;
+  }
+
+  .collapse-chevron::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg) translate(1px, -1px);
+    margin: 4px auto;
+  }
+
+  details[open] > .collection-header .collapse-chevron {
+    transform: rotate(90deg);
   }
 
   .collection-icon {
