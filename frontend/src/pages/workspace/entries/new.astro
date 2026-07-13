@@ -10,6 +10,8 @@ if (!authToken) {
   return Astro.redirect('/auth/login');
 }
 
+let error: string | null = null;
+
 // Handle form submission (server-side)
 if (Astro.request.method === 'POST') {
   try {
@@ -38,14 +40,14 @@ if (Astro.request.method === 'POST') {
       summary: (formData.get('summary') as string) || null,
       description: (formData.get('description') as string) || null,
       status: formData.get('status') as string,
-      data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
+      data_json: Object.keys(dataJson).length > 0 ? dataJson : {},
     };
 
     const entry = await createEntry(data, authToken);
     return Astro.redirect(`/workspace/entries/${entry.id}`);
   } catch (e) {
     console.error('[NewEntry] Failed to create entry:', e);
-    // Error will be shown below
+    error = e instanceof Error ? e.message : String(e);
   }
 }
 
@@ -53,7 +55,6 @@ if (Astro.request.method === 'POST') {
 const preSelectedTypeId = Astro.url.searchParams.get('type');
 
 let entryTypes: EntryTypeRead[] = [];
-let error: string | null = null;
 
 try {
   entryTypes = await listEntryTypes(authToken);
