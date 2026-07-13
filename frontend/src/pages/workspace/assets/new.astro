@@ -24,7 +24,7 @@ import SlugInput from "@/components/SlugInput.astro";
             id="file"
             name="file"
             required
-            accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.svg"
             hidden
           />
           <div class="upload-placeholder" id="uploadPlaceholder">
@@ -344,20 +344,18 @@ import SlugInput from "@/components/SlugInput.astro";
     // Generate slug
     updateSlug();
 
-    // Show cropper for images (with fallback if cropper fails or is cancelled)
-    if (file.type.startsWith('image/')) {
+    // Show cropper for raster images (skip SVGs — they're vector and shouldn't be rasterized)
+    if (file.type.startsWith('image/') && file.type !== 'image/svg+xml') {
       try {
         const cropper = new (window as any).ImageCropper();
         cropper.show(file, (blob: Blob) => {
           selectedFile = new File([blob], file.name, { type: 'image/jpeg' });
           showPreview(selectedFile);
         }, () => {
-          // On cancel: use the original file without cropping
           selectedFile = file;
           showPreview(file);
         });
       } catch {
-        // Cropper unavailable — use the original file
         selectedFile = file;
         showPreview(file);
       }
