@@ -5,6 +5,7 @@
 
 import { createAuthClient } from '@inneropen/marvin-sdk';
 import { createSdkClient } from '../sdk';
+import { API_BASE_URL } from './config';
 import type {
   LoginRequest,
   AuthToken,
@@ -19,7 +20,7 @@ export type { LoginRequest, AuthToken, UserRegistration, ForgotPasswordRequest, 
  * Login with username and password
  */
 export async function login(data: LoginRequest): Promise<AuthToken> {
-  const authClient = createAuthClient(import.meta.env.VITE_API_URL || 'http://localhost:8080');
+  const authClient = createAuthClient(API_BASE_URL);
   return authClient.login(data);
 }
 
@@ -27,7 +28,7 @@ export async function login(data: LoginRequest): Promise<AuthToken> {
  * Register a new user
  */
 export async function register(data: UserRegistration): Promise<{ message: string; userId: string }> {
-  const authClient = createAuthClient(import.meta.env.VITE_API_URL || 'http://localhost:8080');
+  const authClient = createAuthClient(API_BASE_URL);
   return authClient.register(data);
 }
 
@@ -35,7 +36,7 @@ export async function register(data: UserRegistration): Promise<{ message: strin
  * Request password reset
  */
 export async function forgotPassword(data: ForgotPasswordRequest): Promise<{ message: string }> {
-  const authClient = createAuthClient(import.meta.env.VITE_API_URL || 'http://localhost:8080');
+  const authClient = createAuthClient(API_BASE_URL);
   return authClient.forgotPassword(data);
 }
 
@@ -43,7 +44,7 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<{ mes
  * Reset password with token
  */
 export async function resetPassword(data: ResetPasswordRequest): Promise<{ message: string }> {
-  const authClient = createAuthClient(import.meta.env.VITE_API_URL || 'http://localhost:8080');
+  const authClient = createAuthClient(API_BASE_URL);
   return authClient.resetPassword(data);
 }
 

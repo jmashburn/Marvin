@@ -1,6 +1,6 @@
 """Scheduled tasks repository."""
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic import UUID4
@@ -234,7 +234,7 @@ class ScheduledTaskExecutionLogRepository(GroupRepositoryGeneric[ScheduledTaskEx
         Returns:
             List of failed execution logs, ordered by executed_at descending
         """
-        cutoff = datetime.utcnow().replace(hour=datetime.utcnow().hour - hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
         stmt = (
             select(ScheduledTaskExecutionLogModel)

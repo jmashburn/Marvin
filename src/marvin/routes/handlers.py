@@ -7,6 +7,7 @@ and for registering these handlers with the FastAPI application, typically
 during development or testing phases for enhanced debugging.
 """
 
+import logging
 from collections.abc import Callable  # For type hinting the handler function signature
 
 from fastapi import FastAPI, Request, status  # Core FastAPI components
@@ -15,6 +16,15 @@ from fastapi.responses import JSONResponse  # For crafting custom JSON error res
 from sqlalchemy.exc import IntegrityError  # Database integrity errors
 
 from marvin.core.config import get_app_settings  # Access application settings
+from marvin.core.exceptions import (  # Core application exceptions
+    MissingClaimException,
+    NoEntryFound,
+    PermissionDenied,
+    RateLimitError,
+    SlugError,
+    UserLockedOut,
+    VideoDownloadError,
+)
 from marvin.core.root_logger import get_logger  # Application logger
 
 # Initialize logger for this module
@@ -102,3 +112,50 @@ def register_debug_handler(app: FastAPI) -> Callable | None:
 
     logger.info("Registered custom ResponseValidationError debug handler.")
     return validation_exception_handler
+
+
+_EXCEPTION_HANDLER_MAP: dict[type[Exception], tuple[int, int, str]] = {
+    PermissionDenied: (status.HTTP_403_FORBIDDEN, logging.WARNING, "You do not have permission to perform this action"),
+    NoEntryFound: (status.HTTP_404_NOT_FOUND, logging.INFO, "The requested resource was not found"),
+    SlugError: (status.HTTP_409_CONFLICT, logging.WARNING, "A resource with this slug already exists"),
+    RateLimitError: (status.HTTP_429_TOO_MANY_REQUESTS, logging.WARNING, "Rate limit exceeded. Please try again later"),
+    UserLockedOut: (status.HTTP_423_LOCKED, logging.WARNING, "User account is locked"),
+    MissingClaimException: (status.HTTP_401_UNAUTHORIZED, logging.WARNING, "Required authentication claim is missing"),
+    VideoDownloadError: (status.HTTP_500_INTERNAL_SERVER_ERROR, logging.ERROR, "Failed to download video"),
+}
+
+
+def _make_handler(exc_type: type[Exception], status_code: int, log_level: int, default_msg: str):
+    async def handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.log(log_level, f"{exc_type.__name__}: {request.method} {request.url.path} - {exc}")
+        return JSONResponse(
+            status_code=status_code,
+            content={"detail": str(exc) or default_msg},
+        )
+
+    return handler
+
+
+def register_core_exception_handlers(app: FastAPI) -> None:
+    """
+    Registers global exception handlers for core Marvin exceptions.
+
+    These handlers convert application-specific exceptions into appropriate HTTP responses,
+    enabling consistent error handling across all routes without requiring HTTPException.
+
+    Args:
+        app (FastAPI): The FastAPI application instance.
+    """
+    for exc_type, (status_code, log_level, default_msg) in _EXCEPTION_HANDLER_MAP.items():
+        app.add_exception_handler(exc_type, _make_handler(exc_type, status_code, log_level, default_msg))
+
+    # IntegrityError gets special handling: hardcoded message to avoid leaking DB details
+    @app.exception_handler(IntegrityError)
+    async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
+        logger.error(f"IntegrityError: {request.method} {request.url.path} - {exc}")
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "A database constraint was violated. This resource may already exist or references invalid data."},
+        )
+
+    logger.info("Registered global core exception handlers")

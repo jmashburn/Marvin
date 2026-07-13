@@ -1,10 +1,12 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { fetchApi } from "@/lib/api/client";
-import type { Workspace, GroupPreferencesRead } from "@/lib/api/types";
+import { createSdkClient } from '@/lib/sdk';
+import type { Workspace } from '@inneropen/marvin-sdk/platform';
+import type { GroupPreferencesRead } from "@/lib/api/types";
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let workspace: Workspace | null = null;
 let preferences: GroupPreferencesRead | null = null;
@@ -21,15 +23,11 @@ if (urlParams.get('error')) {
 }
 
 try {
-  workspace = await fetchApi<Workspace>('/api/self/workspaces/current', {}, authToken);
+  workspace = await sdk.workspaces.getCurrent();
 
   if (workspace?.id) {
     // Get preferences for this workspace
-    preferences = await fetchApi<GroupPreferencesRead>(
-      `/api/groups/${workspace.id}/preferences`,
-      {},
-      authToken
-    );
+    preferences = await sdk.workspaces.getPreferences(workspace.id) as GroupPreferencesRead;
   } else {
     error = "No active workspace found. Please activate a workspace first.";
   }
@@ -287,15 +285,10 @@ try {
       });
 
       try {
-        const { fetchApi } = await import('@/lib/api/client');
+        const { createSdkClient } = await import('@/lib/sdk');
+        const sdk = createSdkClient();
 
-        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
+        await sdk.workspaces.updatePreferences(workspaceId, data);
 
         window.location.href = '/publishing/site?success=1';
       } catch (err) {

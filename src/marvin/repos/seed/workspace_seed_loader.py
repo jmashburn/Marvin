@@ -1,10 +1,10 @@
 """Complete workspace seed loader for importing workspace data from JSON."""
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
+from marvin.core.root_logger import get_logger
 from marvin.repos.repository_factory import AllRepositories
 
 
@@ -21,7 +21,7 @@ class WorkspaceSeedLoader:
     - assets
     """
 
-    def __init__(self, repos: AllRepositories, logger: logging.Logger | None = None):
+    def __init__(self, repos: AllRepositories, logger=None):
         """Initialize loader with repository access.
 
         Args:
@@ -29,7 +29,7 @@ class WorkspaceSeedLoader:
             logger: Optional logger instance
         """
         self.repos = repos
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     def load_seed_file(self, seed_file: Path) -> dict[str, int]:
         """Load a complete workspace seed from a JSON file.
@@ -96,7 +96,19 @@ class WorkspaceSeedLoader:
                     self.logger.error(f"Failed to create entry type {et_data.get('slug')}: {e}")
                     results["errors"] += 1
 
-        # 3. Entries
+        # 3. Resources (before entries so entry-resource links can resolve)
+        resources_data = data.get("resources", [])
+        if resources_data:
+            self.logger.info(f"Creating {len(resources_data)} resources...")
+            for res_data in resources_data:
+                try:
+                    self._create_resource(res_data)
+                    results["resources"] += 1
+                except Exception as e:
+                    self.logger.error(f"Failed to create resource {res_data.get('slug')}: {e}")
+                    results["errors"] += 1
+
+        # 4. Entries (may reference resources via inline resource assignments)
         entries_data = data.get("entries", [])
         if entries_data:
             self.logger.info(f"Creating {len(entries_data)} entries...")
@@ -112,10 +124,11 @@ class WorkspaceSeedLoader:
             f"Seed loaded: {results['collections']} collections, "
             f"{results['entry_types']} entry types, "
             f"{results['entries']} entries, "
+            f"{results['resources']} resources, "
             f"{results['errors']} errors"
         )
 
-        # 4. Send owner invitation emails if provided
+        # 5. Send owner invitation emails if provided
         workspace_data = data.get("workspace")
         if workspace_data:
             # Support both single ownerEmail and multiple ownerEmails
@@ -315,6 +328,95 @@ class WorkspaceSeedLoader:
         collection_assignments = data.get("collections", [])
         if collection_assignments:
             self._assign_to_collections(entry.id, collection_assignments)
+
+        # Handle resource assignments
+        resource_assignments = data.get("resources", [])
+        if resource_assignments:
+            self._assign_to_resources(entry.id, resource_assignments)
+
+    def _get_seed_user_id(self) -> str | None:
+        """Get a user ID for seed-created records.
+
+        Returns the first admin user's ID, or the first user if no admin exists.
+        """
+        if hasattr(self, "_seed_user_id"):
+            return self._seed_user_id
+
+        from marvin.db.models.users import Users
+
+        admin = self.repos.session.query(Users).filter(Users.admin == True).first()  # noqa: E712
+        if admin:
+            self._seed_user_id = admin.id
+            return self._seed_user_id
+
+        user = self.repos.session.query(Users).first()
+        self._seed_user_id = user.id if user else None
+        return self._seed_user_id
+
+    def _create_resource(self, data: dict[str, Any]) -> None:
+        """Create a resource if it doesn't exist.
+
+        Args:
+            data: Resource data from seed file
+        """
+        existing = self.repos.resources.multi_query({"slug": data["slug"]})
+        if existing:
+            self.logger.debug(f"Resource already exists: {data['slug']}")
+            return
+
+        user_id = self._get_seed_user_id()
+        if not user_id:
+            self.logger.warning(f"No user found for resource creation, skipping: {data['slug']}")
+            return
+
+        create_data = {
+            "group_id": self.repos.group_id,
+            "name": data["name"],
+            "slug": data["slug"],
+            "resource_type": data.get("resourceType", "material"),
+            "description": data.get("description"),
+            "url": data.get("url"),
+            "metadata_": data.get("metadataJson"),
+            "created_by": user_id,
+        }
+
+        self.repos.resources.create(create_data)
+        self.logger.info(f"Created resource: {data['slug']}")
+
+    def _assign_to_resources(self, entry_id: str, assignments: list[dict[str, Any]]) -> None:
+        """Link an entry to resources with role and position.
+
+        Args:
+            entry_id: UUID of the entry
+            assignments: List of {slug: str, role?: str, position?: int} dicts
+        """
+        for assignment in assignments:
+            resource_slug = assignment["slug"]
+            role = assignment.get("role")
+            position = assignment.get("position", 0)
+
+            resources = self.repos.resources.multi_query({"slug": resource_slug})
+            if not resources:
+                self.logger.warning(f"Resource not found: {resource_slug}")
+                continue
+
+            resource = resources[0]
+
+            try:
+                from marvin.db.models.platform import EntryResources
+
+                junction = EntryResources(
+                    entry_id=entry_id,
+                    resource_id=resource.id,
+                    role=role,
+                    position=position,
+                )
+                self.repos.session.add(junction)
+                self.repos.session.commit()
+                self.logger.debug(f"Linked resource: {resource_slug} (role: {role})")
+            except Exception as e:
+                self.repos.session.rollback()
+                self.logger.error(f"Failed to link resource {resource_slug}: {e}")
 
     def _assign_to_collections(self, entry_id: str, assignments: list[dict[str, Any]]) -> None:
         """Assign an entry to collections with order.

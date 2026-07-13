@@ -1,12 +1,17 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { requireAuth } from "@/lib/auth";
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from '@/lib/sdk';
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listWorkspaceMembers, type WorkspaceMemberRead } from "@/lib/api/workspaceMembers";
 import type { WorkspaceRole } from "@/lib/api/types";
 
+const currentUser = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
+
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let workspace = null;
 let members: WorkspaceMemberRead[] = [];
@@ -15,35 +20,28 @@ let error: string | null = null;
 let currentUserRole: WorkspaceRole | null = null;
 let currentUserId: string | null = null;
 
-if (!authToken) {
-  error = 'Not authenticated';
-} else {
-  try {
-    workspace = await getCurrentWorkspace(authToken);
+try {
+  workspace = await getCurrentWorkspace(authToken);
 
-    if (workspace) {
-      members = await listWorkspaceMembers(workspace.id, authToken);
+  if (workspace) {
+    members = await listWorkspaceMembers(workspace.id, authToken);
 
-      // Get current user info to find their role
-      const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-      if (currentUser) {
-        currentUserId = currentUser.id;
-        const currentMembership = members.find(m => m.userId === currentUser.id);
-        currentUserRole = currentMembership?.workspaceRole || null;
-      }
+    // Use authenticated user info to find their role
+    currentUserId = currentUser.id;
+    const currentMembership = members.find(m => m.userId === currentUser.id);
+    currentUserRole = currentMembership?.workspaceRole || null;
 
-      // Fetch invite tokens for this workspace
-      try {
-        inviteTokens = await fetchApi<any[]>('/api/groups/invitations', {}, authToken) || [];
-      } catch (e) {
-        console.error('[members] Error loading invite tokens:', e);
-        // Don't fail the whole page if invite tokens fail to load
-      }
+    // Fetch invite tokens for this workspace
+    try {
+      inviteTokens = await sdk.invites.list() || [];
+    } catch (e) {
+      console.error('[members] Error loading invite tokens:', e);
+      // Don't fail the whole page if invite tokens fail to load
     }
-  } catch (e) {
-    console.error('[members] Error loading:', e);
-    error = e instanceof Error ? e.message : String(e);
   }
+} catch (e) {
+  console.error('[members] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
 }
 
 // Role display names
@@ -84,7 +82,10 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
       <p>Manage who has access to {workspace?.name || 'this workspace'}</p>
     </div>
     {canManage && (
-      <a href="/workspace/members/new" class="button">Add Member</a>
+      <div style="display:flex;gap:0.75rem;">
+        <a href="/workspace/invites/new" class="button secondary">Invite Members</a>
+        <a href="/workspace/members/new" class="button">Add Member</a>
+      </div>
     )}
   </div>
 
@@ -422,13 +423,9 @@ const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
     const email = formData.get('email');
 
     try {
-      await fetchApi('/api/groups/invitations/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          token: tokenToResend,
-        }),
+      await sdk.invites.sendEmail({
+        email: email as string,
+        token: tokenToResend,
       });
 
       alert(`Invitation email sent to ${email}`);

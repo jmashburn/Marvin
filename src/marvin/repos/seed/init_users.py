@@ -36,8 +36,8 @@ def dev_users() -> list[dict]:
             "full_name": "Jason",
             "username": "jason",
             "email": "jason@example.com",
-            "password": hash_password(settings._DEFAULT_PASSWORD),  # Use hashed default password
-            "group": settings._DEFAULT_GROUP,  # Assign to default group
+            "password": hash_password(settings.DEFAULT_PASSWORD),  # Use hashed default password
+            "group": settings.DEFAULT_GROUP,  # Assign to default group
             "platform_role": PlatformRole.NONE,  # Standard user (no platform-level privileges)
             "admin": False,  # DEPRECATED: Use workspace roles instead
             "workspace_role": WorkspaceRole.ADMIN,  # Workspace administrator role
@@ -46,8 +46,8 @@ def dev_users() -> list[dict]:
             "full_name": "Bob",
             "username": "bob",
             "email": "bob@example.com",
-            "password": hash_password(settings._DEFAULT_PASSWORD),
-            "group": settings._DEFAULT_GROUP,
+            "password": hash_password(settings.DEFAULT_PASSWORD),
+            "group": settings.DEFAULT_GROUP,
             "platform_role": PlatformRole.NONE,
             "admin": False,  # DEPRECATED
             "workspace_role": WorkspaceRole.EDITOR,  # Workspace editor role
@@ -56,8 +56,8 @@ def dev_users() -> list[dict]:
             "full_name": "Sarah",
             "username": "sarah",
             "email": "sarah@example.com",
-            "password": hash_password(settings._DEFAULT_PASSWORD),
-            "group": settings._DEFAULT_GROUP,
+            "password": hash_password(settings.DEFAULT_PASSWORD),
+            "group": settings.DEFAULT_GROUP,
             "platform_role": PlatformRole.NONE,
             "admin": False,  # DEPRECATED
             "workspace_role": WorkspaceRole.AUTHOR,  # Workspace author role
@@ -66,8 +66,8 @@ def dev_users() -> list[dict]:
             "full_name": "Sammy",
             "username": "sammy",
             "email": "sammy@example.com",
-            "password": hash_password(settings._DEFAULT_PASSWORD),
-            "group": settings._DEFAULT_GROUP,
+            "password": hash_password(settings.DEFAULT_PASSWORD),
+            "group": settings.DEFAULT_GROUP,
             "platform_role": PlatformRole.NONE,
             "admin": False,  # DEPRECATED
             "workspace_role": WorkspaceRole.VIEWER,  # Workspace viewer role (read-only)
@@ -81,7 +81,7 @@ def default_user_init(db: AllRepositories) -> None:
     creates additional development users.
 
     The default admin user is created with credentials specified in the application
-    settings (e.g., `settings._DEFAULT_EMAIL`, `settings._DEFAULT_PASSWORD`).
+    settings (e.g., `settings.DEFAULT_EMAIL`, `settings.DEFAULT_PASSWORD`).
     Development users are sourced from the `dev_users()` function.
 
     The default admin receives:
@@ -102,15 +102,16 @@ def default_user_init(db: AllRepositories) -> None:
     default_user = {
         "full_name": "Change Me",  # Default full name, intended to be changed
         "username": "admin",  # Default admin username
-        "email": settings._DEFAULT_EMAIL,
-        "password": hash_password(settings._DEFAULT_PASSWORD),
-        "group": settings._DEFAULT_GROUP,  # Assign to the default group
+        "email": settings.DEFAULT_EMAIL,
+        "password": hash_password(settings.DEFAULT_PASSWORD),
+        "group": settings.DEFAULT_GROUP,  # Assign to the default group
         "platform_role": PlatformRole.SUPER_ADMIN,  # Platform administrator with unrestricted access
         "admin": True,  # DEPRECATED: Use platform_role instead
         "is_superuser": True,  # DEPRECATED: Use platform_role instead
     }
 
     logger.info("Generating Default User (Platform Admin with SUPER_ADMIN role)")
+    logger.info(f"Default admin credentials — email: {settings.DEFAULT_EMAIL}  password: {settings.DEFAULT_PASSWORD}")
     # Create the default admin user using the users repository
     admin_user = db.users.create(default_user)
     logger.info(f"Default admin user created: {admin_user.email} (platform_role={admin_user.platform_role.value})")
@@ -124,7 +125,7 @@ def default_user_init(db: AllRepositories) -> None:
     )
     db.session.add(admin_membership)
     db.session.commit()
-    logger.info(f"Workspace membership created: {admin_user.username} -> {settings._DEFAULT_GROUP} (OWNER)")
+    logger.info(f"Workspace membership created: {admin_user.username} -> {settings.DEFAULT_GROUP} (OWNER)")
 
     # If the application is not in production mode, create development users
     if not settings.PRODUCTION:
@@ -136,8 +137,7 @@ def default_user_init(db: AllRepositories) -> None:
             # Create the development user
             dev_user = db.users.create(user_data)
             logger.info(
-                f"Development user created: {dev_user.username} "
-                f"(platform_role={dev_user.platform_role.value})"
+                f"Development user created: {dev_user.email} / {settings.DEFAULT_PASSWORD} " f"(platform_role={dev_user.platform_role.value})"
             )
 
             # Create workspace membership for the dev user
@@ -149,6 +149,4 @@ def default_user_init(db: AllRepositories) -> None:
             )
             db.session.add(dev_membership)
             db.session.commit()
-            logger.info(
-                f"Workspace membership created: {dev_user.username} -> {settings._DEFAULT_GROUP} ({workspace_role.value})"
-            )
+            logger.info(f"Workspace membership created: {dev_user.username} -> {settings.DEFAULT_GROUP} ({workspace_role.value})")

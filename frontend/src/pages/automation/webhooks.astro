@@ -1,9 +1,11 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 let workspace = null;
 let webhooks: any[] = [];
 let error: string | null = null;
@@ -12,9 +14,7 @@ try {
   workspace = await getCurrentWorkspace(authToken);
 
   if (workspace) {
-    // Fetch webhooks for this workspace
-    const response = await fetchApi<any>('/api/groups/webhooks', {}, authToken);
-    webhooks = response.items || [];
+    webhooks = await sdk.webhooks.list();
   }
 } catch (e) {
   console.error('[webhooks] Error loading:', e);
@@ -109,8 +109,8 @@ function formatScheduledTime(time: string | null | undefined): string {
 </AppLayout>
 
 <script>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
 
   // Toggle webhook enabled/disabled
   document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
@@ -119,12 +119,7 @@ function formatScheduledTime(time: string | null | undefined): string {
       const currentlyEnabled = btn.getAttribute('data-enabled') === 'true';
 
       try {
-        await fetchApi(`/api/groups/webhooks/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: !currentlyEnabled }),
-        });
-
+        await sdk.webhooks.update(id!, { enabled: !currentlyEnabled });
         window.location.reload();
       } catch (error) {
         alert('Failed to update webhook');
@@ -141,10 +136,7 @@ function formatScheduledTime(time: string | null | undefined): string {
       if (!confirm(`Are you sure you want to delete the webhook "${name}"?`)) return;
 
       try {
-        await fetchApi(`/api/groups/webhooks/${id}`, {
-          method: 'DELETE',
-        });
-
+        await sdk.webhooks.delete(id!);
         window.location.reload();
       } catch (error) {
         alert('Failed to delete webhook');

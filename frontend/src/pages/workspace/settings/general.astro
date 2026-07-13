@@ -1,11 +1,14 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { requireAuth } from "@/lib/auth";
+import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { getWorkspacePreferences } from "@/lib/api/workspaceSettings";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
 import type { WorkspaceRole } from "@/lib/api/types";
+
+const currentUser = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
 const authToken = getAuthToken(Astro.cookies);
 let workspace = null;
@@ -27,11 +30,11 @@ try {
 
     // Get current user's role and admin status
     const members = await listWorkspaceMembers(workspace.id, authToken);
-    const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-    if (currentUser) {
-      const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
-      currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
-      isPlatformAdmin = currentUser.admin === true;
+    const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+    currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
+    isPlatformAdmin = currentUser.admin === true;
+    if (!currentUserRole && isPlatformAdmin) {
+      currentUserRole = 'ADMIN' as WorkspaceRole;
     }
   }
 } catch (e) {
@@ -267,7 +270,7 @@ const success = urlParams.get('success') === '1';
           </div>
           <div class="info-item">
             <span class="info-label">Your Role</span>
-            <span class="info-value role-badge">{currentUserRole}</span>
+            <span class="info-value role-badge">{currentUserRole || 'None'}</span>
           </div>
           <div class="info-item">
             <span class="info-label">Active Status</span>
@@ -289,7 +292,7 @@ const success = urlParams.get('success') === '1';
           >
             Download Workspace Backup
           </button>
-          <small>Exports collections, entry types, entries, and site configuration as JSON</small>
+          <small>Exports collections, entry types, entries, assets, resources, and site configuration as JSON</small>
         </div>
       </section>
 
@@ -324,7 +327,8 @@ const success = urlParams.get('success') === '1';
 
 <script>
   // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
   const form = document.getElementById('workspace-settings-form') as HTMLFormElement;
   const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
   const siteForm = document.getElementById('site-settings-form') as HTMLFormElement;
@@ -351,11 +355,7 @@ const success = urlParams.get('success') === '1';
           name: formData.get('name') as string,
         };
 
-        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
+        await sdk.workspaces.updatePreferences(workspaceId, data);
 
         window.location.href = '/workspace/settings?success=1';
       } catch (err) {
@@ -420,11 +420,7 @@ const success = urlParams.get('success') === '1';
           }
         }
 
-        await fetchApi(`/api/groups/${workspaceId}/preferences`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        });
+        await sdk.workspaces.updatePreferences(workspaceId, data);
 
         window.location.href = '/workspace/settings?success=1';
       } catch (err) {
@@ -439,32 +435,17 @@ const success = urlParams.get('success') === '1';
   const exportBtn = document.getElementById('export-workspace-btn') as HTMLButtonElement;
   if (exportBtn) {
     exportBtn.addEventListener('click', async () => {
-      const workspaceId = exportBtn.dataset.workspaceId;
-      if (!workspaceId) {
-        alert('Workspace ID not found');
-        return;
-      }
-
       exportBtn.disabled = true;
       exportBtn.textContent = 'Exporting...';
 
       try {
-        // Use fetch directly to handle file download
-        const response = await fetch(`/api/platform/workspace/export/pretty`, {
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          throw new Error('Export failed');
-        }
-
-        // Get the blob and create download
-        const blob = await response.blob();
+        const data = await sdk.workspaces.export({ pretty: true });
+        const jsonStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
 
-        // Generate filename with workspace slug and timestamp
         const timestamp = new Date().toISOString().split('T')[0];
         a.download = `workspace-backup-${timestamp}.json`;
 
@@ -472,12 +453,10 @@ const success = urlParams.get('success') === '1';
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-
-        exportBtn.disabled = false;
-        exportBtn.textContent = 'Download Workspace Backup';
       } catch (err) {
         console.error('Export error:', err);
         alert('Error: ' + (err instanceof Error ? err.message : 'Failed to export workspace'));
+      } finally {
         exportBtn.disabled = false;
         exportBtn.textContent = 'Download Workspace Backup';
       }
@@ -522,9 +501,7 @@ const success = urlParams.get('success') === '1';
       deleteBtn.textContent = 'Deleting...';
 
       try {
-        await fetchApi(`/api/admin/groups/${workspaceId}?force=true`, {
-          method: 'DELETE',
-        });
+        await sdk.workspaces.delete(workspaceId, true);
 
         alert('Workspace deleted successfully. Redirecting...');
         window.location.href = '/';

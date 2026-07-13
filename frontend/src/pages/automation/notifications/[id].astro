@@ -1,8 +1,10 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 const { id } = Astro.params;
 
 let notification: any = null;
@@ -11,7 +13,7 @@ let appriseReady = false;
 
 // Check if Apprise is available
 try {
-  const configCheck = await fetchApi<any>('/api/admin/about/check', {}, authToken);
+  const configCheck = await sdk.adminSystem.check() as any;
   appriseReady = configCheck?.apprise_ready === true;
 } catch (e) {
   console.error('[notifications/edit] Error checking Apprise availability:', e);
@@ -23,7 +25,7 @@ if (!appriseReady) {
 }
 
 try {
-  notification = await fetchApi<any>(`/api/group/notifications/${id}`, {}, authToken);
+  notification = await sdk.notifications.get(id!);
 } catch (e) {
   console.error('[notifications/edit] Error:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -90,8 +92,8 @@ try {
 </AppLayout>
 
 <script define:vars={{ id }}>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
   const form = document.getElementById('update-notification-form');
   const deleteBtn = document.getElementById('delete-btn');
 
@@ -107,12 +109,7 @@ try {
     };
 
     try {
-      await fetchApi(`/api/group/notifications/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
+      await sdk.notifications.update(id, payload);
       window.location.href = '/automation/notifications?updated=true';
     } catch (error) {
       alert('Failed to update notification. Please try again.');
@@ -124,10 +121,7 @@ try {
     if (!confirm('Are you sure you want to delete this notification?')) return;
 
     try {
-      await fetchApi(`/api/group/notifications/${id}`, {
-        method: 'DELETE',
-      });
-
+      await sdk.notifications.delete(id);
       window.location.href = '/automation/notifications?deleted=true';
     } catch (error) {
       alert('Failed to delete notification. Please try again.');

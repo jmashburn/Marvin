@@ -341,7 +341,7 @@ helm package ./marvin-chart
 ## Support
 
 For issues and questions:
-- GitHub: https://github.com/yourusername/marvin/issues
+- GitHub: https://github.com/InnerOpen/marvin/issues
 - Documentation: See `HELM_DEPLOYMENT_GUIDE.md`
 - Rollback procedures: See `ROLLBACK_PROCEDURES.md`
 

@@ -154,44 +154,26 @@ class EntryRead(_MarvinModel):
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
-        """Custom validation to extract collection IDs from collection objects."""
-        if hasattr(obj, "collections") and obj.collections:
-            # If collections are Collection objects, extract their IDs
-            if obj.collections and hasattr(obj.collections[0], "id"):
-                collection_ids = [c.id for c in obj.collections]
-                # Create a dict with all attributes
-                data = {field: getattr(obj, field, None) for field in cls.model_fields}
-                data["collections"] = collection_ids
-                return super().model_validate(data, **kwargs)
-        return super().model_validate(obj, **kwargs)
         """Custom validation to extract collection IDs and build asset/resource details."""
         data = {field: getattr(obj, field, None) for field in cls.model_fields}
 
-        # Extract collection IDs from collection objects
         if hasattr(obj, "collections") and obj.collections:
             if obj.collections and hasattr(obj.collections[0], "id"):
                 data["collections"] = [c.id for c in obj.collections]
 
-        # Extract order from entry_collections junction table if querying for a specific collection
         if hasattr(obj, "entry_collections") and obj.entry_collections:
-            # Use the first junction's sort_order (typically only one when filtering by collection)
             if obj.entry_collections and hasattr(obj.entry_collections[0], "sort_order"):
                 data["order"] = obj.entry_collections[0].sort_order
 
-        # Build assets from entry_assets junction table (includes placement metadata)
         if hasattr(obj, "entry_assets") and obj.entry_assets:
             from marvin.schemas.platform.assets import EntryAssetRead
 
             assets = []
             for junction in obj.entry_assets:
                 if hasattr(junction, "asset") and junction.asset:
-                    # Combine asset data + junction placement data
                     asset_data = {
-                        # Asset fields
                         **{k: getattr(junction.asset, k, None) for k in EntryAssetRead.model_fields if hasattr(junction.asset, k)},
-                        # Placement fields from junction
                         "role": junction.role,
-                        "usage": junction.usage,
                         "position": junction.position,
                         "focal_point": junction.focal_point,
                         "caption": junction.caption,

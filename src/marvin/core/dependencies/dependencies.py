@@ -15,6 +15,7 @@ from sqlalchemy.orm.session import Session
 
 from marvin.core import root_logger
 from marvin.core.config import get_app_dirs, get_app_settings
+from marvin.core.security.security import JWT_ALGORITHM
 from marvin.db.db_setup import generate_session
 from marvin.db.models.users.roles import PlatformRole, WorkspaceRole
 from marvin.repos.all_repositories import get_repositories
@@ -27,7 +28,7 @@ publishing_bearer_scheme = HTTPBearer(
     scheme_name="PublishingAPIToken",
     description="API client token (marvin_sk_ prefix) for Publishing API access",
 )
-ALGORITHM = "HS256"
+ALGORITHM = JWT_ALGORITHM  # Import from central location
 app_dirs = get_app_dirs()
 settings = get_app_settings()
 logger = root_logger.get_logger("dependencies")
@@ -58,7 +59,12 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
             repos = get_repositories(session, group_id=None)
             token_model = repos.api_tokens.validate_token(plaintext_token=token)
             return token_model is not None
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "Unexpected error validating API token in is_logged_in",
+                exc_info=True,
+                extra={"dependency": "is_logged_in", "token_type": "api_token"},
+            )
             return False
 
     try:
@@ -70,12 +76,22 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
             try:
                 if validate_long_live_token(session, token, payload.get("id")):
                     return True
-            except Exception:
+            except Exception as e:
+                logger.debug(
+                    "Unexpected error validating long-lived token in is_logged_in",
+                    exc_info=True,
+                    extra={"dependency": "is_logged_in", "token_type": "long_lived"},
+                )
                 return False
 
         return user_id is not None
 
-    except Exception:
+    except Exception as e:
+        logger.debug(
+            "Unexpected error decoding JWT in is_logged_in",
+            exc_info=True,
+            extra={"dependency": "is_logged_in", "token_type": "jwt"},
+        )
         return False
 
 
@@ -122,7 +138,12 @@ async def try_get_current_user(
     """
     try:
         return await get_current_user(request, token, session)
-    except Exception:
+    except Exception as e:
+        logger.debug(
+            "Unable to get current user in try_get_current_user (expected behavior)",
+            exc_info=True,
+            extra={"dependency": "try_get_current_user"},
+        )
         return None
 
 

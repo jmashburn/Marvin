@@ -1,7 +1,7 @@
 """API clients repository."""
 
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import UUID4
@@ -44,6 +44,7 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
 
         # Auto-generate slug from name if not provided
         from slugify import slugify
+
         if not data_dict.get("slug"):
             data_dict["slug"] = slugify(data_dict["name"])
 
@@ -107,20 +108,14 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
         api_client = self.get_one(api_client_id)
         if not api_client:
             from fastapi import HTTPException, status
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API client not found."
-            )
+
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
 
         # Generate new token
         plaintext_token = self._generate_token()
 
         # Update with new token hash (allow token_hash update via internal flag)
-        updated = self.update(
-            api_client_id,
-            {"token_hash": get_hasher().hash(plaintext_token)},
-            _allow_token_hash=True
-        )
+        updated = self.update(api_client_id, {"token_hash": get_hasher().hash(plaintext_token)}, _allow_token_hash=True)
 
         # Return with new plaintext token
         return APIClientWithToken(
@@ -128,7 +123,7 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
             group_id=updated.group_id,
             name=updated.name,
             slug=updated.slug,
-            description=getattr(updated, 'description', None),
+            description=getattr(updated, "description", None),
             permissions=updated.permissions,
             token=plaintext_token,  # IMPORTANT: Only shown here
             enabled=updated.enabled,
@@ -149,8 +144,8 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
             api_client_id,
             {
                 "enabled": False,
-                "revoked_at": datetime.utcnow(),
-            }
+                "revoked_at": datetime.now(UTC),
+            },
         )
 
     def validate_token(self, plaintext_token: str) -> APIClients | None:
@@ -176,7 +171,7 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
         for api_client in query.all():
             if get_hasher().verify(plaintext_token, api_client.token_hash):
                 # Update last_used_at
-                api_client.last_used_at = datetime.utcnow()
+                api_client.last_used_at = datetime.now(UTC)
                 self.session.commit()
                 return api_client
 
@@ -204,4 +199,3 @@ class APIClientsRepository(GroupRepositoryGeneric[APIClientRead, APIClients]):
         token_prefix = settings.SECURITY_TOKEN_PREFIX_CLIENT
         random_part = secrets.token_urlsafe(settings.SECURITY_TOKEN_RANDOM_BYTES)
         return f"{token_prefix}{random_part}"
-

@@ -13,11 +13,11 @@ keywords:
 
 maintainers:
   - name: Jared Mash
-    email: jared@example.com
+    email: engineering@inneropen.org
 
-home: https://github.com/yourusername/marvin
+home: https://github.com/InnerOpen/marvin
 sources:
-  - https://github.com/yourusername/marvin
+  - https://github.com/InnerOpen/marvin
 
 # Minimum Helm version required
 kubeVersion: ">=1.19.0-0"

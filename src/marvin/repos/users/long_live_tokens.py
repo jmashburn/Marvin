@@ -1,7 +1,7 @@
 """Long-lived tokens repository."""
 
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -109,10 +109,7 @@ class LongLiveTokensRepository(RepositoryGeneric[LongLiveTokenRead, LongLiveToke
         # Get the token
         token = self.get_one(token_id)
         if not token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API token not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API token not found.")
 
         # Generate new token
         plaintext_token = self._generate_token()
@@ -121,10 +118,7 @@ class LongLiveTokensRepository(RepositoryGeneric[LongLiveTokenRead, LongLiveToke
         # Update token hash directly (bypass schema validation which excludes token_hash)
         db_token = self.session.query(LongLiveToken).filter(LongLiveToken.id == str(token_id)).first()
         if not db_token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API token not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API token not found.")
 
         db_token.token_hash = new_hash
         self.session.commit()
@@ -161,8 +155,8 @@ class LongLiveTokensRepository(RepositoryGeneric[LongLiveTokenRead, LongLiveToke
             token_id,
             {
                 "enabled": False,
-                "revoked_at": datetime.utcnow(),
-            }
+                "revoked_at": datetime.now(UTC),
+            },
         )
 
     def validate_token(self, plaintext_token: str, user_id: UUID4 | None = None) -> LongLiveToken | None:
@@ -190,7 +184,7 @@ class LongLiveTokensRepository(RepositoryGeneric[LongLiveTokenRead, LongLiveToke
         for token in query.all():
             if get_hasher().verify(plaintext_token, token.token_hash):
                 # Update last_used_at
-                token.last_used_at = datetime.utcnow()
+                token.last_used_at = datetime.now(UTC)
                 self.session.commit()
                 return token
 

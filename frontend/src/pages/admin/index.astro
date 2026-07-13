@@ -1,25 +1,10 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
 
-const authToken = getAuthToken(Astro.cookies);
+await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+
 const currentTab = Astro.url.searchParams.get('tab') || 'general';
-
-let isAdmin = false;
-let error: string | null = null;
-
-try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-  isAdmin = currentUser?.admin === true;
-
-  if (!isAdmin) {
-    return Astro.redirect('/');
-  }
-} catch (e) {
-  console.error('[admin] Error loading:', e);
-  error = e instanceof Error ? e.message : String(e);
-  return Astro.redirect('/');
-}
 
 const tabs = [
   { id: 'general', label: 'General', icon: '⚙' },

@@ -224,6 +224,7 @@
     private dragStart = { x: 0, y: 0 };
     private resizing: string | null = null;
     private onApply: ((blob: Blob) => void) | null = null;
+    private onCancel: (() => void) | null = null;
 
     constructor() {
       this.modal = document.getElementById('imageCropperModal')!;
@@ -236,8 +237,8 @@
 
     private setupEventListeners() {
       // Close buttons
-      document.getElementById('closeCropper')!.addEventListener('click', () => this.hide());
-      document.getElementById('cancelCrop')!.addEventListener('click', () => this.hide());
+      document.getElementById('closeCropper')!.addEventListener('click', () => this.cancel());
+      document.getElementById('cancelCrop')!.addEventListener('click', () => this.cancel());
       document.getElementById('applyCrop')!.addEventListener('click', () => this.apply());
 
       // Quality slider
@@ -262,8 +263,9 @@
       });
     }
 
-    public show(file: File, onApply: (blob: Blob) => void) {
+    public show(file: File, onApply: (blob: Blob) => void, onCancel?: () => void) {
       this.onApply = onApply;
+      this.onCancel = onCancel || null;
 
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -282,6 +284,14 @@
     public hide() {
       this.modal.style.display = 'none';
       this.image = null;
+    }
+
+    private cancel() {
+      this.hide();
+      if (this.onCancel) {
+        this.onCancel();
+        this.onCancel = null;
+      }
     }
 
     private drawImage() {

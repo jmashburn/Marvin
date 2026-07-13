@@ -22,7 +22,12 @@ from marvin.core.security.hasher import get_hasher
 
 from marvin.schemas.user.auth import CredentialsRequest, CredentialsRequestForm
 
-ALGORITHM = "HS256"
+# JWT algorithm constant - DO NOT CHANGE without migration plan
+# Used for encoding/decoding JWT tokens across the application
+JWT_ALGORITHM = "HS256"
+
+# Legacy alias for backward compatibility (deprecated - use JWT_ALGORITHM)
+ALGORITHM = JWT_ALGORITHM
 
 logger = root_logger.get_logger("security")
 
@@ -50,6 +55,7 @@ def get_auth_provider(session: Session, data: CredentialsRequestForm):
     credentials_request = CredentialsRequest(**data.__dict__)
     if settings.LDAP_ENABLED:
         from marvin.core.security.providers.ldap_provider import LDAPProvider
+
         return LDAPProvider(session, credentials_request)
 
     return CredentialsProvider(session, credentials_request)
@@ -78,16 +84,49 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return jwt.encode(to_encode, settings.SECRET, algorithm=ALGORITHM)
 
 
-def create_file_token(file_path: Path) -> str:
+def validate_file_path(file_path: Path, allowed_base: Path) -> Path:
+    """
+    Validates that a file path is within an allowed base directory and doesn't contain path traversal.
+
+    Args:
+        file_path (Path): The file path to validate.
+        allowed_base (Path): The base directory that file_path must be within.
+
+    Returns:
+        Path: The resolved absolute path if valid.
+
+    Raises:
+        ValueError: If the path is outside the allowed directory or contains traversal attempts.
+    """
+    # Resolve to absolute paths
+    abs_path = file_path.resolve()
+    abs_base = allowed_base.resolve()
+
+    # Check if path is within allowed base directory
+    try:
+        abs_path.relative_to(abs_base)
+    except ValueError:
+        raise ValueError(f"Path {file_path} is outside allowed directory {allowed_base}")
+
+    return abs_path
+
+
+def create_file_token(file_path: Path, allowed_base: Path) -> str:
     """
     Creates a short-lived JWT access token specifically for accessing a file.
 
     Args:
         file_path (Path): The path to the file.
+        allowed_base (Path): The base directory that file_path must be within.
 
     Returns:
         str: The encoded JWT file access token.
+
+    Raises:
+        ValueError: If file_path is invalid or outside allowed_base.
     """
+    file_path = validate_file_path(file_path, allowed_base)
+
     token_data = {"file": str(file_path)}
     return create_access_token(token_data, expires_delta=timedelta(minutes=30))
 

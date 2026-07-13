@@ -3,15 +3,11 @@
  */
 
 import type { AstroCookies } from 'astro';
-import { fetchApi } from './api/client';
+import type { UserProfile } from '@inneropen/marvin-sdk/platform';
+import { createSdkClient } from './sdk';
+import { getAuthToken } from './api/client';
 
-export interface User {
-  id: string;
-  username: string;
-  email?: string;
-  admin?: boolean;
-  groupId?: string;
-}
+export type User = UserProfile;
 
 /**
  * Check if user is authenticated and get current user data
@@ -19,17 +15,16 @@ export interface User {
  * @returns User data if authenticated, null otherwise
  */
 export async function getCurrentUser(cookies: AstroCookies): Promise<User | null> {
-  const token = cookies.get('marvin.access_token');
+  const token = getAuthToken(cookies);
 
-  if (!token?.value) {
+  if (!token) {
     return null;
   }
 
   try {
-    const user = await fetchApi<User>('/api/self', {}, token.value);
-    return user;
+    const sdk = createSdkClient(token);
+    return await sdk.user.getProfile();
   } catch (error) {
-    // Token is invalid or expired
     return null;
   }
 }
@@ -59,14 +54,11 @@ export async function requireAuth(
   const user = await getCurrentUser(cookies);
 
   if (!user) {
-    // Build login URL with return path
     const loginUrl = currentPath && currentPath !== '/'
       ? `/login?return=${encodeURIComponent(currentPath)}`
       : '/login';
 
-    redirect(loginUrl);
-    // TypeScript doesn't know redirect throws, so add a return that never executes
-    throw new Error('Redirect should have thrown');
+    throw redirect(loginUrl);
   }
 
   return user;
@@ -96,9 +88,7 @@ export async function requireAdmin(
   const user = await requireAuth(cookies, redirect, currentPath);
 
   if (!user.admin) {
-    redirect('/');
-    // TypeScript doesn't know redirect throws, so add a return that never executes
-    throw new Error('Redirect should have thrown');
+    throw redirect('/');
   }
 
   return user;

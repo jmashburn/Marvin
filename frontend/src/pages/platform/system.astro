@@ -1,18 +1,20 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { requireAdmin } from "@/lib/auth";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from '@/lib/sdk';
+import { getAuthToken } from '@/lib/api/client';
 
 // Require admin authentication
 const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let error: string | null = null;
 let stats: any = null;
 
 // Fetch system statistics
 try {
-  stats = await fetchApi<any>('/api/admin/maintenance/stats', {}, authToken);
+  stats = await sdk.adminMaintenance.getStats();
 } catch (e) {
   console.error('[platform/system] Failed to fetch stats:', e);
   error = 'Failed to load system statistics';

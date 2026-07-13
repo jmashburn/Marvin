@@ -24,7 +24,6 @@ class EntryAssets(SqlAlchemyBase):
     asset_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
     position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
     role: Mapped[str | None] = mapped_column(sa.String, nullable=True)
-    usage: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     focal_point: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     caption: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", sa.JSON, nullable=True)
@@ -42,4 +41,7 @@ class EntryAssets(SqlAlchemyBase):
         overlaps="assets,entries",
     )
 
-    __table_args__ = (sa.UniqueConstraint("entry_id", "asset_id"),)
+    __table_args__ = (
+        sa.UniqueConstraint("entry_id", "asset_id"),
+        sa.Index("ix_entry_assets_entry_id_position", "entry_id", "position"),
+    )

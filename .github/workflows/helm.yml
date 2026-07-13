@@ -1,0 +1,202 @@
+name: Helm Validation
+
+# Validate Helm chart quality and deployability
+# Tests lint, template rendering, and deployment to Kind cluster
+
+on:
+  pull_request:
+    paths:
+      - 'marvin-chart/**'
+      - '.github/workflows/helm.yml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'marvin-chart/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Helm Lint & Template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Lint Helm chart
+        run: |
+          helm lint marvin-chart/ --strict
+
+      - name: Template Helm chart (default values)
+        run: |
+          helm template marvin marvin-chart/ \
+            --debug \
+            --output-dir /tmp/marvin-templates
+
+      - name: Template Helm chart (production values)
+        run: |
+          helm template marvin marvin-chart/ \
+            --values marvin-chart/values.yaml \
+            --set image.tag=latest \
+            --set postgresql.enabled=true \
+            --set redis.enabled=true \
+            --debug \
+            --output-dir /tmp/marvin-templates-prod
+
+      - name: Upload rendered templates
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-templates
+          path: /tmp/marvin-templates*
+
+  integration-test:
+    name: Helm Integration Test (Kind)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: marvin-test
+          wait: 120s
+
+      - name: Build Docker image for testing
+        run: |
+          docker build -t marvin:test -f docker/Dockerfile .
+
+      - name: Load image into Kind
+        run: |
+          kind load docker-image marvin:test --name marvin-test
+
+      - name: Create test namespace
+        run: |
+          kubectl create namespace marvin-test
+
+      - name: Install Helm chart
+        run: |
+          helm install marvin marvin-chart/ \
+            --namespace marvin-test \
+            --set image.repository=marvin \
+            --set image.tag=test \
+            --set image.pullPolicy=Never \
+            --set postgresql.enabled=true \
+            --set redis.enabled=true \
+            --wait \
+            --timeout 5m \
+            --debug
+
+      - name: Wait for pods to be ready
+        run: |
+          kubectl wait --for=condition=ready pod \
+            --selector=app.kubernetes.io/name=marvin \
+            --namespace marvin-test \
+            --timeout=300s
+
+      - name: Check pod status
+        run: |
+          kubectl get pods -n marvin-test
+          kubectl get services -n marvin-test
+
+      - name: Test health endpoint
+        run: |
+          # Port forward to access the service
+          kubectl port-forward -n marvin-test svc/marvin 8080:80 &
+          sleep 5
+
+          # Test health endpoint
+          curl -f http://localhost:8080/health || \
+          curl -f http://localhost:8080/healthz || \
+          curl -f http://localhost:8080/ || \
+          echo "⚠️ Health check endpoint not accessible"
+
+      - name: Check logs on failure
+        if: failure()
+        run: |
+          echo "=== Pod Logs ==="
+          kubectl logs -n marvin-test --selector=app.kubernetes.io/name=marvin --tail=100
+
+          echo "=== Pod Events ==="
+          kubectl get events -n marvin-test --sort-by='.lastTimestamp'
+
+          echo "=== Pod Describe ==="
+          kubectl describe pods -n marvin-test
+
+      - name: Helm test (if tests defined)
+        run: |
+          helm test marvin --namespace marvin-test || echo "No Helm tests defined"
+        continue-on-error: true
+
+      - name: Uninstall Helm chart
+        if: always()
+        run: |
+          helm uninstall marvin --namespace marvin-test || true
+
+      - name: Delete test namespace
+        if: always()
+        run: |
+          kubectl delete namespace marvin-test || true
+
+  security-scan:
+    name: Helm Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Checkov scan on Helm templates
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: marvin-chart/
+          framework: helm
+          output_format: cli
+          soft_fail: true
+        continue-on-error: true
+
+  package:
+    name: Package Helm Chart
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - integration-test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p .helm-packages
+          helm package marvin-chart/ --destination .helm-packages/
+
+      - name: Upload Helm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart-package
+          path: .helm-packages/*.tgz

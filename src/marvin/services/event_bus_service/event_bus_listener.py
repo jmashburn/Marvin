@@ -597,7 +597,6 @@ class ScheduledTaskListener(EventListenerBase):
             subscribers (list[str]): List of subscribers (always ["scheduled_task_handler"]).
         """
         import traceback
-        from datetime import datetime
 
         from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
         from marvin.services.scheduled_tasks import TaskHandlerRegistry
@@ -619,7 +618,7 @@ class ScheduledTaskListener(EventListenerBase):
                 self.logger.error(f"ScheduledTaskListener: Task {task_id} not found")
                 return
 
-            start_time = datetime.utcnow()
+            start_time = datetime.now(UTC)
 
             # Import event bus for handler to use
             from marvin.services.event_bus_service import EventBusService
@@ -642,7 +641,7 @@ class ScheduledTaskListener(EventListenerBase):
                 handler.execute(task, event_bus)
 
                 # Calculate duration
-                end_time = datetime.utcnow()
+                end_time = datetime.now(UTC)
                 duration_ms = int((end_time - start_time).total_seconds() * 1000)
 
                 # Log successful execution
@@ -697,9 +696,7 @@ class ScheduledTaskListener(EventListenerBase):
         event: Event,
     ) -> None:
         """Helper to handle task execution failures."""
-        from datetime import datetime
-
-        end_time = datetime.utcnow()
+        end_time = datetime.now(UTC)
         duration_ms = int((end_time - start_time).total_seconds() * 1000)
 
         # Log failed execution

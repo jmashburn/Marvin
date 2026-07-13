@@ -1,8 +1,8 @@
 """Workspace exporter for dumping workspace data to JSON format."""
 
-import logging
 from typing import Any
 
+from marvin.core.root_logger import get_logger
 from marvin.repos.repository_factory import AllRepositories
 
 
@@ -12,10 +12,12 @@ class WorkspaceExporter:
     Produces the same format that WorkspaceSeedLoader imports:
     - collections
     - entry_types (workspace-scoped only)
-    - entries (with collection assignments)
+    - entries (with collection, asset, and resource assignments)
+    - assets (metadata only, no binary files)
+    - resources
     """
 
-    def __init__(self, repos: AllRepositories, logger: logging.Logger | None = None):
+    def __init__(self, repos: AllRepositories, logger=None):
         """Initialize exporter with repository access.
 
         Args:
@@ -23,7 +25,7 @@ class WorkspaceExporter:
             logger: Optional logger instance
         """
         self.repos = repos
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or get_logger(__name__)
 
     def export_workspace(self, include_system_types: bool = False) -> dict[str, Any]:
         """Export complete workspace data to JSON-serializable dict.
@@ -43,12 +45,16 @@ class WorkspaceExporter:
             "collections": self._export_collections(),
             "entry_types": self._export_entry_types(include_system_types),
             "entries": self._export_entries(),
+            "assets": self._export_assets(),
+            "resources": self._export_resources(),
         }
 
         self.logger.info(
             f"Export complete: {len(export_data['collections'])} collections, "
             f"{len(export_data['entry_types'])} entry types, "
-            f"{len(export_data['entries'])} entries"
+            f"{len(export_data['entries'])} entries, "
+            f"{len(export_data['assets'])} assets, "
+            f"{len(export_data['resources'])} resources"
         )
 
         return export_data
@@ -227,6 +233,14 @@ class WorkspaceExporter:
             if collections_data:
                 entry_dict["collections"] = collections_data
 
+            assets_data = self._get_entry_assets(entry.id)
+            if assets_data:
+                entry_dict["assets"] = assets_data
+
+            resources_data = self._get_entry_resources(entry.id)
+            if resources_data:
+                entry_dict["resources"] = resources_data
+
             exported.append(entry_dict)
 
         return exported
@@ -258,3 +272,133 @@ class WorkspaceExporter:
                 )
 
         return collections_data
+
+    def _get_entry_assets(self, entry_id: str) -> list[dict[str, Any]]:
+        """Get asset assignments for an entry.
+
+        Args:
+            entry_id: UUID of the entry
+
+        Returns:
+            List of {slug, position, role, ...} dicts
+        """
+        from marvin.db.models.platform import EntryAssets
+
+        assignments = self.repos.session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id).order_by(EntryAssets.position).all()
+
+        assets_data = []
+        for assignment in assignments:
+            asset = self.repos.assets.get_one(assignment.asset_id)
+            if asset:
+                entry_asset = {"slug": asset.slug, "position": assignment.position}
+                if assignment.role:
+                    entry_asset["role"] = assignment.role
+                if assignment.caption:
+                    entry_asset["caption"] = assignment.caption
+                if assignment.focal_point:
+                    entry_asset["focalPoint"] = assignment.focal_point
+                assets_data.append(entry_asset)
+
+        return assets_data
+
+    def _get_entry_resources(self, entry_id: str) -> list[dict[str, Any]]:
+        """Get resource assignments for an entry.
+
+        Args:
+            entry_id: UUID of the entry
+
+        Returns:
+            List of {slug, position, role, ...} dicts
+        """
+        from marvin.db.models.platform import EntryResources
+
+        assignments = self.repos.session.query(EntryResources).filter(EntryResources.entry_id == entry_id).order_by(EntryResources.position).all()
+
+        resources_data = []
+        for assignment in assignments:
+            resource = self.repos.resources.get_one(assignment.resource_id)
+            if resource:
+                entry_resource = {"slug": resource.slug, "position": assignment.position}
+                if assignment.role:
+                    entry_resource["role"] = assignment.role
+                if assignment.quantity:
+                    entry_resource["quantity"] = assignment.quantity
+                if assignment.unit:
+                    entry_resource["unit"] = assignment.unit
+                resources_data.append(entry_resource)
+
+        return resources_data
+
+    def _export_assets(self) -> list[dict[str, Any]]:
+        """Export all asset metadata (no binary files).
+
+        Returns:
+            List of asset dicts in seed format
+        """
+        assets = self.repos.assets.get_all(
+            limit=None,
+            order_by="slug",
+        )
+
+        exported = []
+        for asset in assets:
+            asset_dict = {
+                "name": asset.name,
+                "slug": asset.slug,
+                "originalFilename": asset.original_filename,
+                "extension": asset.extension,
+                "fileSize": asset.file_size,
+                "mimeType": asset.mime_type,
+                "assetType": asset.asset_type,
+                "storageProvider": asset.storage_provider,
+                "storageKey": asset.storage_key,
+            }
+
+            if asset.width is not None:
+                asset_dict["width"] = asset.width
+            if asset.height is not None:
+                asset_dict["height"] = asset.height
+            if asset.public_url:
+                asset_dict["publicUrl"] = asset.public_url
+            if asset.alt_text:
+                asset_dict["altText"] = asset.alt_text
+            if asset.description:
+                asset_dict["description"] = asset.description
+            if asset.metadata_:
+                asset_dict["metadataJson"] = asset.metadata_
+
+            exported.append(asset_dict)
+
+        return exported
+
+    def _export_resources(self) -> list[dict[str, Any]]:
+        """Export all resources.
+
+        Returns:
+            List of resource dicts in seed format
+        """
+        resources = self.repos.resources.get_all(
+            limit=None,
+            order_by="slug",
+        )
+
+        exported = []
+        for resource in resources:
+            resource_dict = {
+                "name": resource.name,
+                "slug": resource.slug,
+                "resourceType": resource.resource_type,
+            }
+
+            if resource.description:
+                resource_dict["description"] = resource.description
+            if resource.url:
+                resource_dict["url"] = resource.url
+            if resource.external_id:
+                resource_dict["externalId"] = resource.external_id
+            if resource.metadata_:
+                resource_dict["metadataJson"] = resource.metadata_
+
+            exported.append(resource_dict)
+
+        return exported

@@ -12,6 +12,7 @@ import shutil  # For directory removal (rmtree)
 from pathlib import Path  # For path manipulation
 
 from fastapi import APIRouter, HTTPException, status  # Added status for HTTPException
+from sqlalchemy import text  # For SQL statement wrapping
 
 # Marvin specific imports
 from marvin.pkgs.stats import fs_stats  # Filesystem statistics utilities
@@ -28,6 +29,7 @@ router = APIRouter(prefix="/maintenance")
 
 class SystemStats(BaseModel):
     """System statistics response model."""
+
     users_count: int
     groups_count: int
     entries_count: int
@@ -168,14 +170,10 @@ class AdminMaintenanceController(BaseAdminController):
         try:
             with session_context() as session:
                 # Delete revoked long-live tokens
-                revoked_tokens_count = session.query(LongLiveToken).filter(
-                    LongLiveToken.revoked_at.isnot(None)
-                ).delete(synchronize_session=False)
+                revoked_tokens_count = session.query(LongLiveToken).filter(LongLiveToken.revoked_at.isnot(None)).delete(synchronize_session=False)
 
                 # Delete revoked API client tokens
-                revoked_clients_count = session.query(APIClients).filter(
-                    APIClients.revoked_at.isnot(None)
-                ).delete(synchronize_session=False)
+                revoked_clients_count = session.query(APIClients).filter(APIClients.revoked_at.isnot(None)).delete(synchronize_session=False)
 
                 session.commit()
 
@@ -227,11 +225,11 @@ class AdminMaintenanceController(BaseAdminController):
         try:
             with session_context() as session:
                 # Run VACUUM to reclaim space
-                session.execute("VACUUM")
+                session.execute(text("VACUUM"))
                 self.logger.info("Database VACUUM completed")
 
                 # Run ANALYZE to update statistics
-                session.execute("ANALYZE")
+                session.execute(text("ANALYZE"))
                 self.logger.info("Database ANALYZE completed")
 
             return SuccessResponse.respond("Database optimization completed successfully.")

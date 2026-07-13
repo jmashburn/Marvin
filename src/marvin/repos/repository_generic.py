@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from math import ceil
 from typing import Any, Generic, TypeVar
 
-from fastapi import HTTPException  # For raising HTTP exceptions on bad input
+from fastapi import HTTPException, status  # For raising HTTP exceptions on bad input
 from pydantic import UUID4, BaseModel  # For UUID type hinting and base Pydantic model
 from sqlalchemy import (
     ColumnElement,  # For type hinting column elements
@@ -429,7 +429,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
         entry = self._query_one(match_value=match_value, match_key=match_key)
         if not entry:
             # Consider raising an exception if the entry is not found
-            raise HTTPException(status_code=404, detail=f"{self.model.__name__} not found for update.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{self.model.__name__} not found for update.")
 
         # Update attributes of the fetched entry
         # The `update` method on SqlAlchemyBase models (if using auto_init) can handle this.
@@ -524,7 +524,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
 
         db_entry = self._query_one(match_value=match_value, match_key=match_key)
         if not db_entry:
-            raise HTTPException(status_code=404, detail=f"{self.model.__name__} not found for patch.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{self.model.__name__} not found for patch.")
 
         # Convert DB entry to Pydantic schema to get a full dict with defaults
         pydantic_entry = self.schema.model_validate(db_entry)
@@ -559,7 +559,9 @@ class RepositoryGeneric(Generic[Schema, Model]):
         db_record_to_delete = self._query_one(match_value=value, match_key=key_to_match)
 
         if not db_record_to_delete:
-            raise HTTPException(status_code=404, detail=f"{self.model.__name__} with {key_to_match}='{value}' not found for deletion.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"{self.model.__name__} with {key_to_match}='{value}' not found for deletion."
+            )
 
         # Convert to Pydantic schema before deletion for the return value
         deleted_schema_instance = self.schema.model_validate(db_record_to_delete)
@@ -777,7 +779,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
             self._log_exception(e)  # Log the detailed exception
             self.session.rollback()  # Rollback session on error
             # Re-raise or raise a more specific HTTP exception if appropriate
-            raise HTTPException(status_code=500, detail="Error fetching paginated data.") from e
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching paginated data.") from e
 
         # Construct and return the pagination response object
         return PaginationBase(
@@ -822,7 +824,7 @@ class RepositoryGeneric(Generic[Schema, Model]):
             except ValueError as e:  # Catch specific errors from QueryFilterBuilder
                 self.logger.error(f"Invalid query filter: {e}")
                 # Raise HTTPException for bad client input
-                raise HTTPException(status_code=400, detail=str(e)) from e
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
         # Get the total count of records matching the query (before pagination)
         # Use a subquery for counting to ensure filters are applied correctly.

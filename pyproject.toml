@@ -62,6 +62,7 @@ dev = [
     "pylint>=3.3.7",
     "pytest>=8.3.5",
     "python-dateutil>=2.9.0.post0",
+    "python-semantic-release>=9.17.0",
     "rich>=14.0.0",
     "ruff>=0.11.7",
     "types-pyyaml>=6.0.12.20250402",
@@ -75,7 +76,7 @@ postgres = [
 addopts = "-ra -q"
 asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
-python_classes = '*Tests'
+python_classes = 'Test*'
 python_files = 'test_*'
 python_functions = 'test_*'
 testpaths = ["tests"]
@@ -159,3 +160,44 @@ line-ending = "auto"
 [tool.ruff.lint.mccabe]
 # Unlike Flake8, default to a complexity level of 10.
 max-complexity = 24  # Default is 10.
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["src/marvin/__init__.py:__version__"]
+branch = "main"
+build_command = "pip install -e ."
+commit_message = "chore(release): {version} [skip ci]\n\n{changelog}"
+tag_format = "v{version}"
+upload_to_pypi = false
+upload_to_vcs_release = true
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.branches.develop]
+match = "develop"
+prerelease = true
+prerelease_token = "next"
+
+[tool.semantic_release.changelog]
+template_dir = "templates"
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = []
+
+[tool.semantic_release.changelog.environment]
+block_start_string = "{%"
+block_end_string = "%}"
+variable_start_string = "{{"
+variable_end_string = "}}"
+comment_start_string = "{#"
+comment_end_string = "#}"
+trim_blocks = false
+lstrip_blocks = false
+newline_sequence = "\n"
+keep_trailing_newline = false
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]

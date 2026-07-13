@@ -38,6 +38,15 @@ entries.forEach(entry => {
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 const systemTypes = sortedTypes.filter(t => t.isSystem);
 const customTypes = sortedTypes.filter(t => !t.isSystem);
+
+function getRendering(type: EntryTypeRead) {
+  const rendering = type.renderingJson as Record<string, unknown> | undefined;
+  return {
+    renderer: rendering?.renderer as string | undefined,
+    package: rendering?.package as string | undefined,
+    version: rendering?.version as string | undefined,
+  };
+}
 ---
 
 <AppLayout title="Entry Types">
@@ -74,7 +83,10 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                 <th>Name</th>
                 <th>Type</th>
                 <th>Slug</th>
-                <th>Description</th>
+                <th>Rendered</th>
+                <th>Renderer</th>
+                <th>Package</th>
+                <th>Version</th>
                 <th>Entries</th>
                 <th>Sort Order</th>
               </tr>
@@ -82,6 +94,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
             <tbody>
               {systemTypes.map((type) => {
                 const count = entryCounts.get(type.id) || 0;
+                const { renderer, package: pkg, version } = getRendering(type);
                 return (
                   <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`}
                     data-system="true"
@@ -98,7 +111,10 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                     <td class="type-name"><strong>{type.name}</strong></td>
                     <td><span class="system-badge">System</span></td>
                     <td><code>{type.slug}</code></td>
-                    <td>{type.description || '—'}</td>
+                    <td>{type.isRendered ? <span class="rendered-badge">Yes</span> : '—'}</td>
+                    <td>{renderer ? <code>{renderer}</code> : '—'}</td>
+                    <td>{pkg ? <code>{pkg}</code> : '—'}</td>
+                    <td>{version || '—'}</td>
                     <td>
                       {count === 0 ? (
                         <span class="empty-badge">Empty</span>
@@ -133,7 +149,10 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                 <th>Name</th>
                 <th>Type</th>
                 <th>Slug</th>
-                <th>Description</th>
+                <th>Rendered</th>
+                <th>Renderer</th>
+                <th>Package</th>
+                <th>Version</th>
                 <th>Entries</th>
                 <th>Sort Order</th>
                 <th>Actions</th>
@@ -142,6 +161,7 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
             <tbody>
               {customTypes.map((type) => {
                 const count = entryCounts.get(type.id) || 0;
+                const { renderer, package: pkg, version } = getRendering(type);
                 return (
                   <tr class={`entry-type-row ${count === 0 ? 'empty-type' : ''}`}
                     data-system="false"
@@ -158,7 +178,10 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
                     <td class="type-name"><strong>{type.name}</strong></td>
                     <td><span class="custom-badge">Custom</span></td>
                     <td><code>{type.slug}</code></td>
-                    <td>{type.description || '—'}</td>
+                    <td>{type.isRendered ? <span class="rendered-badge">Yes</span> : '—'}</td>
+                    <td>{renderer ? <code>{renderer}</code> : '—'}</td>
+                    <td>{pkg ? <code>{pkg}</code> : '—'}</td>
+                    <td>{version || '—'}</td>
                     <td>
                       {count === 0 ? (
                         <span class="empty-badge">Empty</span>
@@ -306,6 +329,17 @@ const customTypes = sortedTypes.filter(t => !t.isSystem);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+  }
+
+  .rendered-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .custom-badge {

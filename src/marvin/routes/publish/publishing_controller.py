@@ -5,17 +5,29 @@ Provides read-only access to published content for external sites (Astro, etc.).
 All routes require API client token authentication (marvin_sk_ prefix).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from marvin.core.config import get_app_settings
 from marvin.core.dependencies import get_publishing_context
 from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
-from marvin.db.models.platform import APIClients, Assets, Collections, Entries, Resources
+from marvin.db.models.platform import (
+    APIClients,
+    Assets,
+    Collections,
+    Entries,
+    EntryAssets,
+    EntryCollections,
+    EntryResources,
+    Resources,
+)
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.group import GroupRead
+from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.publishing import (
+    EntryTypeCapabilities,
+    EntryTypeRendering,
     PaginationMeta,
     PublishedAssetRead,
     PublishedAssetsResponse,
@@ -23,9 +35,12 @@ from marvin.schemas.publishing import (
     PublishedCollectionsResponse,
     PublishedCollectionSummary,
     PublishedEntriesResponse,
+    PublishedEntryAsset,
     PublishedEntryListItem,
     PublishedEntryRead,
-    PublishedResourceRead,
+    PublishedEntryResource,
+    PublishedEntryTypeInfo,
+    PublishedEntryTypeRead,
     PublishedResourcesResponse,
     PublishedResourceSummary,
     SiteConfiguration,
@@ -36,6 +51,115 @@ from marvin.schemas.publishing import (
 settings = get_app_settings()
 
 router = APIRouter()
+
+
+def _entry_eager_options():
+    """Common eager loading options for entry relationships."""
+    return [
+        selectinload(Entries.entry_collections).joinedload(EntryCollections.collection),
+        selectinload(Entries.entry_assets).joinedload(EntryAssets.asset),
+        selectinload(Entries.entry_resources).joinedload(EntryResources.resource),
+    ]
+
+
+def _entry_eager_options_with_type():
+    """Eager loading options for entries including entry_type (prevents N+1 on type access)."""
+    return _entry_eager_options() + [joinedload(Entries.entry_type)]
+
+
+def _asset_eager_options():
+    """Common eager loading options for asset relationships."""
+    return [selectinload(Assets.entry_assets).joinedload(EntryAssets.entry)]
+
+
+def _resource_eager_options():
+    """Common eager loading options for resource relationships."""
+    return [selectinload(Resources.entry_resources).joinedload(EntryResources.entry)]
+
+
+def _build_entry_type_info(entry: Entries) -> PublishedEntryTypeInfo | None:
+    """Build PublishedEntryTypeInfo from an entry's type, or None if no type."""
+    if not entry.entry_type:
+        return None
+    rendering = RenderingDefinition(**(entry.entry_type.rendering_json or {}))
+    capabilities = CapabilitiesDefinition(**(entry.entry_type.capabilities_json or {}))
+    return PublishedEntryTypeInfo(
+        slug=entry.entry_type.slug,
+        renderer=rendering.renderer,
+        package=rendering.package,
+        version=rendering.version,
+        config=rendering.config,
+        publishable=capabilities.publishable,
+        submittable=capabilities.submittable,
+        routable=capabilities.routable,
+    )
+
+
+def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAssetRead:
+    """Build a PublishedAssetRead from an entry-asset junction row."""
+    return PublishedAssetRead(
+        slug=ea.asset.slug,
+        name=ea.asset.name,
+        mime_type=ea.asset.mime_type,
+        asset_type=ea.asset.asset_type,
+        file_size=ea.asset.file_size,
+        width=ea.asset.width,
+        height=ea.asset.height,
+        alt_text=ea.asset.alt_text or ea.caption,
+        description=ea.asset.description,
+        public_url=ea.asset.public_url or f"/api/publish/{workspace_slug}/assets/{ea.asset.slug}/file",
+        metadata=ea.asset.metadata_,
+    )
+
+
+def _resolve_featured_asset(entry: Entries, workspace_slug: str) -> PublishedAssetRead | None:
+    """Resolve the featured asset for a list item: first hero/featured, then first by position."""
+    sorted_assets = sorted(
+        (ea for ea in entry.entry_assets if ea.asset),
+        key=lambda x: x.position,
+    )
+    for ea in sorted_assets:
+        if ea.role in ("hero", "featured"):
+            return _build_published_asset(ea, workspace_slug)
+    if sorted_assets:
+        return _build_published_asset(sorted_assets[0], workspace_slug)
+    return None
+
+
+def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool = False) -> PublishedEntryListItem:
+    """
+    Convert an entry model to a PublishedEntryListItem with relationships.
+
+    Args:
+        entry: The entry model instance
+        workspace_slug: Workspace slug for building asset URLs
+        include_order: Whether to include sort order from junction table
+
+    Returns:
+        PublishedEntryListItem with populated relationships
+    """
+    collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+    asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+    resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
+
+    item_data = {
+        "slug": entry.slug,
+        "title": entry.title,
+        "entry_type": entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
+        "entry_type_info": _build_entry_type_info(entry),
+        "summary": entry.summary,
+        "published_at": entry.published_at,
+        "collections": collection_slugs,
+        "assets": asset_slugs,
+        "resources": resource_slugs,
+        "metadata": entry.metadata_json,
+        "featured_asset": _resolve_featured_asset(entry, workspace_slug),
+    }
+
+    if hasattr(entry, "status") and entry.status:
+        item_data["status"] = entry.status
+
+    return PublishedEntryListItem(**item_data)
 
 
 @router.get("/{workspace_slug}", response_model=WorkspaceInfo, summary="Get Workspace Info")
@@ -120,6 +244,60 @@ async def get_site_configuration(
 
 
 @router.get(
+    "/{workspace_slug}/entry-types",
+    response_model=list[PublishedEntryTypeRead],
+    summary="List Entry Types",
+)
+async def list_entry_types(
+    context: tuple = Depends(get_publishing_context),
+    session: Session = Depends(generate_session),
+) -> list[PublishedEntryTypeRead]:
+    """
+    List all entry types in the workspace with rendering and capabilities info.
+
+    Returns a lean response with only renderer-relevant fields, suitable for
+    build-time validation of renderer registries.
+
+    **Authentication**: Requires API client token (marvin_sk_*)
+    **Permissions**: read:published_entries OR read:all_entries
+    """
+    api_client, group, perms = context
+
+    perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "entry types")
+
+    from sqlalchemy import or_
+
+    from marvin.db.models.platform import EntryTypes
+
+    entry_types = (
+        session.query(EntryTypes)
+        .filter(or_(EntryTypes.group_id == group.id, EntryTypes.group_id.is_(None)))
+        .order_by(EntryTypes.sort_order, EntryTypes.name)
+        .all()
+    )
+
+    result = []
+    for et in entry_types:
+        rendering_dict = et.rendering_json or {}
+        capabilities_dict = et.capabilities_json or {}
+
+        rendering = EntryTypeRendering(**rendering_dict) if rendering_dict else None
+        capabilities = EntryTypeCapabilities(**capabilities_dict) if capabilities_dict else EntryTypeCapabilities()
+
+        result.append(
+            PublishedEntryTypeRead(
+                slug=et.slug,
+                name=et.name,
+                is_rendered=et.is_rendered,
+                rendering=rendering,
+                capabilities=capabilities,
+            )
+        )
+
+    return result
+
+
+@router.get(
     "/{workspace_slug}/entries",
     response_model=PublishedEntriesResponse,
     summary="List Published Entries",
@@ -164,10 +342,14 @@ async def list_published_entries(
     # Get repositories scoped to this workspace
     repos = get_repositories(session, group_id=group.id)
 
-    # Build query for published entries
-    query = session.query(Entries).filter(
-        Entries.group_id == group.id,
-        Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+    # Build query for published entries with eager loading to prevent N+1 queries
+    query = (
+        session.query(Entries)
+        .filter(
+            Entries.group_id == group.id,
+            Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+        )
+        .options(*_entry_eager_options_with_type())
     )
 
     # Filter by entry type if specified
@@ -225,8 +407,10 @@ async def list_published_entries(
             updated_dt = datetime.fromisoformat(updated_since.replace("Z", "+00:00"))
             query = query.filter(Entries.update_at >= updated_dt)
         except ValueError:
-            # Invalid datetime format, ignore filter
-            pass
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid date format for updated_since: {updated_since}. Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS with optional Z or timezone offset)",
+            )
 
     # Get total count
     total = query.count()
@@ -235,29 +419,7 @@ async def list_published_entries(
     entries = query.order_by(Entries.published_at.desc()).offset(offset).limit(limit).all()
 
     # Convert to list items
-    data = []
-    for entry in entries:
-        # Get collection slugs
-        collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
-
-        # Get asset slugs
-        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
-
-        # Get resource slugs
-        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
-
-        data.append(
-            PublishedEntryListItem(
-                slug=entry.slug,
-                title=entry.title,
-                entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
-                summary=entry.summary,
-                published_at=entry.published_at,
-                collections=collection_slugs,
-                assets=asset_slugs,
-                resources=resource_slugs,
-            )
-        )
+    data = [_entry_to_list_item(entry, group.slug) for entry in entries]
 
     return PublishedEntriesResponse(
         data=data,
@@ -299,7 +461,7 @@ async def get_published_entry(
     # Require permission to read entries
     perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "published entry")
 
-    # Query published entry
+    # Query published entry with eager loading to prevent N+1 queries
     entry = (
         session.query(Entries)
         .filter(
@@ -307,11 +469,12 @@ async def get_published_entry(
             Entries.slug == slug,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
         )
+        .options(*_entry_eager_options_with_type())
         .first()
     )
 
     if not entry:
-        raise HTTPException(status_code=404, detail="Entry not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
 
     # Get collections with full details
     collections = [
@@ -331,48 +494,49 @@ async def get_published_entry(
         if ec.collection
     ]
 
-    # Get resources for this entry
+    # Get resources for this entry (wrapped with relationship context)
     resources = [
-        PublishedResourceRead(
-            slug=er.resource.slug,
-            name=er.resource.name,
-            resource_type=er.resource.resource_type,
-            description=er.resource.description,
-            url=er.resource.url,
-            external_id=er.resource.external_id,
+        PublishedEntryResource(
             role=er.role,
             quantity=er.quantity,
             unit=er.unit,
             position=er.position,
+            metadata=er.metadata_json,
+            resource=PublishedResourceSummary(
+                slug=er.resource.slug,
+                name=er.resource.name,
+                resource_type=er.resource.resource_type,
+                description=er.resource.description,
+                url=er.resource.url,
+                external_id=er.resource.external_id,
+                metadata=er.resource.metadata_,
+            ),
         )
         for er in entry.entry_resources
-        if er.resource  # Defensive check
+        if er.resource
     ]
 
-    # Get assets for this entry
+    # Get assets for this entry (wrapped with relationship context)
     assets = [
-        PublishedAssetRead(
-            slug=ea.asset.slug,
-            name=ea.asset.name,
-            mime_type=ea.asset.mime_type,
-            asset_type=ea.asset.asset_type,
-            file_size=ea.asset.file_size,
-            width=ea.asset.width,
-            height=ea.asset.height,
-            alt_text=ea.asset.alt_text or ea.caption,  # Use caption if no alt_text
-            description=ea.asset.description,
-            public_url=ea.asset.public_url or f"/api/publish/{group.slug}/assets/{ea.asset.slug}/file",
+        PublishedEntryAsset(
+            role=ea.role,
+            position=ea.position,
+            focal_point=ea.focal_point,
+            caption=ea.caption,
+            metadata=ea.metadata_,
+            asset=_build_published_asset(ea, group.slug),
         )
         for ea in entry.entry_assets
-        if ea.asset  # Defensive check
+        if ea.asset
     ]
 
     return PublishedEntryRead(
         slug=entry.slug,
         title=entry.title,
         entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
+        entry_type_info=_build_entry_type_info(entry),
         summary=entry.summary,
-        data=entry.data_json,  # BREAKING: replaced content_markdown with schema-driven data_json
+        data=entry.data_json,
         published_at=entry.published_at,
         metadata=entry.metadata_json,
         collections=collections,
@@ -421,20 +585,33 @@ async def list_published_collections(
     )
 
     # Build response with entry counts
+    from sqlalchemy import func
+
     from marvin.db.models.platform import EntryCollections
+
+    # Get entry counts for all collections in ONE query (prevents N+1)
+    collection_ids = [c.id for c in collections]
+    entry_counts_query = (
+        session.query(
+            EntryCollections.collection_id,
+            func.count(Entries.id).label("entry_count"),
+        )
+        .join(Entries)
+        .filter(
+            EntryCollections.collection_id.in_(collection_ids),
+            Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
+        )
+        .group_by(EntryCollections.collection_id)
+        .all()
+    )
+
+    # Create a map of collection_id -> entry_count for O(1) lookup
+    entry_count_map = {collection_id: count for collection_id, count in entry_counts_query}
 
     result = []
     for collection in collections:
-        # Count published entries in this collection
-        entry_count = (
-            session.query(Entries)
-            .join(EntryCollections)
-            .filter(
-                EntryCollections.collection_id == collection.id,
-                Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
-            )
-            .count()
-        )
+        # Get entry count from the preloaded map (default to 0 if no entries)
+        entry_count = entry_count_map.get(collection.id, 0)
 
         result.append(
             PublishedCollectionSummary(
@@ -502,13 +679,18 @@ async def get_published_collection(
     )
 
     if not collection:
-        raise HTTPException(status_code=404, detail="Collection not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
 
-    # Get entries in this collection
+    # Get entries in this collection with eager loading to prevent N+1 queries
     # Filter by status based on permissions
     from marvin.db.models.platform import EntryCollections
 
-    query = session.query(Entries).join(EntryCollections).filter(EntryCollections.collection_id == collection.id)
+    query = (
+        session.query(Entries)
+        .join(EntryCollections)
+        .filter(EntryCollections.collection_id == collection.id)
+        .options(*_entry_eager_options_with_type())
+    )
 
     # Only filter to published entries if user doesn't have permission to read all
     if not perms.has_permission(Permissions.READ_ALL_ENTRIES):
@@ -519,32 +701,12 @@ async def get_published_collection(
     # Convert to list items
     entry_items = []
     for entry in entries:
-        # Get collection slugs for each entry
-        collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
-
-        # Get asset slugs
-        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
-
-        # Get resource slugs
-        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
-
-        # Get sort order from the junction table for this collection
+        item = _entry_to_list_item(entry, group.slug)
+        # Add collection-specific sort order
         order = next((ec.sort_order for ec in entry.entry_collections if ec.collection_id == collection.id), None)
-
-        entry_items.append(
-            PublishedEntryListItem(
-                slug=entry.slug,
-                title=entry.title,
-                entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
-                summary=entry.summary,
-                published_at=entry.published_at,
-                status=entry.status,
-                collections=collection_slugs,
-                assets=asset_slugs,
-                resources=resource_slugs,
-                order=order,
-            )
-        )
+        if order is not None:
+            item.order = order
+        entry_items.append(item)
 
     return PublishedCollectionRead(
         slug=collection.slug,
@@ -592,10 +754,8 @@ async def list_published_assets(
     # Require permission to read assets
     perms.require_permission(Permissions.READ_ASSETS, "assets")
 
-    # Build query for assets
-    query = session.query(Assets).filter(
-        Assets.group_id == group.id,
-    )
+    # Build query for assets with eager loading to prevent N+1 queries
+    query = session.query(Assets).filter(Assets.group_id == group.id).options(*_asset_eager_options())
 
     # Filter by MIME type prefix if specified
     if type:
@@ -679,11 +839,12 @@ async def get_published_asset(
             Assets.group_id == group.id,
             Assets.slug == asset_slug,
         )
+        .options(*_asset_eager_options())
         .first()
     )
 
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
     # Get published entry slugs that use this asset
     entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
@@ -745,7 +906,7 @@ async def serve_asset_file(
     )
 
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
     # For local storage, redirect to the static file URL
     if asset.storage_provider == "local":
@@ -756,7 +917,7 @@ async def serve_asset_file(
         return RedirectResponse(url=asset.public_url)
 
     # Fallback error
-    raise HTTPException(status_code=500, detail="Asset file URL not available")
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asset file URL not available")
 
 
 @router.get(
@@ -793,10 +954,8 @@ async def list_published_resources(
     # Require permission to read resources
     perms.require_permission(Permissions.READ_RESOURCES, "resources")
 
-    # Build query for resources
-    query = session.query(Resources).filter(
-        Resources.group_id == group.id,
-    )
+    # Build query for resources with eager loading to prevent N+1 queries
+    query = session.query(Resources).filter(Resources.group_id == group.id).options(*_resource_eager_options())
 
     # Filter by resource type if specified
     if resource_type:
@@ -866,18 +1025,19 @@ async def get_published_resource(
     # Require permission to read resources
     perms.require_permission(Permissions.READ_RESOURCES, "resource")
 
-    # Query resource
+    # Query resource with eager loading to prevent N+1 queries
     resource = (
         session.query(Resources)
         .filter(
             Resources.group_id == group.id,
             Resources.slug == resource_slug,
         )
+        .options(*_resource_eager_options())
         .first()
     )
 
     if not resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
 
     # Get published entry slugs that reference this resource
     entry_slugs = [er.entry.slug for er in resource.entry_resources if er.entry and er.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
@@ -936,9 +1096,9 @@ async def get_resource_entries(
     )
 
     if not resource:
-        raise HTTPException(status_code=404, detail="Resource not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
 
-    # Get published entries that reference this resource
+    # Get published entries that reference this resource with eager loading
     from marvin.db.models.platform import EntryResources
 
     entries = (
@@ -948,33 +1108,10 @@ async def get_resource_entries(
             EntryResources.resource_id == resource.id,
             Entries.status == settings.PUBLISHING_DEFAULT_STATUS,
         )
+        .options(*_entry_eager_options_with_type())
         .order_by(Entries.published_at.desc())
         .all()
     )
 
-    # Convert to list items
-    entry_items = []
-    for entry in entries:
-        # Get collection slugs for each entry
-        collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
-
-        # Get asset slugs
-        asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
-
-        # Get resource slugs
-        resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
-
-        entry_items.append(
-            PublishedEntryListItem(
-                slug=entry.slug,
-                title=entry.title,
-                entry_type=entry.entry_type.slug if entry.entry_type else settings.PUBLISHING_UNKNOWN_ENTRY_TYPE,
-                summary=entry.summary,
-                published_at=entry.published_at,
-                collections=collection_slugs,
-                assets=asset_slugs,
-                resources=resource_slugs,
-            )
-        )
-
-    return entry_items
+    # Convert to list items using shared helper
+    return [_entry_to_list_item(entry, group.slug) for entry in entries]

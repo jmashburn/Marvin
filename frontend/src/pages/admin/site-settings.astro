@@ -1,24 +1,19 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
+import { createSdkClient } from '@/lib/sdk';
+import { getAuthToken } from "@/lib/api/client";
+
+const currentUser = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 let settings: any = null;
 
 try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-  if (currentUser?.admin !== true) {
-    return Astro.redirect('/');
-  }
-
-  // Fetch all settings
-  try {
-    settings = await fetchApi<any>('/api/admin/about/startup-info', {}, authToken);
-  } catch (e) {
-    console.error('Could not fetch settings:', e);
-  }
+  settings = await sdk.adminSystem.getStartupInfo();
 } catch (e) {
-  return Astro.redirect('/');
+  console.error('Could not fetch settings:', e);
 }
 
 // Group settings by prefix

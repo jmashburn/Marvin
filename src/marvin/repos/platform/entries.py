@@ -148,25 +148,19 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         if "data_json" in data_dict:
             self._validate_content(data_dict["entry_type_id"], data_dict["data_json"])
 
-        return super().create(data_dict)
         # Auto-set published_at when creating with status 'published'
         if data_dict.get("status") == "published" and not data_dict.get("published_at"):
             data_dict["published_at"] = datetime.now(timezone.utc)
-
-        if not self._entry_type_exists(data_dict["entry_type_id"]):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry type does not exist in this group.")
 
         # Extract relationship IDs before creating entry
         collection_ids = data_dict.pop("collection_ids", None)
         asset_ids = data_dict.pop("asset_ids", None)
         resource_ids = data_dict.pop("resource_ids", None)
 
-        # Create entry model instance but don't commit yet
         new_entry = self.model(session=self.session, **data_dict)
         self.session.add(new_entry)
-        self.session.flush()  # Flush to get the entry ID
+        self.session.flush()
 
-        # Attach relationships if provided
         if collection_ids:
             self._attach_collections(new_entry.id, collection_ids)
         if asset_ids:
@@ -174,10 +168,8 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         if resource_ids:
             self._attach_resources(new_entry.id, resource_ids)
 
-        # Now commit everything together
         self.session.commit()
 
-        # Return via get_one to get all relationships loaded
         return self.get_one(new_entry.id)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryRead:

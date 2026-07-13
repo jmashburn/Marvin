@@ -1,15 +1,17 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import { requireAdmin } from "@/lib/auth";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from '@/lib/sdk';
+import { getAuthToken } from '@/lib/api/client';
 
 // Require admin authentication
 const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let stats: any = null;
 try {
-  stats = await fetchApi<any>('/api/admin/maintenance/stats', {}, authToken);
+  stats = await sdk.adminMaintenance.getStats();
 } catch (e) {
   console.error('[admin/maintenance] Failed to fetch stats:', e);
 }
@@ -112,7 +114,7 @@ try {
     if (!confirm('Clean up expired tokens? This will remove all expired API tokens and sessions.')) return;
 
     try {
-      const sdk = getSdk();
+
       const result = await sdk.adminMaintenance.cleanupTokens();
       alert(result.message || 'Cleanup completed successfully');
       window.location.reload();
@@ -126,7 +128,7 @@ try {
     if (!confirm('Clean up old events? This will remove old event log entries.')) return;
 
     try {
-      const sdk = getSdk();
+
       const result = await sdk.adminMaintenance.cleanupEvents();
       alert(result.message || 'Cleanup completed successfully');
       window.location.reload();
@@ -140,7 +142,7 @@ try {
     if (!confirm('Optimize database? This may take a few moments.')) return;
 
     try {
-      const sdk = getSdk();
+
       const result = await sdk.adminMaintenance.optimizeDatabase();
       alert(result.message || 'Database optimized successfully');
       window.location.reload();
@@ -154,7 +156,7 @@ try {
     if (!confirm('Clear application cache?')) return;
 
     try {
-      const sdk = getSdk();
+
       const result = await sdk.adminMaintenance.clearCache();
       alert(result.message || 'Cache cleared successfully');
       window.location.reload();

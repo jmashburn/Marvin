@@ -2,6 +2,8 @@
 // Ensure this page is server-rendered (not prerendered)
 export const prerender = false;
 
+import { forgotPassword } from '@/lib/api/auth';
+
 let success = false;
 let error: string | null = null;
 
@@ -11,24 +13,11 @@ if (Astro.request.method === 'POST') {
     const formData = await Astro.request.formData();
     const email = formData.get('email') as string;
 
-    // Call the forgot password API endpoint
-    const response = await fetch(`${import.meta.env.MARVIN_API_URL || 'http://localhost:8080'}/api/users/forgot-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    if (response.ok) {
-      success = true;
-    } else {
-      const errorData = await response.json();
-      error = errorData.detail || 'Failed to send reset email';
-    }
-  } catch (e) {
+    await forgotPassword({ email });
+    success = true;
+  } catch (e: any) {
     console.error('[ForgotPassword] Error:', e);
-    error = 'An error occurred. Please try again.';
+    error = e?.message || 'An error occurred. Please try again.';
   }
 }
 ---

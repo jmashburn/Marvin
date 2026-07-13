@@ -56,6 +56,63 @@ class PublishedAssetRead(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublishedEntryAsset(_MarvinModel):
+    """An asset as used by a specific entry — relationship context + asset data."""
+
+    role: str | None = None
+    position: int = 0
+    focal_point: str | None = None
+    caption: str | None = None
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
+    asset: PublishedAssetRead
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublishedEntryTypeInfo(_MarvinModel):
+    """Flattened entry type rendering and capabilities info for published entries."""
+
+    slug: str
+    renderer: str | None = None
+    package: str | None = None
+    version: str | None = None
+    config: dict | None = None
+    publishable: bool = True
+    submittable: bool = False
+    routable: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryTypeRendering(_MarvinModel):
+    """Rendering configuration for a published entry type."""
+
+    renderer: str | None = None
+    package: str | None = None
+    version: str | None = None
+    config: dict | None = None
+
+
+class EntryTypeCapabilities(_MarvinModel):
+    """Capabilities for a published entry type."""
+
+    publishable: bool = True
+    submittable: bool = False
+    routable: bool = True
+
+
+class PublishedEntryTypeRead(_MarvinModel):
+    """Schema for entry types in the publishing API."""
+
+    slug: str
+    name: str
+    is_rendered: bool = False
+    rendering: EntryTypeRendering | None = None
+    capabilities: EntryTypeCapabilities | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PublishedEntryRead(_MarvinModel):
     """
     Schema for published entries in the publishing API.
@@ -76,6 +133,9 @@ class PublishedEntryRead(_MarvinModel):
     entry_type: str
     """Entry type slug (e.g., 'page', 'article', 'project')."""
 
+    entry_type_info: PublishedEntryTypeInfo | None = Field(default=None, serialization_alias="entryTypeInfo")
+    """Rendering and capabilities info for this entry's type."""
+
     summary: str | None = None
     """Optional short description/summary."""
 
@@ -91,11 +151,11 @@ class PublishedEntryRead(_MarvinModel):
     collections: list["PublishedCollectionSummary"] = []
     """Collections this entry belongs to."""
 
-    resources: list["PublishedResourceRead"] = []
-    """Resources referenced by this entry."""
+    resources: list["PublishedEntryResource"] = []
+    """Resources referenced by this entry with relationship context."""
 
-    assets: list[PublishedAssetRead] = []
-    """Assets included in this entry."""
+    assets: list[PublishedEntryAsset] = []
+    """Assets included in this entry with relationship context."""
 
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
@@ -120,6 +180,9 @@ class PublishedEntryListItem(_MarvinModel):
     entry_type: str
     """Entry type slug (e.g., 'page', 'article', 'project')."""
 
+    entry_type_info: PublishedEntryTypeInfo | None = Field(default=None, serialization_alias="entryTypeInfo")
+    """Rendering and capabilities info for this entry's type."""
+
     summary: str | None = None
     """Optional short description/summary."""
 
@@ -137,6 +200,12 @@ class PublishedEntryListItem(_MarvinModel):
 
     resources: list[str] = Field(default=[], serialization_alias="resourceSlugs")
     """List of resource slugs referenced by this entry."""
+
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
+    """Custom non-schema metadata as JSON object."""
+
+    featured_asset: PublishedAssetRead | None = Field(default=None, serialization_alias="featuredAsset")
+    """First hero/featured asset, or first asset by position."""
 
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
@@ -266,46 +335,15 @@ class PublishedResourceSummary(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class PublishedResourceRead(_MarvinModel):
-    """
-    Schema for published resources in entry context.
+class PublishedEntryResource(_MarvinModel):
+    """A resource as used by a specific entry — relationship context + resource data."""
 
-    Combines resource metadata with entry-specific placement info.
-    """
-
-    slug: str
-    """URL-friendly identifier for the resource."""
-
-    name: str
-    """Resource name."""
-
-    resource_type: str
-    """Type of resource (fabric, tool, supplier, etc)."""
-
-    description: str | None = None
-    """Optional description."""
-
-    url: str | None = None
-    """External URL (supplier site, GitHub repo, etc)."""
-
-    external_id: str | None = None
-    """External identifier (SKU, ISBN, etc)."""
-
-    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
-    """Custom metadata as JSON object."""
-
-    # Entry-specific placement fields from junction table
     role: str | None = None
-    """Role in this entry (e.g., 'primary', 'alternative')."""
-
     quantity: str | None = None
-    """Quantity for this entry (e.g., '2 yards')."""
-
     unit: str | None = None
-    """Unit of measurement (e.g., 'meters', 'pieces')."""
-
     position: int = 0
-    """Display order in this entry."""
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
+    resource: PublishedResourceSummary
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -345,10 +383,10 @@ class SiteConfiguration(_MarvinModel):
     """The canonical URL where this site is published."""
 
     logo: str | None = None
-    """Path or URL to the site logo."""
+    """Asset slug for the site logo. Resolve via the assets API."""
 
     favicon: str | None = None
-    """Path or URL to the site favicon."""
+    """Asset slug for the site favicon. Resolve via the assets API."""
 
     locale: str = "en-US"
     """Site locale (e.g., en-US, en-GB)."""

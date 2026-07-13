@@ -232,8 +232,15 @@ class SystemEntryTypeSeeder(AbstractSeeder):
 
                 if existing:
                     # Update existing system entry type
+                    # Remap Pydantic field names to DB column names
+                    field_to_column = {
+                        "content_schema": "schema_json",
+                        "rendering": "rendering_json",
+                        "capabilities": "capabilities_json",
+                    }
                     for key, value in entry_type_schema.model_dump(exclude_unset=True).items():
-                        setattr(existing, key, value)
+                        column_name = field_to_column.get(key, key)
+                        setattr(existing, column_name, value)
                     self.repos.session.commit()
                     self.logger.debug(f"Updated system entry type: {entry_type_schema.slug}")
                     count_updated += 1
@@ -243,7 +250,7 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                     from sqlalchemy import insert
 
                     insert_stmt = insert(EntryTypes.__table__).values(
-                        group_id=None,  # System types have no workspace
+                        group_id=None,
                         name=entry_type_schema.name,
                         slug=entry_type_schema.slug,
                         icon=entry_type_schema.icon,
@@ -251,7 +258,10 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                         description=entry_type_schema.description,
                         sort_order=entry_type_schema.sort_order,
                         is_system=entry_type_schema.is_system,
+                        is_rendered=entry_type_schema.is_rendered,
                         schema_json=entry_type_schema.content_schema or {},
+                        rendering_json=entry_type_schema.rendering,
+                        capabilities_json=entry_type_schema.capabilities,
                     )
                     self.repos.session.execute(insert_stmt)
                     self.repos.session.commit()

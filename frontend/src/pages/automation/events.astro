@@ -1,15 +1,16 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 
 let eventOptions: any[] = [];
 let error: string | null = null;
 
 try {
-  const response = await fetchApi<any>('/api/event/options', {}, authToken);
-  eventOptions = response.items || [];
+  eventOptions = await sdk.events.getOptions();
 } catch (e) {
   console.error('[events] Error:', e);
   error = e instanceof Error ? e.message : String(e);

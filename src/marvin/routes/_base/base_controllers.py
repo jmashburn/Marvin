@@ -9,7 +9,7 @@ and event publishing, intended to be inherited by specific route controllers.
 from abc import ABC  # Abstract Base Class
 from logging import Logger
 
-from fastapi import Depends, HTTPException  # Standard FastAPI dependencies and exceptions
+from fastapi import Depends, HTTPException, status  # Standard FastAPI dependencies and exceptions
 from pydantic import UUID4, ConfigDict  # Pydantic types for validation and config
 from sqlalchemy.orm import Session  # SQLAlchemy session type
 
@@ -176,7 +176,7 @@ class BaseUserController(BaseController):
                 return workspace_id
         # This case should ideally not be reached if get_current_user ensures user has a group.
         # Handling it defensively:
-        raise HTTPException(status_code=403, detail="User is not associated with a workspace.")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not associated with a workspace.")
 
     @property
     def group(self) -> GroupRead:
@@ -187,7 +187,7 @@ class BaseUserController(BaseController):
         group_data = self.repos.groups.get_one(self.group_id)  # group_id from property above
         if not group_data:
             # This would be unusual if group_id is valid.
-            raise HTTPException(status_code=404, detail=f"Group with ID {self.group_id} not found.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Group with ID {self.group_id} not found.")
         return group_data
 
     @property

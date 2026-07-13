@@ -81,8 +81,8 @@ import AppLayout from "@/layouts/AppLayout.astro";
 </AppLayout>
 
 <script>
-  // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
 
   // Set default scheduled time to now
   const now = new Date();
@@ -96,21 +96,16 @@ import AppLayout from "@/layouts/AppLayout.astro";
     const formData = new FormData(e.target as HTMLFormElement);
 
     const payload = {
-      name: formData.get('name'),
-      url: formData.get('url'),
-      method: formData.get('method'),
-      webhook_type: formData.get('webhook_type'),
-      scheduled_time: formData.get('scheduled_time'),
+      name: formData.get('name') as string,
+      url: formData.get('url') as string,
+      method: formData.get('method') as string,
+      webhook_type: formData.get('webhook_type') as string,
+      scheduled_time: formData.get('scheduled_time') as string,
       enabled: formData.get('enabled') === 'on',
-    };
+    } as any;
 
     try {
-      await fetchApi('/api/groups/webhooks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
+      await sdk.webhooks.create(payload);
       window.location.href = '/automation/webhooks?created=true';
     } catch (error) {
       alert('Failed to create webhook. Please try again.');

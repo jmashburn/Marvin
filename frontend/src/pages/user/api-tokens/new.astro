@@ -61,18 +61,15 @@ import AppLayout from "@/layouts/AppLayout.astro";
     const formData = new FormData(e.target as HTMLFormElement);
 
     const payload = {
-      name: formData.get('name'),
-      description: formData.get('description') || undefined,
+      name: formData.get('name') as string,
+      description: (formData.get('description') as string) || undefined,
     };
 
     try {
-      const { fetchApi } = await import('@/lib/api/client');
+      const { createSdkClient } = await import('@/lib/sdk');
+      const sdk = createSdkClient();
 
-      const data = await fetchApi<{ token: string }>('/api/self/api-tokens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const data = await sdk.user.createApiToken(payload);
 
       // Redirect to list page with token and name in query params
       window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(payload.name as string)}`;

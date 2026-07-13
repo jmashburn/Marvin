@@ -1,18 +1,19 @@
 """Entry type repository."""
 
 from typing import Any
-import logging
 
 from fastapi import HTTPException, status
 from pydantic import UUID4, ValidationError
 from sqlalchemy.orm import Session
 
+from marvin.core.root_logger import get_logger
 from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryTypeRead
+from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, KNOWN_CORE_RENDERERS, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
@@ -35,15 +36,11 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
 
     def _filter_builder(self, **kwargs):
         """
-        Override to include system entry types (group_id IS NULL) in addition
-        to workspace-scoped types.
-
-        Returns an empty dict when group_id is set, because we'll handle
-        filtering in page_all and other query methods manually.
+        Override to skip the automatic group_id filter (handled manually via
+        _apply_group_filter) while still passing through match-key kwargs
+        needed by _query_one for update/delete operations.
         """
-        # Don't apply automatic group_id filter - we handle it manually
-        # to include both workspace types AND system types
-        return {}
+        return {**kwargs}
 
     def _apply_group_filter(self, query):
         """
@@ -150,24 +147,47 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         return [eff_schema.model_validate(item) for item in items]
 
     def _validate_schema_json(self, schema_json: dict | None) -> None:
-        """Validate schema_json against EntryTypeSchemaDefinition.
-
-        Args:
-            schema_json: The schema definition to validate
-
-        Raises:
-            HTTPException: If schema validation fails
-        """
         if schema_json is None:
             return
-
         try:
             EntryTypeSchemaDefinition.model_validate(schema_json)
         except ValidationError as e:
+            logger.warning("Schema validation warning (unsupported field types will be preserved): %s", e)
+
+    def _validate_rendering_json(self, rendering_json: dict | None) -> None:
+        if rendering_json is None:
+            return
+        try:
+            RenderingDefinition.model_validate(rendering_json)
+        except ValidationError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid schema definition: {e}",
+                detail=f"Invalid rendering definition: {e}",
             )
+
+    def _validate_capabilities_json(self, capabilities_json: dict | None) -> None:
+        if capabilities_json is None:
+            return
+        try:
+            CapabilitiesDefinition.model_validate(capabilities_json)
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid capabilities definition: {e}",
+            )
+
+    def _check_renderer_warnings(self, data_dict: dict) -> list[str]:
+        if not data_dict.get("is_rendered"):
+            return []
+        rendering_json = data_dict.get("rendering_json")
+        if not rendering_json:
+            return ["Entry type is marked as rendered but has no rendering configuration"]
+        renderer = rendering_json.get("renderer")
+        if not renderer:
+            return ["Entry type is marked as rendered but has no renderer declared"]
+        if renderer not in KNOWN_CORE_RENDERERS:
+            return [f"Unknown renderer '{renderer}'. Known core renderers: {', '.join(sorted(KNOWN_CORE_RENDERERS))}"]
+        return []
 
     def create(self, data: Any) -> EntryTypeRead:
         from slugify import slugify
@@ -181,15 +201,27 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if not data_dict.get("slug") and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
-        # Map content_schema to schema_json (Pydantic field name to DB column name)
+        # Map Pydantic field names to DB column names
         if "content_schema" in data_dict:
             data_dict["schema_json"] = data_dict.pop("content_schema")
+        if "rendering" in data_dict:
+            data_dict["rendering_json"] = data_dict.pop("rendering")
+        if "capabilities" in data_dict:
+            data_dict["capabilities_json"] = data_dict.pop("capabilities")
 
-        # Validate schema_json if provided
+        # Validate JSON fields if provided
         if "schema_json" in data_dict:
             self._validate_schema_json(data_dict["schema_json"])
+        if "rendering_json" in data_dict:
+            self._validate_rendering_json(data_dict["rendering_json"])
+        if "capabilities_json" in data_dict:
+            self._validate_capabilities_json(data_dict["capabilities_json"])
 
-        return super().create(data_dict)
+        warnings = self._check_renderer_warnings(data_dict)
+        result = super().create(data_dict)
+        if warnings:
+            result.warnings = warnings
+        return result
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryTypeRead:
         # Check if this is a system entry type
@@ -206,19 +238,29 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         # to avoid breaking references in entries and external integrations
         data_dict.pop("slug", None)
 
-        # Map content_schema to schema_json (Pydantic field name to DB column name)
+        # Map Pydantic field names to DB column names
         if "content_schema" in data_dict:
             data_dict["schema_json"] = data_dict.pop("content_schema")
+        if "rendering" in data_dict:
+            data_dict["rendering_json"] = data_dict.pop("rendering")
+        if "capabilities" in data_dict:
+            data_dict["capabilities_json"] = data_dict.pop("capabilities")
 
-        # Validate schema_json if provided
+        # Validate JSON fields if provided
         if "schema_json" in data_dict:
             self._validate_schema_json(data_dict["schema_json"])
+        if "rendering_json" in data_dict:
+            self._validate_rendering_json(data_dict["rendering_json"])
+        if "capabilities_json" in data_dict:
+            self._validate_capabilities_json(data_dict["capabilities_json"])
 
-        # Don't auto-regenerate slug on update - slugs should remain stable once created
-        # to avoid breaking references in entries and external integrations
+        warnings = self._check_renderer_warnings(data_dict)
         data_dict.pop("slug", None)
         data_dict.pop("group_id", None)
-        return super().update(match_value, data_dict, match_key=match_key)
+        result = super().update(match_value, data_dict, match_key=match_key)
+        if warnings:
+            result.warnings = warnings
+        return result
 
     def delete(self, value: Any, match_key: str | None = None) -> EntryTypeRead:
         # Check if this is a system entry type

@@ -7,6 +7,7 @@
     "description": "A standard content page with markdown body content.",
     "sort_order": 100,
     "is_system": true,
+    "isRendered": true,
     "schema_json": {
       "fields": [
         {
@@ -17,6 +18,16 @@
           "placeholder": "Write page content..."
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -27,6 +38,7 @@
     "description": "A publishable article, note, or long-form post.",
     "sortOrder": 200,
     "isSystem": true,
+    "isRendered": true,
     "schemaJson": {
       "fields": [
         {
@@ -36,6 +48,16 @@
           "required": true
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "article",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -72,6 +94,16 @@
           "type": "date"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -96,6 +128,16 @@
           "type": "text"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -106,6 +148,7 @@
     "description": "A generic navigation or menu link.",
     "sortOrder": 500,
     "isSystem": true,
+    "isRendered": true,
     "schemaJson": {
       "fields": [
         {
@@ -122,6 +165,16 @@
           "defaultValue": false
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "navigation",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": false
     }
   },
   {
@@ -151,6 +204,16 @@
           "type": "text"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "page",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": true
     }
   },
   {
@@ -161,6 +224,7 @@
     "description": "A question and answer entry.",
     "sortOrder": 700,
     "isSystem": true,
+    "isRendered": true,
     "schemaJson": {
       "fields": [
         {
@@ -181,6 +245,16 @@
           "type": "text"
         }
       ]
+    },
+    "renderingJson": {
+      "renderer": "faq",
+      "package": "@inneropen/marvin-renderers-core",
+      "version": "^1.0.0"
+    },
+    "capabilitiesJson": {
+      "publishable": true,
+      "submittable": false,
+      "routable": false
     }
   }
 ]

@@ -10,25 +10,28 @@ export const POST: APIRoute = async ({ params, request, redirect, cookies }) => 
     const formData = await request.formData();
     const authToken = await getAuthToken(cookies);
 
-    // Parse schema_json if provided
-    const schemaJsonRaw = formData.get('schema_json') as string;
-    let schemaJson = undefined;
-    if (schemaJsonRaw) {
+    // Parse JSON fields if provided
+    const parseJson = (field: string) => {
+      const raw = formData.get(field) as string;
+      if (!raw) return undefined;
       try {
-        schemaJson = JSON.parse(schemaJsonRaw);
+        return JSON.parse(raw);
       } catch (e) {
-        console.error('[entry-types/update] Invalid schema JSON:', e);
+        console.error(`[entry-types/update] Invalid ${field}:`, e);
+        return undefined;
       }
-    }
+    };
 
     await updateEntryType(id, {
       name: formData.get('name') as string,
-      // slug is auto-regenerated from name on the backend
       icon: (formData.get('icon') as string) || undefined,
       color: (formData.get('color') as string) || undefined,
       description: (formData.get('description') as string) || undefined,
       sortOrder: parseInt(formData.get('sort_order') as string) || 0,
-      schemaJson,
+      isRendered: formData.get('is_rendered') === 'on',
+      schemaJson: parseJson('schema_json'),
+      renderingJson: parseJson('rendering_json'),
+      capabilitiesJson: parseJson('capabilities_json'),
     }, authToken);
 
     return redirect('/workspace/entry-types', 303);

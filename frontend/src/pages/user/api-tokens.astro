@@ -1,15 +1,17 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from '@/lib/sdk';
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 let tokens = [];
 let error: string | null = null;
 const newToken = Astro.url.searchParams.get('token');
 const newTokenName = Astro.url.searchParams.get('token_name');
 
 try {
-  tokens = await fetchApi<any[]>('/api/self/api-tokens', {}, authToken);
+  tokens = await sdk.user.listApiTokens();
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
 }
@@ -83,7 +85,8 @@ function formatDate(date: string | null | undefined): string {
 
 <script>
   // HttpOnly cookie is automatically sent with credentials: 'include'
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
 
   // Copy token button
   const copyBtn = document.getElementById('copy-token-btn');
@@ -105,9 +108,7 @@ function formatDate(date: string | null | undefined): string {
       if (!confirm(`Rotate the token "${name}"? The old token will stop working.`)) return;
 
       try {
-        const data = await fetchApi<{ token: string }>(`/api/self/api-tokens/${id}/rotate`, {
-          method: 'POST',
-        });
+        const data = await sdk.user.rotateApiToken(id);
 
         window.location.href = `/user/api-tokens?token=${data.token}&token_name=${encodeURIComponent(name)}`;
       } catch (error) {
@@ -125,9 +126,7 @@ function formatDate(date: string | null | undefined): string {
       if (!confirm(`Delete the token "${name}"? This cannot be undone.`)) return;
 
       try {
-        await fetchApi(`/api/self/api-tokens/${id}`, {
-          method: 'DELETE',
-        });
+        await sdk.user.deleteApiToken(id);
 
         window.location.reload();
       } catch (error) {

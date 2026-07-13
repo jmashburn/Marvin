@@ -1,21 +1,21 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { requireAdmin } from "@/lib/auth";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { createSdkClient } from '@/lib/sdk';
+
+const currentUser = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
 const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
 let users: any[] = [];
 let error: string | null = null;
 
 let groups: any[] = [];
 
 try {
-  const currentUser = await fetchApi<any>('/api/self', {}, authToken);
-  if (currentUser?.admin !== true) {
-    return Astro.redirect('/');
-  }
-
   const [usersResponse, groupsResponse] = await Promise.all([
-    fetchApi<any>('/api/admin/users', {}, authToken),
+    sdk.adminUsers.list(),
     fetchApi<any>('/api/admin/groups', {}, authToken),
   ]);
 
