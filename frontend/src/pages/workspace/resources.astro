@@ -22,6 +22,17 @@ if (!authToken) {
 
 // Get unique types
 const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort();
+
+// Group resources by type
+const typeGroups = new Map<string, { type: string; resources: ResourceRead[] }>();
+for (const resource of resources) {
+  const t = resource.resourceType;
+  if (!typeGroups.has(t)) {
+    typeGroups.set(t, { type: t, resources: [] });
+  }
+  typeGroups.get(t)!.resources.push(resource);
+}
+const sortedTypeGroups = [...typeGroups.values()].sort((a, b) => a.type.localeCompare(b.type));
 ---
 
 <AppLayout title="Resources" eyebrow="Content">
@@ -61,48 +72,119 @@ const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort(
       <a href="/workspace/resources/new" class="button">Add Your First Resource</a>
     </div>
   ) : (
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>External ID</th>
-          <th>URL</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {resources.map((resource) => (
-          <tr class="resource-row" data-type={resource.resourceType}>
-            <td class="resource-name"><strong>{resource.name}</strong></td>
-            <td><span class="type-badge">{resource.resourceType}</span></td>
-            <td class="description-cell">{resource.description || '—'}</td>
-            <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
-            <td>
-              {resource.url ? (
-                <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
-                  {new URL(resource.url).hostname} ↗
-                </a>
-              ) : '—'}
-            </td>
-            <td>
-              <div class="actions">
-                <a href={`/workspace/resources/${resource.id}`} class="button secondary small">Edit</a>
-                <button
-                  type="button"
-                  class="button secondary small danger delete-resource-btn"
-                  data-resource-id={resource.id}
-                  data-resource-name={resource.name}
-                >
-                  Delete
-                </button>
-              </div>
-            </td>
-          </tr>
+    <>
+      <div class="view-toggle">
+        <button class="toggle-btn active" id="view-table" title="All resources">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+          All
+        </button>
+        <button class="toggle-btn" id="view-grouped" title="Group by type">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="14" height="3" rx="1"/><rect x="3" y="5.5" width="12" height="2" rx="0.5" opacity="0.6"/><rect x="3" y="8.5" width="12" height="2" rx="0.5" opacity="0.6"/><rect x="1" y="12" width="14" height="3" rx="1"/></svg>
+          Types
+        </button>
+      </div>
+
+      <div id="table-view" class="view-section">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>External ID</th>
+              <th>URL</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resources.map((resource) => (
+              <tr class="resource-row" data-type={resource.resourceType}>
+                <td class="resource-name"><strong>{resource.name}</strong></td>
+                <td><span class="type-badge">{resource.resourceType}</span></td>
+                <td class="description-cell">{resource.description || '—'}</td>
+                <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
+                <td>
+                  {resource.url ? (
+                    <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
+                      {new URL(resource.url).hostname} ↗
+                    </a>
+                  ) : '—'}
+                </td>
+                <td>
+                  <div class="actions">
+                    <a href={`/workspace/resources/${resource.id}`} class="button secondary small">Edit</a>
+                    <button
+                      type="button"
+                      class="button secondary small danger delete-resource-btn"
+                      data-resource-id={resource.id}
+                      data-resource-name={resource.name}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div id="grouped-view" class="view-section" style="display:none;">
+        {sortedTypeGroups.map(({ type, resources: groupResources }) => (
+          <details class="collection-group" data-group-type={type}>
+            <summary class="collection-header">
+              <h3 class="collection-title">
+                <span class="collapse-chevron"></span>
+                {type}
+                <span class="collection-count">{groupResources.length}</span>
+              </h3>
+            </summary>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th>External ID</th>
+                  <th>URL</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupResources.map((resource) => (
+                  <tr class="resource-row" data-type={resource.resourceType}>
+                    <td class="resource-name"><strong>{resource.name}</strong></td>
+                    <td><span class="type-badge">{resource.resourceType}</span></td>
+                    <td class="description-cell">{resource.description || '—'}</td>
+                    <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
+                    <td>
+                      {resource.url ? (
+                        <a href={resource.url} target="_blank" rel="noopener noreferrer" class="external-link">
+                          {new URL(resource.url).hostname} ↗
+                        </a>
+                      ) : '—'}
+                    </td>
+                    <td>
+                      <div class="actions">
+                        <a href={`/workspace/resources/${resource.id}`} class="button secondary small">Edit</a>
+                        <button
+                          type="button"
+                          class="button secondary small danger delete-resource-btn"
+                          data-resource-id={resource.id}
+                          data-resource-name={resource.name}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
         ))}
-      </tbody>
-      </table>
+      </div>
+    </>
   )}
 </AppLayout>
 
@@ -112,6 +194,27 @@ const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort(
   const sdk = createSdkClient();
   const searchInput = document.getElementById('filter-search') as HTMLInputElement;
   const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+  const tableView = document.getElementById('table-view');
+  const groupedView = document.getElementById('grouped-view');
+  const viewTableBtn = document.getElementById('view-table');
+  const viewGroupedBtn = document.getElementById('view-grouped');
+
+  // View toggle
+  function setView(view: 'table' | 'grouped') {
+    if (!tableView || !groupedView) return;
+    tableView.style.display = view === 'table' ? '' : 'none';
+    groupedView.style.display = view === 'grouped' ? '' : 'none';
+    viewTableBtn?.classList.toggle('active', view === 'table');
+    viewGroupedBtn?.classList.toggle('active', view === 'grouped');
+    localStorage.setItem('resources-view', view);
+    filterResources();
+  }
+
+  viewTableBtn?.addEventListener('click', () => setView('table'));
+  viewGroupedBtn?.addEventListener('click', () => setView('grouped'));
+
+  const savedView = localStorage.getItem('resources-view') as 'table' | 'grouped' | null;
+  if (savedView) setView(savedView);
 
   // Handle delete buttons
   document.querySelectorAll('.delete-resource-btn').forEach(button => {
@@ -129,7 +232,6 @@ const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort(
 
       try {
         await sdk.resources.delete(resourceId);
-        // Remove the row from the table
         btn.closest('tr')?.remove();
       } catch (error: any) {
         const message = error?.message || error?.detail || 'Failed to delete resource';
@@ -154,7 +256,14 @@ const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort(
 
       (row as HTMLElement).style.display = (matchesSearch && matchesType) ? '' : 'none';
     });
+
+    document.querySelectorAll('.collection-group').forEach(group => {
+      const visibleRows = group.querySelectorAll('.resource-row:not([style*="display: none"])');
+      (group as HTMLElement).style.display = visibleRows.length > 0 ? '' : 'none';
+    });
   }
+
+  filterResources();
 
   searchInput?.addEventListener('input', filterResources);
   typeFilter?.addEventListener('change', filterResources);
@@ -248,5 +357,105 @@ const allTypes = Array.from(new Set(resources.map((r) => r.resourceType))).sort(
 
   .button.danger:hover {
     background: var(--color-error-bg);
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--panel-2);
+    border-radius: 6px;
+    padding: 2px;
+    width: fit-content;
+    margin-bottom: 1.5rem;
+  }
+
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .toggle-btn:hover {
+    color: var(--ink);
+  }
+
+  .toggle-btn.active {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  .collection-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .collection-group > .table {
+    margin-top: 1rem;
+  }
+
+  .collection-header {
+    padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  .collection-header::-webkit-details-marker {
+    display: none;
+  }
+
+  .collection-header:hover {
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .collection-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .collapse-chevron {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    transition: transform 0.15s;
+  }
+
+  .collapse-chevron::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg) translate(1px, -1px);
+    margin: 4px auto;
+  }
+
+  details[open] > .collection-header .collapse-chevron {
+    transform: rotate(90deg);
+  }
+
+  .collection-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--panel-2);
+    padding: 0.125rem 0.5rem;
+    border-radius: 10px;
   }
 </style>
