@@ -293,8 +293,6 @@ class WorkspaceExporter:
                 entry_asset = {"slug": asset.slug, "position": assignment.position}
                 if assignment.role:
                     entry_asset["role"] = assignment.role
-                if assignment.usage:
-                    entry_asset["usage"] = assignment.usage
                 if assignment.caption:
                     entry_asset["caption"] = assignment.caption
                 if assignment.focal_point:

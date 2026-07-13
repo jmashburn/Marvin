@@ -35,11 +35,12 @@ from marvin.schemas.publishing import (
     PublishedCollectionsResponse,
     PublishedCollectionSummary,
     PublishedEntriesResponse,
+    PublishedEntryAsset,
     PublishedEntryListItem,
     PublishedEntryRead,
+    PublishedEntryResource,
     PublishedEntryTypeInfo,
     PublishedEntryTypeRead,
-    PublishedResourceRead,
     PublishedResourcesResponse,
     PublishedResourceSummary,
     SiteConfiguration,
@@ -94,27 +95,53 @@ def _build_entry_type_info(entry: Entries) -> PublishedEntryTypeInfo | None:
     )
 
 
-def _entry_to_list_item(entry: Entries, include_order: bool = False) -> PublishedEntryListItem:
+def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAssetRead:
+    """Build a PublishedAssetRead from an entry-asset junction row."""
+    return PublishedAssetRead(
+        slug=ea.asset.slug,
+        name=ea.asset.name,
+        mime_type=ea.asset.mime_type,
+        asset_type=ea.asset.asset_type,
+        file_size=ea.asset.file_size,
+        width=ea.asset.width,
+        height=ea.asset.height,
+        alt_text=ea.asset.alt_text or ea.caption,
+        description=ea.asset.description,
+        public_url=ea.asset.public_url or f"/api/publish/{workspace_slug}/assets/{ea.asset.slug}/file",
+        metadata=ea.asset.metadata_,
+    )
+
+
+def _resolve_featured_asset(entry: Entries, workspace_slug: str) -> PublishedAssetRead | None:
+    """Resolve the featured asset for a list item: first hero/featured, then first by position."""
+    sorted_assets = sorted(
+        (ea for ea in entry.entry_assets if ea.asset),
+        key=lambda x: x.position,
+    )
+    for ea in sorted_assets:
+        if ea.role in ("hero", "featured"):
+            return _build_published_asset(ea, workspace_slug)
+    if sorted_assets:
+        return _build_published_asset(sorted_assets[0], workspace_slug)
+    return None
+
+
+def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool = False) -> PublishedEntryListItem:
     """
     Convert an entry model to a PublishedEntryListItem with relationships.
 
     Args:
         entry: The entry model instance
+        workspace_slug: Workspace slug for building asset URLs
         include_order: Whether to include sort order from junction table
 
     Returns:
         PublishedEntryListItem with populated relationships
     """
-    # Get collection slugs
     collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
-
-    # Get asset slugs
     asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
-
-    # Get resource slugs
     resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
 
-    # Build base item
     item_data = {
         "slug": entry.slug,
         "title": entry.title,
@@ -125,9 +152,10 @@ def _entry_to_list_item(entry: Entries, include_order: bool = False) -> Publishe
         "collections": collection_slugs,
         "assets": asset_slugs,
         "resources": resource_slugs,
+        "metadata": entry.metadata_json,
+        "featured_asset": _resolve_featured_asset(entry, workspace_slug),
     }
 
-    # Add optional fields if present
     if hasattr(entry, "status") and entry.status:
         item_data["status"] = entry.status
 
@@ -391,7 +419,7 @@ async def list_published_entries(
     entries = query.order_by(Entries.published_at.desc()).offset(offset).limit(limit).all()
 
     # Convert to list items
-    data = [_entry_to_list_item(entry) for entry in entries]
+    data = [_entry_to_list_item(entry, group.slug) for entry in entries]
 
     return PublishedEntriesResponse(
         data=data,
@@ -466,41 +494,40 @@ async def get_published_entry(
         if ec.collection
     ]
 
-    # Get resources for this entry
+    # Get resources for this entry (wrapped with relationship context)
     resources = [
-        PublishedResourceRead(
-            slug=er.resource.slug,
-            name=er.resource.name,
-            resource_type=er.resource.resource_type,
-            description=er.resource.description,
-            url=er.resource.url,
-            external_id=er.resource.external_id,
+        PublishedEntryResource(
             role=er.role,
             quantity=er.quantity,
             unit=er.unit,
             position=er.position,
+            metadata=er.metadata_json,
+            resource=PublishedResourceSummary(
+                slug=er.resource.slug,
+                name=er.resource.name,
+                resource_type=er.resource.resource_type,
+                description=er.resource.description,
+                url=er.resource.url,
+                external_id=er.resource.external_id,
+                metadata=er.resource.metadata_,
+            ),
         )
         for er in entry.entry_resources
-        if er.resource  # Defensive check
+        if er.resource
     ]
 
-    # Get assets for this entry
+    # Get assets for this entry (wrapped with relationship context)
     assets = [
-        PublishedAssetRead(
-            slug=ea.asset.slug,
-            name=ea.asset.name,
-            mime_type=ea.asset.mime_type,
-            asset_type=ea.asset.asset_type,
-            file_size=ea.asset.file_size,
-            width=ea.asset.width,
-            height=ea.asset.height,
-            alt_text=ea.asset.alt_text or ea.caption,
-            description=ea.asset.description,
-            public_url=ea.asset.public_url or f"/api/publish/{group.slug}/assets/{ea.asset.slug}/file",
-            metadata=ea.asset.metadata_,
+        PublishedEntryAsset(
+            role=ea.role,
+            position=ea.position,
+            focal_point=ea.focal_point,
+            caption=ea.caption,
+            metadata=ea.metadata_,
+            asset=_build_published_asset(ea, group.slug),
         )
         for ea in entry.entry_assets
-        if ea.asset  # Defensive check
+        if ea.asset
     ]
 
     return PublishedEntryRead(
@@ -674,7 +701,7 @@ async def get_published_collection(
     # Convert to list items
     entry_items = []
     for entry in entries:
-        item = _entry_to_list_item(entry)
+        item = _entry_to_list_item(entry, group.slug)
         # Add collection-specific sort order
         order = next((ec.sort_order for ec in entry.entry_collections if ec.collection_id == collection.id), None)
         if order is not None:
@@ -1087,4 +1114,4 @@ async def get_resource_entries(
     )
 
     # Convert to list items using shared helper
-    return [_entry_to_list_item(entry) for entry in entries]
+    return [_entry_to_list_item(entry, group.slug) for entry in entries]

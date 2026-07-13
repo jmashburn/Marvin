@@ -26,6 +26,7 @@ class EntryResources(SqlAlchemyBase):
     quantity: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     unit: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default="0")
+    metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     # Relationships
     entry: Mapped["Entries"] = orm.relationship(

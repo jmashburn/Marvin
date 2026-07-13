@@ -167,8 +167,6 @@ class AssetPlacement(_MarvinModel):
 
     role: str | None = None
     """Role for this entry, such as hero, featured, support, inline, or download."""
-    usage: str | None = None
-    """Usage hint, such as material, process, detail, texture, or workshop."""
     position: int = 0
     """Display order for this entry."""
     focal_point: str | None = None
