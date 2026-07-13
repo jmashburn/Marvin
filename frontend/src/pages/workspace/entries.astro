@@ -39,6 +39,31 @@ const collectionsMap = new Map(collections.map(c => [c.id, c]));
 
 // Sort entry types by sort_order
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
+
+// Group entries by collection (entries can appear in multiple collections)
+const collectionGroups = new Map<string, { collection: CollectionRead; entries: EntryRead[] }>();
+const uncollected: EntryRead[] = [];
+
+for (const entry of entries) {
+  if (entry.collections && entry.collections.length > 0) {
+    for (const colId of entry.collections) {
+      const col = collectionsMap.get(colId);
+      if (col) {
+        if (!collectionGroups.has(colId)) {
+          collectionGroups.set(colId, { collection: col, entries: [] });
+        }
+        collectionGroups.get(colId)!.entries.push(entry);
+      }
+    }
+  } else {
+    uncollected.push(entry);
+  }
+}
+
+// Sort groups by collection name
+const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
+  a.collection.name.localeCompare(b.collection.name)
+);
 ---
 
 <AppLayout title="Entries">
@@ -92,22 +117,87 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
           <a href="/workspace/entries/new" class="button">Create Your First Entry</a>
         </div>
       ) : (
-        <section class="grid" aria-label="Entries">
-          {entries.map((entry) => {
-            // Check if entry matches URL status filters
-            const matchesStatusFilter = statusFilters.length === 0 || statusFilters.includes(entry.status);
-            return (
-              <div class="entry-wrapper"
-                data-type={entry.entryTypeId}
-                data-status={entry.status}
-                data-title={entry.title.toLowerCase()}
-                data-summary={(entry.summary || '').toLowerCase()}
-                style={matchesStatusFilter ? '' : 'display: none;'}>
-                <EntryCard entry={entry} collectionsMap={collectionsMap} />
+        <>
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="view-grid" title="All entries">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+              All
+            </button>
+            <button class="toggle-btn" id="view-grouped" title="Group by collection">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="14" height="3" rx="1"/><rect x="3" y="5.5" width="12" height="2" rx="0.5" opacity="0.6"/><rect x="3" y="8.5" width="12" height="2" rx="0.5" opacity="0.6"/><rect x="1" y="12" width="14" height="3" rx="1"/></svg>
+              Collections
+            </button>
+          </div>
+
+          {/* Flat grid view */}
+          <section class="grid view-section" id="grid-view" aria-label="Entries">
+            {entries.map((entry) => {
+              const matchesStatusFilter = statusFilters.length === 0 || statusFilters.includes(entry.status);
+              return (
+                <div class="entry-wrapper"
+                  data-type={entry.entryTypeId}
+                  data-status={entry.status}
+                  data-title={entry.title.toLowerCase()}
+                  data-summary={(entry.summary || '').toLowerCase()}
+                  data-collections={entry.collections?.join(',') || ''}
+                  style={matchesStatusFilter ? '' : 'display: none;'}>
+                  <EntryCard entry={entry} collectionsMap={collectionsMap} />
+                </div>
+              );
+            })}
+          </section>
+
+          {/* Grouped by collection view */}
+          <div class="view-section" id="grouped-view" style="display:none;">
+            {sortedGroups.map(({ collection, entries: groupEntries }) => (
+              <div class="collection-group" data-collection-id={collection.id}>
+                <div class="collection-header">
+                  <h3 class="collection-title">
+                    {collection.icon && <span class="collection-icon">{collection.icon}</span>}
+                    {collection.name}
+                    <span class="collection-count">{groupEntries.length}</span>
+                  </h3>
+                  {collection.description && (
+                    <p class="collection-desc">{collection.description}</p>
+                  )}
+                </div>
+                <section class="grid" aria-label={`${collection.name} entries`}>
+                  {groupEntries.map((entry) => (
+                    <div class="entry-wrapper"
+                      data-type={entry.entryTypeId}
+                      data-status={entry.status}
+                      data-title={entry.title.toLowerCase()}
+                      data-summary={(entry.summary || '').toLowerCase()}>
+                      <EntryCard entry={entry} collectionsMap={collectionsMap} />
+                    </div>
+                  ))}
+                </section>
               </div>
-            );
-          })}
-        </section>
+            ))}
+
+            {uncollected.length > 0 && (
+              <div class="collection-group" data-collection-id="uncollected">
+                <div class="collection-header">
+                  <h3 class="collection-title">
+                    Uncollected
+                    <span class="collection-count">{uncollected.length}</span>
+                  </h3>
+                </div>
+                <section class="grid" aria-label="Uncollected entries">
+                  {uncollected.map((entry) => (
+                    <div class="entry-wrapper"
+                      data-type={entry.entryTypeId}
+                      data-status={entry.status}
+                      data-title={entry.title.toLowerCase()}
+                      data-summary={(entry.summary || '').toLowerCase()}>
+                      <EntryCard entry={entry} collectionsMap={collectionsMap} />
+                    </div>
+                  ))}
+                </section>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </>
   )}
@@ -117,18 +207,40 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
   const searchInput = document.getElementById('filter-search') as HTMLInputElement;
   const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
   const statusFilter = document.getElementById('status-filter') as HTMLSelectElement;
+  const gridView = document.getElementById('grid-view');
+  const groupedView = document.getElementById('grouped-view');
+  const viewGridBtn = document.getElementById('view-grid');
+  const viewGroupedBtn = document.getElementById('view-grouped');
 
-  // Get URL status filters
   const urlParams = new URLSearchParams(window.location.search);
   const statusParam = urlParams.get('status');
   const urlStatusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : [];
+
+  // View toggle
+  function setView(view: 'grid' | 'grouped') {
+    if (!gridView || !groupedView) return;
+    gridView.style.display = view === 'grid' ? '' : 'none';
+    groupedView.style.display = view === 'grouped' ? '' : 'none';
+    viewGridBtn?.classList.toggle('active', view === 'grid');
+    viewGroupedBtn?.classList.toggle('active', view === 'grouped');
+    localStorage.setItem('entries-view', view);
+    filterEntries();
+  }
+
+  viewGridBtn?.addEventListener('click', () => setView('grid'));
+  viewGroupedBtn?.addEventListener('click', () => setView('grouped'));
+
+  // Restore saved view preference
+  const savedView = localStorage.getItem('entries-view') as 'grid' | 'grouped' | null;
+  if (savedView) setView(savedView);
 
   function filterEntries() {
     const searchQuery = searchInput?.value.toLowerCase() || '';
     const typeQuery = typeFilter?.value || '';
     const statusQuery = statusFilter?.value || '';
-    const wrappers = document.querySelectorAll('.entry-wrapper');
 
+    // Filter all entry wrappers across both views
+    const wrappers = document.querySelectorAll('.entry-wrapper');
     wrappers.forEach(wrapper => {
       const title = wrapper.getAttribute('data-title') || '';
       const summary = wrapper.getAttribute('data-summary') || '';
@@ -138,21 +250,23 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
       const matchesSearch = !searchQuery || title.includes(searchQuery) || summary.includes(searchQuery);
       const matchesType = !typeQuery || type === typeQuery;
 
-      // Check both dropdown filter and URL filters
       let matchesStatus = true;
       if (statusQuery) {
-        // Dropdown has priority
         matchesStatus = status === statusQuery;
       } else if (urlStatusFilters.length > 0) {
-        // Fall back to URL filters if no dropdown selection
         matchesStatus = urlStatusFilters.includes(status);
       }
 
       (wrapper as HTMLElement).style.display = (matchesSearch && matchesType && matchesStatus) ? '' : 'none';
     });
+
+    // Hide collection groups where all entries are filtered out
+    document.querySelectorAll('.collection-group').forEach(group => {
+      const visibleEntries = group.querySelectorAll('.entry-wrapper:not([style*="display: none"])');
+      (group as HTMLElement).style.display = visibleEntries.length > 0 ? '' : 'none';
+    });
   }
 
-  // Apply filters on page load
   filterEntries();
 
   searchInput?.addEventListener('input', filterEntries);
@@ -201,5 +315,78 @@ const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
     margin: 0;
     color: var(--muted);
     max-width: 32rem;
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--panel-2);
+    border-radius: 6px;
+    padding: 2px;
+    width: fit-content;
+    margin-bottom: 1.5rem;
+  }
+
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .toggle-btn:hover {
+    color: var(--ink);
+  }
+
+  .toggle-btn.active {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  .collection-group {
+    margin-bottom: 2rem;
+  }
+
+  .collection-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .collection-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .collection-icon {
+    font-size: 1.125rem;
+  }
+
+  .collection-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--panel-2);
+    padding: 0.125rem 0.5rem;
+    border-radius: 10px;
+  }
+
+  .collection-desc {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--muted);
   }
 </style>
