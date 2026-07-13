@@ -6,9 +6,12 @@ from typing import Annotated
 from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
+from marvin.core.root_logger import get_logger
 from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
+
+logger = get_logger(__name__)
 
 
 class EntryTypeCreate(_MarvinModel):
@@ -46,7 +49,10 @@ class EntryTypeCreate(_MarvinModel):
     def validate_content_schema(cls, value: dict | None) -> dict | None:
         if value is None:
             return None
-        EntryTypeSchemaDefinition.model_validate(value)
+        try:
+            EntryTypeSchemaDefinition.model_validate(value)
+        except Exception as e:
+            logger.warning("Schema validation warning (unsupported field types will be preserved): %s", e)
         return value
 
     @field_validator("rendering")
@@ -103,7 +109,10 @@ class EntryTypeUpdate(_MarvinModel):
     def validate_content_schema(cls, value: dict | None) -> dict | None:
         if value is None:
             return None
-        EntryTypeSchemaDefinition.model_validate(value)
+        try:
+            EntryTypeSchemaDefinition.model_validate(value)
+        except Exception as e:
+            logger.warning("Schema validation warning (unsupported field types will be preserved): %s", e)
         return value
 
     @field_validator("rendering")

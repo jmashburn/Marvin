@@ -152,10 +152,7 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         try:
             EntryTypeSchemaDefinition.model_validate(schema_json)
         except ValidationError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid schema definition: {e}",
-            )
+            logger.warning("Schema validation warning (unsupported field types will be preserved): %s", e)
 
     def _validate_rendering_json(self, rendering_json: dict | None) -> None:
         if rendering_json is None:
