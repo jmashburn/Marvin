@@ -36,15 +36,11 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
 
     def _filter_builder(self, **kwargs):
         """
-        Override to include system entry types (group_id IS NULL) in addition
-        to workspace-scoped types.
-
-        Returns an empty dict when group_id is set, because we'll handle
-        filtering in page_all and other query methods manually.
+        Override to skip the automatic group_id filter (handled manually via
+        _apply_group_filter) while still passing through match-key kwargs
+        needed by _query_one for update/delete operations.
         """
-        # Don't apply automatic group_id filter - we handle it manually
-        # to include both workspace types AND system types
-        return {}
+        return {**kwargs}
 
     def _apply_group_filter(self, query):
         """
