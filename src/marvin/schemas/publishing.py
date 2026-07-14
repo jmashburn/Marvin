@@ -146,8 +146,8 @@ class PublishedEntryRead(_MarvinModel):
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom non-schema metadata as JSON object."""
 
-    collections: list["PublishedCollectionSummary"] = []
-    """Collections this entry belongs to."""
+    collections: list["PublishedEntryCollection"] = []
+    """Collections this entry belongs to, with relationship context."""
 
     resources: list["PublishedEntryResource"] = []
     """Resources referenced by this entry with relationship context."""
@@ -292,14 +292,19 @@ class PublishedCollectionSummary(_MarvinModel):
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
-    role: str | None = None
-    """Role from the entry-collection junction (e.g., 'primary', 'featured')."""
-
-    placement_metadata_json: dict | None = Field(default=None, serialization_alias="placementMetadataJson")
-    """Metadata from the entry-collection junction."""
-
     sort_order: int
     """Display order for UI."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublishedEntryCollection(_MarvinModel):
+    """A collection as used by a specific entry — relationship context + collection data."""
+
+    role: str | None = None
+    position: int = 0
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
+    collection: PublishedCollectionSummary
 
     model_config = ConfigDict(from_attributes=True)
 

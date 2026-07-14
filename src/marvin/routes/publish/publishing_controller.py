@@ -36,6 +36,7 @@ from marvin.schemas.publishing import (
     PublishedCollectionSummary,
     PublishedEntriesResponse,
     PublishedEntryAsset,
+    PublishedEntryCollection,
     PublishedEntryListItem,
     PublishedEntryRead,
     PublishedEntryResource,
@@ -476,21 +477,24 @@ async def get_published_entry(
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
 
-    # Get collections with full details
+    # Get collections with junction context + collection data
     collections = [
-        PublishedCollectionSummary(
-            slug=ec.collection.slug,
-            name=ec.collection.name,
-            description=ec.collection.description,
-            is_smart=ec.collection.is_smart,
-            smart_rules=ec.collection.smart_rules,
-            metadata=ec.collection.metadata_json,
+        PublishedEntryCollection(
             role=ec.role,
-            placement_metadata_json=ec.metadata_json,
-            entry_count=0,  # Not needed in entry context
-            sort_order=ec.collection.sort_order,
-            icon=ec.collection.icon,
-            color=ec.collection.color,
+            position=ec.sort_order,
+            metadata=ec.metadata_json,
+            collection=PublishedCollectionSummary(
+                slug=ec.collection.slug,
+                name=ec.collection.name,
+                description=ec.collection.description,
+                is_smart=ec.collection.is_smart,
+                smart_rules=ec.collection.smart_rules,
+                metadata=ec.collection.metadata_json,
+                entry_count=0,
+                sort_order=ec.collection.sort_order,
+                icon=ec.collection.icon,
+                color=ec.collection.color,
+            ),
         )
         for ec in entry.entry_collections
         if ec.collection
