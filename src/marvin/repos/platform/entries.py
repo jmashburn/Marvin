@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import HTTPException, status
 from pydantic import UUID4
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from marvin.db.models.platform import Entries, EntryTypes, EntryCollections, EntryAssets, EntryResources
 from marvin.repos.repository_generic import GroupRepositoryGeneric
@@ -30,16 +30,6 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             group_id=group_id,
         )
         self.content_validator = ContentValidator()
-
-    def _get_base_query(self):
-        """Override to eagerly load collections, assets (with junction data), and resources relationships."""
-        query = super()._get_base_query()
-        return query.options(
-            joinedload(Entries.collections),
-            joinedload(Entries.entry_collections).joinedload(EntryCollections.collection),
-            joinedload(Entries.entry_assets).joinedload(EntryAssets.asset),
-            joinedload(Entries.entry_resources).joinedload(EntryResources.resource),
-        )
 
     def _entry_type_exists(self, entry_type_id: UUID4) -> bool:
         """Check if entry type exists (includes system types)."""

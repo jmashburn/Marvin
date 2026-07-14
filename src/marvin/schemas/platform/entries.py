@@ -204,6 +204,18 @@ class EntryRead(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
+    def loader_options(cls):
+        from sqlalchemy.orm import joinedload
+
+        from marvin.db.models.platform import Entries, EntryAssets, EntryCollections, EntryResources
+
+        return [
+            joinedload(Entries.entry_collections).joinedload(EntryCollections.collection),
+            joinedload(Entries.entry_assets).joinedload(EntryAssets.asset),
+            joinedload(Entries.entry_resources).joinedload(EntryResources.resource),
+        ]
+
+    @classmethod
     def model_validate(cls, obj, **kwargs):
         """Custom validation to extract collection IDs and build asset/resource details."""
         data = {field: getattr(obj, field, None) for field in cls.model_fields}
