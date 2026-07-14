@@ -453,31 +453,35 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
 
             <details class="add-picker">
               <summary>Add Asset</summary>
-              <div class="picker-search">
-                <input type="search" id="asset-search" placeholder="Search assets..." />
-              </div>
-              <div class="picker-list">
-                {allAssets.filter((a: any) => !attachedAssetIds.has(a.id)).map((asset: any) => (
-                  <div class="attachment-card add-asset-item" data-asset-id={asset.id} data-asset-name={asset.name} data-asset-mime={asset.mimeType} data-asset-url={asset.publicUrl || ''} data-asset-alt={asset.altText || ''}>
-                    <div class="attachment-header">
-                      <div class="attachment-preview">
-                        {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
-                          <img src={asset.publicUrl} alt={asset.altText || asset.name} />
-                        ) : (
-                          <span class="attachment-icon">📄</span>
-                        )}
+              <div class="add-picker-panel">
+                <div class="picker-search">
+                  <input type="search" id="asset-search" placeholder="Search assets..." />
+                </div>
+                <div class="picker-list">
+                  {allAssets.filter((a: any) => !attachedAssetIds.has(a.id)).map((asset: any) => (
+                    <div class="attachment-card add-asset-item" data-asset-id={asset.id} data-asset-name={asset.name} data-asset-mime={asset.mimeType} data-asset-url={asset.publicUrl || ''} data-asset-alt={asset.altText || ''}>
+                      <div class="attachment-header">
+                        <div class="attachment-preview">
+                          {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
+                            <img src={asset.publicUrl} alt={asset.altText || asset.name} />
+                          ) : (
+                            <span class="attachment-icon">📄</span>
+                          )}
+                        </div>
+                        <div class="attachment-name">
+                          <strong>{asset.name}</strong>
+                          <span class="picker-meta">{asset.mimeType}</span>
+                        </div>
+                        <div class="attachment-actions">
+                          <button type="button" class="add-btn icon-btn" title="Add">+</button>
+                        </div>
                       </div>
-                      <div class="attachment-name">
-                        <strong>{asset.name}</strong>
-                        <span class="picker-meta">{asset.mimeType}</span>
-                      </div>
-                      <button type="button" class="add-btn icon-btn" title="Add">+</button>
                     </div>
-                  </div>
-                ))}
-                {allAssets.length === 0 && (
-                  <p class="empty-message">No assets available. <a href="/workspace/assets/new">Upload one</a>.</p>
-                )}
+                  ))}
+                  {allAssets.length === 0 && (
+                    <p class="empty-message">No assets available. <a href="/workspace/assets/new">Upload one</a>.</p>
+                  )}
+                </div>
               </div>
             </details>
           </div>
@@ -517,24 +521,28 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
 
             <details class="add-picker">
               <summary>Add Resource</summary>
-              <div class="picker-search">
-                <input type="search" id="resource-search" placeholder="Search resources..." />
-              </div>
-              <div class="picker-list">
-                {allResources.filter((r: any) => !attachedResourceIds.has(r.id)).map((resource: any) => (
-                  <div class="attachment-card add-resource-item" data-resource-id={resource.id} data-resource-name={resource.name} data-resource-type={resource.resourceType} data-resource-url={resource.url || ''}>
-                    <div class="attachment-header">
-                      <div class="attachment-name">
-                        <strong>{resource.name}</strong>
-                        <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
+              <div class="add-picker-panel">
+                <div class="picker-search">
+                  <input type="search" id="resource-search" placeholder="Search resources..." />
+                </div>
+                <div class="picker-list">
+                  {allResources.filter((r: any) => !attachedResourceIds.has(r.id)).map((resource: any) => (
+                    <div class="attachment-card add-resource-item" data-resource-id={resource.id} data-resource-name={resource.name} data-resource-type={resource.resourceType} data-resource-url={resource.url || ''}>
+                      <div class="attachment-header">
+                        <div class="attachment-name">
+                          <strong>{resource.name}</strong>
+                          <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
+                        </div>
+                        <div class="attachment-actions">
+                          <button type="button" class="add-btn icon-btn" title="Add">+</button>
+                        </div>
                       </div>
-                      <button type="button" class="add-btn icon-btn" title="Add">+</button>
                     </div>
-                  </div>
-                ))}
-                {allResources.length === 0 && (
-                  <p class="empty-message">No resources available. <a href="/workspace/resources/new">Create one</a>.</p>
-                )}
+                  ))}
+                  {allResources.length === 0 && (
+                    <p class="empty-message">No resources available. <a href="/workspace/resources/new">Create one</a>.</p>
+                  )}
+                </div>
               </div>
             </details>
           </div>
@@ -1097,8 +1105,20 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
     background: var(--panel-2);
   }
 
-  .add-picker .picker-list {
+  .add-picker-panel {
     margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  .add-picker-panel .picker-search {
+    margin-bottom: 0.75rem;
+  }
+
+  .add-picker-panel .picker-list {
+    margin-top: 0;
   }
 
   .picker-search {
