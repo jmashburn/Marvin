@@ -24,11 +24,15 @@ if (Astro.request.method === 'POST' && id && authToken) {
     const assetAttachments: Array<Record<string, any>> = [];
     let assetIdx = 0;
     while (formData.has(`asset_attachments[${assetIdx}].asset_id`)) {
+      let assetMeta = null;
+      const assetMetaStr = (formData.get(`asset_attachments[${assetIdx}].metadata`) as string) || '';
+      if (assetMetaStr.trim()) {
+        try { assetMeta = JSON.parse(assetMetaStr); } catch { /* ignore invalid JSON */ }
+      }
       assetAttachments.push({
         asset_id: formData.get(`asset_attachments[${assetIdx}].asset_id`) as string,
         role: (formData.get(`asset_attachments[${assetIdx}].role`) as string) || null,
-        caption: (formData.get(`asset_attachments[${assetIdx}].caption`) as string) || null,
-        focal_point: (formData.get(`asset_attachments[${assetIdx}].focal_point`) as string) || null,
+        metadata: assetMeta,
         position: assetIdx,
       });
       assetIdx++;
@@ -38,11 +42,15 @@ if (Astro.request.method === 'POST' && id && authToken) {
     const resourceAttachments: Array<Record<string, any>> = [];
     let resIdx = 0;
     while (formData.has(`resource_attachments[${resIdx}].resource_id`)) {
+      let resMeta = null;
+      const resMetaStr = (formData.get(`resource_attachments[${resIdx}].metadata`) as string) || '';
+      if (resMetaStr.trim()) {
+        try { resMeta = JSON.parse(resMetaStr); } catch { /* ignore invalid JSON */ }
+      }
       resourceAttachments.push({
         resource_id: formData.get(`resource_attachments[${resIdx}].resource_id`) as string,
         role: (formData.get(`resource_attachments[${resIdx}].role`) as string) || null,
-        quantity: (formData.get(`resource_attachments[${resIdx}].quantity`) as string) || null,
-        unit: (formData.get(`resource_attachments[${resIdx}].unit`) as string) || null,
+        metadata: resMeta,
         position: resIdx,
       });
       resIdx++;
@@ -432,22 +440,11 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
                     <input type="hidden" name={`asset_attachments[${idx}].asset_id`} value={asset.id} form="entry-form" />
                     <div class="field-row">
                       <label>Role</label>
-                      <select name={`asset_attachments[${idx}].role`} form="entry-form">
-                        <option value="">None</option>
-                        <option value="hero" selected={asset.role === 'hero'}>Hero</option>
-                        <option value="featured" selected={asset.role === 'featured'}>Featured</option>
-                        <option value="gallery" selected={asset.role === 'gallery'}>Gallery</option>
-                        <option value="thumbnail" selected={asset.role === 'thumbnail'}>Thumbnail</option>
-                        <option value="download" selected={asset.role === 'download'}>Download</option>
-                      </select>
+                      <input type="text" name={`asset_attachments[${idx}].role`} value={asset.role || ''} placeholder="e.g. hero, thumbnail" form="entry-form" />
                     </div>
-                    <div class="field-row">
-                      <label>Caption</label>
-                      <input type="text" name={`asset_attachments[${idx}].caption`} value={asset.caption || ''} placeholder="Optional caption" form="entry-form" />
-                    </div>
-                    <div class="field-row">
-                      <label>Focal Point</label>
-                      <input type="text" name={`asset_attachments[${idx}].focal_point`} value={asset.focalPoint || ''} placeholder="e.g. 50% 30%" form="entry-form" />
+                    <div class="field-row field-row-full">
+                      <label>Metadata</label>
+                      <textarea name={`asset_attachments[${idx}].metadata`} rows="2" placeholder='{"focal_point": "50% 30%"}' form="entry-form" class="attachment-metadata">{asset.placementMetadata ? JSON.stringify(asset.placementMetadata, null, 2) : ''}</textarea>
                     </div>
                   </div>
                 </div>
@@ -507,13 +504,9 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
                       <label>Role</label>
                       <input type="text" name={`resource_attachments[${idx}].role`} value={resource.role || ''} placeholder="e.g. primary, accent" form="entry-form" />
                     </div>
-                    <div class="field-row">
-                      <label>Quantity</label>
-                      <input type="text" name={`resource_attachments[${idx}].quantity`} value={resource.quantity || ''} placeholder="e.g. 2.5" form="entry-form" />
-                    </div>
-                    <div class="field-row">
-                      <label>Unit</label>
-                      <input type="text" name={`resource_attachments[${idx}].unit`} value={resource.unit || ''} placeholder="e.g. yards, meters" form="entry-form" />
+                    <div class="field-row field-row-full">
+                      <label>Metadata</label>
+                      <textarea name={`resource_attachments[${idx}].metadata`} rows="2" placeholder='{"quantity": "2.5", "unit": "yards"}' form="entry-form" class="attachment-metadata">{resource.placementMetadata ? JSON.stringify(resource.placementMetadata, null, 2) : ''}</textarea>
                     </div>
                   </div>
                 </div>
@@ -567,7 +560,7 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
 
   .editor-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-columns: minmax(0, 1fr) 28rem;
     gap: 1.5rem;
   }
 
@@ -1059,12 +1052,28 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   }
 
   .field-row input,
-  .field-row select {
+  .field-row select,
+  .field-row textarea {
     padding: 0.25rem 0.5rem;
     font-size: 0.8125rem;
     border: 1px solid var(--line);
     border-radius: 4px;
     background: var(--bg);
+  }
+
+  .field-row-full {
+    grid-template-columns: 1fr;
+  }
+
+  .field-row-full label {
+    margin-bottom: 0.125rem;
+  }
+
+  .attachment-metadata {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    resize: vertical;
   }
 
   .add-picker {
@@ -1497,22 +1506,11 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
           <input type="hidden" name="asset_attachments[${idx}].asset_id" value="${id}" form="entry-form" />
           <div class="field-row">
             <label>Role</label>
-            <select name="asset_attachments[${idx}].role" form="entry-form">
-              <option value="">None</option>
-              <option value="hero">Hero</option>
-              <option value="featured">Featured</option>
-              <option value="gallery">Gallery</option>
-              <option value="thumbnail">Thumbnail</option>
-              <option value="download">Download</option>
-            </select>
+            <input type="text" name="asset_attachments[${idx}].role" value="" placeholder="e.g. hero, thumbnail" form="entry-form" />
           </div>
-          <div class="field-row">
-            <label>Caption</label>
-            <input type="text" name="asset_attachments[${idx}].caption" value="" placeholder="Optional caption" form="entry-form" />
-          </div>
-          <div class="field-row">
-            <label>Focal Point</label>
-            <input type="text" name="asset_attachments[${idx}].focal_point" value="" placeholder="e.g. 50% 30%" form="entry-form" />
+          <div class="field-row field-row-full">
+            <label>Metadata</label>
+            <textarea name="asset_attachments[${idx}].metadata" rows="2" placeholder='{"focal_point": "50% 30%"}' form="entry-form" class="attachment-metadata"></textarea>
           </div>
         </div>
       `;
@@ -1557,13 +1555,9 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
             <label>Role</label>
             <input type="text" name="resource_attachments[${idx}].role" value="" placeholder="e.g. primary, accent" form="entry-form" />
           </div>
-          <div class="field-row">
-            <label>Quantity</label>
-            <input type="text" name="resource_attachments[${idx}].quantity" value="" placeholder="e.g. 2.5" form="entry-form" />
-          </div>
-          <div class="field-row">
-            <label>Unit</label>
-            <input type="text" name="resource_attachments[${idx}].unit" value="" placeholder="e.g. yards, meters" form="entry-form" />
+          <div class="field-row field-row-full">
+            <label>Metadata</label>
+            <textarea name="resource_attachments[${idx}].metadata" rows="2" placeholder='{"quantity": "2.5", "unit": "yards"}' form="entry-form" class="attachment-metadata"></textarea>
           </div>
         </div>
       `;
