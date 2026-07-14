@@ -358,9 +358,10 @@ if (!authToken) {
         const entry = await sdk.entries.get(entryId);
         const collectionId = window.location.pathname.split('/').pop()!;
 
+        const currentIds = (entry.collections || []).map((c: any) => typeof c === 'string' ? c : c.id);
         const updatedCollectionIds = isChecked
-          ? [...(entry.collections || []), collectionId]
-          : (entry.collections || []).filter((cid: string) => cid !== collectionId);
+          ? [...currentIds, collectionId]
+          : currentIds.filter((cid: string) => cid !== collectionId);
 
         await sdk.entries.update(entryId, {
           collection_ids: updatedCollectionIds

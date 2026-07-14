@@ -46,7 +46,8 @@ const uncollected: EntryRead[] = [];
 
 for (const entry of entries) {
   if (entry.collections && entry.collections.length > 0) {
-    for (const colId of entry.collections) {
+    for (const item of entry.collections) {
+      const colId = typeof item === 'string' ? item : item.id;
       const col = collectionsMap.get(colId);
       if (col) {
         if (!collectionGroups.has(colId)) {
@@ -139,7 +140,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                   data-status={entry.status}
                   data-title={entry.title.toLowerCase()}
                   data-summary={(entry.summary || '').toLowerCase()}
-                  data-collections={entry.collections?.join(',') || ''}
+                  data-collections={entry.collections?.map((c: any) => typeof c === 'string' ? c : c.id).join(',') || ''}
                   style={matchesStatusFilter ? '' : 'display: none;'}>
                   <EntryCard entry={entry} collectionsMap={collectionsMap} />
                 </div>
