@@ -485,6 +485,8 @@ async def get_published_entry(
             is_smart=ec.collection.is_smart,
             smart_rules=ec.collection.smart_rules,
             metadata=ec.collection.metadata_json,
+            role=ec.role,
+            placement_metadata_json=ec.metadata_json,
             entry_count=0,  # Not needed in entry context
             sort_order=ec.collection.sort_order,
             icon=ec.collection.icon,

@@ -292,6 +292,12 @@ class PublishedCollectionSummary(_MarvinModel):
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
+    role: str | None = None
+    """Role from the entry-collection junction (e.g., 'primary', 'featured')."""
+
+    placement_metadata_json: dict | None = Field(default=None, serialization_alias="placementMetadataJson")
+    """Metadata from the entry-collection junction."""
+
     sort_order: int
     """Display order for UI."""
 

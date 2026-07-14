@@ -102,14 +102,14 @@ if (!id) {
                 rows="6"
                 placeholder='{"key": "value"}'
                 class="metadata-editor"
-              >{asset.metadata_ ? JSON.stringify(asset.metadata_, null, 2) : ""}</textarea>
+              >{asset.metadataJson ? JSON.stringify(asset.metadataJson, null, 2) : ""}</textarea>
               <p class="form-help">Must be valid JSON. Example: {`{"photographer": "Jane", "license": "CC-BY"}`}</p>
 
-              {asset.metadata_ && Object.keys(asset.metadata_).length > 0 && (
+              {asset.metadataJson && Object.keys(asset.metadataJson).length > 0 && (
                 <div class="metadata-preview">
                   <p class="metadata-preview-title">Current Metadata:</p>
                   <dl class="metadata-preview-list">
-                    {Object.entries(asset.metadata_).map(([key, value]) => (
+                    {Object.entries(asset.metadataJson).map(([key, value]) => (
                       <div class="metadata-preview-item">
                         <dt>{key}</dt>
                         <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
@@ -481,7 +481,7 @@ if (!id) {
       };
 
       // Always send metadata field (can be null or object)
-      updateData.metadata = metadata;
+      updateData.metadataJson = metadata;
 
       console.log('Updating asset with data:', updateData);
       await sdk.assets.update(assetId, updateData);
