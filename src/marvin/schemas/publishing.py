@@ -289,6 +289,9 @@ class PublishedCollectionSummary(_MarvinModel):
     name: str
     """Collection display name."""
 
+    description: str | None = None
+    """Optional collection description."""
+
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
