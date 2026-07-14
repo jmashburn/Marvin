@@ -49,9 +49,6 @@ from marvin.schemas.user.password import PrivatePasswordResetToken
 # Import base repository types and specialized repositories
 from ._utils import NOT_SET, NotSet  # Sentinel for optional group_id
 from .groups import RepositoryGroup  # Specialized group repository
-from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
-from .users import RepositoryUsers  # Specialized user repository
-from .workspace_members import RepositoryWorkspaceMembers  # Workspace member management
 from .platform import (
     APIClientsRepository,
     AssetsRepository,
@@ -61,10 +58,15 @@ from .platform import (
     EventLogRepository,
     FormsRepository,
     FormSubmissionsRepository,
+    # CODE_GEN_ID: FACTORY_REPO_IMPORTS
+    # END: FACTORY_REPO_IMPORTS
     ResourcesRepository,
     ScheduledTaskExecutionLogRepository,
     ScheduledTasksRepository,
 )
+from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
+from .users import RepositoryUsers  # Specialized user repository
+from .workspace_members import RepositoryWorkspaceMembers  # Workspace member management
 
 # Constants for primary key / lookup key names used in repositories
 PK_ID = "id"  # Standard primary key
@@ -308,6 +310,9 @@ class AllRepositories:
     def scheduled_task_executions(self) -> ScheduledTaskExecutionLogRepository:
         """Provides access to workspace-scoped scheduled task execution logs."""
         return ScheduledTaskExecutionLogRepository(self.session, self.group_id)
+
+    # CODE_GEN_ID: FACTORY_REPO_PROPERTIES
+    # END: FACTORY_REPO_PROPERTIES
 
     @cached_property
     def forms(self) -> FormsRepository:

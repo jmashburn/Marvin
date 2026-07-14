@@ -1,18 +1,42 @@
 ---
 import { isAuthenticated } from '@/lib/auth';
+import { API_BASE_URL } from '@/lib/api/config';
 
 // Ensure this page is server-rendered (not prerendered)
 export const prerender = false;
 
 // Check if user is already logged in
 if (await isAuthenticated(Astro.cookies)) {
-  // Get return path from query param, default to dashboard
   const returnPath = Astro.url.searchParams.get('return') || '/';
   return Astro.redirect(returnPath);
 }
 
 const error = Astro.url.searchParams.get('error');
 const returnPath = Astro.url.searchParams.get('return');
+
+// Fetch public login info for OIDC settings
+let oidcEnabled = false;
+let oidcProviderName = 'OAuth';
+let oidcAutoRedirect = false;
+
+try {
+  const res = await fetch(`${API_BASE_URL}/api/app/about/login-info`);
+  if (res.ok) {
+    const info = await res.json();
+    oidcEnabled = info.oidc_enabled ?? false;
+    oidcProviderName = info.oidc_provider_name ?? 'OAuth';
+    oidcAutoRedirect = info.oidc_auto_redirect ?? false;
+  }
+} catch {
+  // Backend unreachable — fall through to password-only login
+}
+
+// Auto-redirect to OIDC provider if configured (skip when returning from an error)
+if (oidcEnabled && oidcAutoRedirect && !error) {
+  return Astro.redirect(`${API_BASE_URL}/api/auth/oauth`);
+}
+
+const oauthUrl = `${API_BASE_URL}/api/auth/oauth`;
 ---
 
 <!doctype html>
@@ -38,7 +62,11 @@ const returnPath = Astro.url.searchParams.get('return');
         {error && (
           <div class="error-message">
             <strong>⚠ Authentication failed</strong>
-            <p>{error === 'invalid' ? 'Invalid username or password' : 'An error occurred. Please try again.'}</p>
+            <p>{
+              error === 'invalid' ? 'Invalid username or password'
+              : error === 'oidc' ? 'SSO authentication failed. Please try again.'
+              : 'An error occurred. Please try again.'
+            }</p>
           </div>
         )}
 
@@ -71,6 +99,15 @@ const returnPath = Astro.url.searchParams.get('return');
             <button type="submit" class="button primary">Sign In</button>
           </div>
         </form>
+
+        {oidcEnabled && (
+          <Fragment>
+            <div class="divider"><span>or</span></div>
+            <a href={oauthUrl} class="button oidc-button">
+              Sign in with {oidcProviderName}
+            </a>
+          </Fragment>
+        )}
 
         <div class="login-footer">
           <p class="help-text">
@@ -253,6 +290,51 @@ const returnPath = Astro.url.searchParams.get('return');
 
   .forgot-link:hover {
     text-decoration: underline;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .oidc-button {
+    display: block;
+    width: 100%;
+    padding: 0.875rem 1.5rem;
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+
+  .oidc-button:hover {
+    background: var(--bg);
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .oidc-button:active {
+    transform: translateY(0);
   }
 
   @media (max-width: 480px) {

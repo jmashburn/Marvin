@@ -122,6 +122,9 @@ class AppSettings(BaseSettings):
     BASE_URL: str = "http://localhost:8080"
     """trailing slashes are trimmed (ex. `http://localhost:8080/` becomes ``http://localhost:8080`)"""
 
+    FRONTEND_URL: str = "http://localhost:4322"
+    """URL of the frontend app. Used for OIDC callback redirects in dev. In production same-origin deployments, set to BASE_URL."""
+
     API_DOCS: bool = True
 
     SECRET: str
@@ -299,10 +302,10 @@ class AppSettings(BaseSettings):
 
     model_config = SettingsConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-    @field_validator("BASE_URL")
+    @field_validator("BASE_URL", "FRONTEND_URL")
     @classmethod
     def remove_trailing_slash(cls, v: str) -> str:
-        """Pydantic validator to remove trailing slashes from the BASE_URL."""
+        """Pydantic validator to remove trailing slashes from URL settings."""
         if v and v[-1] == "/":
             return v[:-1]
 

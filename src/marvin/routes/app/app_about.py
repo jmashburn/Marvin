@@ -11,7 +11,7 @@ from fastapi import APIRouter, Response
 from marvin.core.config import get_app_settings
 from marvin.core.settings.static import APP_VERSION  # Current application version
 from marvin.routes._base import UserAPIRouter  # Base router for authenticated user endpoints
-from marvin.schemas.app import AppInfo, AppTheme  # Pydantic response models
+from marvin.schemas.app import AppInfo, AppTheme, LoginInfo  # Pydantic response models
 
 # APIRouter for "about" section, prefixed with /about and using UserAPIRouter for auth
 # All routes in this controller will be under /app/about due to UserAPIRouter in main app and this prefix.
@@ -19,6 +19,18 @@ router = UserAPIRouter(prefix="/about")
 
 # Public router for theme endpoint (no auth required)
 public_router = APIRouter(prefix="/about")
+
+
+@public_router.get("/login-info", response_model=LoginInfo, summary="Get Login Page Configuration")
+def get_login_info() -> LoginInfo:
+    """Public endpoint returning OIDC/signup settings for the login page."""
+    settings = get_app_settings()
+    return LoginInfo(
+        oidc_enabled=settings.OIDC_READY,
+        oidc_provider_name=settings.OIDC_PROVIDER_NAME,
+        oidc_auto_redirect=settings.OIDC_AUTO_REDIRECT,
+        allow_signup=settings.ALLOW_SIGNUP,
+    )
 
 
 @public_router.post("/clear-cache", summary="Clear Settings Cache")

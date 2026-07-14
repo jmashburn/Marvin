@@ -23,6 +23,8 @@ from . import (
     entry_types_controller,
     events_controller,
     forms_controller,
+    # CODE_GEN_ID: PLATFORM_ROUTE_IMPORTS
+    # END: PLATFORM_ROUTE_IMPORTS
     resources_controller,
     scheduled_tasks_controller,
     workspace_controller,
@@ -42,3 +44,6 @@ router.include_router(workspace_controller.router, tags=["Platform: Workspace"])
 router.include_router(workspace_members_controller.router, tags=["Platform: Workspace Members"])
 router.include_router(events_controller.router, tags=["Platform: Events"])
 router.include_router(scheduled_tasks_controller.router, tags=["Platform: Scheduled Tasks"])
+
+# CODE_GEN_ID: PLATFORM_ROUTE_INCLUDES
+# END: PLATFORM_ROUTE_INCLUDES
