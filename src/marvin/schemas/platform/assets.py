@@ -175,7 +175,7 @@ class AssetPlacement(_MarvinModel):
     """Optional caption for this placement."""
     placement_metadata: dict | None = Field(
         default=None,
-        validation_alias=AliasChoices("placement_metadata", "metadata_"),
+        validation_alias=AliasChoices("placement_metadata", "metadata_json"),
     )
     """Optional placement metadata."""
 

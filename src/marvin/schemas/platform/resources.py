@@ -1,8 +1,8 @@
 """Resource schemas."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4
+from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -77,5 +77,35 @@ class ResourceRead(ResourceSummary):
     """Optional metadata."""
     created_by: UUID4
     """ID of user who created the resource."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ResourcePlacement(_MarvinModel):
+    """How a resource is used by a specific entry."""
+
+    role: str | None = None
+    quantity: str | None = None
+    unit: str | None = None
+    position: int = 0
+    placement_metadata: dict | None = Field(
+        default=None,
+        validation_alias=AliasChoices("placement_metadata", "metadata_json"),
+    )
+
+    @field_validator("placement_metadata", mode="before")
+    @classmethod
+    def validate_placement_metadata(cls, value: Any) -> dict | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            return None
+        return value
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryResourceRead(ResourceSummary, ResourcePlacement):
+    """Resource metadata plus entry-specific placement details."""
 
     model_config = ConfigDict(from_attributes=True)

@@ -26,7 +26,7 @@ class EntryAssets(SqlAlchemyBase):
     role: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     focal_point: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     caption: Mapped[str | None] = mapped_column(sa.String, nullable=True)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", sa.JSON, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     # Relationships
     entry: Mapped["Entries"] = orm.relationship(

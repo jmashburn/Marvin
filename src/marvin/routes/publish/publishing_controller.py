@@ -523,7 +523,7 @@ async def get_published_entry(
             position=ea.position,
             focal_point=ea.focal_point,
             caption=ea.caption,
-            metadata=ea.metadata_,
+            metadata=ea.metadata_json,
             asset=_build_published_asset(ea, group.slug),
         )
         for ea in entry.entry_assets
