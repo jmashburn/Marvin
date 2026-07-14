@@ -2,11 +2,11 @@
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, status
-from pydantic import UUID4, BaseModel, Field, ConfigDict
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
-from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate, EntryRead
+from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate, EntryRead, UpdateEntryCollectionRequest
 from marvin.services.event_bus_service.event_types import EventCollectionData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/collections")
@@ -124,13 +124,13 @@ class CollectionsController(BaseUserController):
         if not collection:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
 
-        # Query entries via junction table, eagerly load entry_collections for the order field
         from marvin.db.models.platform.entries import Entries
 
         entries = (
             self.session.query(Entries)
             .join(EntryCollections, Entries.id == EntryCollections.entry_id)
             .filter(EntryCollections.collection_id == item_id)
+            .options(*EntryRead.loader_options())
             .order_by(
                 sa.case(
                     (EntryCollections.sort_order.is_(None), 1),
@@ -193,3 +193,25 @@ class CollectionsController(BaseUserController):
         )
 
         return {"status": "ok", "message": f"Reordered {len(data.entries)} entries"}
+
+    @router.patch("/{item_id}/entries/{entry_id}", summary="Update Entry-Collection Junction")
+    def update_entry_junction(self, item_id: UUID4, entry_id: UUID4, data: UpdateEntryCollectionRequest) -> dict:
+        """Update role and metadata_json on a specific entry-collection junction record."""
+        junction = (
+            self.session.query(EntryCollections).filter(EntryCollections.collection_id == item_id, EntryCollections.entry_id == entry_id).first()
+        )
+        if not junction:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Entry is not in this collection.",
+            )
+
+        if data.role is not None:
+            junction.role = data.role
+        if data.metadata_json is not None:
+            junction.metadata_json = data.metadata_json
+        junction.update_at = sa.func.now()
+
+        self.session.commit()
+
+        return {"status": "ok", "message": "Junction updated"}

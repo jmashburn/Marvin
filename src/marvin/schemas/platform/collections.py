@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Any
 
-from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
+from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -98,6 +98,15 @@ class CollectionRead(CollectionSummary):
     """Optional rules for smart collections."""
     metadata_json: dict | None = None
     """Custom metadata for this collection."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateEntryCollectionRequest(_MarvinModel):
+    """Schema for updating junction fields on an entry-collection relationship."""
+
+    role: str | None = None
+    metadata_json: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

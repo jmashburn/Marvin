@@ -23,6 +23,7 @@ from .collections import (
     CollectionSummary,
     CollectionUpdate,
     EntryCollectionRead,
+    UpdateEntryCollectionRequest,
 )
 from .entries import (
     AssetAttachment,
@@ -79,6 +80,7 @@ __all__ = [
     "CollectionSummary",
     "CollectionUpdate",
     "EntryCollectionRead",
+    "UpdateEntryCollectionRequest",
     "AssetAttachment",
     "EntryAssetRead",
     "EntryCreate",
