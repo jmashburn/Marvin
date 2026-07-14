@@ -458,19 +458,21 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
               </div>
               <div class="picker-list">
                 {allAssets.filter((a: any) => !attachedAssetIds.has(a.id)).map((asset: any) => (
-                  <div class="picker-item add-asset-item" data-asset-id={asset.id} data-asset-name={asset.name} data-asset-mime={asset.mimeType} data-asset-url={asset.publicUrl || ''} data-asset-alt={asset.altText || ''}>
-                    <div class="picker-preview">
-                      {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
-                        <img src={asset.publicUrl} alt={asset.altText || asset.name} />
-                      ) : (
-                        <div class="picker-icon">📄</div>
-                      )}
+                  <div class="attachment-card add-asset-item" data-asset-id={asset.id} data-asset-name={asset.name} data-asset-mime={asset.mimeType} data-asset-url={asset.publicUrl || ''} data-asset-alt={asset.altText || ''}>
+                    <div class="attachment-header">
+                      <div class="attachment-preview">
+                        {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
+                          <img src={asset.publicUrl} alt={asset.altText || asset.name} />
+                        ) : (
+                          <span class="attachment-icon">📄</span>
+                        )}
+                      </div>
+                      <div class="attachment-name">
+                        <strong>{asset.name}</strong>
+                        <span class="picker-meta">{asset.mimeType}</span>
+                      </div>
+                      <button type="button" class="add-btn icon-btn" title="Add">+</button>
                     </div>
-                    <div class="picker-info">
-                      <strong>{asset.name}</strong>
-                      <span class="picker-meta">{asset.mimeType}</span>
-                    </div>
-                    <button type="button" class="add-btn icon-btn" title="Add">+</button>
                   </div>
                 ))}
                 {allAssets.length === 0 && (
@@ -520,12 +522,14 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
               </div>
               <div class="picker-list">
                 {allResources.filter((r: any) => !attachedResourceIds.has(r.id)).map((resource: any) => (
-                  <div class="picker-item add-resource-item" data-resource-id={resource.id} data-resource-name={resource.name} data-resource-type={resource.resourceType} data-resource-url={resource.url || ''}>
-                    <div class="picker-info">
-                      <strong>{resource.name}</strong>
-                      <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
+                  <div class="attachment-card add-resource-item" data-resource-id={resource.id} data-resource-name={resource.name} data-resource-type={resource.resourceType} data-resource-url={resource.url || ''}>
+                    <div class="attachment-header">
+                      <div class="attachment-name">
+                        <strong>{resource.name}</strong>
+                        <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
+                      </div>
+                      <button type="button" class="add-btn icon-btn" title="Add">+</button>
                     </div>
-                    <button type="button" class="add-btn icon-btn" title="Add">+</button>
                   </div>
                 ))}
                 {allResources.length === 0 && (
@@ -560,7 +564,7 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
 
   .editor-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 28rem;
+    grid-template-columns: minmax(0, 1fr) 32rem;
     gap: 1.5rem;
   }
 
