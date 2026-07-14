@@ -376,7 +376,7 @@ class WorkspaceSeedLoader:
             "resource_type": data.get("resourceType", "material"),
             "description": data.get("description"),
             "url": data.get("url"),
-            "metadata_": data.get("metadataJson"),
+            "metadata_json": data.get("metadataJson"),
             "created_by": user_id,
         }
 

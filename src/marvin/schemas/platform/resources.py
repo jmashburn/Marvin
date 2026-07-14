@@ -22,7 +22,7 @@ class ResourceCreate(_MarvinModel):
     """External URL (supplier site, GitHub repo, API docs, etc)."""
     external_id: str | None = None
     """External identifier (supplier SKU, ISBN, repo path, etc)."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional metadata as JSON."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -43,7 +43,7 @@ class ResourceUpdate(_MarvinModel):
     """External URL (supplier site, GitHub repo, API docs, etc)."""
     external_id: str | None = None
     """External identifier (supplier SKU, ISBN, repo path, etc)."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional metadata for additional properties."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
@@ -73,7 +73,7 @@ class ResourceSummary(_MarvinModel):
 class ResourceRead(ResourceSummary):
     """Full schema for reading a resource."""
 
-    metadata_: dict | None = Field(default=None, serialization_alias="metadata")
+    metadata_json: dict | None = None
     """Optional metadata."""
     created_by: UUID4
     """ID of user who created the resource."""

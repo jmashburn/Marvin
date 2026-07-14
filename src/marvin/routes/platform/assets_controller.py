@@ -62,7 +62,7 @@ class AssetsController(BaseUserController):
             name=name,
             alt_text=alt_text,
             description=description,
-            metadata_=metadata_dict,
+            metadata_json=metadata_dict,
         )
 
         # Get storage provider and create service

@@ -108,7 +108,7 @@ def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAss
         alt_text=ea.asset.alt_text,
         description=ea.asset.description,
         public_url=ea.asset.public_url or f"/api/publish/{workspace_slug}/assets/{ea.asset.slug}/file",
-        metadata=ea.asset.metadata_,
+        metadata=ea.asset.metadata_json,
     )
 
 
@@ -507,7 +507,7 @@ async def get_published_entry(
                 description=er.resource.description,
                 url=er.resource.url,
                 external_id=er.resource.external_id,
-                metadata=er.resource.metadata_,
+                metadata=er.resource.metadata_json,
             ),
         )
         for er in entry.entry_resources
@@ -781,7 +781,7 @@ async def list_published_assets(
                 alt_text=asset.alt_text,
                 description=asset.description,
                 public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
-                metadata=asset.metadata_,
+                metadata=asset.metadata_json,
                 entries=entry_slugs,
             )
         )
@@ -856,7 +856,7 @@ async def get_published_asset(
         alt_text=asset.alt_text,
         description=asset.description,
         public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
-        metadata=asset.metadata_,
+        metadata=asset.metadata_json,
         entries=entry_slugs,
     )
 
@@ -977,7 +977,7 @@ async def list_published_resources(
                 description=resource.description,
                 url=resource.url,
                 external_id=resource.external_id,
-                metadata=resource.metadata_,
+                metadata=resource.metadata_json,
                 entries=entry_slugs,
             )
         )
@@ -1045,7 +1045,7 @@ async def get_published_resource(
         description=resource.description,
         url=resource.url,
         external_id=resource.external_id,
-        metadata=resource.metadata_,
+        metadata=resource.metadata_json,
         entries=entry_slugs,
     )
 

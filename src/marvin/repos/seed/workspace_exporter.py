@@ -360,8 +360,8 @@ class WorkspaceExporter:
                 asset_dict["altText"] = asset.alt_text
             if asset.description:
                 asset_dict["description"] = asset.description
-            if asset.metadata_:
-                asset_dict["metadataJson"] = asset.metadata_
+            if asset.metadata_json:
+                asset_dict["metadataJson"] = asset.metadata_json
 
             exported.append(asset_dict)
 
@@ -392,8 +392,8 @@ class WorkspaceExporter:
                 resource_dict["url"] = resource.url
             if resource.external_id:
                 resource_dict["externalId"] = resource.external_id
-            if resource.metadata_:
-                resource_dict["metadataJson"] = resource.metadata_
+            if resource.metadata_json:
+                resource_dict["metadataJson"] = resource.metadata_json
 
             exported.append(resource_dict)
 

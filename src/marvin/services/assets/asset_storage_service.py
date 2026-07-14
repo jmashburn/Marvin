@@ -100,7 +100,7 @@ class AssetStorageService(BaseService):
                     storage_key=storage_key,
                     file_data=upload_file.file,
                     content_type=metadata.mime_type,
-                    metadata=upload_request.metadata_,
+                    metadata=upload_request.metadata_json,
                 )
 
                 # Get public URL
@@ -130,7 +130,7 @@ class AssetStorageService(BaseService):
                     public_url=public_url,
                     alt_text=upload_request.alt_text,
                     description=upload_request.description,
-                    metadata_=upload_request.metadata_,
+                    metadata_json=upload_request.metadata_json,
                 )
 
                 # Create database record
