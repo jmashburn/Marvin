@@ -139,7 +139,22 @@ def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool
     Returns:
         PublishedEntryListItem with populated relationships
     """
-    collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+    collections = [
+        PublishedEntryCollection(
+            role=ec.role,
+            position=ec.sort_order,
+            metadata=ec.metadata_json,
+            collection=PublishedCollectionSummary(
+                slug=ec.collection.slug,
+                name=ec.collection.name,
+                description=ec.collection.description,
+                metadata=ec.collection.metadata_json,
+                sort_order=ec.collection.sort_order,
+            ),
+        )
+        for ec in entry.entry_collections
+        if ec.collection
+    ]
     asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
     resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
 
@@ -150,7 +165,7 @@ def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool
         "entry_type_info": _build_entry_type_info(entry),
         "summary": entry.summary,
         "published_at": entry.published_at,
-        "collections": collection_slugs,
+        "collections": collections,
         "assets": asset_slugs,
         "resources": resource_slugs,
         "metadata": entry.metadata_json,

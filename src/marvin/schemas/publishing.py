@@ -190,8 +190,8 @@ class PublishedEntryListItem(_MarvinModel):
     status: str
     """Entry status (e.g., 'published', 'draft', 'needs_review')."""
 
-    collections: list[str] = []
-    """List of collection slugs this entry belongs to."""
+    collections: list["PublishedEntryCollection"] = []
+    """Collections this entry belongs to, with relationship context."""
 
     assets: list[str] = Field(default=[], serialization_alias="assetSlugs")
     """List of asset slugs included in this entry."""
