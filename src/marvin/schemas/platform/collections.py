@@ -1,9 +1,9 @@
 """Collection schemas."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import ConfigDict, StringConstraints, UUID4
+from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -98,5 +98,32 @@ class CollectionRead(CollectionSummary):
     """Optional rules for smart collections."""
     metadata_json: dict | None = None
     """Custom metadata for this collection."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryCollectionRead(_MarvinModel):
+    """Collection summary with entry-specific placement details."""
+
+    id: UUID4
+    name: str
+    slug: str
+    icon: str | None = None
+    color: str | None = None
+    role: str | None = None
+    placement_metadata: dict | None = Field(
+        default=None,
+        validation_alias=AliasChoices("placement_metadata", "metadata_json"),
+    )
+    sort_order: int = 0
+
+    @field_validator("placement_metadata", mode="before")
+    @classmethod
+    def validate_placement_metadata(cls, value: Any) -> dict | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            return None
+        return value
 
     model_config = ConfigDict(from_attributes=True)

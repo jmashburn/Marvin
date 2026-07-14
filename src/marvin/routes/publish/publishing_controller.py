@@ -105,7 +105,7 @@ def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAss
         file_size=ea.asset.file_size,
         width=ea.asset.width,
         height=ea.asset.height,
-        alt_text=ea.asset.alt_text or ea.caption,
+        alt_text=ea.asset.alt_text,
         description=ea.asset.description,
         public_url=ea.asset.public_url or f"/api/publish/{workspace_slug}/assets/{ea.asset.slug}/file",
         metadata=ea.asset.metadata_,
@@ -498,8 +498,6 @@ async def get_published_entry(
     resources = [
         PublishedEntryResource(
             role=er.role,
-            quantity=er.quantity,
-            unit=er.unit,
             position=er.position,
             metadata=er.metadata_json,
             resource=PublishedResourceSummary(
@@ -521,8 +519,6 @@ async def get_published_entry(
         PublishedEntryAsset(
             role=ea.role,
             position=ea.position,
-            focal_point=ea.focal_point,
-            caption=ea.caption,
             metadata=ea.metadata_json,
             asset=_build_published_asset(ea, group.slug),
         )

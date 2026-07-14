@@ -24,8 +24,6 @@ class EntryAssets(SqlAlchemyBase):
     asset_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
     position: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
     role: Mapped[str | None] = mapped_column(sa.String, nullable=True)
-    focal_point: Mapped[str | None] = mapped_column(sa.String, nullable=True)
-    caption: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     # Relationships

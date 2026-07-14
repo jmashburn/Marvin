@@ -9,6 +9,7 @@ from marvin.schemas._marvin import _MarvinModel
 
 if TYPE_CHECKING:
     from .assets import EntryAssetRead
+    from .collections import EntryCollectionRead
     from .resources import EntryResourceRead
 
 ENTRY_STATUSES = {
@@ -26,17 +27,19 @@ class AssetAttachment(BaseModel):
     asset_id: UUID4
     role: str | None = None
     position: int | None = None
-    caption: str | None = None
-    focal_point: str | None = None
     metadata: dict | None = None
 
 
 class ResourceAttachment(BaseModel):
     resource_id: UUID4
     role: str | None = None
-    quantity: str | None = None
-    unit: str | None = None
     position: int | None = None
+    metadata: dict | None = None
+
+
+class CollectionAttachment(BaseModel):
+    collection_id: UUID4
+    role: str | None = None
     metadata: dict | None = None
 
 
@@ -67,6 +70,7 @@ class EntryCreate(_MarvinModel):
         serialization_alias="metadataJson",
     )
     collection_ids: list[UUID4] | None = None
+    collection_attachments: list[CollectionAttachment] | None = None
     asset_ids: list[UUID4] | None = None
     resource_ids: list[UUID4] | None = None
     asset_attachments: list[AssetAttachment] | None = None
@@ -85,6 +89,8 @@ class EntryCreate(_MarvinModel):
             raise ValueError("Provide asset_ids or asset_attachments, not both")
         if self.resource_ids and self.resource_attachments:
             raise ValueError("Provide resource_ids or resource_attachments, not both")
+        if self.collection_ids and self.collection_attachments:
+            raise ValueError("Provide collection_ids or collection_attachments, not both")
         return self
 
     model_config = ConfigDict(from_attributes=True)
@@ -117,6 +123,9 @@ class EntryUpdate(_MarvinModel):
         serialization_alias="metadataJson",
     )
     collection_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("collection_ids", "collectionIds"))
+    collection_attachments: list[CollectionAttachment] | None = Field(
+        default=None, validation_alias=AliasChoices("collection_attachments", "collectionAttachments")
+    )
     asset_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("asset_ids", "assetIds"))
     resource_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("resource_ids", "resourceIds"))
     asset_attachments: list[AssetAttachment] | None = Field(default=None, validation_alias=AliasChoices("asset_attachments", "assetAttachments"))
@@ -145,6 +154,8 @@ class EntryUpdate(_MarvinModel):
             raise ValueError("Provide asset_ids or asset_attachments, not both")
         if self.resource_ids and self.resource_attachments:
             raise ValueError("Provide resource_ids or resource_attachments, not both")
+        if self.collection_ids and self.collection_attachments:
+            raise ValueError("Provide collection_ids or collection_attachments, not both")
         return self
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
@@ -185,8 +196,8 @@ class EntryRead(_MarvinModel):
     """Resources referenced by this entry with placement info."""
     assets: list["EntryAssetRead"] = []
     """Assets included in this entry with placement info."""
-    collections: list[UUID4] = []
-    """Collection IDs this entry belongs to."""
+    collections: list["EntryCollectionRead"] = []
+    """Collections this entry belongs to, with placement info."""
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
 
@@ -202,6 +213,26 @@ class EntryRead(_MarvinModel):
                 data["collections"] = [c.id for c in obj.collections]
 
         if hasattr(obj, "entry_collections") and obj.entry_collections:
+            from marvin.schemas.platform.collections import EntryCollectionRead
+
+            collections = []
+            for junction in obj.entry_collections:
+                if hasattr(junction, "collection") and junction.collection:
+                    c = junction.collection
+                    collections.append(
+                        EntryCollectionRead(
+                            id=c.id,
+                            name=c.name,
+                            slug=c.slug,
+                            icon=c.icon,
+                            color=c.color,
+                            role=junction.role,
+                            placement_metadata=junction.metadata_json,
+                            sort_order=junction.sort_order,
+                        )
+                    )
+            data["collections"] = collections
+
             if obj.entry_collections and hasattr(obj.entry_collections[0], "sort_order"):
                 data["order"] = obj.entry_collections[0].sort_order
 
@@ -215,8 +246,6 @@ class EntryRead(_MarvinModel):
                         **{k: getattr(junction.asset, k, None) for k in EntryAssetRead.model_fields if hasattr(junction.asset, k)},
                         "role": junction.role,
                         "position": junction.position,
-                        "focal_point": junction.focal_point,
-                        "caption": junction.caption,
                         "placement_metadata": junction.metadata_json,
                     }
                     assets.append(asset_data)
@@ -231,8 +260,6 @@ class EntryRead(_MarvinModel):
                     resource_data = {
                         **{k: getattr(junction.resource, k, None) for k in EntryResourceRead.model_fields if hasattr(junction.resource, k)},
                         "role": junction.role,
-                        "quantity": junction.quantity,
-                        "unit": junction.unit,
                         "position": junction.position,
                         "placement_metadata": junction.metadata_json,
                     }

@@ -5,7 +5,6 @@ import { getAuthToken } from "@/lib/api/client";
 import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections } from "@/lib/api/collections";
-import { getEntryCollections } from "@/lib/api/entries";
 import { getAssets } from "@/lib/api/platform";
 import { listResources } from "@/lib/api/resources";
 
@@ -17,8 +16,22 @@ if (Astro.request.method === 'POST' && id && authToken) {
   try {
     const formData = await Astro.request.formData();
 
-    // Parse multi-select fields
-    const collectionIds = formData.getAll('collection_ids') as string[];
+    // Parse structured collection attachments
+    const collectionAttachments: Array<Record<string, any>> = [];
+    let collIdx = 0;
+    while (formData.has(`collection_attachments[${collIdx}].collection_id`)) {
+      let collMeta = null;
+      const collMetaStr = (formData.get(`collection_attachments[${collIdx}].metadata`) as string) || '';
+      if (collMetaStr.trim()) {
+        try { collMeta = JSON.parse(collMetaStr); } catch { /* ignore invalid JSON */ }
+      }
+      collectionAttachments.push({
+        collection_id: formData.get(`collection_attachments[${collIdx}].collection_id`) as string,
+        role: (formData.get(`collection_attachments[${collIdx}].role`) as string) || null,
+        metadata: collMeta,
+      });
+      collIdx++;
+    }
 
     // Parse structured asset attachments
     const assetAttachments: Array<Record<string, any>> = [];
@@ -91,7 +104,7 @@ if (Astro.request.method === 'POST' && id && authToken) {
       data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
       status: formData.get('status') as string,
       metadata_json: metadataJson,
-      collection_ids: collectionIds,
+      collection_attachments: collectionAttachments,
       asset_attachments: assetAttachments,
       resource_attachments: resourceAttachments,
     };
@@ -107,7 +120,6 @@ if (Astro.request.method === 'POST' && id && authToken) {
 let entry: EntryRead | null = null;
 let entryTypes: EntryTypeRead[] = [];
 let collections: CollectionRead[] = [];
-let entryCollections: CollectionRead[] = [];
 let allAssets: any[] = [];
 let allResources: any[] = [];
 let error: string | null = null;
@@ -118,11 +130,10 @@ if (!id) {
   error = "Authentication required";
 } else {
   try {
-    [entry, entryTypes, collections, entryCollections, allAssets, allResources] = await Promise.all([
+    [entry, entryTypes, collections, allAssets, allResources] = await Promise.all([
       getEntry(id, authToken),
       listEntryTypes(authToken),
       listCollections(authToken),
-      getEntryCollections(id, authToken),
       getAssets(authToken),
       listResources(authToken),
     ]);
@@ -134,7 +145,8 @@ if (!id) {
 
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
-const entryCollectionIds = new Set(entryCollections.map(c => c.id));
+const attachedCollections = (entry?.collections || []).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+const attachedCollectionIds = new Set(attachedCollections.map((c: any) => c.id));
 const attachedAssets = (entry?.assets || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
 const attachedResources = (entry?.resources || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
 const attachedAssetIds = new Set(attachedAssets.map((a: any) => a.id));
@@ -375,40 +387,70 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
           </div>
 
           <div class="sidebar-section">
-            <h3>Collections ({Array.from(entryCollectionIds).length})</h3>
+            <h3>Collections (<span id="collection-count">{attachedCollections.length}</span>)</h3>
             <p class="section-help">Organize entry by collection</p>
 
-            <div class="picker-search">
-              <input
-                type="search"
-                id="collection-search"
-                placeholder="Search collections..."
-              />
+            <div id="attached-collections" class="attached-list">
+              {attachedCollections.map((coll: any, idx: number) => (
+                <div class="attachment-card" data-collection-id={coll.id}>
+                  <div class="attachment-header">
+                    <div class="attachment-preview" style={`background-color: ${coll.color || '#a94d3f'}`}>
+                      <span class="attachment-icon" style="font-size:18px;">{coll.icon || '📁'}</span>
+                    </div>
+                    <div class="attachment-name">
+                      <strong>{coll.name}</strong>
+                      <span class="picker-meta">{coll.slug}</span>
+                    </div>
+                    <div class="attachment-actions">
+                      <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+                      <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+                      <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+                    </div>
+                  </div>
+                  <div class="attachment-fields">
+                    <input type="hidden" name={`collection_attachments[${idx}].collection_id`} value={coll.id} form="entry-form" />
+                    <div class="field-row">
+                      <label>Role</label>
+                      <input type="text" name={`collection_attachments[${idx}].role`} value={coll.role || ''} placeholder="e.g. primary, featured" form="entry-form" />
+                    </div>
+                    <div class="field-row field-row-full">
+                      <label>Metadata</label>
+                      <textarea name={`collection_attachments[${idx}].metadata`} rows="2" placeholder='{"featured": true}' form="entry-form" class="attachment-metadata">{coll.placementMetadata ? JSON.stringify(coll.placementMetadata, null, 2) : ''}</textarea>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div class="picker-list">
-              {sortedCollections.map((collection) => (
-                <label class="picker-item collection-picker-item">
-                  <input
-                    type="checkbox"
-                    name="collection_ids"
-                    value={collection.id}
-                    checked={entryCollectionIds.has(collection.id)}
-                    form="entry-form"
-                  />
-                  <div class="picker-preview" style={`background-color: ${collection.color || '#a94d3f'}`}>
-                    <div class="picker-icon">{collection.icon || '📁'}</div>
-                  </div>
-                  <div class="picker-info">
-                    <strong>{collection.name}</strong>
-                    <span class="picker-meta">{collection.isSmart ? 'Smart Collection' : 'Collection'}</span>
-                  </div>
-                </label>
-              ))}
-              {sortedCollections.length === 0 && (
-                <p class="empty-message">No collections available. <a href="/workspace/collections/new">Create one</a>.</p>
-              )}
-            </div>
+            <details class="add-picker">
+              <summary>Add Collection</summary>
+              <div class="add-picker-panel">
+                <div class="picker-search">
+                  <input type="search" id="collection-search" placeholder="Search collections..." />
+                </div>
+                <div class="picker-list">
+                  {sortedCollections.filter((c) => !attachedCollectionIds.has(c.id)).map((collection) => (
+                    <div class="attachment-card add-collection-item" data-collection-id={collection.id} data-collection-name={collection.name} data-collection-slug={collection.slug} data-collection-icon={collection.icon || '📁'} data-collection-color={collection.color || '#a94d3f'}>
+                      <div class="attachment-header">
+                        <div class="attachment-preview" style={`background-color: ${collection.color || '#a94d3f'}`}>
+                          <span class="attachment-icon" style="font-size:18px;">{collection.icon || '📁'}</span>
+                        </div>
+                        <div class="attachment-name">
+                          <strong>{collection.name}</strong>
+                          <span class="picker-meta">{collection.slug}</span>
+                        </div>
+                        <div class="attachment-actions">
+                          <button type="button" class="add-btn icon-btn" title="Add">+</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {sortedCollections.length === 0 && (
+                    <p class="empty-message">No collections available. <a href="/workspace/collections/new">Create one</a>.</p>
+                  )}
+                </div>
+              </div>
+            </details>
           </div>
 
           <div class="sidebar-section">
@@ -1434,18 +1476,6 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   // Form submission now handled server-side via POST
   // No need for client-side fetch - form submits naturally
 
-  // Search filters
-  const collectionSearch = document.getElementById('collection-search') as HTMLInputElement;
-  if (collectionSearch) {
-    collectionSearch.addEventListener('input', (e) => {
-      const query = (e.target as HTMLInputElement).value.toLowerCase();
-      document.querySelectorAll('.collection-picker-item').forEach(item => {
-        const text = item.textContent?.toLowerCase() || '';
-        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
-      });
-    });
-  }
-
   // Attachment management helpers
   function reindexAttachments(container: HTMLElement, prefix: string) {
     const cards = container.querySelectorAll('.attachment-card');
@@ -1480,6 +1510,14 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
     });
   }
 
+  // Initialize existing collection attachment cards
+  const attachedCollectionsContainer = document.getElementById('attached-collections') as HTMLElement;
+  if (attachedCollectionsContainer) {
+    attachedCollectionsContainer.querySelectorAll('.attachment-card').forEach(card => {
+      setupCardButtons(card as HTMLElement, attachedCollectionsContainer, 'collection_attachments', 'collection-count');
+    });
+  }
+
   // Initialize existing asset attachment cards
   const attachedAssetsContainer = document.getElementById('attached-assets') as HTMLElement;
   if (attachedAssetsContainer) {
@@ -1495,6 +1533,57 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
       setupCardButtons(card as HTMLElement, attachedResourcesContainer, 'resource_attachments', 'resource-count');
     });
   }
+
+  // Add collection from picker
+  document.querySelectorAll('.add-collection-item').forEach(item => {
+    const addBtn = item.querySelector('.add-btn');
+    if (!addBtn) return;
+    addBtn.addEventListener('click', () => {
+      const el = item as HTMLElement;
+      const id = el.dataset.collectionId!;
+      const name = el.dataset.collectionName!;
+      const slug = el.dataset.collectionSlug || '';
+      const icon = el.dataset.collectionIcon || '📁';
+      const color = el.dataset.collectionColor || '#a94d3f';
+      const idx = attachedCollectionsContainer.querySelectorAll('.attachment-card').length;
+
+      const card = document.createElement('div');
+      card.className = 'attachment-card';
+      card.dataset.collectionId = id;
+      card.innerHTML = `
+        <div class="attachment-header">
+          <div class="attachment-preview" style="background-color: ${color}">
+            <span class="attachment-icon" style="font-size:18px;">${icon}</span>
+          </div>
+          <div class="attachment-name">
+            <strong>${name}</strong>
+            <span class="picker-meta">${slug}</span>
+          </div>
+          <div class="attachment-actions">
+            <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+            <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+            <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+          </div>
+        </div>
+        <div class="attachment-fields">
+          <input type="hidden" name="collection_attachments[${idx}].collection_id" value="${id}" form="entry-form" />
+          <div class="field-row">
+            <label>Role</label>
+            <input type="text" name="collection_attachments[${idx}].role" value="" placeholder="e.g. primary, featured" form="entry-form" />
+          </div>
+          <div class="field-row field-row-full">
+            <label>Metadata</label>
+            <textarea name="collection_attachments[${idx}].metadata" rows="2" placeholder='{"featured": true}' form="entry-form" class="attachment-metadata"></textarea>
+          </div>
+        </div>
+      `;
+
+      attachedCollectionsContainer.appendChild(card);
+      setupCardButtons(card, attachedCollectionsContainer, 'collection_attachments', 'collection-count');
+      updateCount('collection-count', attachedCollectionsContainer);
+      (item as HTMLElement).style.display = 'none';
+    });
+  });
 
   // Add asset from picker
   document.querySelectorAll('.add-asset-item').forEach(item => {
@@ -1598,8 +1687,21 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   });
 
   // Search filters for add pickers
+  const collectionSearch = document.getElementById('collection-search') as HTMLInputElement;
   const assetSearch = document.getElementById('asset-search') as HTMLInputElement;
   const resourceSearch = document.getElementById('resource-search') as HTMLInputElement;
+
+  if (collectionSearch) {
+    collectionSearch.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase();
+      document.querySelectorAll('.add-collection-item').forEach(item => {
+        const el = item as HTMLElement;
+        if (el.style.display === 'none' && !query) return;
+        const text = el.textContent?.toLowerCase() || '';
+        el.style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
 
   if (assetSearch) {
     assetSearch.addEventListener('input', (e) => {

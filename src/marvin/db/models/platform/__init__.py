@@ -12,6 +12,10 @@ from .event_log import EventLogModel
 from .resources import Resources
 from .scheduled_tasks import ScheduledTaskExecutionLogModel, ScheduledTaskModel
 
+# isort: split
+# CODE_GEN_ID: PLATFORM_MODEL_IMPORTS
+# END: PLATFORM_MODEL_IMPORTS
+
 __all__ = [
     "APIClients",
     "Assets",
@@ -25,4 +29,6 @@ __all__ = [
     "Resources",
     "ScheduledTaskExecutionLogModel",
     "ScheduledTaskModel",
+    # CODE_GEN_ID: PLATFORM_MODEL_ALL
+    # END: PLATFORM_MODEL_ALL
 ]

@@ -25,6 +25,8 @@ class EntryCollections(SqlAlchemyBase):
     entry_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("entries.id", ondelete="CASCADE"), nullable=False, index=True)
     collection_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("collections.id", ondelete="CASCADE"), nullable=False, index=True)
     sort_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default="0")
+    role: Mapped[str | None] = mapped_column(sa.String, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True, server_default=sa.text("NOW()"))
     update_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
 

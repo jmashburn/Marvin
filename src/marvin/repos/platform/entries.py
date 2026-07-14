@@ -36,6 +36,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         query = super()._get_base_query()
         return query.options(
             joinedload(Entries.collections),
+            joinedload(Entries.entry_collections).joinedload(EntryCollections.collection),
             joinedload(Entries.entry_assets).joinedload(EntryAssets.asset),
             joinedload(Entries.entry_resources).joinedload(EntryResources.resource),
         )
@@ -154,6 +155,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
         # Extract relationship IDs before creating entry
         collection_ids = data_dict.pop("collection_ids", None)
+        collection_attachments = data_dict.pop("collection_attachments", None)
         asset_ids = data_dict.pop("asset_ids", None)
         resource_ids = data_dict.pop("resource_ids", None)
         asset_attachments = data_dict.pop("asset_attachments", None)
@@ -163,7 +165,9 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         self.session.add(new_entry)
         self.session.flush()
 
-        if collection_ids:
+        if collection_attachments:
+            self._attach_collection_attachments(new_entry.id, collection_attachments)
+        elif collection_ids:
             self._attach_collections(new_entry.id, collection_ids)
         if asset_attachments:
             self._attach_asset_attachments(new_entry.id, asset_attachments)
@@ -247,6 +251,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
         # Extract relationship IDs before updating entry
         collection_ids = data_dict.pop("collection_ids", None)
+        collection_attachments = data_dict.pop("collection_attachments", None)
         asset_ids = data_dict.pop("asset_ids", None)
         resource_ids = data_dict.pop("resource_ids", None)
         asset_attachments = data_dict.pop("asset_attachments", None)
@@ -258,7 +263,10 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         has_rel_changes = False
 
         # Update relationships if provided (replace existing)
-        if collection_ids is not None:
+        if collection_attachments is not None:
+            self._replace_collection_attachments(entry.id, collection_attachments)
+            has_rel_changes = True
+        elif collection_ids is not None:
             self._replace_collections(entry.id, collection_ids)
             has_rel_changes = True
         if asset_attachments is not None:
@@ -335,8 +343,6 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
                 asset_id=att_dict["asset_id"],
                 position=att_dict.get("position") if att_dict.get("position") is not None else idx,
                 role=att_dict.get("role"),
-                caption=att_dict.get("caption"),
-                focal_point=att_dict.get("focal_point"),
                 metadata_json=att_dict.get("metadata"),
             )
             self.session.add(junction)
@@ -351,8 +357,6 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
                 resource_id=att_dict["resource_id"],
                 position=att_dict.get("position") if att_dict.get("position") is not None else idx,
                 role=att_dict.get("role"),
-                quantity=att_dict.get("quantity"),
-                unit=att_dict.get("unit"),
                 metadata_json=att_dict.get("metadata"),
             )
             self.session.add(junction)
@@ -369,3 +373,23 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         self.session.query(EntryResources).filter(EntryResources.entry_id == entry_id).delete()
         if attachments:
             self._attach_resource_attachments(entry_id, attachments)
+
+    def _attach_collection_attachments(self, entry_id: UUID4, attachments: list) -> None:
+        """Attach collections with rich placement data."""
+        for idx, att in enumerate(attachments):
+            att_dict = att if isinstance(att, dict) else att.model_dump()
+            junction = EntryCollections(
+                entry_id=entry_id,
+                collection_id=att_dict["collection_id"],
+                sort_order=idx,
+                role=att_dict.get("role"),
+                metadata_json=att_dict.get("metadata"),
+            )
+            self.session.add(junction)
+        self.session.flush()
+
+    def _replace_collection_attachments(self, entry_id: UUID4, attachments: list) -> None:
+        """Replace all collection attachments for an entry."""
+        self.session.query(EntryCollections).filter(EntryCollections.entry_id == entry_id).delete()
+        if attachments:
+            self._attach_collection_attachments(entry_id, attachments)

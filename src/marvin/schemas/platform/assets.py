@@ -169,10 +169,6 @@ class AssetPlacement(_MarvinModel):
     """Role for this entry, such as hero, featured, support, inline, or download."""
     position: int = 0
     """Display order for this entry."""
-    focal_point: str | None = None
-    """CSS-style focal point for cropped media, such as '50% 50%'."""
-    caption: str | None = None
-    """Optional caption for this placement."""
     placement_metadata: dict | None = Field(
         default=None,
         validation_alias=AliasChoices("placement_metadata", "metadata_json"),

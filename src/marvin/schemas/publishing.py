@@ -61,8 +61,6 @@ class PublishedEntryAsset(_MarvinModel):
 
     role: str | None = None
     position: int = 0
-    focal_point: str | None = None
-    caption: str | None = None
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     asset: PublishedAssetRead
 
@@ -339,8 +337,6 @@ class PublishedEntryResource(_MarvinModel):
     """A resource as used by a specific entry — relationship context + resource data."""
 
     role: str | None = None
-    quantity: str | None = None
-    unit: str | None = None
     position: int = 0
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     resource: PublishedResourceSummary

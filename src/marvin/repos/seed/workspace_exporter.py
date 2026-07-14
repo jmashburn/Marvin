@@ -293,10 +293,8 @@ class WorkspaceExporter:
                 entry_asset = {"slug": asset.slug, "position": assignment.position}
                 if assignment.role:
                     entry_asset["role"] = assignment.role
-                if assignment.caption:
-                    entry_asset["caption"] = assignment.caption
-                if assignment.focal_point:
-                    entry_asset["focalPoint"] = assignment.focal_point
+                if assignment.metadata_json:
+                    entry_asset["metadataJson"] = assignment.metadata_json
                 assets_data.append(entry_asset)
 
         return assets_data
@@ -321,10 +319,8 @@ class WorkspaceExporter:
                 entry_resource = {"slug": resource.slug, "position": assignment.position}
                 if assignment.role:
                     entry_resource["role"] = assignment.role
-                if assignment.quantity:
-                    entry_resource["quantity"] = assignment.quantity
-                if assignment.unit:
-                    entry_resource["unit"] = assignment.unit
+                if assignment.metadata_json:
+                    entry_resource["metadataJson"] = assignment.metadata_json
                 resources_data.append(entry_resource)
 
         return resources_data

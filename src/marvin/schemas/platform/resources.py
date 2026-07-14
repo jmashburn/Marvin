@@ -85,8 +85,6 @@ class ResourcePlacement(_MarvinModel):
     """How a resource is used by a specific entry."""
 
     role: str | None = None
-    quantity: str | None = None
-    unit: str | None = None
     position: int = 0
     placement_metadata: dict | None = Field(
         default=None,
