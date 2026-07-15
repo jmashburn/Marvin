@@ -16,7 +16,12 @@ try {
 
   const wsId = (workspace as any)?.id ?? (workspace as any)?.groupId;
   if (wsId) {
-    emailTemplates = await listEmailTemplates(wsId, authToken);
+    try {
+      emailTemplates = await listEmailTemplates(wsId, authToken);
+    } catch (templateErr) {
+      console.error('[email-settings] Could not load templates:', templateErr);
+      // Non-fatal — page still renders, templates just show as empty
+    }
   }
 } catch (e) {
   console.error('[email-settings] Error:', e);
@@ -173,7 +178,17 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         <div class="form-section">
           <h4 class="section-label">Basic Information</h4>
 
-          <input type="hidden" id="template-type" />
+          <div class="form-group">
+            <label for="template-type-select">Template Type *</label>
+            <select id="template-type" class="form-input">
+              <option value="invitation">invitation — Workspace invitation email</option>
+              <option value="password_reset">password_reset — Password reset link</option>
+              <option value="welcome">welcome — New user welcome</option>
+              <option value="notification">notification — General notification</option>
+              <option value="custom">custom — Custom / manually triggered</option>
+            </select>
+            <small class="type-note">System types (invitation, password_reset, welcome) are sent automatically by Marvin. Custom templates must be triggered from code.</small>
+          </div>
 
           <div class="form-group">
             <label for="template-name">Template Name *</label>
@@ -413,7 +428,9 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         if (ctxVars.length) {
           varsList.appendChild(makeSectionLabel('Per-send · changes each email', '#7c6fb0'));
           ctxVars.forEach(v => {
-            varsList.appendChild(makeChip(v.slug, v.description, '{{' + v.slug + '}}'));
+            const chip = makeChip(v.slug, v.description, '{{' + v.slug + '}}');
+            chip.classList.add('var-chip-context');
+            varsList.appendChild(chip);
           });
         }
 
@@ -434,6 +451,9 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         varsList.innerHTML = '<span class="vars-empty">Could not load variables.</span>';
       }
     }
+
+    // Reload vars when template type changes
+    document.getElementById('template-type')?.addEventListener('change', loadVariables);
 
     // Show/hide modals
     function showModal(modal) {
@@ -1293,4 +1313,12 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
   .vars-empty a:hover { text-decoration: underline; }
 
   /* .var-chip styles are in global.css (dynamic DOM elements need global scope) */
+
+  .type-note {
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+    display: block;
+    line-height: 1.5;
+  }
 </style>

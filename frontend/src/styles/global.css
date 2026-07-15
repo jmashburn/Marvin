@@ -554,10 +554,11 @@ code {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 6px 10px;
-  background: #ffffff;
-  border: 1px solid #c8e0d8;
-  border-radius: 6px;
+  padding: 5px 10px 5px 8px;
+  background: #f8fffe;
+  border: 1px solid #b8d8cc;
+  border-left: 3px solid #4f9c84;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 0.15s;
   text-align: left;
@@ -567,9 +568,24 @@ code {
 
 .var-chip:hover {
   border-color: #4f9c84;
-  background: #f0f8f5;
+  border-left-color: #3a8a6e;
+  background: #eef8f4;
   box-shadow: 0 1px 4px rgba(79, 156, 132, 0.2);
+  transform: translateY(-1px);
 }
+
+.var-chip.var-chip-context {
+  border-left-color: #7c6fb0;
+  border-color: #c8bfe8;
+  background: #f9f8ff;
+}
+
+.var-chip.var-chip-context:hover {
+  border-color: #7c6fb0;
+  background: #f0eef8;
+}
+
+.var-chip.var-chip-context code { color: #6557a8; }
 
 .var-chip-inner {
   display: flex;
@@ -589,7 +605,7 @@ code {
 
 .var-value {
   font-size: 10px;
-  color: #999;
+  color: #888;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
