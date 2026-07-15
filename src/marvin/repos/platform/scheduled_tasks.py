@@ -110,7 +110,7 @@ class ScheduledTasksRepository(GroupRepositoryGeneric[ScheduledTaskRead, Schedul
         results = self.session.execute(stmt).scalars().all()
         return [ScheduledTaskRead.model_validate(r) for r in results]
 
-    def update_next_run(self, task_id: UUID4, next_run: datetime) -> None:
+    def update_next_run(self, task_id: UUID4, next_run: datetime | None) -> None:
         """
         Update next_run_at after execution.
 

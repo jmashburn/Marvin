@@ -662,6 +662,14 @@ class ScheduledTaskListener(EventListenerBase):
                     failure_count=0,  # Reset on success
                 )
 
+                # Recalculate next_run_at for recurring tasks
+                next_run = repos.scheduled_tasks._compute_next_run(task.schedule_type, task.schedule_config)
+                if next_run:
+                    repos.scheduled_tasks.update_next_run(task.id, next_run)
+                elif task.schedule_type == "once":
+                    # One-time task — clear next_run_at so scheduler won't re-fire it
+                    repos.scheduled_tasks.update_next_run(task.id, None)
+
                 # Emit completed event
                 event_bus.dispatch(
                     integration_id="scheduled_tasks",
@@ -718,6 +726,11 @@ class ScheduledTaskListener(EventListenerBase):
             last_duration_ms=duration_ms,
             failure_count=task.failure_count + 1,
         )
+
+        # Still recalculate next_run_at so the task keeps retrying on schedule
+        next_run = repos.scheduled_tasks._compute_next_run(task.schedule_type, task.schedule_config)
+        if next_run:
+            repos.scheduled_tasks.update_next_run(task.id, next_run)
 
         # Emit failed event
         event_bus.dispatch(
