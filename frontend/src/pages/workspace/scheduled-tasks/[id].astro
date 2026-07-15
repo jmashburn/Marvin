@@ -31,6 +31,13 @@ if (task) {
   }
 }
 
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
 function statusClass(status: string | null): string {
   if (status === 'success') return 'success';
   if (status === 'failed') return 'failed';
@@ -188,7 +195,7 @@ function statusClass(status: string | null): string {
               <tbody>
                 {history.map(exec => (
                   <tr>
-                    <td class="nowrap">{new Date(exec.executed_at).toLocaleString()}</td>
+                    <td class="nowrap">{formatDate(exec.executed_at)}</td>
                     <td>
                       <span class={`run-status status-${statusClass(exec.status)}`}>
                         {exec.status}
