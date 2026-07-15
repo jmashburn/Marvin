@@ -406,7 +406,10 @@ function isSuperseded(template: any): boolean {
         </div>
 
         <div id="test-vars-container" style="display:none">
-          <p style="font-size:13px;font-weight:600;margin:0 0 10px;">Required Variables</p>
+          <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Template Variables</p>
+          <p style="font-size:11px;color:var(--muted);margin:0 0 12px;">
+            Fill in the values for this test send. <code>&#123;&#123;UPPER_CASE&#125;&#125;</code> workspace variables resolve automatically — no need to fill those in.
+          </p>
           <div id="test-vars-fields"></div>
         </div>
 
