@@ -38,17 +38,11 @@ class EmailTemplate(BaseModel):
     """
 
     subject: str
-    """The subject line of the email (can be a localization key)."""
     header_text: str
-    """Text for the header section of the email (can be a localization key)."""
     message_top: str
-    """The primary message content, appearing at the top (can be a localization key)."""
-    message_bottom: str
-    """Additional message content, appearing at the bottom (can be a localization key)."""
-    button_link: str
-    """The URL for the call-to-action button in the email."""
-    button_text: str
-    """The text displayed on the call-to-action button (can be a localization key)."""
+    message_bottom: str = ""
+    button_link: str = ""
+    button_text: str = ""
 
     def render_html(self, template_file: Path) -> str:  # Renamed `template` to `template_file`
         """

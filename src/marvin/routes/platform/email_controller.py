@@ -37,7 +37,7 @@ class PlatformEmailController(BaseUserController):
                     header_text=data.subject or "Test Email",
                     message_top=data.message or "This is a test email.",
                     button_link=str(self.settings.BASE_URL),
-                    button_text="Open",
+                    button_text="Open Marvin",
                 )
                 success = email_service.send_email(data.email, template)
             else:
