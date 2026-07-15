@@ -14,6 +14,7 @@ router = APIRouter(prefix="/email")
 
 class TemplateTestRequest(BaseModel):
     recipient_email: EmailStr
+    variables: dict = {}
 
 
 @controller(router)
@@ -89,6 +90,7 @@ class PlatformEmailController(BaseUserController):
                 "workspace_name": self.group.name if hasattr(self, "group") else "Your Workspace",
                 "button_link": str(self.settings.BASE_URL),
                 "invitation_url": str(self.settings.BASE_URL),
+                **data.variables,  # User-provided vars override defaults
             }
 
             try:

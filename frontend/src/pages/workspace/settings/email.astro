@@ -29,6 +29,26 @@ try {
 
 const groupId = (workspace as any)?.id ?? (workspace as any)?.groupId;
 const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+
+// Group templates by type to compute effective state
+const templatesByType = new Map<string, any[]>();
+for (const t of emailTemplates) {
+  const type = (t as any).templateType ?? (t as any).template_type ?? 'custom';
+  if (!templatesByType.has(type)) templatesByType.set(type, []);
+  templatesByType.get(type)!.push(t);
+}
+
+// A system template is "superseded" when any workspace template of the same type is enabled
+function isSuperseded(template: any): boolean {
+  const isSystem = !((template as any).groupId ?? (template as any).group_id);
+  if (!isSystem) return false;
+  const type = (template as any).templateType ?? (template as any).template_type;
+  const siblings = templatesByType.get(type) || [];
+  return siblings.some(t => {
+    const tIsWorkspace = !!((t as any).groupId ?? (t as any).group_id);
+    return tIsWorkspace && t.enabled;
+  });
+}
 ---
 
 <AppLayout title="Email Settings" eyebrow="Workspace">
@@ -71,7 +91,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
             const systemTemplates = emailTemplates.filter((t: any) => !(t.groupId ?? t.group_id));
             const customTemplates = emailTemplates.filter((t: any) => !!(t.groupId ?? t.group_id));
             const renderCard = (template: any) => (
-              <div class="template-card" data-template-id={template.id}>
+              <div class:list={['template-card', { 'is-superseded': isSuperseded(template) }]} data-template-id={template.id}>
                 <div class="template-info">
                   <div class="template-header">
                     <strong>{template.name}</strong>
@@ -81,30 +101,37 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                     ) : (
                       <span class="badge badge-inactive">Inactive</span>
                     )}
-                    {!template.group_id && (
+                    {!(template.groupId ?? template.group_id) && (
                       <span class="badge badge-system" title="System default — click Customize to create a workspace override">Default</span>
                     )}
-                    {template.group_id && (
+                    {!!(template.groupId ?? template.group_id) && (
                       <span class="badge badge-customized" title="Workspace customization — overrides the system default">Customized</span>
+                    )}
+                    {isSuperseded(template) && (
+                      <span class="badge badge-superseded" title="A workspace customization is active for this type">Superseded</span>
                     )}
                   </div>
                   <p>{template.description || 'No description'}</p>
+                  {isSuperseded(template) && (
+                    <small class="superseded-note">A workspace customization is currently active — this template won't be used.</small>
+                  )}
                 </div>
                 <div class="template-actions">
                   <button
                     class="button secondary small edit-template-btn"
                     data-template-id={template.id}
-                    data-is-system={!template.group_id ? 'true' : 'false'}
+                    data-is-system={!(template.groupId ?? template.group_id) ? 'true' : 'false'}
                   >
-                    {!template.group_id ? 'Customize' : 'Edit'}
+                    {!(template.groupId ?? template.group_id) ? 'Customize' : 'Edit'}
                   </button>
                   <button
                     class="button secondary small test-send-btn"
                     data-template-id={template.id}
+                    data-template-type={template.template_type}
                   >
                     Test Send
                   </button>
-                  {template.group_id && (
+                  {!!(template.groupId ?? template.group_id) && (
                     <button
                       class="button danger small delete-template-btn"
                       data-template-id={template.id}
@@ -261,6 +288,10 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
               <span>💻 Custom HTML</span>
               <small>Full control over design</small>
             </button>
+            <button type="button" class="mode-tab" data-mode="preview">
+              <span>👁 Preview</span>
+              <small>See rendered output</small>
+            </button>
           </div>
 
           <div id="structured-fields" class="template-mode-content">
@@ -321,6 +352,11 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
               <small>Full Jinja2 HTML template with complete control over styling and structure</small>
             </div>
           </div>
+
+          <div id="preview-panel" style="display:none">
+            <div class="preview-hint">Live preview — variables shown as placeholders</div>
+            <iframe id="preview-iframe" class="preview-iframe" sandbox="allow-same-origin"></iframe>
+          </div>
         </div>
 
         <div class="form-section form-section-compact">
@@ -367,6 +403,11 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
             placeholder="test@example.com"
             required
           />
+        </div>
+
+        <div id="test-vars-container" style="display:none">
+          <p style="font-size:13px;font-weight:600;margin:0 0 10px;">Required Variables</p>
+          <div id="test-vars-fields"></div>
         </div>
 
         <div class="modal-actions">
@@ -503,12 +544,64 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       document.body.style.overflow = '';
     }
 
+    // Preview tab
+    const previewPanel = document.getElementById('preview-panel');
+    const previewIframe = document.getElementById('preview-iframe');
+
+    function updatePreview() {
+      if (!previewPanel || previewPanel.style.display === 'none') return;
+
+      const isCustom = document.querySelector('[data-mode="custom"]').classList.contains('active');
+      let html = '';
+
+      if (isCustom) {
+        html = document.getElementById('template-custom-html').value;
+      } else {
+        // Build structured preview matching default.html layout
+        const header = document.getElementById('template-header').value || 'Email Header';
+        const msgTop = document.getElementById('template-message-top').value || '';
+        const msgBottom = document.getElementById('template-message-bottom').value || '';
+        const btnText = document.getElementById('template-button-text').value || '';
+        const btnRow = btnText ? `<tr><td style="padding:20px 40px;"><a href="#" style="background:#4f9c84;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;">${btnText}</a></td></tr>` : '';
+        const bottomRow = msgBottom ? `<tr><td style="padding:0 40px 28px;font-size:13px;color:#888;line-height:1.6;">${msgBottom}</td></tr>` : '';
+        html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f6f4;font-family:-apple-system,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px;">
+<table width="540" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+<tr><td style="height:4px;background:#4f9c84;"></td></tr>
+<tr><td style="padding:28px 40px 20px;border-bottom:1px solid #f0f0f0;font-size:18px;font-weight:700;color:#1a1a1a;">${header}</td></tr>
+<tr><td style="padding:24px 40px 8px;font-size:15px;line-height:1.7;color:#444;">${msgTop.replace(/\n/g,'<br>')}</td></tr>
+${btnRow}${bottomRow}
+<tr><td style="padding:16px 40px;border-top:1px solid #f0f0f0;background:#fafafa;font-size:12px;color:#aaa;">Sent by Marvin CMS</td></tr>
+</table></td></tr></table></body></html>`;
+      }
+
+      if (previewIframe) {
+        const doc = previewIframe.contentDocument || previewIframe.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(html);
+          doc.close();
+        }
+      }
+    }
+
     // Template mode tabs
     document.querySelectorAll('.mode-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const mode = tab.dataset.mode;
         document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
+
+        if (mode === 'preview') {
+          document.getElementById('structured-fields').style.display = 'none';
+          document.getElementById('custom-html-field').style.display = 'none';
+          previewPanel.style.display = 'block';
+          updatePreview();
+          return;
+        }
+
+        // When leaving preview, hide it
+        if (previewPanel) previewPanel.style.display = 'none';
 
         if (mode === 'structured') {
           document.getElementById('structured-fields').style.display = 'block';
@@ -562,6 +655,15 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 </html>`;
           }
         }
+      });
+    });
+
+    // Update preview when fields change (debounced)
+    let previewTimer = null;
+    ['template-header', 'template-message-top', 'template-message-bottom', 'template-button-text', 'template-custom-html'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(updatePreview, 400);
       });
     });
 
@@ -703,8 +805,42 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
     // Test send
     document.querySelectorAll('.test-send-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.getElementById('test-template-id').value = btn.dataset.templateId;
+      btn.addEventListener('click', async () => {
+        const templateId = btn.dataset.templateId;
+        const templateType = btn.dataset.templateType || '';
+        document.getElementById('test-template-id').value = templateId;
+
+        // Fetch required vars for this template type
+        const varsContainer = document.getElementById('test-vars-container');
+        const varsFields = document.getElementById('test-vars-fields');
+
+        try {
+          const res = await fetch(`${apiUrl}/api/platform/email/template-vars?template_type=${templateType}`, { credentials: 'include' });
+          const data = res.ok ? await res.json() : { required_vars: [], context_vars: [] };
+          const required = data.required_vars || [];
+          const contextVars = data.context_vars || [];
+
+          if (required.length > 0) {
+            varsFields.innerHTML = required.map(slug => {
+              const info = contextVars.find(v => v.slug === slug);
+              const example = info?.example || '';
+              return `<div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;">
+                  <code style="color:#4f9c84;">{{${slug}}}</code>
+                  ${info?.description ? `<span style="color:var(--muted);font-weight:400;"> — ${info.description}</span>` : ''}
+                </label>
+                <input type="text" class="input test-var-input" data-slug="${slug}" placeholder="${example}" />
+              </div>`;
+            }).join('');
+            varsContainer.style.display = 'block';
+          } else {
+            varsContainer.style.display = 'none';
+            varsFields.innerHTML = '';
+          }
+        } catch {
+          varsContainer.style.display = 'none';
+        }
+
         showModal(testSendModal);
       });
     });
@@ -715,12 +851,19 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       const templateId = document.getElementById('test-template-id').value;
       const recipient = document.getElementById('test-recipient').value;
 
+      const vars = {};
+      document.querySelectorAll('.test-var-input').forEach(inp => {
+        const slug = inp.dataset.slug;
+        const val = inp.value.trim();
+        if (slug && val) vars[slug] = val;
+      });
+
       try {
         const response = await fetch(`${apiUrl}/api/platform/email/templates/${templateId}/test`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ recipient_email: recipient }),
+          body: JSON.stringify({ recipient_email: recipient, variables: vars }),
         });
 
         if (!response.ok) {
@@ -1276,7 +1419,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
   .template-mode-tabs {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 12px;
     margin-bottom: 24px;
   }
@@ -1358,5 +1501,38 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     margin-top: 4px;
     display: block;
     line-height: 1.5;
+  }
+
+  .badge-superseded {
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+
+  .superseded-note {
+    color: var(--muted);
+    font-size: 11px;
+    font-style: italic;
+    display: block;
+    margin-top: 4px;
+  }
+
+  .template-card.is-superseded {
+    opacity: 0.6;
+  }
+
+  .preview-iframe {
+    width: 100%;
+    height: 500px;
+    border: none;
+    border-radius: var(--radius);
+    background: white;
+  }
+
+  .preview-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    font-style: italic;
   }
 </style>
