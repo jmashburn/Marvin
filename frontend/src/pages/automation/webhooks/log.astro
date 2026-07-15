@@ -94,8 +94,9 @@ function statusClass(status: string): string {
             const errorMsg = log.errorMessage ?? log.error_message;
             const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
             const payload = log.requestPayload ?? log.request_payload;
+            const responseBody = log.responseBody ?? log.response_body;
             const webhook = webhookMap.get(webhookId);
-            const hasDetails = !!(errorMsg || payload);
+            const hasDetails = !!(errorMsg || payload || responseBody);
             return (
               <>
                 <tr class:list={['log-row', { 'has-details': hasDetails }]}>
@@ -137,6 +138,12 @@ function statusClass(status: string): string {
                           <div class="detail-section">
                             <div class="detail-label">Payload Sent</div>
                             <pre class="payload-json">{JSON.stringify(payload, null, 2)}</pre>
+                          </div>
+                        )}
+                        {responseBody && (
+                          <div class="detail-section">
+                            <div class="detail-label">Response Body</div>
+                            <pre class="payload-json response-body">{responseBody}</pre>
                           </div>
                         )}
                       </div>
@@ -284,6 +291,8 @@ function statusClass(status: string): string {
     color: var(--color-error);
     font-family: ui-monospace, monospace;
   }
+
+  .response-body { border-color: rgba(239,68,68,0.2); background: rgba(239,68,68,0.03); }
 
   .payload-json {
     font-size: 12px;

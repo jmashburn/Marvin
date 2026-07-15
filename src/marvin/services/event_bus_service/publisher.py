@@ -135,6 +135,7 @@ def _log_webhook_execution(
     error_message: str | None = None,
     retry_attempt: int = 0,
     request_payload: dict | None = None,
+    response_body: str | None = None,
 ) -> None:
     """Log webhook execution to database."""
     if webhook_id is None or group_id is None:
@@ -152,6 +153,7 @@ def _log_webhook_execution(
                 error_message=error_message,
                 retry_attempt=retry_attempt,
                 request_payload=request_payload,
+                response_body=response_body,
             )
             session.add(log)
             session.commit()
@@ -298,16 +300,25 @@ class WebhookPublisher:
 
                 except (requests.exceptions.RequestException, ValueError) as e:
                     is_last_attempt = attempt == MAX_RETRY_ATTEMPTS - 1
+                    failed_response = getattr(e, "response", None)
 
-                    # Log the execution attempt
+                    # Capture response body for debugging (truncate to 4KB)
+                    resp_body: str | None = None
+                    if failed_response is not None:
+                        try:
+                            resp_body = failed_response.text[:4096]
+                        except Exception:
+                            pass
+
                     _log_webhook_execution(
                         webhook_id=webhook_id,
                         group_id=group_id,
                         status="failed" if is_last_attempt else "retrying",
-                        http_status_code=getattr(getattr(e, "response", None), "status_code", None),
+                        http_status_code=getattr(failed_response, "status_code", None),
                         error_message=str(e),
                         retry_attempt=attempt,
                         request_payload=event_payload if http_method in ("POST", "PUT") else None,
+                        response_body=resp_body,
                     )
 
                     if is_last_attempt:

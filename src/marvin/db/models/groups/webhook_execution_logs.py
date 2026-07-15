@@ -71,6 +71,8 @@ class WebhookExecutionLogModel(SqlAlchemyBase, BaseMixins):
 
     request_payload: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True, doc="The JSON payload sent to the webhook endpoint.")
 
+    response_body: Mapped[str | None] = mapped_column(Text, nullable=True, doc="HTTP response body returned by the endpoint (captured on failure).")
+
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:
         """

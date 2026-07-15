@@ -203,5 +203,6 @@ class WebhookExecutionLogRead(_MarvinModel):
     error_message: str | None = None
     retry_attempt: int = 0
     request_payload: dict | None = None
+    response_body: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

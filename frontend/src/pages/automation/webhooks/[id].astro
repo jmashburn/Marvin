@@ -179,7 +179,8 @@ const existingHeaders = (webhook as any)?.headers ?? {};
                   const errorMsg = exec.errorMessage ?? exec.error_message;
                   const retryAttempt = exec.retryAttempt ?? exec.retry_attempt ?? 0;
                   const payload = exec.requestPayload ?? exec.request_payload;
-                  const hasDetails = !!(errorMsg || payload);
+                  const responseBody = exec.responseBody ?? exec.response_body;
+                  const hasDetails = !!(errorMsg || payload || responseBody);
                   return (
                     <>
                       <tr>
@@ -199,6 +200,12 @@ const existingHeaders = (webhook as any)?.headers ?? {};
                             <div class="detail-body">
                               {errorMsg && <div class="error-msg">{errorMsg}</div>}
                               {payload && <pre class="payload-json">{JSON.stringify(payload, null, 2)}</pre>}
+                            {responseBody && (
+                              <>
+                                <div class="detail-label" style="margin-top:8px">Response Body</div>
+                                <pre class="payload-json">{responseBody}</pre>
+                              </>
+                            )}
                             </div>
                           </td>
                         </tr>
