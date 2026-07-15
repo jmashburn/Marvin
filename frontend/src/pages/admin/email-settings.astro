@@ -612,7 +612,7 @@ try {
     testResult?.classList.add('info');
 
     try {
-      await fetchApi('/api/admin/email', {
+      await fetchApi('/api/platform/email/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -284,7 +284,11 @@ class WebhookPublisher:
                     # Check if the request was successful
                     if response is not None:
                         if response.ok:
-                            # Success! Log and break out of retry loop
+                            # Capture response body (truncate to 4KB)
+                            try:
+                                resp_body = response.text[:4096] or None
+                            except Exception:
+                                resp_body = None
                             _log_webhook_execution(
                                 webhook_id=webhook_id,
                                 group_id=group_id,
@@ -292,6 +296,7 @@ class WebhookPublisher:
                                 http_status_code=response.status_code,
                                 retry_attempt=attempt,
                                 request_payload=event_payload if http_method in ("POST", "PUT") else None,
+                                response_body=resp_body,
                             )
                             break  # Exit retry loop on success
                         else:

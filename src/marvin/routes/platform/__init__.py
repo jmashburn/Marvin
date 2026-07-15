@@ -19,6 +19,7 @@ from . import (
     api_clients_controller,
     assets_controller,
     collections_controller,
+    email_controller,
     entries_controller,
     entry_types_controller,
     events_controller,
@@ -46,6 +47,7 @@ router.include_router(workspace_members_controller.router, tags=["Platform: Work
 router.include_router(events_controller.router, tags=["Platform: Events"])
 router.include_router(scheduled_tasks_controller.router, tags=["Platform: Scheduled Tasks"])
 router.include_router(stats_controller.router, tags=["Platform: Stats"])
+router.include_router(email_controller.router, tags=["Platform: Email"])
 
 # CODE_GEN_ID: PLATFORM_ROUTE_INCLUDES
 # END: PLATFORM_ROUTE_INCLUDES
