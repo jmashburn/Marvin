@@ -17,11 +17,14 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
-// Convert UTC time to local for input
+// Convert UTC time to local for input (truncate microseconds for JS Date compatibility)
 let localDateTime = '';
 if (webhook?.scheduled_time) {
-  const date = new Date(webhook.scheduled_time);
-  localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const normalized = webhook.scheduled_time.replace(/(\.\d{3})\d+/, '$1');
+  const date = new Date(normalized);
+  if (!isNaN(date.getTime())) {
+    localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
 }
 ---
 

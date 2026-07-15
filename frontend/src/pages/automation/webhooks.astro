@@ -112,14 +112,22 @@ function formatScheduledTime(time: string | null | undefined): string {
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
 
-  // Toggle webhook enabled/disabled
+  // Toggle webhook enabled/disabled — must send full payload (PUT, not PATCH)
   document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id');
+      const id = btn.getAttribute('data-id')!;
       const currentlyEnabled = btn.getAttribute('data-enabled') === 'true';
 
       try {
-        await sdk.webhooks.update(id!, { enabled: !currentlyEnabled });
+        const webhook = await sdk.webhooks.get(id);
+        await sdk.webhooks.update(id, {
+          name: webhook.name,
+          url: webhook.url,
+          method: webhook.method,
+          webhook_type: webhook.webhookType ?? webhook.webhook_type,
+          scheduled_time: webhook.scheduledTime ?? webhook.scheduled_time,
+          enabled: !currentlyEnabled,
+        } as any);
         window.location.reload();
       } catch (error) {
         alert('Failed to update webhook');
