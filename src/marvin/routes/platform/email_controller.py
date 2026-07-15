@@ -31,11 +31,13 @@ class PlatformEmailController(BaseUserController):
         email_service = EmailService(locale=accept_language)
         try:
             if data.subject or data.message:
-                # Use the form values rendered through the default template
+                from marvin.services.secrets.resolver import resolve
+                subject = resolve(data.subject or "Test Email", self.group_id, allow_secrets=False)
+                message = resolve(data.message or "This is a test email.", self.group_id, allow_secrets=False)
                 template = EmailTemplate(
-                    subject=data.subject or "Test Email",
-                    header_text=data.subject or "Test Email",
-                    message_top=data.message or "This is a test email.",
+                    subject=subject,
+                    header_text=subject,
+                    message_top=message,
                     button_link=str(self.settings.BASE_URL),
                     button_text="Open Marvin",
                 )
