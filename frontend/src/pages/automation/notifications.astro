@@ -42,13 +42,13 @@ if (appriseReady) {
 
   {!appriseReady ? (
     <div class="alert alert-warning">
-      <strong>Apprise Not Available</strong>
-      <p>The Apprise notification service is currently disabled. Notifications require Apprise to be enabled in the system settings.</p>
+      <strong>Notifications Service Not Available</strong>
+      <p>The notifications service is currently disabled. Notifications require the service to be enabled in the system settings.</p>
       <p style="margin-top: 12px;">
         <strong>Need webhooks instead?</strong> Use <a href="/automation/webhooks" style="color: inherit; text-decoration: underline;">Webhooks</a> for scheduled HTTP callbacks.
       </p>
       <p style="margin-top: 12px; font-size: 13px; opacity: 0.8;">
-        When Apprise is enabled, you get access to 80+ notification services including Slack, Discord, Email, SMS, and basic webhooks via json://, xml://, or form:// URLs.
+        When the notifications service is enabled, you get access to 80+ notification services including Slack, Discord, Email, SMS, and basic webhooks via json://, xml://, or form:// URLs.
       </p>
     </div>
   ) : error ? (

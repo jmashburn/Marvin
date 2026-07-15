@@ -14,7 +14,7 @@ let appriseReady = false;
 // Check if Apprise is available
 try {
   const configCheck = await sdk.adminSystem.check() as any;
-  appriseReady = configCheck?.apprise_ready === true;
+  appriseReady = (configCheck as any)?.appriseReady ?? configCheck?.apprise_ready ?? false;
 } catch (e) {
   console.error('[notifications/edit] Error checking Apprise availability:', e);
 }
@@ -62,7 +62,7 @@ try {
           </label>
 
           <label class="form-field">
-            <span class="label">Apprise URL</span>
+            <span class="label">Notification URL</span>
             <input
               type="text"
               name="apprise_url"
@@ -71,7 +71,7 @@ try {
               class="input"
             />
             <small class="hint">
-              Apprise notification URL. See <a href="https://github.com/caronc/apprise" target="_blank">Apprise docs</a> for formats.
+              Notification URL. See <a href="https://github.com/caronc/apprise" target="_blank">Apprise docs</a> for formats.
             </small>
           </label>
 

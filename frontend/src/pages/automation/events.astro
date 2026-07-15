@@ -6,382 +6,220 @@ import { getAuthToken } from "@/lib/api/client";
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
 
-let eventOptions: any[] = [];
+let eventTypes: any[] = [];
 let error: string | null = null;
 
 try {
-  eventOptions = await sdk.events.getOptions();
+  eventTypes = await sdk.events.getOptions() as any[];
 } catch (e) {
   console.error('[events] Error:', e);
   error = e instanceof Error ? e.message : String(e);
 }
 
-// Get filter from query params
-const filter = Astro.url.searchParams.get("filter") ?? "top";
+const categoryFilter = Astro.url.searchParams.get('category') || 'all';
 
-// Get top enabled events (most important ones)
-const topEvents = eventOptions
-  .filter(e => e.enabled)
-  .slice(0, 12);
-
-// Filter events based on selection
-let filteredEvents = eventOptions;
-if (filter === "top") {
-  filteredEvents = topEvents;
-} else if (filter === "enabled") {
-  filteredEvents = eventOptions.filter(e => e.enabled);
-} else if (filter === "disabled") {
-  filteredEvents = eventOptions.filter(e => !e.enabled);
-}
-
-const totalEvents = eventOptions.length;
-const enabledEvents = eventOptions.filter(e => e.enabled).length;
+const categories = [...new Set(eventTypes.map((e: any) => e.category).filter(Boolean))];
+const filtered = categoryFilter === 'all'
+  ? eventTypes
+  : eventTypes.filter((e: any) => e.category === categoryFilter);
 ---
 
 <AppLayout title="Events" eyebrow="Automation">
   <div class="toolbar">
     <div>
       <h2>Events</h2>
-      <p>Monitor and manage workspace event types</p>
+      <p>Events are dispatched when things happen in your workspace. Subscribe to them to trigger notifications, webhooks, and emails.</p>
     </div>
   </div>
 
   {error ? (
-    <div class="alert alert-info">
-      <strong>Events System</strong>
-      <p>Events are the foundation of automation in Marvin. When entries are created, updated, or published, events are dispatched that can trigger webhooks, notifications, and other automations.</p>
-      <p class="hint">Event monitoring dashboard coming soon.</p>
-    </div>
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : (
-    <div class="events-container">
-      <section class="events-section">
-        <h3>Event System</h3>
-        <p class="section-description">
-          Events are automatically dispatched when actions occur in your workspace:
-        </p>
+    <div class="events-layout">
+      <!-- Category filter -->
+      <div class="filters">
+        <a href="?category=all" class:list={['filter-btn', { active: categoryFilter === 'all' }]}>
+          All ({eventTypes.length})
+        </a>
+        {categories.map((cat: string) => (
+          <a href={`?category=${cat}`} class:list={['filter-btn', { active: categoryFilter === cat }]}>
+            {cat}
+          </a>
+        ))}
+      </div>
 
-        <div class="event-flow">
-          <div class="event-card">
-            <div class="event-icon">📝</div>
-            <strong>Entry Events</strong>
-            <p>Entry created, updated, deleted, published</p>
-          </div>
-          <div class="flow-arrow">→</div>
-          <div class="event-card">
-            <div class="event-icon">⚡</div>
-            <strong>Event Dispatch</strong>
-            <p>Event bus routes to configured handlers</p>
-          </div>
-          <div class="flow-arrow">→</div>
-          <div class="event-card">
-            <div class="event-icon">🪝</div>
-            <strong>Automation</strong>
-            <p>Webhooks, notifications, integrations</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="events-section">
-        <div class="section-header">
-          <h3>Available Event Types</h3>
-          <nav class="segmented" aria-label="Event filter">
-            <a href="/automation/events?filter=top" aria-current={filter === "top" ? "page" : undefined}>
-              top
-            </a>
-            <a href="/automation/events?filter=enabled" aria-current={filter === "enabled" ? "page" : undefined}>
-              enabled ({enabledEvents})
-            </a>
-            <a href="/automation/events?filter=disabled" aria-current={filter === "disabled" ? "page" : undefined}>
-              disabled ({totalEvents - enabledEvents})
-            </a>
-            <a href="/automation/events?filter=all" aria-current={filter === "all" ? "page" : undefined}>
-              all ({totalEvents})
-            </a>
-          </nav>
-        </div>
-
-        <div class="event-types-grid">
-          {filteredEvents.map(event => (
-            <div class={`event-type ${event.enabled ? 'enabled' : 'disabled'}`}>
-              <div class="event-header">
-                <span class={`event-status ${event.enabled ? 'status-enabled' : 'status-disabled'}`}>
-                  {event.enabled ? '●' : '○'}
-                </span>
-                <strong>{event.name}</strong>
+      <!-- Event cards -->
+      <div class="events-grid">
+        {filtered.map((event: any) => (
+          <article class="event-card">
+            <div class="event-header">
+              <div>
+                <h3 class="event-name">{event.label}</h3>
+                <code class="event-type">{event.value}</code>
               </div>
-              {event.description && (
-                <p>{event.description}</p>
-              )}
+              <span class="event-category">{event.category}</span>
             </div>
-          ))}
-        </div>
-      </section>
 
-      <section class="events-section">
-        <h3>Quick Links</h3>
-        <div class="quick-actions">
-          <a href="/automation/webhooks" class="action-card">
-            <div class="action-icon">🪝</div>
-            <strong>Configure Webhooks</strong>
-            <p>Send HTTP requests when events occur</p>
-          </a>
-          <a href="/automation/notifications" class="action-card">
-            <div class="action-icon">📧</div>
-            <strong>Setup Notifications</strong>
-            <p>Get notified via email, Slack, etc.</p>
-          </a>
-        </div>
-      </section>
+            {event.description && (
+              <p class="event-description">{event.description}</p>
+            )}
 
-      <section class="coming-soon-section">
-        <div class="coming-soon">
-          <p>🚧 Event History & Monitoring Dashboard Coming Soon</p>
-          <p class="hint">View event logs, track dispatch history, debug automation workflows</p>
+            {event.variables && event.variables.length > 0 && (
+              <div class="event-vars">
+                <div class="vars-label">Available variables</div>
+                <div class="vars-chips">
+                  {event.variables.map((v: any) => (
+                    <span class="var-chip-sm" title={v.description + ' · e.g. ' + v.example}>
+                      <code>{'{{' + v.slug + '}}'}</code>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div class="event-actions">
+              <a href={`/automation/events/${event.value}`} class="button secondary small">
+                Subscribe
+              </a>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {filtered.length === 0 && (
+        <div class="empty-state">
+          <p>No events in this category.</p>
         </div>
-      </section>
+      )}
     </div>
   )}
 </AppLayout>
 
 <style>
   .toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 32px;
+    margin-bottom: 28px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--line);
   }
 
-  .toolbar h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-  }
-
-  .toolbar p {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
+  .toolbar h2 { margin: 0 0 6px; font-size: 24px; font-weight: 600; }
+  .toolbar p { margin: 0; color: var(--muted); font-size: 14px; max-width: 560px; }
 
   .alert {
-    padding: 20px;
-    margin-bottom: 24px;
+    padding: 16px; border-radius: var(--radius);
+    background: var(--color-error-bg); color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .events-layout { display: flex; flex-direction: column; gap: 20px; }
+
+  .filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    padding: 5px 14px;
     border-radius: var(--radius);
-    background: var(--panel);
-    border: 1px solid var(--line);
-  }
-
-  .alert strong {
-    display: block;
-    margin-bottom: 12px;
-    font-size: 16px;
-  }
-
-  .alert p {
-    margin: 0 0 8px;
-    font-size: 14px;
-    line-height: 1.6;
-  }
-
-  .alert .hint {
-    margin-top: 12px;
     font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
     color: var(--muted);
-  }
-
-  .events-container {
-    max-width: 1000px;
-  }
-
-  .events-section {
-    margin-bottom: 32px;
-    padding: 24px;
-    background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: var(--radius);
+    background: var(--panel);
+    transition: all 0.15s;
+    white-space: nowrap;
   }
 
-  .events-section h3 {
-    margin: 0 0 4px;
-    font-size: 18px;
-    font-weight: 600;
-  }
+  .filter-btn:hover { color: var(--ink); border-color: var(--ink); }
+  .filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .events-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
-    margin-bottom: 20px;
-  }
-
-  .section-description {
-    margin: 0 0 20px;
-    font-size: 14px;
-    color: var(--muted);
-  }
-
-  .event-flow {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 20px;
-    background: var(--panel-2);
-    border-radius: var(--radius);
-    overflow-x: auto;
   }
 
   .event-card {
-    flex: 1;
-    min-width: 200px;
-    padding: 20px;
+    padding: 18px 20px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: border-color 0.15s;
   }
 
-  .event-icon {
-    font-size: 32px;
-    margin-bottom: 12px;
-  }
-
-  .event-card strong {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .event-card p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .flow-arrow {
-    font-size: 24px;
-    color: var(--muted);
-    flex-shrink: 0;
-  }
-
-  .event-types-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-  }
-
-  .event-type {
-    padding: 16px;
-    background: var(--panel-2);
-    border-radius: var(--radius);
-    border-left: 3px solid var(--muted);
-  }
-
-  .event-type.enabled {
-    border-left-color: var(--accent);
-  }
+  .event-card:hover { border-color: var(--accent); }
 
   .event-header {
     display: flex;
+    justify-content: space-between;
     align-items: flex-start;
-    gap: 8px;
-    margin-bottom: 6px;
+    gap: 12px;
   }
 
-  .event-status {
-    font-size: 10px;
-    flex-shrink: 0;
-    margin-top: 2px;
+  .event-name { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+
+  .event-type {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
   }
 
-  .status-enabled {
+  .event-category {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--accent);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
-  .status-disabled {
-    color: var(--muted);
-  }
-
-  .event-type strong {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.3;
-  }
-
-  .event-type p {
-    margin: 0 0 0 18px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .quick-actions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-  }
-
-  .action-card {
-    display: flex;
-    flex-direction: column;
-    padding: 20px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    text-decoration: none;
-    color: inherit;
-    transition: all 0.2s;
-  }
-
-  .action-card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  .action-icon {
-    font-size: 32px;
-    margin-bottom: 12px;
-  }
-
-  .action-card strong {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  .action-card p {
+  .event-description {
     margin: 0;
     font-size: 13px;
     color: var(--muted);
+    line-height: 1.5;
   }
 
-  .coming-soon-section {
-    padding: 24px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-  }
+  .event-vars { display: flex; flex-direction: column; gap: 6px; }
 
-  .coming-soon {
-    padding: 40px 24px;
-    text-align: center;
-    background: var(--panel-2);
-    border-radius: var(--radius);
-  }
-
-  .coming-soon p {
-    margin: 0 0 8px;
-    font-size: 16px;
-  }
-
-  .coming-soon .hint {
-    font-size: 14px;
+  .vars-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--muted);
-    max-width: 500px;
-    margin: 0 auto;
   }
+
+  .vars-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  .var-chip-sm {
+    display: inline-block;
+    padding: 2px 7px;
+    background: var(--bg);
+    border: 1px solid rgba(79,156,132,0.25);
+    border-radius: 4px;
+    cursor: default;
+  }
+
+  .var-chip-sm code {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .event-actions { margin-top: 4px; }
+
+  .button.small { padding: 5px 12px; font-size: 12px; font-weight: 600; min-height: 28px; }
+
+  .empty-state { padding: 60px; text-align: center; color: var(--muted); }
 </style>

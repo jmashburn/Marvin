@@ -118,16 +118,34 @@ class EventsNotifierOptionsController(BaseUserController):
         paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
         return paginated_response
 
-    @router.get("/types", response_model=list[EventTypeOption], summary="List Available Event Types")
-    def list_event_types(self) -> list[EventTypeOption]:
+    @router.get("/types", summary="List subscribable event types with data contracts")
+    def list_event_types(self) -> list[dict]:
         """
-        Returns all available event types as a flat list for use in webhook
-        subscription pickers and notification configuration UIs.
+        Returns event types available for subscription with their data contracts —
+        what variables each event provides for use in templates and notifications.
+        Only returns events in the catalog (user-subscribable subset of all EventTypes).
         """
+        from marvin.services.events.event_catalog import CATALOG, CATEGORIES
+
+        by_category: dict[str, list] = {c: [] for c in CATEGORIES}
+        by_category["Other"] = []
+
+        for entry in CATALOG:
+            cat = entry.category if entry.category in by_category else "Other"
+            by_category[cat].append({
+                "value": entry.event_type,
+                "label": entry.name,
+                "description": entry.description,
+                "category": entry.category,
+                "enabled": entry.enabled,
+                "variables": [
+                    {"slug": v.slug, "description": v.description, "example": v.example}
+                    for v in entry.variables
+                ],
+            })
+
         return [
-            EventTypeOption(
-                value=et.name,
-                label=et.name.replace("_", " ").title(),
-            )
-            for et in EventTypes
+            entry
+            for cat in CATEGORIES
+            for entry in by_category.get(cat, [])
         ]
