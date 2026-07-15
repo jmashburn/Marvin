@@ -74,7 +74,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                       <span class="badge badge-inactive">Inactive</span>
                     )}
                     {!template.group_id && (
-                      <span class="badge badge-system">System</span>
+                      <span class="badge badge-system" title="System default — editing creates a workspace override">System</span>
                     )}
                   </div>
                   <p>{template.description || 'No description'}</p>
@@ -83,9 +83,9 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                   <button
                     class="button secondary small edit-template-btn"
                     data-template-id={template.id}
-                    disabled={!template.group_id}
+                    data-is-system={!template.group_id ? 'true' : 'false'}
                   >
-                    Edit
+                    {!template.group_id ? 'Customize' : 'Edit'}
                   </button>
                   <button
                     class="button secondary small test-send-btn"
@@ -173,6 +173,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       </div>
       <form id="template-form">
         <input type="hidden" id="template-id" />
+        <input type="hidden" id="edit-is-system" value="false" />
 
         <div class="form-section">
           <h4 class="section-label">Basic Information</h4>
@@ -498,6 +499,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       document.getElementById('modal-title').textContent = 'Create Email Template';
       templateForm.reset();
       document.getElementById('template-id').value = '';
+      document.getElementById('edit-is-system').value = 'false';
       document.getElementById('template-type').value = '';
       showModal(templateModal);
     });
@@ -514,8 +516,12 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
           const template = await response.json();
 
-          isEditMode = true;
-          document.getElementById('modal-title').textContent = 'Edit Email Template';
+          const isSystem = btn.dataset.isSystem === 'true';
+          isEditMode = !isSystem; // Don't auto-slug from name if editing
+          document.getElementById('edit-is-system').value = isSystem ? 'true' : 'false';
+          document.getElementById('modal-title').textContent = isSystem
+            ? 'Customize Template (workspace override)'
+            : 'Edit Email Template';
           document.getElementById('template-id').value = template.id;
           document.getElementById('template-type').value = template.template_type;
           document.getElementById('template-name').value = template.name;
@@ -567,10 +573,12 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       }
 
       try {
-        const url = templateId
+        // If editing a system template (no group_id), save as a new workspace override (POST)
+        const isSystemTemplate = document.getElementById('edit-is-system')?.value === 'true';
+        const url = (templateId && !isSystemTemplate)
           ? `${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${templateId}`
           : `${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates`;
-        const method = templateId ? 'PATCH' : 'POST';
+        const method = (templateId && !isSystemTemplate) ? 'PATCH' : 'POST';
 
         const response = await fetch(url, {
           method,
