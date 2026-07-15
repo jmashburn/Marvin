@@ -229,7 +229,6 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
     <div class="wh-body">
       <p class="wh-label">Your endpoint will receive this JSON via <span id="wh-method">POST</span>:</p>
       <pre id="wh-payload" class="wh-payload"></pre>
-      <p class="wh-db-note">Stored in: <code>webhook_urls.subscribed_events</code></p>
     </div>
 
     <div class="wh-footer">
@@ -302,22 +301,26 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
     whConfirm.textContent = 'Saving…';
     try {
       const res = await fetch(`${apiUrl}/api/groups/webhooks/${activeWebhookId}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`GET failed: ${res.status}`);
       const webhook = await res.json();
+      console.log('[webhook-connect] GET response:', webhook);
       const current = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
+      console.log('[webhook-connect] current subscribed_events:', current);
       const updated = activeIsConnected
         ? current.filter(e => e !== type)
         : [...new Set([...current, type])];
+      console.log('[webhook-connect] updated subscribed_events:', updated);
+      const body = { ...webhook, subscribed_events: updated };
+      console.log('[webhook-connect] PUT body:', body);
       const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${activeWebhookId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...webhook, subscribed_events: updated }),
+        body: JSON.stringify(body),
       });
-      if (!putRes.ok) {
-        const err = await putRes.json().catch(() => ({}));
-        throw new Error(err.detail || `Failed: ${putRes.status}`);
-      }
+      const putData = await putRes.json().catch(() => ({}));
+      console.log('[webhook-connect] PUT response:', putRes.status, putData);
+      if (!putRes.ok) throw new Error(putData.detail || `PUT failed: ${putRes.status}`);
       closeModal();
       window.location.reload();
     } catch (e) {
@@ -773,19 +776,4 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
     flex-shrink: 0;
   }
 
-  /* DB note in modal */
-  .wh-db-note {
-    margin: 10px 0 0;
-    font-size: 11px;
-    color: var(--muted);
-  }
-
-  .wh-db-note code {
-    font-family: ui-monospace, monospace;
-    font-size: 11px;
-    background: var(--bg);
-    padding: 1px 5px;
-    border-radius: 3px;
-    border: 1px solid var(--line);
-  }
 </style>
