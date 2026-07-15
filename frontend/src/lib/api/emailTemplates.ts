@@ -69,7 +69,7 @@ export async function listEmailTemplates(
   authToken?: string
 ): Promise<EmailTemplateSummary[]> {
   return fetchApi<EmailTemplateSummary[]>(
-    `/platform/workspaces/${workspaceId}/email-templates`,
+    `/api/platform/workspaces/${workspaceId}/email-templates`,
     { method: 'GET' },
     authToken
   );
@@ -84,7 +84,7 @@ export async function getEmailTemplate(
   authToken?: string
 ): Promise<EmailTemplateRead> {
   return fetchApi<EmailTemplateRead>(
-    `/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
+    `/api/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
     { method: 'GET' },
     authToken
   );
@@ -99,7 +99,7 @@ export async function createEmailTemplate(
   authToken?: string
 ): Promise<EmailTemplateRead> {
   return fetchApi<EmailTemplateRead>(
-    `/platform/workspaces/${workspaceId}/email-templates`,
+    `/api/platform/workspaces/${workspaceId}/email-templates`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -119,7 +119,7 @@ export async function updateEmailTemplate(
   authToken?: string
 ): Promise<EmailTemplateRead> {
   return fetchApi<EmailTemplateRead>(
-    `/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
+    `/api/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -138,7 +138,7 @@ export async function deleteEmailTemplate(
   authToken?: string
 ): Promise<void> {
   await fetchApi<void>(
-    `/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
+    `/api/platform/workspaces/${workspaceId}/email-templates/${templateId}`,
     { method: 'DELETE' },
     authToken
   );
