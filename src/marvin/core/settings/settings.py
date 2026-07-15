@@ -287,6 +287,41 @@ class AppSettings(BaseSettings):
     STORAGE_S3_PUBLIC_URL: str | None = None
     """Public URL for S3 assets (CDN URL if using one). Optional."""
 
+    # ===============================================
+    # Secrets Backend Configuration
+
+    SECRET_BACKEND: str = "database"
+    """Secret storage backend: 'database' | 'disk' | 'env' | 'vault' | 'bitwarden'. Default: database"""
+
+    SECRETS_DIR: Path | None = None
+    """Directory for disk backend secret files. Defaults to {DATA_DIR}/secrets/"""
+
+    # HashiCorp Vault
+    VAULT_ADDR: str | None = None
+    """Vault server URL. Required for vault backend. e.g. http://127.0.0.1:8200"""
+
+    VAULT_TOKEN: MaskedNoneString | None = None
+    """Vault authentication token. Required for vault backend. Masked in output."""
+
+    VAULT_MOUNT: str = "secret"
+    """Vault KV v2 mount path. Default: secret"""
+
+    VAULT_PATH_PREFIX: str = "marvin"
+    """Path prefix within the Vault mount. Default: marvin"""
+
+    # Bitwarden Secrets Manager
+    BITWARDEN_ACCESS_TOKEN: MaskedNoneString | None = None
+    """Bitwarden machine account access token. Required for bitwarden backend. Masked in output."""
+
+    BITWARDEN_PROJECT_ID: str | None = None
+    """Bitwarden Secrets Manager project UUID to scope secrets to."""
+
+    BITWARDEN_API_URL: str | None = None
+    """Bitwarden API URL. Only needed for self-hosted instances."""
+
+    BITWARDEN_IDENTITY_URL: str | None = None
+    """Bitwarden Identity URL. Only needed for self-hosted instances."""
+
     # Asset Upload Configuration
 
     ASSET_MAX_FILE_SIZE: int = 100 * 1024 * 1024
