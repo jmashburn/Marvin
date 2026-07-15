@@ -547,11 +547,12 @@ function isSuperseded(template: any): boolean {
     // Preview tab
     const previewPanel = document.getElementById('preview-panel');
     const previewIframe = document.getElementById('preview-iframe');
+    let lastEditMode = 'structured'; // track last editing mode before switching to preview
 
     function updatePreview() {
       if (!previewPanel || previewPanel.style.display === 'none') return;
 
-      const isCustom = document.querySelector('[data-mode="custom"]').classList.contains('active');
+      const isCustom = lastEditMode === 'custom';
       let html = '';
 
       if (isCustom) {
@@ -603,9 +604,11 @@ ${btnRow}${bottomRow}
         if (previewPanel) previewPanel.style.display = 'none';
 
         if (mode === 'structured') {
+          lastEditMode = 'structured';
           document.getElementById('structured-fields').style.display = 'block';
           document.getElementById('custom-html-field').style.display = 'none';
         } else {
+          lastEditMode = 'custom';
           document.getElementById('structured-fields').style.display = 'none';
           document.getElementById('custom-html-field').style.display = 'block';
 
