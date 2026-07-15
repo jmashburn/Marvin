@@ -70,7 +70,7 @@ function statusClass(status: string | null): string {
             <h3>Task Details</h3>
 
             <label class="form-field">
-              <span class="label">Task Type *</span>
+              <span class="label">What to Run *</span>
               <select name="task_type" required class="input" id="task-type-select">
                 <option value="">Select a task type…</option>
                 {taskTypes.map(t => (
@@ -101,7 +101,7 @@ function statusClass(status: string | null): string {
             <h3>Schedule</h3>
 
             <label class="form-field">
-              <span class="label">Schedule Type *</span>
+              <span class="label">Repeat *</span>
               <select name="schedule_type" required class="input" id="schedule-type-select">
                 <option value="interval" selected={task.schedule_type === 'interval'}>Interval (every N seconds)</option>
                 <option value="cron" selected={task.schedule_type === 'cron'}>Cron Expression</option>
@@ -193,20 +193,23 @@ function statusClass(status: string | null): string {
                 </tr>
               </thead>
               <tbody>
-                {history.map(exec => (
-                  <tr>
-                    <td class="nowrap">{formatDate(exec.executed_at)}</td>
-                    <td>
-                      <span class={`run-status status-${statusClass(exec.status)}`}>
-                        {exec.status}
-                      </span>
-                    </td>
-                    <td class="nowrap">
-                      {exec.duration_ms != null ? `${exec.duration_ms}ms` : '—'}
-                    </td>
-                    <td class="error-cell">{exec.error_message || '—'}</td>
-                  </tr>
-                ))}
+                {history.map(exec => {
+                  const executedAt = exec.executedAt ?? exec.executed_at;
+                  const durationMs = exec.durationMs ?? exec.duration_ms;
+                  const errorMessage = exec.errorMessage ?? exec.error_message;
+                  return (
+                    <tr>
+                      <td class="nowrap">{formatDate(executedAt)}</td>
+                      <td>
+                        <span class={`run-status status-${statusClass(exec.status)}`}>
+                          {exec.status}
+                        </span>
+                      </td>
+                      <td class="nowrap">{durationMs != null ? `${durationMs}ms` : '—'}</td>
+                      <td class="error-cell">{errorMessage || '—'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

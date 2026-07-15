@@ -39,7 +39,7 @@ try {
         <h3>Task Details</h3>
 
         <label class="form-field">
-          <span class="label">Task Type *</span>
+          <span class="label">What to Run *</span>
           <select name="task_type" required class="input" id="task-type-select">
             <option value="">Select a task type…</option>
             {taskTypes.map(t => (
@@ -64,7 +64,7 @@ try {
         <h3>Schedule</h3>
 
         <label class="form-field">
-          <span class="label">Schedule Type *</span>
+          <span class="label">Repeat *</span>
           <select name="schedule_type" required class="input" id="schedule-type-select">
             <option value="interval">Interval (every N seconds)</option>
             <option value="cron">Cron Expression</option>

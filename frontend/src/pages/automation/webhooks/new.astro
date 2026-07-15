@@ -56,14 +56,14 @@ import AppLayout from "@/layouts/AppLayout.astro";
         </div>
 
         <label class="form-field">
-          <span class="label">Scheduled Time (UTC) *</span>
+          <span class="label">Daily Trigger Time *</span>
           <input
             type="datetime-local"
             name="scheduled_time"
             required
             class="input"
           />
-          <small class="hint">When should this webhook be triggered?</small>
+          <small class="hint">Time of day this webhook fires automatically (uses your local time)</small>
         </label>
 
         <label class="checkbox-field">

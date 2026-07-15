@@ -192,20 +192,23 @@ function statusClass(status: string | null): string {
                 </tr>
               </thead>
               <tbody>
-                {history.map(exec => (
-                  <tr>
-                    <td class="nowrap">{formatDate(exec.executed_at)}</td>
-                    <td>
-                      <span class={`run-status status-${statusClass(exec.status)}`}>
-                        {exec.status}
-                      </span>
-                    </td>
-                    <td class="nowrap">
-                      {exec.duration_ms != null ? `${exec.duration_ms}ms` : '—'}
-                    </td>
-                    <td class="error-cell">{exec.error_message || '—'}</td>
-                  </tr>
-                ))}
+                {history.map(exec => {
+                  const executedAt = exec.executedAt ?? exec.executed_at;
+                  const durationMs = exec.durationMs ?? exec.duration_ms;
+                  const errorMessage = exec.errorMessage ?? exec.error_message;
+                  return (
+                    <tr>
+                      <td class="nowrap">{formatDate(executedAt)}</td>
+                      <td>
+                        <span class={`run-status status-${statusClass(exec.status)}`}>
+                          {exec.status}
+                        </span>
+                      </td>
+                      <td class="nowrap">{durationMs != null ? `${durationMs}ms` : '—'}</td>
+                      <td class="error-cell">{errorMessage || '—'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

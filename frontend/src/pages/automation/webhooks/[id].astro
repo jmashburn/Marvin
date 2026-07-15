@@ -8,6 +8,7 @@ const sdk = createSdkClient(authToken);
 const { id } = Astro.params;
 
 let webhook: any = null;
+let history: any[] = [];
 let error: string | null = null;
 
 try {
@@ -15,6 +16,28 @@ try {
 } catch (e) {
   console.error('[webhooks/edit] Error:', e);
   error = e instanceof Error ? e.message : String(e);
+}
+
+if (webhook) {
+  try {
+    history = await sdk.webhooks.logs(id!, { limit: 50 });
+  } catch (e) {
+    console.error('[webhooks/edit] Error loading history:', e);
+  }
+}
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
+function statusClass(status: string): string {
+  if (status === 'success') return 'success';
+  if (status === 'failed') return 'failed';
+  if (status === 'retrying') return 'timeout';
+  return 'none';
 }
 
 // Convert UTC time to local for input (truncate microseconds for JS Date compatibility)
@@ -87,7 +110,7 @@ if (webhook?.scheduled_time) {
           </div>
 
           <label class="form-field">
-            <span class="label">Scheduled Time (UTC) *</span>
+            <span class="label">Daily Trigger Time *</span>
             <input
               type="datetime-local"
               name="scheduled_time"
@@ -95,7 +118,7 @@ if (webhook?.scheduled_time) {
               value={localDateTime}
               class="input"
             />
-            <small class="hint">When should this webhook be triggered?</small>
+            <small class="hint">Time of day this webhook fires automatically (uses your local time)</small>
           </label>
 
           <label class="checkbox-field">
@@ -111,6 +134,46 @@ if (webhook?.scheduled_time) {
           <a href="/automation/webhooks" class="button secondary">Cancel</a>
         </div>
       </form>
+
+      <div class="history-section">
+        <h3>Execution History</h3>
+        {history.length === 0 ? (
+          <p class="no-history">No executions yet. Use the Test button to fire a test request.</p>
+        ) : (
+          <div class="history-table-wrap">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Executed At</th>
+                  <th>Status</th>
+                  <th>HTTP</th>
+                  <th>Attempt</th>
+                  <th>Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((exec: any) => {
+                  const executedAt = exec.executedAt ?? exec.executed_at;
+                  const httpStatus = exec.httpStatusCode ?? exec.http_status_code;
+                  const errorMsg = exec.errorMessage ?? exec.error_message;
+                  const retryAttempt = exec.retryAttempt ?? exec.retry_attempt ?? 0;
+                  return (
+                    <tr>
+                      <td class="nowrap">{formatDate(executedAt)}</td>
+                      <td>
+                        <span class={`run-status status-${statusClass(exec.status)}`}>{exec.status}</span>
+                      </td>
+                      <td>{httpStatus ?? '—'}</td>
+                      <td>{retryAttempt > 0 ? `#${retryAttempt + 1}` : '1'}</td>
+                      <td class="error-cell">{errorMsg || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   ) : null}
 </AppLayout>
@@ -276,5 +339,57 @@ if (webhook?.scheduled_time) {
   .button.danger:hover {
     background: var(--color-error);
     opacity: 0.9;
+  }
+
+  .history-section {
+    margin-top: 32px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .history-section h3 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+  .no-history { color: var(--muted); font-size: 14px; margin: 0; }
+  .history-table-wrap { overflow-x: auto; }
+
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .history-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .history-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  .history-table tr:last-child td { border-bottom: none; }
+  .nowrap { white-space: nowrap; }
+
+  .run-status { font-size: 12px; font-weight: 600; text-transform: uppercase; }
+  .status-success { color: var(--accent); }
+  .status-failed { color: var(--color-error); }
+  .status-timeout { color: #d97706; }
+  .status-none { color: var(--muted); }
+
+  .error-cell {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, monospace;
+    max-width: 280px;
+    word-break: break-word;
   }
 </style>
