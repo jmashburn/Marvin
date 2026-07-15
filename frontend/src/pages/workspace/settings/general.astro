@@ -440,7 +440,7 @@ const success = urlParams.get('success') === '1';
 
       try {
         const response = await fetch('/api/platform/workspace/export/bundle', {
-          headers: { 'Authorization': `Bearer ${sdk.getToken?.() ?? ''}` },
+          credentials: 'include',
         });
 
         if (!response.ok) throw new Error(`Server error: ${response.status}`);
