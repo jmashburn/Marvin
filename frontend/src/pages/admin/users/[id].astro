@@ -312,8 +312,10 @@ const authMethods = [
   </dialog>
 </AdminLayout>
 
-<script define:vars={{ userId: user?.id }}>
+<script>
   import { createSdkClient } from '@/lib/sdk';
+
+  const userId = (document.querySelector('input[name="id"]') as HTMLInputElement)?.value;
 
   // SDK uses cookie-based auth automatically via credentials: 'include'
   // No need to extract the HttpOnly token - the browser sends it automatically

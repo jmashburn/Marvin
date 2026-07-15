@@ -91,25 +91,25 @@ try {
   ) : null}
 </AppLayout>
 
-<script define:vars={{ id }}>
+<script>
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
   const form = document.getElementById('update-notification-form');
   const deleteBtn = document.getElementById('delete-btn');
+  const notificationId = (document.querySelector('input[name="id"]') as HTMLInputElement)?.value;
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
+    const formData = new FormData(e.target as HTMLFormElement);
 
     const payload = {
-      id: formData.get('id'),
       name: formData.get('name'),
       apprise_url: formData.get('apprise_url'),
       enabled: formData.get('enabled') === 'on',
     };
 
     try {
-      await sdk.notifications.update(id, payload);
+      await sdk.notifications.update(notificationId, payload);
       window.location.href = '/automation/notifications?updated=true';
     } catch (error) {
       alert('Failed to update notification. Please try again.');
@@ -121,7 +121,7 @@ try {
     if (!confirm('Are you sure you want to delete this notification?')) return;
 
     try {
-      await sdk.notifications.delete(id);
+      await sdk.notifications.delete(notificationId);
       window.location.href = '/automation/notifications?deleted=true';
     } catch (error) {
       alert('Failed to delete notification. Please try again.');
