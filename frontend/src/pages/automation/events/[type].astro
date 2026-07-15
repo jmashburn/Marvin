@@ -26,11 +26,14 @@ try {
   const workspace = await getCurrentWorkspace(authToken!);
   const wsId = workspace?.id;
 
-  [emailTemplates, webhooks, notifications] = await Promise.all([
+  const [emailRes, webhookRes, notifRes] = await Promise.all([
     wsId ? listEmailTemplates(wsId, authToken).catch(() => []) : Promise.resolve([]),
     sdk.webhooks.list().catch(() => []),
-    sdk.notifications.list().catch(() => []),
+    sdk.notifications.list().catch(() => ({ items: [] })),
   ]);
+  emailTemplates = Array.isArray(emailRes) ? emailRes : (emailRes as any)?.items ?? [];
+  webhooks = Array.isArray(webhookRes) ? webhookRes : (webhookRes as any)?.items ?? [];
+  notifications = Array.isArray(notifRes) ? notifRes : (notifRes as any)?.items ?? [];
 } catch (e) {
   console.error('[events/type] Error:', e);
   error = e instanceof Error ? e.message : String(e);
