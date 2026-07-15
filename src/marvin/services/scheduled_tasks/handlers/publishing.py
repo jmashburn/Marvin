@@ -5,6 +5,7 @@ These handlers manage scheduled publishing, unpublishing, and site rebuild trigg
 """
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
@@ -30,16 +31,15 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
         config = task.task_config
-        workspace_id = config.get("workspace_id") or task.group_id
+        raw_workspace_id = config.get("workspace_id") or task.group_id
         dry_run = config.get("dry_run", False)
 
-        if not workspace_id:
+        if not raw_workspace_id:
             raise ValueError("workspace_id is required in task_config or task.group_id")
 
-        with session_context() as session:
-            repos = AllRepositories(session, group_id=workspace_id)
+        workspace_id = UUID(str(raw_workspace_id))
 
-            # Find entries with publish_at <= now and status != 'published'
+        with session_context() as session:
             now = datetime.now(UTC)
             logger.info(
                 "Scanning for scheduled entries in workspace %s (now=%s, dry_run=%s)",
@@ -48,7 +48,6 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
                 dry_run,
             )
 
-            # Query entries scheduled to be published
             scheduled_entries = (
                 session.query(Entries)
                 .filter(
@@ -61,36 +60,32 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
 
             logger.info("Found %d entries to publish", len(scheduled_entries))
 
-            # Publish each entry
             for entry in scheduled_entries:
                 if not dry_run:
-                    # Update entry status to published
                     entry.status = "published"
                     entry.published_at = now
                     session.commit()
-
                     logger.info("Published entry '%s' (id=%s)", entry.title, entry.id)
 
-                    # Emit entry.published event
                     event_bus.dispatch(
                         integration_id="scheduled_tasks",
-                        group_id=str(workspace_id),
+                        group_id=workspace_id,
                         event_type=EventTypes.entry_published,
-                        document_data={
-                            "entry_id": str(entry.id),
-                            "entry_slug": entry.slug,
-                            "entry_title": entry.title,
-                            "published_at": entry.published_at.isoformat(),
-                        },
+                        document_data=None,
                         message=f"Entry '{entry.title}' published via scheduled task",
                     )
                 else:
-                    logger.info("Would publish: %s (id=%s, publish_at=%s)", entry.title, entry.id, entry.publish_at)
+                    logger.info(
+                        "Would publish: %s (id=%s, publish_at=%s)",
+                        entry.title,
+                        entry.id,
+                        entry.publish_at,
+                    )
 
 
 class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
     """
-    Unpublish entries with expires_at <= now.
+    Unpublish entries with expire_at <= now.
 
     Configuration (task_config):
     - workspace_id: str (required) - Workspace to scan for expired entries
@@ -99,15 +94,15 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
         config = task.task_config
-        workspace_id = config.get("workspace_id") or task.group_id
+        raw_workspace_id = config.get("workspace_id") or task.group_id
         dry_run = config.get("dry_run", False)
 
-        if not workspace_id:
+        if not raw_workspace_id:
             raise ValueError("workspace_id is required in task_config or task.group_id")
 
-        with session_context() as session:
-            repos = AllRepositories(session, group_id=workspace_id)
+        workspace_id = UUID(str(raw_workspace_id))
 
+        with session_context() as session:
             now = datetime.now(UTC)
             logger.info(
                 "Scanning for expired entries in workspace %s (now=%s, dry_run=%s)",
@@ -116,7 +111,6 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
                 dry_run,
             )
 
-            # Query entries that have expired
             expired_entries = (
                 session.query(Entries)
                 .filter(
@@ -129,30 +123,26 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
 
             logger.info("Found %d expired entries", len(expired_entries))
 
-            # Unpublish each entry
             for entry in expired_entries:
                 if not dry_run:
-                    # Update entry status to archived (could be 'draft' based on business requirements)
                     entry.status = "archived"
                     session.commit()
-
                     logger.info("Unpublished expired entry '%s' (id=%s)", entry.title, entry.id)
 
-                    # Emit entry.unpublished event
                     event_bus.dispatch(
                         integration_id="scheduled_tasks",
-                        group_id=str(workspace_id),
+                        group_id=workspace_id,
                         event_type=EventTypes.entry_unpublished,
-                        document_data={
-                            "entry_id": str(entry.id),
-                            "entry_slug": entry.slug,
-                            "entry_title": entry.title,
-                            "expired_at": entry.expire_at.isoformat() if entry.expire_at else None,
-                        },
+                        document_data=None,
                         message=f"Entry '{entry.title}' unpublished (expired)",
                     )
                 else:
-                    logger.info("Would unpublish: %s (id=%s, expire_at=%s)", entry.title, entry.id, entry.expire_at)
+                    logger.info(
+                        "Would unpublish: %s (id=%s, expire_at=%s)",
+                        entry.title,
+                        entry.id,
+                        entry.expire_at,
+                    )
 
 
 class RequestSiteRebuildHandler(ScheduledTaskHandler):
@@ -166,18 +156,19 @@ class RequestSiteRebuildHandler(ScheduledTaskHandler):
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
         config = task.task_config
-        workspace_id = config.get("workspace_id") or task.group_id
+        raw_workspace_id = config.get("workspace_id") or task.group_id
         reason = config.get("reason", "scheduled")
 
-        if not workspace_id:
+        if not raw_workspace_id:
             raise ValueError("workspace_id is required in task_config or task.group_id")
 
-        # Emit a rebuild event that webhooks can listen for
+        workspace_id = UUID(str(raw_workspace_id))
+
         event_bus.dispatch(
             integration_id="scheduled_tasks",
             group_id=workspace_id,
-            event_type="site.rebuild_requested",  # Custom event type
-            document_data={"reason": reason, "triggered_by": "scheduled_task", "task_id": str(task.id)},
+            event_type=EventTypes.webhook_triggered,
+            document_data=None,
             message=f"Site rebuild requested: {reason}",
         )
 

@@ -7,6 +7,7 @@ pruning old data, and verifying system integrity.
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import UUID
 
 from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
@@ -138,16 +139,16 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
         auto_delete = config.get("auto_delete", False)
         workspace_id = config.get("workspace_id")
 
-        with session_context() as session:
-            repos = AllRepositories(session, group_id=workspace_id)
+        parsed_workspace_id = UUID(str(workspace_id)) if workspace_id else None
 
-            # Find assets with no entry associations
-            # This is a simplified example - actual implementation would use SQL joins
+        with session_context() as session:
+            repos = AllRepositories(session, group_id=parsed_workspace_id)
+
             logger.info(
                 "Orphaned asset scan: age_days=%d, auto_delete=%s, workspace=%s",
                 age_days,
                 auto_delete,
-                workspace_id or "all",
+                parsed_workspace_id or "all",
             )
             # TODO: Implement actual orphan detection and cleanup
 
