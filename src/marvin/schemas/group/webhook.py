@@ -60,6 +60,9 @@ class WebhookCreate(_MarvinModel):
     This field is processed by `validate_scheduled_time` to handle various input formats.
     """
 
+    headers: dict[str, str] | None = None
+    """Custom HTTP headers. Values support {{SLUG}} secret interpolation."""
+
     @field_validator("url", mode="before")
     @classmethod
     def validate_webhook_url(cls, v: Any) -> Any:
@@ -159,8 +162,15 @@ class WebhookRead(WebhookUpdate):  # Inherits group_id from WebhookUpdate
 
     id: UUID4
     """The unique identifier of the webhook configuration."""
-    # Inherits fields: enabled, name, url, method, webhook_type, scheduled_time, group_id
-    model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+    # Inherits fields: enabled, name, url, method, webhook_type, scheduled_time, group_id, headers
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        """Bridge headers_json ORM field → headers schema field."""
+        if hasattr(obj, "headers_json") and obj.headers_json and not getattr(obj, "headers", None):
+            obj.headers = obj.headers_json
+        return super().model_validate(obj, **kwargs)
 
 
 class WebhookPagination(PaginationBase):

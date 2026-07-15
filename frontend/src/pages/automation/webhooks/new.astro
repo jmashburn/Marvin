@@ -72,6 +72,13 @@ import AppLayout from "@/layouts/AppLayout.astro";
         </label>
       </div>
 
+      <div class="form-section">
+        <h3>Custom Headers <span class="optional">(optional)</span></h3>
+        <p class="section-hint">Add HTTP headers sent with every request. Use <code>&#123;&#123;SLUG&#125;&#125;</code> to reference a <a href="/workspace/settings/secrets">workspace secret</a>.</p>
+        <div id="headers-list"></div>
+        <button type="button" id="add-header-btn" class="button secondary small">+ Add Header</button>
+      </div>
+
       <div class="form-actions">
         <button type="submit" class="button">Create Webhook</button>
         <a href="/automation/webhooks" class="button secondary">Cancel</a>
@@ -84,6 +91,21 @@ import AppLayout from "@/layouts/AppLayout.astro";
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
 
+  // Header builder
+  const headersList = document.getElementById('headers-list')!;
+  document.getElementById('add-header-btn')?.addEventListener('click', () => {
+    const row = document.createElement('div');
+    row.className = 'header-row';
+    row.innerHTML = `
+      <input type="text" class="input header-key" placeholder="Authorization" />
+      <span class="header-sep">:</span>
+      <input type="text" class="input header-val" placeholder="Bearer {{MY_TOKEN}}" />
+      <button type="button" class="header-remove">✕</button>
+    `;
+    row.querySelector('.header-remove')?.addEventListener('click', () => row.remove());
+    headersList.appendChild(row);
+  });
+
   // Set default scheduled time to now
   const now = new Date();
   const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -95,6 +117,15 @@ import AppLayout from "@/layouts/AppLayout.astro";
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
 
+    // Collect headers
+    const headerRows = document.querySelectorAll('.header-row');
+    const headers: Record<string, string> = {};
+    headerRows.forEach(row => {
+      const k = (row.querySelector('.header-key') as HTMLInputElement)?.value?.trim();
+      const v = (row.querySelector('.header-val') as HTMLInputElement)?.value?.trim();
+      if (k && v) headers[k] = v;
+    });
+
     const payload = {
       name: formData.get('name') as string,
       url: formData.get('url') as string,
@@ -102,6 +133,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
       webhook_type: formData.get('webhook_type') as string,
       scheduled_time: formData.get('scheduled_time') as string,
       enabled: formData.get('enabled') === 'on',
+      headers: Object.keys(headers).length ? headers : null,
     } as any;
 
     try {
@@ -201,4 +233,39 @@ import AppLayout from "@/layouts/AppLayout.astro";
     display: flex;
     gap: 12px;
   }
+
+  .optional { font-size: 12px; font-weight: 400; color: var(--muted); }
+
+  .section-hint {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .section-hint code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+  .section-hint a { color: var(--accent); }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .header-key { flex: 1; }
+  .header-val { flex: 2; }
+  .header-sep { color: var(--muted); flex-shrink: 0; }
+
+  .header-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 4px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .header-remove:hover { color: var(--color-error); background: var(--color-error-bg); }
 </style>

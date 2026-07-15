@@ -230,7 +230,7 @@ class WebhookPublisher:
         self.logger = get_logger()
 
     def publish(
-        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, **_: Any
+        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, headers: dict[str, str] | None = None, **_: Any
     ) -> None:
         """
         Publishes event data to a list of notification URLs using the specified HTTP method.
@@ -269,13 +269,13 @@ class WebhookPublisher:
                 try:
                     response: requests.Response | None = None
                     if http_method == "GET":
-                        response = requests.get(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.get(url, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     elif http_method == "POST":
-                        response = requests.post(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.post(url, json=event_payload, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     elif http_method == "PUT":
-                        response = requests.put(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.put(url, json=event_payload, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     elif http_method == "DELETE":
-                        response = requests.delete(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.delete(url, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     else:
                         raise ValueError(f"Unsupported HTTP method for webhook: {method}")
 

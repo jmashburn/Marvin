@@ -81,6 +81,11 @@ class GroupWebhooksModel(SqlAlchemyBase, BaseMixins):
         nullable=True,
         doc="List of event types this webhook subscribes to (e.g., ['entry.published', 'asset.uploaded']). None means no event subscriptions.",
     )
+    headers_json: Mapped[dict | None] = mapped_column(
+        sa.JSON,
+        nullable=True,
+        doc="Custom HTTP headers sent with each request. Values support {{SLUG}} secret interpolation.",
+    )
 
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:
