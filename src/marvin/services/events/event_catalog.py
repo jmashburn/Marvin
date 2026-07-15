@@ -230,13 +230,221 @@ CATALOG: list[CatalogEntry] = [
             EventVariable("duration_ms", "How long it took (ms)", "1234"),
         ],
     ),
+    CatalogEntry(
+        event_type="scheduled_task_triggered",
+        name="Scheduled Task Triggered",
+        description="A scheduled task was manually triggered.",
+        category="Automation",
+        variables=COMMON_VARS + [
+            EventVariable("task_name", "Name of the task", "Daily Cleanup"),
+        ],
+    ),
+
+    # ── Content extended ────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="entry_deleted",
+        name="Entry Deleted",
+        description="A content entry was permanently deleted.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the deleted entry", "Old Post"),
+            EventVariable("author_name", "Who deleted it", "Jane Smith"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="entry_unpublished",
+        name="Entry Unpublished",
+        description="A published entry was taken offline.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the entry", "My Post"),
+            EventVariable("author_name", "Who unpublished it", "Jane Smith"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="entry_archived",
+        name="Entry Archived",
+        description="An entry was archived.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the archived entry", "Old Post"),
+        ],
+    ),
+
+    # ── Assets ──────────────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="asset_uploaded",
+        name="Asset Uploaded",
+        description="A new file or media asset was uploaded.",
+        category="Assets",
+        variables=COMMON_VARS + [
+            EventVariable("asset_name", "Filename of the uploaded asset", "photo.jpg"),
+            EventVariable("asset_type", "MIME type", "image/jpeg"),
+            EventVariable("uploader_name", "Who uploaded it", "Jane Smith"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="asset_deleted",
+        name="Asset Deleted",
+        description="An asset was deleted from the workspace.",
+        category="Assets",
+        variables=COMMON_VARS + [
+            EventVariable("asset_name", "Filename of the deleted asset", "old-photo.jpg"),
+        ],
+    ),
+
+    # ── Collections ──────────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="collection_created",
+        name="Collection Created",
+        description="A new collection was created.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("collection_name", "Name of the collection", "Featured Posts"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="entry_added_to_collection",
+        name="Entry Added to Collection",
+        description="An entry was added to a collection.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the entry", "My Post"),
+            EventVariable("collection_name", "Name of the collection", "Featured Posts"),
+        ],
+    ),
+
+    # ── Collaboration ────────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="comment_added",
+        name="Comment Added",
+        description="A comment was added to an entry.",
+        category="Collaboration",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Entry that was commented on", "My Post"),
+            EventVariable("commenter_name", "Who left the comment", "Jane Smith"),
+            EventVariable("comment_excerpt", "First part of the comment", "Great post!"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="mention_created",
+        name="Mention",
+        description="A user was mentioned in content.",
+        category="Collaboration",
+        variables=COMMON_VARS + [
+            EventVariable("mentioned_user", "Username who was mentioned", "jsmith"),
+            EventVariable("mentioned_by", "Who made the mention", "Jane Smith"),
+            EventVariable("entry_title", "Where the mention occurred", "My Post"),
+        ],
+    ),
+
+    # ── Workflow / Approvals ─────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="approval_requested",
+        name="Approval Requested",
+        description="An entry or action was submitted for approval.",
+        category="Workflow",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "What needs approval", "My Post"),
+            EventVariable("requester_name", "Who submitted it", "Jane Smith"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="approval_granted",
+        name="Approval Granted",
+        description="An approval request was accepted.",
+        category="Workflow",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "What was approved", "My Post"),
+            EventVariable("approver_name", "Who approved it", "Admin"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="approval_rejected",
+        name="Approval Rejected",
+        description="An approval request was declined.",
+        category="Workflow",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "What was rejected", "My Post"),
+            EventVariable("approver_name", "Who rejected it", "Admin"),
+            EventVariable("reason", "Reason for rejection", "Needs more detail"),
+        ],
+    ),
+
+    # ── Resources ────────────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="resource_created",
+        name="Resource Created",
+        description="A new resource link was added.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("resource_name", "Name of the resource", "API Docs"),
+            EventVariable("resource_url", "URL of the resource", "https://..."),
+        ],
+    ),
+
+    # ── Security / API ───────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="api_token_created",
+        name="API Token Created",
+        description="A new API token was generated.",
+        category="Security",
+        variables=COMMON_VARS + [
+            EventVariable("token_name", "Name given to the token", "CI Deploy Token"),
+            EventVariable("created_by", "Who created it", "Jane Smith"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="api_token_revoked",
+        name="API Token Revoked",
+        description="An API token was revoked.",
+        category="Security",
+        variables=COMMON_VARS + [
+            EventVariable("token_name", "Name of the revoked token", "CI Deploy Token"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="login_failed_multiple_times",
+        name="Repeated Login Failures",
+        description="Multiple failed login attempts detected for an account.",
+        category="Security",
+        variables=COMMON_VARS + [
+            EventVariable("username", "Account targeted", "jsmith"),
+            EventVariable("attempt_count", "Number of failures", "5"),
+        ],
+    ),
+
+    # ── Ops ──────────────────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="backup_completed",
+        name="Backup Completed",
+        description="A database backup finished successfully.",
+        category="System",
+        variables=COMMON_VARS + [
+            EventVariable("backup_size", "Size of the backup", "45MB"),
+            EventVariable("duration", "How long it took", "12s"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="backup_failed",
+        name="Backup Failed",
+        description="A database backup failed.",
+        category="System",
+        variables=COMMON_VARS + [
+            EventVariable("error_message", "What went wrong", "Disk full"),
+        ],
+    ),
 ]
 
 # Quick lookup
 CATALOG_BY_TYPE: dict[str, CatalogEntry] = {e.event_type: e for e in CATALOG}
 
 # Categories in display order
-CATEGORIES = ["Members", "Authentication", "Content", "Forms", "Publishing", "Automation", "System"]
+CATEGORIES = [
+    "Members", "Authentication", "Content", "Assets",
+    "Forms", "Publishing", "Automation", "Collaboration",
+    "Workflow", "Security", "System",
+]
 
 
 def get_event_variables(event_type: str) -> list[EventVariable]:
