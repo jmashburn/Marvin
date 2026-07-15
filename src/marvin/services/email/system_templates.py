@@ -160,6 +160,10 @@ def seed_system_templates(session) -> int:
         template.button_text = defn.button_text
         template.group_id = None
         template.enabled = True
+        template.available_variables = {
+            "required": defn.required_vars,
+            "optional": defn.optional_vars,
+        }
         session.add(template)
         created += 1
         logger.info(f"Seeded system email template: {defn.template_type}")
