@@ -13,15 +13,14 @@ let error: string | null = null;
 
 try {
   workspace = await getCurrentWorkspace(authToken);
-
   const wsId = (workspace as any)?.id ?? (workspace as any)?.groupId;
+  console.log('[email-settings] workspace keys:', Object.keys(workspace || {}));
+  console.log('[email-settings] wsId:', wsId);
   if (wsId) {
-    try {
-      emailTemplates = await listEmailTemplates(wsId, authToken);
-    } catch (templateErr) {
-      console.error('[email-settings] Could not load templates:', templateErr);
-      // Non-fatal — page still renders, templates just show as empty
-    }
+    emailTemplates = await listEmailTemplates(wsId, authToken);
+    console.log('[email-settings] templates loaded:', emailTemplates.length);
+  } else {
+    console.warn('[email-settings] wsId is undefined — workspace shape:', JSON.stringify(workspace));
   }
 } catch (e) {
   console.error('[email-settings] Error:', e);
@@ -180,7 +179,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
           <div class="form-group">
             <label for="template-type-select">Template Type *</label>
-            <select id="template-type" class="form-input">
+            <select id="template-type" class="input">
               <option value="invitation">invitation — Workspace invitation email</option>
               <option value="password_reset">password_reset — Password reset link</option>
               <option value="welcome">welcome — New user welcome</option>
