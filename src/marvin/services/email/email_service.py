@@ -280,6 +280,8 @@ class EmailService(BaseService):
         1. Structured: Uses header_text, message_top, etc. with default.html template
         2. Custom HTML: Uses custom_html field with Jinja2 rendering
 
+        {{SLUG}} workspace secrets/variables are resolved before Jinja2 rendering.
+
         Args:
             recipient_address: Email recipient
             db_template: EmailTemplateModel from database
@@ -290,26 +292,32 @@ class EmailService(BaseService):
         """
         try:
             from jinja2 import Template
+            from marvin.services.secrets.resolver import resolve
+
+            # Resolve {{SLUG}} workspace secrets/variables in template fields before Jinja2
+            group_id = getattr(db_template, "group_id", None)
+
+            def _r(text: str | None) -> str:
+                return resolve(text or "", group_id)
 
             # Render subject with Jinja2
-            subject_template = Template(db_template.subject)
+            subject_template = Template(_r(db_template.subject))
             subject = subject_template.render(**variables)
 
             # Determine rendering mode
             if db_template.custom_html:
-                # Mode 1: Custom HTML - render the full HTML with variables
-                html_template = Template(db_template.custom_html)
+                # Mode 1: Custom HTML - resolve slugs then render with Jinja2
+                html_template = Template(_r(db_template.custom_html))
                 html_content = html_template.render(**variables)
             else:
-                # Mode 2: Structured - use EmailTemplate class with default.html
-                # Build EmailTemplate from database fields
+                # Mode 2: Structured - resolve slugs in each field then Jinja2
                 template_data = EmailTemplate(
                     subject=subject,
-                    header_text=Template(db_template.header_text or "").render(**variables),
-                    message_top=Template(db_template.message_top or "").render(**variables),
-                    message_bottom=Template(db_template.message_bottom or "").render(**variables),
+                    header_text=Template(_r(db_template.header_text)).render(**variables),
+                    message_top=Template(_r(db_template.message_top)).render(**variables),
+                    message_bottom=Template(_r(db_template.message_bottom)).render(**variables),
                     button_link=variables.get("button_link", ""),
-                    button_text=Template(db_template.button_text or "").render(**variables),
+                    button_text=Template(_r(db_template.button_text)).render(**variables),
                 )
                 # Render with default.html template
                 html_content = template_data.render_html(self.default_template)

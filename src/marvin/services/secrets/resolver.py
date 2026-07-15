@@ -1,8 +1,11 @@
 """
-Secret slug resolver.
+Slug resolver for {{SLUG}} references.
 
-Replaces {{SLUG}} references in strings with values from the configured
-secret backend. Unresolved slugs are left unchanged so issues are visible.
+Resolution order (Secrets win on collision):
+  1. Secret backend (encrypted, write-only)
+  2. Workspace Variable (plain-text, readable)
+
+Unresolved slugs are left unchanged so misconfiguration is visible in logs.
 """
 
 import re
@@ -15,11 +18,35 @@ from .factory import get_secret_backend
 
 logger = get_logger(__name__)
 
-SECRET_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
+SLUG_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
+
+
+def _get_variable(slug: str, group_id: UUID4 | None) -> str | None:
+    """Look up a workspace variable by slug."""
+    if group_id is None:
+        return None
+    try:
+        from marvin.db.db_setup import session_context
+        from marvin.db.models.groups.variables import WorkspaceVariable
+        from sqlalchemy import select, and_
+
+        with session_context() as session:
+            result = session.execute(
+                select(WorkspaceVariable.value).where(
+                    and_(
+                        WorkspaceVariable.slug == slug,
+                        WorkspaceVariable.group_id == group_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            return result
+    except Exception as e:
+        logger.debug(f"Variable lookup failed for '{slug}': {e}")
+        return None
 
 
 def resolve(value: str, group_id: UUID4 | None = None) -> str:
-    """Replace {{SLUG}} references with secret values."""
+    """Replace {{SLUG}} references. Secrets take priority over Variables."""
     if "{{" not in value:
         return value
 
@@ -27,15 +54,20 @@ def resolve(value: str, group_id: UUID4 | None = None) -> str:
 
     def replacer(match: re.Match) -> str:
         slug = match.group(1)
-        secret = backend.get(slug, group_id)
-        if secret is None:
-            logger.warning(f"Secret '{{{{ {slug} }}}}' not found for group {group_id} — leaving unchanged")
-            return match.group(0)
-        return secret
+        # 1. Try secrets first
+        result = backend.get(slug, group_id)
+        if result is not None:
+            return result
+        # 2. Fall back to variables
+        result = _get_variable(slug, group_id)
+        if result is not None:
+            return result
+        logger.warning(f"'{{{{ {slug} }}}}' not found as secret or variable for group {group_id}")
+        return match.group(0)
 
-    return SECRET_RE.sub(replacer, value)
+    return SLUG_RE.sub(replacer, value)
 
 
 def resolve_dict(data: dict[str, str], group_id: UUID4 | None = None) -> dict[str, str]:
-    """Resolve {{SLUG}} references in all values of a dict (e.g. webhook headers)."""
+    """Resolve {{SLUG}} in all dict values (e.g. webhook headers)."""
     return {key: resolve(val, group_id) for key, val in data.items()}

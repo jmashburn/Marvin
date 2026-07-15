@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from .invite_tokens import GroupInviteToken
     from .reports import ReportModel
     from .secrets import WorkspaceSecret
+    from .variables import WorkspaceVariable
     from .webhooks import GroupWebhooksModel
 
 
@@ -91,6 +92,10 @@ class Groups(SqlAlchemyBase, BaseMixins):
     # Relationship to WorkspaceSecret (one-to-many)
     secrets: Mapped[list["WorkspaceSecret"]] = orm.relationship(
         "WorkspaceSecret", **_common_relationship_args, doc="Workspace secrets."
+    )
+    # Relationship to WorkspaceVariable (one-to-many)
+    variables: Mapped[list["WorkspaceVariable"]] = orm.relationship(
+        "WorkspaceVariable", **_common_relationship_args, doc="Workspace variables."
     )
     # Relationship to ReportModel (one-to-many)
     group_reports: Mapped[list["ReportModel"]] = orm.relationship(
