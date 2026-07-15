@@ -93,6 +93,7 @@ class PlatformEmailController(BaseUserController):
                 **data.variables,  # User-provided vars override defaults
             }
 
+            warning = None
             try:
                 email_service = EmailService()
                 success = email_service._send_db_template(data.recipient_email, template, test_variables)
@@ -101,10 +102,39 @@ class PlatformEmailController(BaseUserController):
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail="Failed to send test email. Check SMTP configuration.",
                     )
+            except ValueError as e:
+                # Required vars missing from template content — warn but still attempt send
+                # by bypassing validation for test sends
+                warning = str(e)
+                self.logger.warning(f"Test send bypassing validation: {e}")
+                try:
+                    email_service = EmailService()
+                    from marvin.services.email.email_service import EmailTemplate
+                    from marvin.services.secrets.resolver import resolve
+                    group_id = template.group_id
+                    def _r(text):
+                        return resolve(text or "", group_id, allow_secrets=False, context=test_variables)
+                    from jinja2 import Template as JinjaTemplate
+                    tpl = EmailTemplate(
+                        subject=JinjaTemplate(_r(template.subject)).render(**test_variables),
+                        header_text=JinjaTemplate(_r(template.header_text)).render(**test_variables),
+                        message_top=JinjaTemplate(_r(template.message_top)).render(**test_variables),
+                        message_bottom=JinjaTemplate(_r(template.message_bottom or "")).render(**test_variables),
+                        button_link=test_variables.get("button_link", ""),
+                        button_text=JinjaTemplate(_r(template.button_text or "")).render(**test_variables),
+                        workspace_name=test_variables.get("workspace_name", ""),
+                    )
+                    email_service.send_email(data.recipient_email, tpl)
+                except Exception as inner:
+                    self.logger.error(f"Template test fallback send failed: {inner}")
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(inner))
             except HTTPException:
                 raise
             except Exception as e:
                 self.logger.error(f"Template test email failed: {e}")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-        return {"message": f"Test email sent to {data.recipient_email}"}
+        result = {"message": f"Test email sent to {data.recipient_email}"}
+        if warning:
+            result["warning"] = f"Some required variables were missing from the template: {warning}"
+        return result
