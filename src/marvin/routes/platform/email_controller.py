@@ -71,11 +71,15 @@ class PlatformEmailController(BaseUserController):
         from sqlalchemy import select, and_
 
         with session_context() as session:
+            from sqlalchemy import or_
             template = session.execute(
                 select(EmailTemplateModel).where(
                     and_(
                         EmailTemplateModel.id == template_id,
-                        EmailTemplateModel.group_id == self.group_id,
+                        or_(
+                            EmailTemplateModel.group_id == self.group_id,
+                            EmailTemplateModel.group_id.is_(None),  # allow system templates
+                        ),
                     )
                 )
             ).scalar_one_or_none()
