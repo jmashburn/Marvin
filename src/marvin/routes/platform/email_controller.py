@@ -85,17 +85,6 @@ class PlatformEmailController(BaseUserController):
                     detail="Email template not found.",
                 )
 
-            # Warn if required variables are missing from the template content
-            from marvin.services.email.system_templates import validate_template_content
-            content_fields = {
-                "subject": template.subject or "",
-                "header_text": template.header_text or "",
-                "message_top": template.message_top or "",
-                "message_bottom": template.message_bottom or "",
-                "custom_html": template.custom_html or "",
-            }
-            missing_vars = validate_template_content(template.template_type or "", content_fields)
-
             test_variables = {
                 "workspace_name": self.group.name if hasattr(self, "group") else "Your Workspace",
                 "button_link": str(self.settings.BASE_URL),
@@ -116,7 +105,4 @@ class PlatformEmailController(BaseUserController):
                 self.logger.error(f"Template test email failed: {e}")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-        response = {"message": f"Test email sent to {data.recipient_email}"}
-        if missing_vars:
-            response["warning"] = f"Required variables missing from template: {', '.join('{{' + v + '}}' for v in missing_vars)}"
-        return response
+        return {"message": f"Test email sent to {data.recipient_email}"}
