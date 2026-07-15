@@ -280,16 +280,17 @@ function isSuperseded(template: any): boolean {
           <h4 class="section-label">Template Content</h4>
 
           <div class="template-mode-tabs">
-            <div class="mode-tab-group">
-              <button type="button" class="mode-tab active" data-mode="structured">
-                <span>Structured</span>
-              </button>
-              <button type="button" class="mode-tab" data-mode="custom">
-                <span>Custom HTML</span>
-              </button>
-            </div>
-            <button type="button" id="toggle-preview-btn" class="button secondary small">
-              Show Preview
+            <button type="button" class="mode-tab active" data-mode="structured">
+              <span>📝 Structured</span>
+              <small>Default email layout</small>
+            </button>
+            <button type="button" class="mode-tab" data-mode="custom">
+              <span>💻 Custom HTML</span>
+              <small>Full control over design</small>
+            </button>
+            <button type="button" class="mode-tab" data-mode="preview">
+              <span>👁 Preview</span>
+              <small>See rendered output</small>
             </button>
           </div>
 
@@ -352,11 +353,8 @@ function isSuperseded(template: any): boolean {
             </div>
           </div>
 
-          <div id="preview-panel" style="display:none" class="preview-panel-bottom">
-            <div class="preview-panel-header">
-              <span class="preview-hint">Live preview</span>
-              <button type="button" id="close-preview-btn" class="preview-close">✕</button>
-            </div>
+          <div id="preview-panel" style="display:none">
+            <div class="preview-hint">Live preview — variables shown as placeholders</div>
             <iframe id="preview-iframe" class="preview-iframe" sandbox="allow-same-origin"></iframe>
           </div>
         </div>
@@ -587,27 +585,22 @@ ${btnRow}${bottomRow}
       }
     }
 
-    // Preview toggle button
-    document.getElementById('toggle-preview-btn')?.addEventListener('click', () => {
-      const btn = document.getElementById('toggle-preview-btn');
-      const isOpen = previewPanel.style.display !== 'none';
-      previewPanel.style.display = isOpen ? 'none' : 'block';
-      btn.textContent = isOpen ? 'Show Preview' : 'Hide Preview';
-      if (!isOpen) updatePreview();
-    });
-
-    document.getElementById('close-preview-btn')?.addEventListener('click', () => {
-      previewPanel.style.display = 'none';
-      const btn = document.getElementById('toggle-preview-btn');
-      if (btn) btn.textContent = 'Show Preview';
-    });
-
     // Template mode tabs
     document.querySelectorAll('.mode-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const mode = tab.dataset.mode;
         document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
+
+        if (mode === 'preview') {
+          document.getElementById('structured-fields').style.display = 'none';
+          document.getElementById('custom-html-field').style.display = 'none';
+          previewPanel.style.display = 'block';
+          updatePreview();
+          return;
+        }
+
+        if (previewPanel) previewPanel.style.display = 'none';
 
         if (mode === 'structured') {
           document.getElementById('structured-fields').style.display = 'block';
@@ -1424,26 +1417,21 @@ ${btnRow}${bottomRow}
   }
 
   .template-mode-tabs {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 12px;
     margin-bottom: 24px;
   }
 
-  .mode-tab-group {
-    display: flex;
-    gap: 8px;
-  }
-
   .mode-tab {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 4px;
     background: var(--bg);
     border: 2px solid var(--line);
     border-radius: var(--radius);
-    padding: 8px 16px;
+    padding: 14px 16px;
     font-size: 14px;
     font-weight: 500;
     color: var(--text);
@@ -1532,35 +1520,10 @@ ${btnRow}${bottomRow}
     opacity: 0.6;
   }
 
-  .preview-panel-bottom {
-    border-top: 2px solid var(--accent);
-    margin-top: 24px;
-    padding-top: 16px;
-  }
-
-  .preview-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-
-  .preview-close {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 16px;
-    padding: 2px 6px;
-    border-radius: 3px;
-  }
-
-  .preview-close:hover { color: var(--ink); background: var(--line); }
-
   .preview-iframe {
     width: 100%;
-    height: 460px;
-    border: 1px solid var(--line);
+    height: 500px;
+    border: none;
     border-radius: var(--radius);
     background: white;
   }
@@ -1568,6 +1531,7 @@ ${btnRow}${bottomRow}
   .preview-hint {
     font-size: 12px;
     color: var(--muted);
+    margin-bottom: 10px;
     font-style: italic;
   }
 </style>
