@@ -63,8 +63,7 @@ class SecretsController(BaseUserController):
                 detail=f"Secret slug '{data.slug}' already exists in this workspace.",
             )
 
-        get_secret_backend().set(data.slug, data.value, self.group_id)
-
+        # Build the DB row first (encrypted value set by _store_encrypted)
         secret = WorkspaceSecret(
             session=self.session,
             group_id=self.group_id,
@@ -77,6 +76,12 @@ class SecretsController(BaseUserController):
         self.session.add(secret)
         self.session.commit()
         self.session.refresh(secret)
+
+        # For external backends (vault, bitwarden, disk, env) also write there.
+        # The database backend is already handled above — don't call set() again.
+        if get_app_settings().SECRET_BACKEND != "database":
+            get_secret_backend().set(data.slug, data.value, self.group_id)
+
         return WorkspaceSecretRead.model_validate(secret)
 
     @router.patch("/{secret_id}", response_model=WorkspaceSecretRead)
@@ -89,8 +94,9 @@ class SecretsController(BaseUserController):
         if data.description is not None:
             secret.description = data.description
         if data.value is not None:
-            get_secret_backend().set(secret.slug, data.value, self.group_id)
             _store_encrypted(secret, data.value)
+            if get_app_settings().SECRET_BACKEND != "database":
+                get_secret_backend().set(secret.slug, data.value, self.group_id)
 
         self.session.commit()
         self.session.refresh(secret)
