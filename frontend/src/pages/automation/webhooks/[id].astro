@@ -111,7 +111,7 @@ if (webhook?.scheduled_time) {
   ) : null}
 </AppLayout>
 
-<script define:vars={{ id }}>
+<script>
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
   const form = document.getElementById('update-webhook-form');
@@ -119,10 +119,10 @@ if (webhook?.scheduled_time) {
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
+    const formData = new FormData(e.target as HTMLFormElement);
+    const webhookId = formData.get('id') as string;
 
     const payload = {
-      id: formData.get('id'),
       name: formData.get('name'),
       url: formData.get('url'),
       method: formData.get('method'),
@@ -132,7 +132,7 @@ if (webhook?.scheduled_time) {
     };
 
     try {
-      await sdk.webhooks.update(id, payload);
+      await sdk.webhooks.update(webhookId, payload);
       window.location.href = '/automation/webhooks?updated=true';
     } catch (error) {
       alert('Failed to update webhook. Please try again.');
@@ -141,10 +141,11 @@ if (webhook?.scheduled_time) {
   });
 
   deleteBtn?.addEventListener('click', async () => {
+    const webhookId = (document.querySelector('input[name="id"]') as HTMLInputElement)?.value;
     if (!confirm('Are you sure you want to delete this webhook?')) return;
 
     try {
-      await sdk.webhooks.delete(id);
+      await sdk.webhooks.delete(webhookId);
       window.location.href = '/automation/webhooks?deleted=true';
     } catch (error) {
       alert('Failed to delete webhook. Please try again.');
