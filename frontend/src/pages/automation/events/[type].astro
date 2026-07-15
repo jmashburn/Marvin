@@ -145,22 +145,32 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
               const subscribedEvents: string[] = (w as any).subscribedEvents ?? (w as any).subscribed_events ?? [];
               const isConnected = subscribedEvents.includes(type || '');
               return (
-                <div class="sub-option">
+                <div class:list={['sub-option', { 'sub-option-connected': isConnected }]}>
                   <div class="sub-option-info">
-                    <strong>{w.name}</strong>
-                    <code class="sub-url">{w.url?.toString().slice(0, 40)}{(w.url?.toString().length || 0) > 40 ? '…' : ''}</code>
+                    <div class="sub-option-name-row">
+                      {isConnected && <span class="connected-check">&#10003;</span>}
+                      <strong>{w.name}</strong>
+                    </div>
+                    <code class="sub-url">{w.url?.toString().slice(0, 48)}{(w.url?.toString().length || 0) > 48 ? '…' : ''}</code>
                   </div>
-                  <button
-                    type="button"
-                    class:list={['button', 'small', isConnected ? 'secondary' : '']}
-                    data-open-webhook-modal={w.id}
-                    data-webhook-name={w.name}
-                    data-webhook-url={w.url}
-                    data-webhook-method={w.method || 'POST'}
-                    data-is-connected={isConnected ? 'true' : 'false'}
-                  >
-                    {isConnected ? 'Manage' : 'Connect'}
-                  </button>
+                  <div class="sub-option-actions">
+                    <button
+                      type="button"
+                      class:list={['button', 'small', isConnected ? 'secondary' : '']}
+                      data-open-webhook-modal={w.id}
+                      data-webhook-name={w.name}
+                      data-webhook-url={w.url}
+                      data-webhook-method={w.method || 'POST'}
+                      data-is-connected={isConnected ? 'true' : 'false'}
+                    >
+                      {isConnected ? 'Disconnect' : 'Connect'}
+                    </button>
+                    {isConnected && (
+                      <a href={`/automation/events/${type}/webhook/${w.id}`} class="button secondary small">
+                        Edit
+                      </a>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -219,12 +229,14 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
     <div class="wh-body">
       <p class="wh-label">Your endpoint will receive this JSON via <span id="wh-method">POST</span>:</p>
       <pre id="wh-payload" class="wh-payload"></pre>
+      <p class="wh-db-note">Stored in: <code>webhook_urls.subscribed_events</code></p>
     </div>
 
     <div class="wh-footer">
       <span id="wh-note" class="wh-note"></span>
       <div class="wh-actions">
         <button type="button" id="wh-confirm" class="button">Connect</button>
+        <a id="wh-edit-link" href="#" class="button secondary" style="display:none">Full page</a>
         <button type="button" id="wh-cancel" class="button secondary">Cancel</button>
       </div>
     </div>
@@ -240,6 +252,7 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
   const whPayload = document.getElementById('wh-payload');
   const whNote = document.getElementById('wh-note');
   const whConfirm = document.getElementById('wh-confirm');
+  const whEditLink = document.getElementById('wh-edit-link');
   let activeWebhookId = null;
   let activeIsConnected = false;
 
@@ -250,15 +263,20 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
     const url = btn.dataset.webhookUrl;
     const method = btn.dataset.webhookMethod || 'POST';
 
-    whTitle.textContent = (activeIsConnected ? 'Manage: ' : 'Connect: ') + name;
+    whTitle.textContent = (activeIsConnected ? 'Connected: ' : 'Connect: ') + name;
     whUrl.textContent = url;
     whMethod.textContent = method;
     whPayload.textContent = JSON.stringify(examplePayload, null, 2);
     whNote.innerHTML = activeIsConnected
-      ? 'This webhook is <strong>connected</strong>. Click Disconnect to remove it.'
-      : 'Click Connect to start receiving <strong>' + type + '</strong> events at this URL.';
+      ? '&#10003; Connected — firing on every <strong>' + type + '</strong> event.'
+      : 'Connect to send a POST to this URL on every <strong>' + type + '</strong> event.';
     whConfirm.textContent = activeIsConnected ? 'Disconnect' : 'Connect';
     whConfirm.className = activeIsConnected ? 'button secondary danger' : 'button';
+    // Show "Full page" link for connected webhooks
+    if (whEditLink) {
+      whEditLink.href = '/automation/events/' + type + '/webhook/' + activeWebhookId;
+      whEditLink.style.display = activeIsConnected ? '' : 'none';
+    }
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -739,4 +757,35 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
 
   .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
   .button.secondary.danger:hover { background: var(--color-error-bg); }
+
+  /* Connected row */
+  .sub-option-connected {
+    background: rgba(79,156,132,0.04);
+    border-left: 3px solid var(--accent);
+  }
+
+  .sub-option-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .connected-check {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* DB note in modal */
+  .wh-db-note {
+    margin: 10px 0 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .wh-db-note code {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+  }
 </style>
