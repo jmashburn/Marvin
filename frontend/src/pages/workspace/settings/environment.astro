@@ -77,6 +77,7 @@ function fmtRelative(isoStr: string | null | undefined): string {
             <label class="form-field">
               <span class="label">Name *</span>
               <input type="text" name="name" required placeholder="Site URL" class="input" id="var-name" />
+              <small class="hint">&nbsp;</small>
             </label>
             <label class="form-field">
               <span class="label">Slug *</span>
@@ -107,20 +108,24 @@ function fmtRelative(isoStr: string | null | undefined): string {
         </div>
       ) : (
         <div class="env-table">
-          <div class="env-header">
-            <span>Name / Slug</span>
+          <div class="env-header var-header">
+            <span>Name</span>
+            <span>Slug</span>
             <span>Value</span>
+            <span>Last Updated</span>
             <span></span>
           </div>
           {variables.map((v: any) => {
-            const updatedAt = v.updateAt ?? v.update_at ?? null;
-            const relDate = fmtRelative(updatedAt);
+            const upd = v.updateAt ?? v.update_at;
+            const updStr = upd ? new Date(upd.replace(/(\.\d{3})\d+/, '$1')).toLocaleDateString() : '—';
             return (
-            <div class="env-row" data-id={v.id} data-type="variable">
-              <div title={v.description ?? undefined}>
+            <div class="env-row var-row" data-id={v.id} data-type="variable">
+              <div>
                 <div class="env-name">{v.name}</div>
+                {v.description && <div class="env-subdesc">{v.description}</div>}
+              </div>
+              <div>
                 <code class="env-slug">&#123;&#123;{v.slug}&#125;&#125;</code>
-                {relDate && <span class="env-ts" title={updatedAt}>Updated {relDate}</span>}
               </div>
               <div class="env-value">
                 <input
@@ -131,6 +136,7 @@ function fmtRelative(isoStr: string | null | undefined): string {
                   data-id={v.id}
                 />
               </div>
+              <div class="env-updated">{updStr}</div>
               <div class="env-actions">
                 <button class="button secondary small save-var-btn" data-id={v.id} style="display:none">Save</button>
                 <button class="button secondary small danger" data-action="delete-var" data-id={v.id} data-name={v.name}>Delete</button>
@@ -157,6 +163,7 @@ function fmtRelative(isoStr: string | null | undefined): string {
             <label class="form-field">
               <span class="label">Name *</span>
               <input type="text" name="name" required placeholder="Cloudflare API Token" class="input" id="sec-name" />
+              <small class="hint">&nbsp;</small>
             </label>
             <label class="form-field">
               <span class="label">Slug *</span>
@@ -188,25 +195,30 @@ function fmtRelative(isoStr: string | null | undefined): string {
         </div>
       ) : (
         <div class="env-table">
-          <div class="env-header">
-            <span>Name / Slug</span>
+          <div class="env-header sec-header">
+            <span>Name</span>
+            <span>Slug</span>
             <span>Value</span>
+            <span>Last Rotated</span>
             <span></span>
           </div>
           {secrets.map((s: any) => {
-            const updatedAt = s.updateAt ?? s.update_at ?? null;
-            const relDate = fmtRelative(updatedAt);
+            const upd = s.updateAt ?? s.update_at;
+            const updStr = upd ? new Date(upd.replace(/(\.\d{3})\d+/, '$1')).toLocaleDateString() : '—';
             return (
-            <div class="env-row">
-              <div title={s.description ?? undefined}>
+            <div class="env-row sec-row">
+              <div>
                 <div class="env-name">{s.name}</div>
+                {s.description && <div class="env-subdesc">{s.description}</div>}
+              </div>
+              <div>
                 <code class="env-slug env-slug-secret">&#123;&#123;{s.slug}&#125;&#125;</code>
-                {relDate && <span class="env-ts" title={updatedAt}>Rotated {relDate}</span>}
               </div>
               <div class="env-value secret-value">
                 <span class="masked">••••••••</span>
                 <button class="button secondary small rotate-btn" data-id={s.id} data-name={s.name}>Rotate</button>
               </div>
+              <div class="env-updated">{updStr}</div>
               <div class="env-actions">
                 <button class="button secondary small danger" data-action="delete-sec" data-id={s.id} data-name={s.name}>Delete</button>
               </div>
@@ -435,13 +447,13 @@ function fmtRelative(isoStr: string | null | undefined): string {
     border-radius: var(--radius);
     padding: 24px;
     display: grid;
-    gap: 16px;
+    gap: 20px;
   }
 
   .form-card h3 { margin: 0; font-size: 16px; font-weight: 600; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .form-field { display: grid; gap: 6px; }
-  .label { font-size: 14px; font-weight: 500; }
+  .form-field { display: grid; gap: 8px; }
+  .label { font-size: 14px; font-weight: 500; padding-top: 4px; }
   .form-actions { display: flex; gap: 12px; }
 
   .input {
@@ -473,7 +485,6 @@ function fmtRelative(isoStr: string | null | undefined): string {
 
   .env-header {
     display: grid;
-    grid-template-columns: minmax(220px, 1.5fr) 1fr 140px;
     gap: 16px;
     padding: 10px 16px;
     background: var(--panel);
@@ -485,9 +496,18 @@ function fmtRelative(isoStr: string | null | undefined): string {
     border-bottom: 1px solid var(--line);
   }
 
+  .var-header,
+  .var-row {
+    grid-template-columns: minmax(140px,1fr) minmax(160px,1fr) 1fr minmax(120px,auto) 100px;
+  }
+
+  .sec-header,
+  .sec-row {
+    grid-template-columns: minmax(140px,1fr) minmax(160px,1fr) 1fr minmax(120px,auto) 100px;
+  }
+
   .env-row {
     display: grid;
-    grid-template-columns: minmax(220px, 1.5fr) 1fr 140px;
     gap: 16px;
     align-items: center;
     padding: 14px 16px;
@@ -501,7 +521,15 @@ function fmtRelative(isoStr: string | null | undefined): string {
 
   /* ── Cell content ─────────────────────────────────────────────────────── */
 
-  .env-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; line-height: 1.4; }
+  .env-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; line-height: 1.4; }
+  .env-subdesc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .env-updated {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+  }
 
   .env-ts {
     display: block;

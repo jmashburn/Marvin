@@ -12,7 +12,7 @@ let error: string | null = null;
 try {
   [workspace, stats] = await Promise.all([
     getCurrentWorkspace(authToken),
-    fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch(() => null),
+    fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch((e) => { console.error('stats failed:', e); return null; }),
   ]);
 } catch (e) {
   console.error('[workspace] Error:', e);
@@ -30,42 +30,40 @@ try {
         <p>Manage your workspace settings and resources</p>
       </div>
 
-      {stats && (
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-value">{stats.entries ?? 0}</div>
-            <div class="stat-label">Entries</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{stats.assets ?? 0}</div>
-            <div class="stat-label">Assets</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{stats.collections ?? 0}</div>
-            <div class="stat-label">Collections</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{stats.webhooks ?? 0}</div>
-            <div class="stat-label">Webhooks</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{stats.scheduledTasks ?? stats.scheduled_tasks ?? 0}</div>
-            <div class="stat-label">Scheduled Tasks</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{stats.secrets ?? 0}</div>
-            <div class="stat-label">Secrets</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{stats.variables ?? 0}</div>
-            <div class="stat-label">Variables</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{stats.members ?? 0}</div>
-            <div class="stat-label">Members</div>
-          </div>
-        </div>
-      )}
+      <div class="stats-grid">
+        <a href="/entries" class="stat-card">
+          <div class="stat-value">{stats ? (stats.entries ?? 0) : '—'}</div>
+          <div class="stat-label">Entries</div>
+        </a>
+        <a href="/assets" class="stat-card">
+          <div class="stat-value">{stats ? (stats.assets ?? 0) : '—'}</div>
+          <div class="stat-label">Assets</div>
+        </a>
+        <a href="/entries/collections" class="stat-card">
+          <div class="stat-value">{stats ? (stats.collections ?? 0) : '—'}</div>
+          <div class="stat-label">Collections</div>
+        </a>
+        <a href="/automation/webhooks" class="stat-card">
+          <div class="stat-value">{stats ? (stats.webhooks ?? 0) : '—'}</div>
+          <div class="stat-label">Webhooks</div>
+        </a>
+        <a href="/workspace/scheduled-tasks" class="stat-card">
+          <div class="stat-value">{stats ? (stats.scheduledTasks ?? stats.scheduled_tasks ?? 0) : '—'}</div>
+          <div class="stat-label">Scheduled Tasks</div>
+        </a>
+        <a href="/workspace/settings/environment" class="stat-card">
+          <div class="stat-value">{stats ? (stats.secrets ?? 0) : '—'}</div>
+          <div class="stat-label">Secrets</div>
+        </a>
+        <a href="/workspace/settings/environment" class="stat-card">
+          <div class="stat-value">{stats ? (stats.variables ?? 0) : '—'}</div>
+          <div class="stat-label">Variables</div>
+        </a>
+        <a href="/workspace/members" class="stat-card">
+          <div class="stat-value">{stats ? (stats.members ?? 0) : '—'}</div>
+          <div class="stat-label">Members</div>
+        </a>
+      </div>
 
       <div class="quick-links">
         <a href="/workspace/settings" class="quick-link-card">
@@ -142,6 +140,14 @@ try {
     border: 1px solid var(--line);
     border-radius: var(--radius);
     text-align: center;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  a.stat-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
   }
 
   .stat-value {

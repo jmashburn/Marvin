@@ -42,13 +42,18 @@ function statusClass(status: string): string {
 
 // Convert UTC time to local for input (truncate microseconds for JS Date compatibility)
 let localDateTime = '';
-if (webhook?.scheduled_time) {
-  const normalized = webhook.scheduled_time.replace(/(\.\d{3})\d+/, '$1');
-  const date = new Date(normalized);
-  if (!isNaN(date.getTime())) {
-    localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+if (webhook) {
+  const scheduledTime = (webhook as any).scheduledTime ?? (webhook as any).scheduled_time;
+  if (scheduledTime) {
+    const normalized = scheduledTime.replace(/(\.\d{3})\d+/, '$1');
+    const date = new Date(normalized);
+    if (!isNaN(date.getTime())) {
+      localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
   }
 }
+const webhookType = (webhook as any)?.webhookType ?? (webhook as any)?.webhook_type ?? 'generic';
+const existingHeaders = (webhook as any)?.headers ?? {};
 ---
 
 <AppLayout title="Edit Webhook" eyebrow="Automation">
@@ -103,8 +108,8 @@ if (webhook?.scheduled_time) {
             <label class="form-field">
               <span class="label">Type</span>
               <select name="webhook_type" class="input">
-                <option value="generic" selected={webhook.webhook_type === 'generic'}>Generic</option>
-                <option value="user" selected={webhook.webhook_type === 'user'}>User</option>
+                <option value="generic" selected={webhookType === 'generic'}>Generic</option>
+                <option value="user" selected={webhookType === 'user'}>User</option>
               </select>
             </label>
           </div>
@@ -127,9 +132,25 @@ if (webhook?.scheduled_time) {
           </label>
         </div>
 
+        <div class="form-section">
+          <h3>Custom Headers <span class="optional">(optional)</span></h3>
+          <p class="section-hint">Use <code>&#123;&#123;SLUG&#125;&#125;</code> to reference a <a href="/workspace/settings/environment">workspace secret</a>.</p>
+          <div id="headers-list">
+            {Object.entries(existingHeaders).map(([k, v]) => (
+              <div class="header-row">
+                <input type="text" class="input header-key" value={k} placeholder="Authorization" />
+                <span class="header-sep">:</span>
+                <input type="text" class="input header-val" value={String(v)} placeholder="Bearer {{MY_TOKEN}}" />
+                <button type="button" class="header-remove">✕</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" id="add-header-btn" class="button secondary small">+ Add Header</button>
+        </div>
+
         <div class="form-actions">
           <button type="submit" class="button">Save Changes</button>
-          <button type="button" id="test-btn" class="button secondary">Test</button>
+          <button type="button" id="test-btn" class="button secondary" disabled={!(webhook?.enabled ?? true)}>Test</button>
           <button type="button" id="delete-btn" class="button danger">Delete</button>
           <a href="/automation/webhooks" class="button secondary">Cancel</a>
         </div>
@@ -212,12 +233,34 @@ if (webhook?.scheduled_time) {
     });
   });
 
+  // Header builder
+  const headersList = document.getElementById('headers-list')!;
+  document.getElementById('add-header-btn')?.addEventListener('click', () => {
+    const row = document.createElement('div');
+    row.className = 'header-row';
+    row.innerHTML = `<input type="text" class="input header-key" placeholder="Authorization" /><span class="header-sep">:</span><input type="text" class="input header-val" placeholder="Bearer {{MY_TOKEN}}" /><button type="button" class="header-remove">✕</button>`;
+    row.querySelector('.header-remove')?.addEventListener('click', () => row.remove());
+    headersList.appendChild(row);
+  });
+  // Add remove listeners to existing rows
+  document.querySelectorAll('.header-remove').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.header-row')?.remove());
+  });
+
   const form = document.getElementById('update-webhook-form');
   const deleteBtn = document.getElementById('delete-btn');
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+
+    const headerRows = document.querySelectorAll('.header-row');
+    const headers: Record<string, string> = {};
+    headerRows.forEach(row => {
+      const k = (row.querySelector('.header-key') as HTMLInputElement)?.value?.trim();
+      const v = (row.querySelector('.header-val') as HTMLInputElement)?.value?.trim();
+      if (k && v) headers[k] = v;
+    });
 
     const payload = {
       name: formData.get('name'),
@@ -226,6 +269,7 @@ if (webhook?.scheduled_time) {
       webhook_type: formData.get('webhook_type'),
       scheduled_time: formData.get('scheduled_time'),
       enabled: formData.get('enabled') === 'on',
+      headers: Object.keys(headers).length ? headers : null,
     };
 
     try {
@@ -238,6 +282,7 @@ if (webhook?.scheduled_time) {
   });
 
   document.getElementById('test-btn')?.addEventListener('click', async () => {
+    if ((document.getElementById('test-btn') as HTMLButtonElement)?.disabled) return;
     if (!confirm('Send a test request to this webhook?')) return;
     try {
       await sdk.webhooks.test(webhookId);
@@ -281,12 +326,13 @@ if (webhook?.scheduled_time) {
   }
 
   .form-container {
-    max-width: 700px;
+    width: 100%;
   }
 
   .form {
     display: grid;
     gap: 24px;
+    max-width: 700px;
   }
 
   .form-section {
@@ -375,7 +421,7 @@ if (webhook?.scheduled_time) {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 24px;
+    padding: 32px;
   }
 
   .history-section h3 { margin: 0 0 20px; font-size: 16px; font-weight: 600; }
@@ -457,4 +503,17 @@ if (webhook?.scheduled_time) {
     white-space: pre;
     color: var(--ink);
   }
+
+  .button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+  .optional { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .section-hint { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  .section-hint code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+  .section-hint a { color: var(--accent); }
+  .header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .header-key { flex: 1; }
+  .header-val { flex: 2; }
+  .header-sep { color: var(--muted); flex-shrink: 0; }
+  .header-remove { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; padding: 4px; border-radius: 3px; flex-shrink: 0; }
+  .header-remove:hover { color: var(--color-error); background: var(--color-error-bg); }
 </style>

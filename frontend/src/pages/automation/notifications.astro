@@ -13,7 +13,7 @@ let appriseReady = false;
 // Check if Apprise is available
 try {
   const configCheck = await sdk.adminSystem.check() as any;
-  appriseReady = configCheck?.apprise_ready === true;
+  appriseReady = (configCheck as any)?.appriseReady ?? configCheck?.apprise_ready ?? false;
 } catch (e) {
   console.error('[notifications] Error checking Apprise availability:', e);
 }

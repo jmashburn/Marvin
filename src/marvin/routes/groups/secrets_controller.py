@@ -105,7 +105,9 @@ class SecretsController(BaseUserController):
     @router.delete("/{secret_id}", status_code=status.HTTP_204_NO_CONTENT)
     def delete_secret(self, secret_id: UUID4):
         """Delete a secret from the backend and metadata store."""
-        secret = _get_secret_or_404(self.session, secret_id, self.group_id)
+        secret = self.session.get(WorkspaceSecret, secret_id)
+        if not secret or secret.group_id != self.group_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found.")
         if get_app_settings().SECRET_BACKEND != "database":
             get_secret_backend().delete(secret.slug, self.group_id)
         self.session.delete(secret)

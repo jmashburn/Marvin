@@ -75,11 +75,11 @@ function formatScheduledTime(time: string | null | undefined): string {
               </div>
               <div class="meta-item">
                 <span class="meta-label">Type</span>
-                <span class="meta-value">{webhook.webhook_type || 'generic'}</span>
+                <span class="meta-value">{(webhook as any).webhookType ?? (webhook as any).webhook_type ?? 'generic'}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Scheduled</span>
-                <span class="meta-value">{formatScheduledTime(webhook.scheduled_time)}</span>
+                <span class="meta-value">{formatScheduledTime((webhook as any).scheduledTime ?? (webhook as any).scheduled_time)}</span>
               </div>
             </div>
             <div class="webhook-actions">
@@ -95,6 +95,7 @@ function formatScheduledTime(time: string | null | undefined): string {
                 data-action="test"
                 data-id={webhook.id}
                 data-name={webhook.name}
+                disabled={!webhook.enabled}
               >Test</button>
               <button
                 class="button secondary small danger"
@@ -332,4 +333,6 @@ function formatScheduledTime(time: string | null | undefined): string {
   .button.danger:hover {
     background: var(--color-error-bg);
   }
+
+  .button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 </style>

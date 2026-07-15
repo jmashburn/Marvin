@@ -25,7 +25,7 @@ try {
 // Check if Apprise is available
 try {
   const configCheck = await sdk.adminSystem.check() as any;
-  appriseReady = configCheck?.apprise_ready === true;
+  appriseReady = (configCheck as any)?.appriseReady ?? configCheck?.apprise_ready ?? false;
 } catch (e) {
   console.error('[workspace/settings] Error checking Apprise availability:', e);
   // Default to false if check fails

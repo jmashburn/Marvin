@@ -70,6 +70,8 @@ class VariablesController(BaseUserController):
     @router.delete("/{var_id}", status_code=status.HTTP_204_NO_CONTENT)
     def delete_variable(self, var_id: UUID4):
         """Delete a variable."""
-        var = _get_var_or_404(self.session, var_id, self.group_id)
+        var = self.session.get(WorkspaceVariable, var_id)
+        if not var or var.group_id != self.group_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Variable not found.")
         self.session.delete(var)
         self.session.commit()
