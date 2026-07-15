@@ -856,6 +856,7 @@ ${btnRow}${bottomRow}
         const val = inp.value.trim();
         if (slug && val) vars[slug] = val;
       });
+      console.log('[test-send] variables being sent:', vars);
 
       try {
         const response = await fetch(`${apiUrl}/api/platform/email/templates/${templateId}/test`, {
