@@ -107,8 +107,9 @@ import AppLayout from "@/layouts/AppLayout.astro";
     try {
       await sdk.webhooks.create(payload);
       window.location.href = '/automation/webhooks?created=true';
-    } catch (error) {
-      alert('Failed to create webhook. Please try again.');
+    } catch (error: any) {
+      const msg = error?.message || error?.detail || String(error);
+      alert(`Failed to create webhook: ${msg}`);
       console.error('Error creating webhook:', error);
     }
   });
