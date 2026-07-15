@@ -258,8 +258,8 @@ class WebhookPublisher:
             return
 
         # Prepare the event payload for methods that use a body (POST, PUT)
-        # `jsonable_encoder` handles Pydantic models, datetimes, UUIDs, etc., correctly for JSON.
-        event_payload = jsonable_encoder(event)
+        # exclude_none strips null fields so webhook consumers get a clean payload
+        event_payload = jsonable_encoder(event, exclude_none=True)
         http_method = method.upper()  # Ensure method is uppercase for comparison
 
         for url in notification_urls:
