@@ -1,11 +1,14 @@
 """Platform workspace import/export endpoints."""
 
 import json
+from uuid import uuid4
 
-from fastapi import APIRouter, Response
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, File, Response, UploadFile
+from fastapi.background import BackgroundTask
+from fastapi.responses import FileResponse, JSONResponse
 
 from marvin.repos.seed.workspace_exporter import WorkspaceExporter
+from marvin.repos.seed.workspace_seed_loader import WorkspaceSeedLoader
 from marvin.routes._base import BaseUserController, controller
 
 router = APIRouter(prefix="/workspace")
@@ -43,6 +46,62 @@ class WorkspaceController(BaseUserController):
                 "Content-Disposition": 'attachment; filename="workspace-export.json"',
             },
         )
+
+    @router.get("/export/bundle", summary="Export Workspace Bundle")
+    def export_workspace_bundle(self, include_system_types: bool = False) -> Response:
+        """Export the workspace as a zip bundle containing JSON metadata and asset binaries.
+
+        The zip contains:
+        - workspace-export.json: full metadata (same format as /export)
+        - files/{storage_key}: binary file for each asset
+
+        Args:
+            include_system_types: Whether to include system entry types
+
+        Returns:
+            Zip file download
+        """
+        exporter = WorkspaceExporter(self.repos)
+        zip_path = exporter.export_workspace_bundle(
+            include_system_types=include_system_types,
+            temp_dir=self.directories.TEMP_DIR,
+        )
+
+        return FileResponse(
+            path=str(zip_path),
+            media_type="application/zip",
+            filename="workspace-export.zip",
+            background=BackgroundTask(zip_path.unlink, missing_ok=True),
+        )
+
+    @router.post("/import", summary="Import Workspace Bundle")
+    async def import_workspace(self, file: UploadFile = File(...)) -> dict:
+        """Import a workspace from a zip bundle exported by /export/bundle.
+
+        Accepts a multipart upload of a workspace zip file. Restores all workspace
+        data including asset binaries into the current environment's storage.
+
+        Args:
+            file: Zip bundle file (from /export/bundle)
+
+        Returns:
+            Import counts by type
+        """
+        zip_path = self.directories.TEMP_DIR / f"{uuid4()}-import.zip"
+        try:
+            content = await file.read()
+            zip_path.write_bytes(content)
+
+            from marvin.repos.all_repositories import get_repositories
+
+            # Use instance repos (no group_id) so loader can create/find workspaces
+            instance_repos = get_repositories(self.repos.session, group_id=None)
+            loader = WorkspaceSeedLoader(instance_repos)
+            results = loader.load_seed_zip(zip_path)
+
+            return {"imported": results}
+        finally:
+            zip_path.unlink(missing_ok=True)
 
     @router.get("/export/pretty", summary="Export Workspace (Pretty)")
     def export_workspace_pretty(self, include_system_types: bool = False) -> Response:

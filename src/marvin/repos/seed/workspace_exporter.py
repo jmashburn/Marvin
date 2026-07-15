@@ -1,5 +1,8 @@
 """Workspace exporter for dumping workspace data to JSON format."""
 
+import json
+import zipfile
+from pathlib import Path
 from typing import Any
 
 from marvin.core.root_logger import get_logger
@@ -58,6 +61,47 @@ class WorkspaceExporter:
         )
 
         return export_data
+
+    def export_workspace_bundle(self, include_system_types: bool = False, temp_dir: Path | None = None) -> Path:
+        """Export workspace metadata + all asset binaries into a zip bundle.
+
+        Args:
+            include_system_types: Whether to include system entry types
+            temp_dir: Directory to write the zip file into (defaults to system temp)
+
+        Returns:
+            Path to the created zip file
+        """
+        from marvin.services.storage.provider_factory import get_storage_provider
+
+        export_data = self.export_workspace(include_system_types=include_system_types)
+
+        workspace = self.repos.groups.get_one(self.repos.group_id)
+        workspace_slug = workspace.slug if workspace else "workspace"
+
+        if temp_dir is None:
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir())
+
+        zip_path = temp_dir / f"{workspace_slug}-export.zip"
+        storage_provider = get_storage_provider()
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            json_content = json.dumps(export_data, indent=2, ensure_ascii=False)
+            zf.writestr("workspace-export.json", json_content)
+
+            for asset in export_data["assets"]:
+                storage_key = asset["storageKey"]
+                try:
+                    file_data = storage_provider.get(storage_key)
+                    zf.writestr(f"files/{storage_key}", file_data.read())
+                except FileNotFoundError:
+                    self.logger.warning(f"Asset binary missing from storage, skipping binary: {storage_key}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to read asset {storage_key}: {e}")
+
+        self.logger.info(f"Bundle exported to: {zip_path}")
+        return zip_path
 
     def _export_workspace_metadata(self) -> dict[str, Any]:
         """Export workspace metadata.

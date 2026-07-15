@@ -1,6 +1,8 @@
 """Complete workspace seed loader for importing workspace data from JSON."""
 
 import json
+import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +47,35 @@ class WorkspaceSeedLoader:
         with open(seed_file, "r") as f:
             data = json.load(f)
 
+        return self._load_data(data, zip_file=None)
+
+    def load_seed_zip(self, zip_path: Path) -> dict[str, int]:
+        """Load a workspace seed bundle from a zip file (JSON + asset binaries).
+
+        Args:
+            zip_path: Path to workspace bundle zip file
+
+        Returns:
+            Dictionary with counts by type
+        """
+        self.logger.info(f"Loading workspace bundle from: {zip_path}")
+
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            with zf.open("workspace-export.json") as f:
+                data = json.load(f)
+
+            return self._load_data(data, zip_file=zf)
+
+    def _load_data(self, data: dict[str, Any], zip_file: zipfile.ZipFile | None = None) -> dict[str, int]:
+        """Load workspace data from a parsed dict, optionally extracting asset binaries from a zip.
+
+        Args:
+            data: Parsed workspace seed dict
+            zip_file: Open ZipFile for binary extraction, or None for metadata-only
+
+        Returns:
+            Dictionary with counts by type
+        """
         results = {
             "collections": 0,
             "entry_types": 0,
@@ -54,23 +85,19 @@ class WorkspaceSeedLoader:
             "errors": 0,
         }
 
-        # 0. Create or find workspace from seed file
+        # 0. Create or find workspace from seed data
         workspace_data = data.get("workspace")
+        workspace = None
         if workspace_data:
             workspace = self._ensure_workspace(workspace_data)
-            # Switch repos to this workspace's context
             from marvin.repos.all_repositories import get_repositories
 
             self.repos = get_repositories(self.repos.session, group_id=workspace.id)
             self.logger.info(f"Using workspace: {workspace.name} ({workspace.slug})")
 
-            # Update site preferences if provided
             site_data = data.get("site")
             if site_data:
                 self._update_site_preferences(site_data)
-
-        # Process in order: collections -> entry_types -> entries
-        # (entries reference collections and entry types)
 
         # 1. Collections
         collections_data = data.get("collections", [])
@@ -108,7 +135,13 @@ class WorkspaceSeedLoader:
                     self.logger.error(f"Failed to create resource {res_data.get('slug')}: {e}")
                     results["errors"] += 1
 
-        # 4. Entries (may reference resources via inline resource assignments)
+        # 4. Assets (before entries so entry-asset links can resolve)
+        assets_data = data.get("assets", [])
+        if assets_data:
+            self.logger.info(f"Importing {len(assets_data)} assets...")
+            results["assets"] = self._import_assets(assets_data, zip_file)
+
+        # 5. Entries
         entries_data = data.get("entries", [])
         if entries_data:
             self.logger.info(f"Creating {len(entries_data)} entries...")
@@ -125,13 +158,12 @@ class WorkspaceSeedLoader:
             f"{results['entry_types']} entry types, "
             f"{results['entries']} entries, "
             f"{results['resources']} resources, "
+            f"{results['assets']} assets, "
             f"{results['errors']} errors"
         )
 
-        # 5. Send owner invitation emails if provided
-        workspace_data = data.get("workspace")
-        if workspace_data:
-            # Support both single ownerEmail and multiple ownerEmails
+        # 6. Send owner invitation emails if provided
+        if workspace_data and workspace:
             owner_emails = []
             if workspace_data.get("ownerEmail"):
                 owner_emails.append(workspace_data["ownerEmail"])
@@ -146,6 +178,95 @@ class WorkspaceSeedLoader:
                     results["errors"] += 1
 
         return results
+
+    def _import_assets(self, assets_data: list[dict[str, Any]], zip_file: zipfile.ZipFile | None) -> int:
+        """Import assets, uploading binaries from zip if available.
+
+        Args:
+            assets_data: List of asset metadata dicts from seed
+            zip_file: Open ZipFile containing binaries under files/, or None
+
+        Returns:
+            Count of assets imported
+        """
+        from datetime import datetime
+
+        from marvin.services.assets.asset_storage_service import AssetStorageService
+        from marvin.services.storage.provider_factory import get_storage_provider
+
+        storage_provider = get_storage_provider()
+        zip_names = set(zip_file.namelist()) if zip_file else set()
+        workspace = self.repos.groups.get_one(self.repos.group_id)
+        workspace_slug = workspace.slug if workspace else "workspace"
+        user_id = self._get_seed_user_id()
+        count = 0
+
+        for asset in assets_data:
+            slug = asset["slug"]
+
+            existing = self.repos.assets.multi_query({"slug": slug})
+            if existing:
+                self.logger.debug(f"Asset already exists: {slug}")
+                continue
+
+            zip_path = f"files/{asset['storageKey']}"
+            has_binary = zip_file is not None and zip_path in zip_names
+
+            if has_binary:
+                try:
+                    binary_data = BytesIO(zip_file.read(zip_path))
+
+                    storage_service = AssetStorageService(self.repos, storage_provider)
+                    new_storage_key = storage_service.generate_storage_key(
+                        workspace_slug=workspace_slug,
+                        filename=asset.get("originalFilename") or f"{slug}.{asset.get('extension', 'bin')}",
+                        upload_date=datetime.now(),
+                    )
+
+                    storage_provider.put(new_storage_key, binary_data, asset.get("mimeType", "application/octet-stream"))
+                    new_public_url = storage_provider.get_public_url(new_storage_key)
+                except Exception as e:
+                    self.logger.error(f"Failed to store binary for asset {slug}: {e}")
+                    continue
+            else:
+                if zip_file is not None:
+                    self.logger.warning(f"Asset binary not found in bundle, skipping: {slug}")
+                new_storage_key = asset.get("storageKey", "")
+                new_public_url = asset.get("publicUrl", "")
+
+            if not user_id:
+                self.logger.warning(f"No user found for asset creation, skipping: {slug}")
+                continue
+
+            create_data = {
+                "group_id": self.repos.group_id,
+                "slug": slug,
+                "name": asset.get("name", slug),
+                "original_filename": asset.get("originalFilename"),
+                "extension": asset.get("extension"),
+                "file_size": asset.get("fileSize"),
+                "mime_type": asset.get("mimeType"),
+                "asset_type": asset.get("assetType"),
+                "storage_provider": asset.get("storageProvider", "local"),
+                "storage_key": new_storage_key,
+                "public_url": new_public_url,
+                "alt_text": asset.get("altText"),
+                "description": asset.get("description"),
+                "width": asset.get("width"),
+                "height": asset.get("height"),
+                "metadata_json": asset.get("metadataJson"),
+                "uploaded_by": user_id,
+            }
+            create_data = {k: v for k, v in create_data.items() if v is not None}
+
+            try:
+                self.repos.assets.create(create_data)
+                self.logger.info(f"Imported asset: {slug}")
+                count += 1
+            except Exception as e:
+                self.logger.error(f"Failed to create asset record {slug}: {e}")
+
+        return count
 
     def _ensure_workspace(self, data: dict[str, Any]):
         """Create workspace if it doesn't exist, or return existing one.
