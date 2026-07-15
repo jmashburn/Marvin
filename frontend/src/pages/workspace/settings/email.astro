@@ -805,33 +805,72 @@ ${btnRow}${bottomRow}
       });
     });
 
-    // Test send
+    // Known defaults so pre-filled fields don't distract from the unique ones
+    const KNOWN_DEFAULTS = {
+      workspace_name: GROUP_ID ? '(your workspace)' : '',
+      inviter_name: 'A teammate',
+      username: 'testuser',
+      first_name: 'Test',
+      expiry_hours: '24',
+      title: 'Test Notification',
+      message: 'This is a test notification.',
+    };
+
+    function extractSlugs(text) {
+      const re = /\{\{([A-Za-z0-9_]+)\}\}/g;
+      const slugs = new Set();
+      let m;
+      while ((m = re.exec(text)) !== null) slugs.add(m[1]);
+      return [...slugs];
+    }
+
+    // Test send — scan actual template content for {{slugs}}
     document.querySelectorAll('.test-send-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const templateId = btn.dataset.templateId;
         const templateType = btn.dataset.templateType || '';
         document.getElementById('test-template-id').value = templateId;
 
-        // Fetch required vars for this template type
         const varsContainer = document.getElementById('test-vars-container');
         const varsFields = document.getElementById('test-vars-fields');
 
         try {
-          const res = await fetch(`${apiUrl}/api/platform/email/template-vars?template_type=${templateType}`, { credentials: 'include' });
-          const data = res.ok ? await res.json() : { required_vars: [], context_vars: [] };
-          const required = data.required_vars || [];
-          const contextVars = data.context_vars || [];
+          // Fetch the actual template content
+          const res = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${templateId}`, { credentials: 'include' });
+          const tpl = res.ok ? await res.json() : null;
 
-          if (required.length > 0) {
-            varsFields.innerHTML = required.map(slug => {
+          let slugs = [];
+          if (tpl) {
+            const content = [
+              tpl.subject, tpl.headerText ?? tpl.header_text,
+              tpl.messageTop ?? tpl.message_top,
+              tpl.messageBottom ?? tpl.message_bottom,
+              tpl.buttonText ?? tpl.button_text,
+              tpl.customHtml ?? tpl.custom_html,
+            ].filter(Boolean).join(' ');
+            slugs = extractSlugs(content);
+          }
+
+          // Also fetch type-level metadata for descriptions
+          const metaRes = await fetch(`${apiUrl}/api/platform/email/template-vars?template_type=${templateType}`, { credentials: 'include' });
+          const meta = metaRes.ok ? await metaRes.json() : { context_vars: [], required_vars: [] };
+          const contextVars = meta.context_vars || [];
+          const requiredVars = meta.required_vars || [];
+
+          if (slugs.length > 0) {
+            varsFields.innerHTML = slugs.map(slug => {
               const info = contextVars.find(v => v.slug === slug);
-              const example = info?.example || '';
+              const isRequired = requiredVars.includes(slug);
+              const defaultVal = KNOWN_DEFAULTS[slug] || '';
               return `<div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:13px;font-weight:500;display:block;margin-bottom:4px;">
                   <code style="color:#4f9c84;">{{${slug}}}</code>
+                  ${isRequired ? '<span style="color:#c84b4b;font-size:10px;font-weight:700;margin-left:4px;">REQUIRED</span>' : ''}
                   ${info?.description ? `<span style="color:var(--muted);font-weight:400;"> — ${info.description}</span>` : ''}
                 </label>
-                <input type="text" class="input test-var-input" data-slug="${slug}" placeholder="${example}" />
+                <input type="text" class="input test-var-input" data-slug="${slug}"
+                  placeholder="${info?.example || defaultVal || slug}"
+                  value="${defaultVal}" />
               </div>`;
             }).join('');
             varsContainer.style.display = 'block';
