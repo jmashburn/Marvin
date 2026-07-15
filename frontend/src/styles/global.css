@@ -549,6 +549,54 @@ code {
   border-color: var(--accent);
 }
 
+/* ── Email template variable chips ────────────────────────────────────────── */
+.var-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid #c8e0d8;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  min-width: 80px;
+  max-width: 200px;
+}
+
+.var-chip:hover {
+  border-color: #4f9c84;
+  background: #f0f8f5;
+  box-shadow: 0 1px 4px rgba(79, 156, 132, 0.2);
+}
+
+.var-chip-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.var-chip code {
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: #3a8a6e;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.var-value {
+  font-size: 10px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  line-height: 1.3;
+}
+
 /* ── Webhook header builder ────────────────────────────────────────────────── */
 .header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .header-key { flex: 1; min-width: 0; }

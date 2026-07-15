@@ -288,13 +288,13 @@ class EmailService(BaseService):
             from jinja2 import Template
             from marvin.services.secrets.resolver import resolve
 
-            # Resolve {{SLUG}} in template content — Variables only, NOT Secrets.
-            # Secret values must never appear in email bodies visible to recipients.
-            # (Secrets are used for email transport config, not template text.)
+            # Resolve {{SLUG}} in template content.
+            # {{UPPER_CASE}} = workspace Variables (allow_secrets=False keeps secrets out of emails)
+            # {{lower_case}} = per-send context variables (user name, token, URL, etc.)
             group_id = getattr(db_template, "group_id", None)
 
             def _r(text: str | None) -> str:
-                return resolve(text or "", group_id, allow_secrets=False)
+                return resolve(text or "", group_id, allow_secrets=False, context=variables)
 
             # Render subject with Jinja2
             subject_template = Template(_r(db_template.subject))

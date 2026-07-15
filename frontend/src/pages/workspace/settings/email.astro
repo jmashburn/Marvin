@@ -14,8 +14,9 @@ let error: string | null = null;
 try {
   workspace = await getCurrentWorkspace(authToken);
 
-  if (workspace?.workspace?.group?.id) {
-    emailTemplates = await listEmailTemplates(workspace.workspace.group.id, authToken);
+  const wsId = (workspace as any)?.id ?? (workspace as any)?.groupId;
+  if (wsId) {
+    emailTemplates = await listEmailTemplates(wsId, authToken);
   }
 } catch (e) {
   console.error('[email-settings] Error:', e);
@@ -289,8 +290,8 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
         <div class="vars-panel">
           <div class="vars-header">
-            <span class="vars-title">&#123;&#123;&#125;&#125; Variables</span>
-            <span class="vars-hint">Click any to copy · paste into subject or body fields</span>
+            <span class="vars-title">Insert</span>
+            <span class="vars-hint"><strong>&#123;&#123;lower_case&#125;&#125;</strong> per-send &nbsp;·&nbsp; <strong>&#123;&#123;UPPER_CASE&#125;&#125;</strong> workspace &nbsp;·&nbsp; click to copy</span>
           </div>
           <div id="vars-list" class="vars-list">
             <span class="vars-loading">Loading variables…</span>
@@ -356,35 +357,79 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     const templateForm = document.getElementById('template-form');
     const testSendForm = document.getElementById('test-send-form');
 
-    // Load workspace variables into the template modal
+    // Build a single var chip element
+    function makeChip(slug, subtitle, clickSlug) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'var-chip';
+      btn.dataset.slug = clickSlug;
+      btn.title = subtitle || slug;
+      const inner = document.createElement('span');
+      inner.className = 'var-chip-inner';
+      const code = document.createElement('code');
+      code.textContent = clickSlug;
+      inner.appendChild(code);
+      if (subtitle) {
+        const val = document.createElement('span');
+        val.className = 'var-value';
+        val.textContent = subtitle;
+        inner.appendChild(val);
+      }
+      btn.appendChild(inner);
+      btn.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(clickSlug);
+        const orig = code.textContent;
+        code.textContent = '✓';
+        setTimeout(() => { code.textContent = orig; }, 1200);
+      });
+      return btn;
+    }
+
+    function makeSectionLabel(text, color) {
+      const el = document.createElement('div');
+      el.style.cssText = 'width:100%; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:' + color + '; margin:4px 0 2px; padding-top:6px; border-top:1px solid #eee;';
+      el.textContent = text;
+      return el;
+    }
+
+    // Load workspace variables + per-send context vars into the template modal
     async function loadVariables() {
       const varsList = document.getElementById('vars-list');
+      const templateType = document.getElementById('template-type')?.value || '';
       if (!varsList) return;
+      varsList.innerHTML = '<span class="vars-loading">Loading…</span>';
       try {
-        const res = await fetch(`${apiUrl}/api/groups/variables`, { credentials: 'include' });
-        if (!res.ok) throw new Error();
-        const vars = await res.json();
-        if (!vars.length) {
-          varsList.innerHTML = '<span class="vars-empty">No variables defined. Add them in <a href="/workspace/settings/environment">Environment settings</a>.</span>';
-          return;
-        }
-        varsList.innerHTML = vars.map((v) => {
-          const slug = '{{' + v.slug + '}}';
-          const val = v.value || '';
-          const valDisplay = val.length > 30 ? val.slice(0, 30) + '...' : val;
-          const valHtml = val ? '<span class="var-value">' + valDisplay + '</span>' : '';
-          return '<button type="button" class="var-chip" data-slug="' + slug + '" title="' + (val || slug) + '">' +
-            '<span class="var-chip-inner"><code>' + slug + '</code>' + valHtml + '</span></button>';
-        }).join('');
-        varsList.querySelectorAll('.var-chip').forEach(chip => {
-          chip.addEventListener('click', async () => {
-            const slug = chip.dataset.slug;
-            await navigator.clipboard.writeText(slug);
-            const orig = chip.querySelector('code').textContent;
-            chip.querySelector('code').textContent = '✓ Copied!';
-            setTimeout(() => { chip.querySelector('code').textContent = orig; }, 1200);
+        const [wsRes, ctxRes] = await Promise.all([
+          fetch(`${apiUrl}/api/groups/variables`, { credentials: 'include' }),
+          fetch(`${apiUrl}/api/platform/email/template-vars?template_type=${templateType}`, { credentials: 'include' }),
+        ]);
+        const wsVars = wsRes.ok ? await wsRes.json() : [];
+        const ctxData = ctxRes.ok ? await ctxRes.json() : { context_vars: [] };
+        const ctxVars = ctxData.context_vars || [];
+
+        varsList.innerHTML = '';
+
+        // Per-send context variables (lower_case) — shown first
+        if (ctxVars.length) {
+          varsList.appendChild(makeSectionLabel('Per-send · changes each email', '#7c6fb0'));
+          ctxVars.forEach(v => {
+            varsList.appendChild(makeChip(v.slug, v.description, '{{' + v.slug + '}}'));
           });
-        });
+        }
+
+        // Workspace variables (UPPER_CASE) — static
+        if (wsVars.length) {
+          varsList.appendChild(makeSectionLabel('Workspace · same for all emails', '#3a8a6e'));
+          wsVars.forEach(v => {
+            const val = v.value || '';
+            const preview = val.length > 28 ? val.slice(0, 28) + '…' : val;
+            varsList.appendChild(makeChip(v.slug, preview, '{{' + v.slug + '}}'));
+          });
+        }
+
+        if (!ctxVars.length && !wsVars.length) {
+          varsList.innerHTML = '<span class="vars-empty">No variables available. Add workspace variables in <a href="/workspace/settings/environment">Environment settings</a>.</span>';
+        }
       } catch {
         varsList.innerHTML = '<span class="vars-empty">Could not load variables.</span>';
       }
@@ -1247,50 +1292,5 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
   .vars-empty a { color: #4f9c84; text-decoration: none; }
   .vars-empty a:hover { text-decoration: underline; }
 
-  .var-chip {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 6px 10px;
-    background: #ffffff;
-    border: 1px solid #c8e0d8;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: left;
-    min-width: 80px;
-    max-width: 200px;
-  }
-
-  .var-chip:hover {
-    border-color: #4f9c84;
-    background: #f0f8f5;
-    box-shadow: 0 1px 4px rgba(79, 156, 132, 0.2);
-  }
-
-  .var-chip-inner {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 100%;
-    overflow: hidden;
-  }
-
-  .var-chip code {
-    font-size: 11px;
-    font-family: ui-monospace, monospace;
-    color: #3a8a6e;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-
-  .var-value {
-    font-size: 10px;
-    color: #999;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    width: 100%;
-    line-height: 1.3;
-  }
+  /* .var-chip styles are in global.css (dynamic DOM elements need global scope) */
 </style>

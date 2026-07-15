@@ -51,6 +51,15 @@ class PlatformEmailController(BaseUserController):
             return EmailSuccess(success=False, error=str(e))
         return EmailSuccess(success=True)
 
+    @router.get("/template-vars")
+    def list_template_vars(self, template_type: str | None = None) -> dict:
+        """Return available {{lower_case}} per-send variables for a template type."""
+        from marvin.services.email.template_variables import get_vars_for_type, TEMPLATE_VARS
+        return {
+            "context_vars": get_vars_for_type(template_type),
+            "available_types": list(TEMPLATE_VARS.keys()),
+        }
+
     @router.post("/templates/{template_id}/test")
     def send_template_test_email(self, template_id: UUID4, data: TemplateTestRequest) -> dict:
         """Send a test email using a specific workspace template with its subject and body."""
