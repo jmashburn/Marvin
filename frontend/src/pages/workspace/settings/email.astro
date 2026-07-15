@@ -181,11 +181,11 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
           <div class="form-group">
             <label for="template-type-select">Template Type *</label>
             <select id="template-type" class="input">
-              <option value="invitation">Workspace Invitation &lt;invitation&gt;</option>
-              <option value="password_reset">Password Reset &lt;password_reset&gt;</option>
-              <option value="welcome">New User Welcome &lt;welcome&gt;</option>
-              <option value="notification">General Notification &lt;notification&gt;</option>
-              <option value="custom">Custom / Manually Triggered &lt;custom&gt;</option>
+              <option value="invitation">Workspace Invitation — invitation</option>
+              <option value="password_reset">Password Reset — password_reset</option>
+              <option value="welcome">New User Welcome — welcome</option>
+              <option value="notification">General Notification — notification</option>
+              <option value="custom">Custom / Manual — custom</option>
             </select>
             <small class="type-note">System types (invitation, password_reset, welcome) are sent automatically by Marvin. Custom templates must be triggered from code.</small>
           </div>
