@@ -95,7 +95,7 @@ function isSuperseded(template: any): boolean {
                 <div class="template-info">
                   <div class="template-header">
                     <strong>{template.name}</strong>
-                    <span class="badge badge-type">{template.template_type}</span>
+                    <span class="badge badge-type">{(template as any).templateType ?? template.template_type}</span>
                     {template.enabled ? (
                       <span class="badge badge-active">Active</span>
                     ) : (
@@ -127,7 +127,7 @@ function isSuperseded(template: any): boolean {
                   <button
                     class="button secondary small test-send-btn"
                     data-template-id={template.id}
-                    data-template-type={template.template_type}
+                    data-template-type={(template as any).templateType ?? template.template_type}
                   >
                     Test Send
                   </button>
