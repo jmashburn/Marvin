@@ -232,8 +232,8 @@ function isSuperseded(template: any): boolean {
         <div class="form-section">
           <h4 class="section-label">Basic Information</h4>
 
-          <div class="form-group">
-            <label for="template-type-select">Template Type *</label>
+          <div class="form-group" id="template-type-group" style="display:none">
+            <label for="template-type-select">Template Type</label>
             <select id="template-type" class="input">
               <option value="invitation">Workspace Invitation — invitation</option>
               <option value="password_reset">Password Reset — password_reset</option>
@@ -241,7 +241,7 @@ function isSuperseded(template: any): boolean {
               <option value="notification">General Notification — notification</option>
               <option value="custom">Custom / Manual — custom</option>
             </select>
-            <small class="type-note">System types (invitation, password_reset, welcome) are sent automatically by Marvin. Custom templates must be triggered from code.</small>
+            <small class="type-note" id="template-type-note"></small>
           </div>
 
           <div class="form-group">
@@ -677,11 +677,13 @@ ${btnRow}${bottomRow}
     // Create template
     document.getElementById('create-template-btn').addEventListener('click', () => {
       isEditMode = false;
-      document.getElementById('modal-title').textContent = 'Create Email Template';
+      document.getElementById('modal-title').textContent = 'Create Custom Template';
       templateForm.reset();
       document.getElementById('template-id').value = '';
       document.getElementById('edit-is-system').value = 'false';
-      document.getElementById('template-type').value = '';
+      document.getElementById('template-type').value = 'custom';
+      document.getElementById('template-type').disabled = false;
+      document.getElementById('template-type-group').style.display = 'none';
       showModal(templateModal);
     });
 
@@ -708,7 +710,16 @@ ${btnRow}${bottomRow}
           const f = (camel, snake) => tpl[camel] ?? tpl[snake] ?? '';
 
           document.getElementById('template-id').value = tpl.id;
-          document.getElementById('template-type').value = f('templateType', 'template_type');
+          const typeVal = f('templateType', 'template_type') || 'custom';
+          document.getElementById('template-type').value = typeVal;
+          // Show type as read-only info when editing/customizing
+          const typeGroup = document.getElementById('template-type-group');
+          const typeNote = document.getElementById('template-type-note');
+          typeGroup.style.display = 'block';
+          document.getElementById('template-type').disabled = true;
+          typeNote.textContent = isSystem
+            ? 'This workspace override will replace the system "' + typeVal + '" email.'
+            : 'Template type cannot be changed after creation.';
           document.getElementById('template-name').value = tpl.name || '';
           document.getElementById('template-description').value = tpl.description || '';
           document.getElementById('template-subject').value = tpl.subject || '';
