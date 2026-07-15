@@ -323,7 +323,14 @@ class EmailService(BaseService):
                     header_text=Template(_r(db_template.header_text)).render(**variables),
                     message_top=Template(_r(db_template.message_top)).render(**variables),
                     message_bottom=Template(_r(db_template.message_bottom)).render(**variables),
-                    button_link=variables.get("button_link", ""),
+                    # Derive button_link from type-specific URL variables if present
+                    button_link=(
+                        variables.get("invitation_url")
+                        or variables.get("reset_url")
+                        or variables.get("login_url")
+                        or variables.get("action_url")
+                        or variables.get("button_link", "")
+                    ),
                     button_text=Template(_r(db_template.button_text)).render(**variables),
                     workspace_name=variables.get("workspace_name", ""),
                 )

@@ -41,7 +41,8 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
         header_text="You're Invited!",
         message_top=(
             "{{inviter_name}} has invited you to join {{workspace_name}}.\n\n"
-            "Click the button below to accept the invitation and get started."
+            "Click the button below to accept the invitation and get started.\n\n"
+            "Or copy this link: {{invitation_url}}"
         ),
         message_bottom=(
             "If you weren't expecting this invitation, you can safely ignore this email. "
@@ -60,7 +61,8 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
         header_text="Password Reset Request",
         message_top=(
             "We received a request to reset the password for your account ({{username}}).\n\n"
-            "Click the button below to choose a new password. This link expires in {{expiry_hours}} hours."
+            "Click the button below to choose a new password. This link expires in {{expiry_hours}} hours.\n\n"
+            "Or copy this link: {{reset_url}}"
         ),
         message_bottom=(
             "If you didn't request a password reset, you can safely ignore this email. "
@@ -79,7 +81,7 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
         header_text="Welcome, {{first_name}}!",
         message_top=(
             "Your account has been created. You're now a member of {{workspace_name}}.\n\n"
-            "Click below to log in and get started."
+            "Click below to log in: {{login_url}}"
         ),
         message_bottom="Need help? Reach out to your workspace administrator.",
         button_text="Log In",
@@ -93,7 +95,7 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
         description="General-purpose notification email.",
         subject="{{title}}",
         header_text="{{title}}",
-        message_top="{{message}}",
+        message_top="{{message}}\n\n{{action_url}}",
         message_bottom="",
         button_text="View",
         button_placeholder="{{action_url}}",
@@ -147,6 +149,16 @@ def seed_system_templates(session) -> int:
         ).scalar_one_or_none()
 
         if existing:
+            # Update content in case seeded templates have changed
+            existing.message_top = defn.message_top
+            existing.message_bottom = defn.message_bottom
+            existing.subject = defn.subject
+            existing.header_text = defn.header_text
+            existing.button_text = defn.button_text
+            existing.available_variables = {
+                "required": defn.required_vars,
+                "optional": defn.optional_vars,
+            }
             continue
 
         template = EmailTemplateModel()
@@ -168,8 +180,10 @@ def seed_system_templates(session) -> int:
         created += 1
         logger.info(f"Seeded system email template: {defn.template_type}")
 
+    session.commit()
     if created:
-        session.commit()
         logger.info(f"Email template seeder: created {created} system template(s)")
+    else:
+        logger.info("Email template seeder: system templates updated")
 
     return created
