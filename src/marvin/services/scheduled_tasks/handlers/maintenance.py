@@ -8,7 +8,6 @@ pruning old data, and verifying system integrity.
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from marvin.core.config import get_app_settings
 from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
@@ -52,8 +51,8 @@ class CleanupTempFilesHandler(ScheduledTaskHandler):
         age_hours = config.get("age_hours", 24)
         dry_run = config.get("dry_run", False)
 
-        settings = get_app_settings()
-        temp_dir = Path(settings.STORAGE_BASE_PATH) / "temp"
+        from marvin.core.config import get_app_dirs
+        temp_dir = get_app_dirs().TEMP_DIR
 
         if not temp_dir.exists():
             logger.info("Temp directory does not exist: %s", temp_dir)
