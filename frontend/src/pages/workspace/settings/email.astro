@@ -287,6 +287,16 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
           </label>
         </div>
 
+        <details class="vars-panel">
+          <summary class="vars-summary">
+            <span>Available Variables</span>
+            <span class="vars-hint">Click any slug to copy</span>
+          </summary>
+          <div id="vars-list" class="vars-list">
+            <span class="vars-loading">Loading…</span>
+          </div>
+        </details>
+
         <div class="modal-actions">
           <button type="button" class="button secondary" id="cancel-btn">Cancel</button>
           <button type="submit" class="button primary">Save Template</button>
@@ -346,10 +356,43 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     const templateForm = document.getElementById('template-form');
     const testSendForm = document.getElementById('test-send-form');
 
+    // Load workspace variables into the template modal
+    async function loadVariables() {
+      const varsList = document.getElementById('vars-list');
+      if (!varsList) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/groups/variables`, { credentials: 'include' });
+        if (!res.ok) throw new Error();
+        const vars = await res.json();
+        if (!vars.length) {
+          varsList.innerHTML = '<span class="vars-empty">No variables defined. Add them in <a href="/workspace/settings/environment">Environment settings</a>.</span>';
+          return;
+        }
+        varsList.innerHTML = vars.map((v) => `
+          <button type="button" class="var-chip" data-slug="{{${v.slug}}}" title="${v.value || ''}">
+            <code>{{${v.slug}}}</code>
+            ${v.value ? `<span class="var-value">${v.value.length > 30 ? v.value.slice(0, 30) + '…' : v.value}</span>` : ''}
+          </button>
+        `).join('');
+        varsList.querySelectorAll('.var-chip').forEach(chip => {
+          chip.addEventListener('click', async () => {
+            const slug = chip.dataset.slug;
+            await navigator.clipboard.writeText(slug);
+            const orig = chip.querySelector('code').textContent;
+            chip.querySelector('code').textContent = '✓ Copied!';
+            setTimeout(() => { chip.querySelector('code').textContent = orig; }, 1200);
+          });
+        });
+      } catch {
+        varsList.innerHTML = '<span class="vars-empty">Could not load variables.</span>';
+      }
+    }
+
     // Show/hide modals
     function showModal(modal) {
       modal.classList.add('show');
       document.body.style.overflow = 'hidden';
+      if (modal === templateModal) loadVariables();
     }
 
     function hideModal(modal) {
@@ -556,7 +599,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     });
   </script>
 
-  <script>
+  <script define:vars={{ apiUrl }}>
     const testForm = document.getElementById('test-email-form');
     const testResult = document.getElementById('test-result');
 
@@ -1147,5 +1190,85 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
   .button.primary:hover {
     opacity: 0.9;
+  }
+
+  /* ── Variables panel in template modal ─────────────────────────────────── */
+  .vars-panel {
+    margin: 0 0 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+  }
+
+  .vars-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    user-select: none;
+    list-style: none;
+  }
+
+  .vars-summary::-webkit-details-marker { display: none; }
+  .vars-summary::before { content: '▶'; font-size: 10px; margin-right: 8px; transition: transform 0.15s; }
+  details[open] .vars-summary::before { transform: rotate(90deg); }
+
+  .vars-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
+  .vars-list {
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .vars-loading, .vars-empty {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .vars-empty a { color: var(--accent); }
+
+  .var-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+
+  .var-chip:hover {
+    border-color: var(--accent);
+    background: rgba(79, 156, 132, 0.06);
+  }
+
+  .var-chip code {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+  }
+
+  .var-value {
+    font-size: 11px;
+    color: var(--muted);
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>
