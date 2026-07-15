@@ -4,7 +4,7 @@ import json
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Response, UploadFile
-from fastapi.background import BackgroundTask
+from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, JSONResponse
 
 from marvin.repos.seed.workspace_exporter import WorkspaceExporter
