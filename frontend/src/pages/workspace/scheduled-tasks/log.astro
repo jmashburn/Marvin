@@ -84,8 +84,15 @@ function statusClass(status: string): string {
         </thead>
         <tbody>
           {filteredLogs.map((log: any, i: number) => {
-            const task = taskMap.get(log.task_id);
-            const hasDetails = log.error_message || log.error_traceback;
+            // API returns camelCase due to _MarvinModel alias_generator — fall back to snake_case for safety
+            const taskId = log.taskId ?? log.task_id;
+            const executedAt = log.executedAt ?? log.executed_at;
+            const durationMs = log.durationMs ?? log.duration_ms;
+            const errorMessage = log.errorMessage ?? log.error_message;
+            const errorTraceback = log.errorTraceback ?? log.error_traceback;
+            const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
+            const task = taskMap.get(taskId);
+            const hasDetails = errorMessage || errorTraceback;
             return (
               <>
                 <tr class:list={['log-row', { 'has-details': hasDetails }]} data-row={i}>
@@ -94,32 +101,32 @@ function statusClass(status: string): string {
                       <button class="expand-btn" data-target={`details-${i}`} aria-label="Toggle details">▶</button>
                     )}
                   </td>
-                  <td class="nowrap">{formatDate(log.executed_at)}</td>
+                  <td class="nowrap">{formatDate(executedAt)}</td>
                   <td>
                     {task
-                      ? <a href={`/workspace/scheduled-tasks/${log.task_id}`} class="task-link">{task.name}</a>
-                      : <span class="muted">{log.task_id ? log.task_id.slice(0, 8) + '…' : '—'}</span>}
+                      ? <a href={`/workspace/scheduled-tasks/${taskId}`} class="task-link">{task.name}</a>
+                      : <span class="muted">{taskId ? taskId.slice(0, 8) + '…' : '—'}</span>}
                   </td>
                   <td>
                     <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
                   </td>
-                  <td class="nowrap">{log.duration_ms != null ? `${log.duration_ms}ms` : '—'}</td>
-                  <td>{log.retry_attempt > 0 ? `#${log.retry_attempt + 1}` : '1'}</td>
+                  <td class="nowrap">{durationMs != null ? `${durationMs}ms` : '—'}</td>
+                  <td>{retryAttempt > 0 ? `#${retryAttempt + 1}` : '1'}</td>
                 </tr>
                 {hasDetails && (
                   <tr class="detail-row" id={`details-${i}`} style="display:none">
                     <td colspan="6">
                       <div class="detail-body">
-                        {log.error_message && (
+                        {errorMessage && (
                           <div class="detail-section">
                             <div class="detail-label">Error</div>
-                            <div class="detail-message">{log.error_message}</div>
+                            <div class="detail-message">{errorMessage}</div>
                           </div>
                         )}
-                        {log.error_traceback && (
+                        {errorTraceback && (
                           <div class="detail-section">
                             <div class="detail-label">Traceback</div>
-                            <pre class="detail-trace">{log.error_traceback}</pre>
+                            <pre class="detail-trace">{errorTraceback}</pre>
                           </div>
                         )}
                       </div>

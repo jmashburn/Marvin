@@ -22,8 +22,13 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
+// API returns camelCase due to _MarvinModel alias_generator
 const webhookMap = new Map(webhooks.map((w: any) => [w.id, w]));
 const filteredLogs = filter === 'all' ? logs : logs.filter((l: any) => l.status === filter);
+
+function getField(log: any, camel: string, snake: string) {
+  return log[camel] ?? log[snake];
+}
 
 function formatDate(isoStr: string): string {
   if (!isoStr) return '—';
@@ -82,8 +87,13 @@ function statusClass(status: string): string {
         </thead>
         <tbody>
           {filteredLogs.map((log: any, i: number) => {
-            const webhook = webhookMap.get(log.webhook_id);
-            const hasError = !!log.error_message;
+            const webhookId = log.webhookId ?? log.webhook_id;
+            const executedAt = log.executedAt ?? log.executed_at;
+            const httpStatus = log.httpStatusCode ?? log.http_status_code;
+            const errorMsg = log.errorMessage ?? log.error_message;
+            const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
+            const webhook = webhookMap.get(webhookId);
+            const hasError = !!errorMsg;
             return (
               <>
                 <tr class:list={['log-row', { 'has-error': hasError }]}>
@@ -92,28 +102,28 @@ function statusClass(status: string): string {
                       <button class="expand-btn" data-target={`detail-${i}`}>▶</button>
                     )}
                   </td>
-                  <td class="nowrap">{formatDate(log.executed_at)}</td>
+                  <td class="nowrap">{formatDate(executedAt)}</td>
                   <td>
                     {webhook
-                      ? <a href={`/automation/webhooks/${log.webhook_id}`} class="webhook-link">{webhook.name}</a>
-                      : <span class="muted">{log.webhook_id?.slice(0, 8)}…</span>}
+                      ? <a href={`/automation/webhooks/${webhookId}`} class="webhook-link">{webhook.name}</a>
+                      : <span class="muted">{webhookId?.slice(0, 8)}…</span>}
                   </td>
                   <td>
                     <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
                   </td>
                   <td>
-                    {log.http_status_code
-                      ? <code class={`http-code ${log.http_status_code < 300 ? 'ok' : 'err'}`}>{log.http_status_code}</code>
+                    {httpStatus
+                      ? <code class={`http-code ${httpStatus < 300 ? 'ok' : 'err'}`}>{httpStatus}</code>
                       : <span class="muted">—</span>}
                   </td>
-                  <td>{log.retry_attempt > 0 ? `#${log.retry_attempt + 1}` : '1'}</td>
+                  <td>{retryAttempt > 0 ? `#${retryAttempt + 1}` : '1'}</td>
                 </tr>
                 {hasError && (
                   <tr class="detail-row" id={`detail-${i}`} style="display:none">
                     <td colspan="6">
                       <div class="detail-body">
                         <div class="detail-label">Error</div>
-                        <div class="detail-message">{log.error_message}</div>
+                        <div class="detail-message">{errorMsg}</div>
                       </div>
                     </td>
                   </tr>

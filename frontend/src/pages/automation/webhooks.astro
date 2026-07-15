@@ -175,9 +175,16 @@ function formatScheduledTime(time: string | null | undefined): string {
   .toolbar {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
     margin-bottom: 32px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
   }
 
   .toolbar h2 {
