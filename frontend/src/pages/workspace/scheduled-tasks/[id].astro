@@ -14,14 +14,21 @@ let history: any[] = [];
 let error: string | null = null;
 
 try {
-  [task, taskTypes, history] = await Promise.all([
+  [task, taskTypes] = await Promise.all([
     sdk.scheduledTasks.get(id!),
     sdk.scheduledTasks.taskTypes({ detailed: true }) as Promise<TaskTypeInfo[]>,
-    sdk.scheduledTasks.history(id!, { limit: 50 }),
   ]);
 } catch (e) {
-  console.error('[scheduled-tasks/edit] Error:', e);
+  console.error('[scheduled-tasks/edit] Error loading task:', e);
   error = e instanceof Error ? e.message : String(e);
+}
+
+if (task) {
+  try {
+    history = await sdk.scheduledTasks.history(id!, { limit: 50 });
+  } catch (e) {
+    console.error('[scheduled-tasks/edit] Error loading history:', e);
+  }
 }
 
 function statusClass(status: string | null): string {
@@ -154,7 +161,7 @@ function statusClass(status: string | null): string {
             </label>
           </div>
 
-          <div class="form-actions">
+          <div class="form-actions" data-task-id={task.id}>
             <button type="submit" class="button">Save Changes</button>
             <button type="button" id="run-btn" class="button secondary">Run Now</button>
             <button type="button" id="delete-btn" class="button danger">Delete</button>
@@ -202,9 +209,11 @@ function statusClass(status: string | null): string {
   ) : null}
 </AppLayout>
 
-<script define:vars={{ taskId: id }}>
+<script>
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
+
+  const taskId = (document.querySelector('[data-task-id]') as HTMLElement)?.dataset.taskId!;
 
   const scheduleTypeSelect = document.getElementById('schedule-type-select');
   const taskTypeSelect = document.getElementById('task-type-select');

@@ -160,7 +160,7 @@ function statusClass(status: string | null): string {
             </label>
           </div>
 
-          <div class="form-actions">
+          <div class="form-actions" data-task-id={task.id}>
             <button type="submit" class="button">Save Changes</button>
             <button type="button" id="run-btn" class="button secondary">Run Now</button>
             <button type="button" id="delete-btn" class="button danger">Delete</button>
@@ -208,7 +208,8 @@ function statusClass(status: string | null): string {
   ) : null}
 </AdminLayout>
 
-<script define:vars={{ taskId: id }}>
+<script>
+  const taskId = (document.querySelector('[data-task-id]') as HTMLElement)?.dataset.taskId!;
   const scheduleTypeSelect = document.getElementById('schedule-type-select');
   const taskTypeSelect = document.getElementById('task-type-select');
   const taskTypeHint = document.getElementById('task-type-hint');
