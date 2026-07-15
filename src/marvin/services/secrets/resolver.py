@@ -45,8 +45,19 @@ def _get_variable(slug: str, group_id: UUID4 | None) -> str | None:
         return None
 
 
-def resolve(value: str, group_id: UUID4 | None = None) -> str:
-    """Replace {{SLUG}} references. Secrets take priority over Variables."""
+def resolve(value: str, group_id: UUID4 | None = None, allow_secrets: bool = True) -> str:
+    """
+    Replace {{SLUG}} references with resolved values.
+
+    Resolution order (when allow_secrets=True):
+      1. Secrets (encrypted, wins on collision)
+      2. Variables (plain-text fallback)
+
+    Use allow_secrets=False for email template content — secret values
+    should never appear in email bodies/subjects visible to recipients.
+    Use allow_secrets=True (default) for webhook headers and transport config
+    where credentials are needed.
+    """
     if "{{" not in value:
         return value
 
@@ -54,20 +65,30 @@ def resolve(value: str, group_id: UUID4 | None = None) -> str:
 
     def replacer(match: re.Match) -> str:
         slug = match.group(1)
-        # 1. Try secrets first
-        result = backend.get(slug, group_id)
-        if result is not None:
-            return result
+        # 1. Try secrets (only when permitted by context)
+        if allow_secrets:
+            result = backend.get(slug, group_id)
+            if result is not None:
+                return result
         # 2. Fall back to variables
         result = _get_variable(slug, group_id)
         if result is not None:
             return result
-        logger.warning(f"'{{{{ {slug} }}}}' not found as secret or variable for group {group_id}")
+        logger.warning(f"'{{{{ {slug} }}}}' not resolved for group {group_id} (allow_secrets={allow_secrets})")
         return match.group(0)
 
     return SLUG_RE.sub(replacer, value)
 
 
-def resolve_dict(data: dict[str, str], group_id: UUID4 | None = None) -> dict[str, str]:
+def resolve_dict(data: dict[str, str], group_id: UUID4 | None = None, allow_secrets: bool = True) -> dict[str, str]:
     """Resolve {{SLUG}} in all dict values (e.g. webhook headers)."""
-    return {key: resolve(val, group_id) for key, val in data.items()}
+    return {key: resolve(val, group_id, allow_secrets=allow_secrets) for key, val in data.items()}
+
+
+def resolve_secret(slug: str, group_id: UUID4 | None = None) -> str | None:
+    """
+    Resolve a single slug as a Secret only — for infrastructure config
+    (e.g. Gmail OAuth token, SMTP password) not template content.
+    Returns None if not found.
+    """
+    return get_secret_backend().get(slug, group_id)
