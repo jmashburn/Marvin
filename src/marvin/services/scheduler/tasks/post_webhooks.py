@@ -141,7 +141,7 @@ def post_group_webhooks(start_dt: datetime | None = None, group_id: UUID4 | None
     _save_last_ran(current_run_time)
 
 
-def post_single_webhook(webhook_config: WebhookRead, message: str = "Test Webhook Event") -> None:  # Renamed webhook, message
+def post_single_webhook(webhook_config: WebhookRead, message: str = "Test Webhook Event", user_id=None) -> None:
     """
     Triggers a single, specific webhook, typically for testing purposes.
 
@@ -178,6 +178,7 @@ def post_single_webhook(webhook_config: WebhookRead, message: str = "Test Webhoo
         integration_id=f"marvin_test_single_webhook_{webhook_config.id}",
         document_data=event_document,
         workspace_id=webhook_config.group_id,
+        user_id=user_id,
     )
 
     # Initialize a WebhookEventListener for the group of the specified webhook

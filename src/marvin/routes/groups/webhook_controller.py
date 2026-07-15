@@ -191,7 +191,7 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         """
         webhook_to_test = self.mixins.get_one(item_id)  # Fetches WebhookRead schema
         # Add the actual webhook posting as a background task
-        bg_tasks.add_task(post_single_webhook, webhook_to_test, "Test Webhook from Marvin")
+        bg_tasks.add_task(post_single_webhook, webhook_to_test, "Test Webhook from Marvin", self.user.id)
         self.logger.info(f"Test for webhook ID {item_id} scheduled in background.")
         return {"message": f"Test for webhook '{webhook_to_test.name or item_id}' has been scheduled."}
 
