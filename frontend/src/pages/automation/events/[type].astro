@@ -134,15 +134,12 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                     <strong>{w.name}</strong>
                     <code class="sub-url">{w.url?.toString().slice(0, 40)}{(w.url?.toString().length || 0) > 40 ? '…' : ''}</code>
                   </div>
-                  <button
-                    type="button"
+                  <a
+                    href={`/automation/events/${type}/webhook/${w.id}`}
                     class:list={['button', 'small', isConnected ? 'secondary' : '']}
-                    data-webhook-id={w.id}
-                    data-event-type={type}
-                    data-connected={isConnected ? 'true' : 'false'}
                   >
-                    {isConnected ? 'Disconnect' : 'Connect'}
-                  </button>
+                    {isConnected ? 'Manage' : 'Connect'}
+                  </a>
                 </div>
               );
             })}
@@ -189,39 +186,6 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 </AppLayout>
 
 <script define:vars={{ type, apiUrl }}>
-  // Webhook connect/disconnect
-  document.querySelectorAll('[data-webhook-id]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const webhookId = btn.dataset.webhookId;
-      const eventType = btn.dataset.eventType;
-      const isConnected = btn.dataset.connected === 'true';
-
-      try {
-        // Read current webhook to get its full payload
-        const res = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const webhook = await res.json();
-        const current = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
-
-        const updated = isConnected
-          ? current.filter(e => e !== eventType)
-          : [...current, eventType];
-
-        const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ ...webhook, subscribed_events: updated }),
-        });
-        if (!putRes.ok) throw new Error(`HTTP ${putRes.status}`);
-        window.location.reload();
-      } catch (e) {
-        alert('Failed to update webhook subscription');
-        console.error(e);
-      }
-    });
-  });
-
   // Email connect — just navigates to the template editor for now
   // (full wiring requires the event listener backend)
   document.querySelectorAll('.connect-email-btn').forEach(btn => {

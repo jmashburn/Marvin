@@ -1,0 +1,409 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+const { type, webhookId } = Astro.params;
+
+let eventInfo: any = null;
+let webhook: any = null;
+let isConnected = false;
+let error: string | null = null;
+
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+
+function buildExamplePayload(eventType: string, variables: any[]): object {
+  const varExamples: Record<string, string> = {};
+  for (const v of variables || []) {
+    varExamples[v.slug] = v.example || `<${v.slug}>`;
+  }
+
+  return {
+    eventType,
+    eventId: "evt_a1b2c3d4-...",
+    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    workspaceId: "<workspace-uuid>",
+    message: {
+      title: eventType.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+      body: eventType,
+    },
+    documentData: varExamples,
+    userId: "<user-uuid>",
+  };
+}
+
+try {
+  const [allTypes, webhookData] = await Promise.all([
+    sdk.events.getOptions() as Promise<any[]>,
+    sdk.webhooks.get(webhookId!),
+  ]);
+
+  eventInfo = allTypes.find((e: any) => e.value === type) || null;
+  webhook = webhookData;
+
+  if (!eventInfo) {
+    return Astro.redirect('/automation/events');
+  }
+
+  const subscribedEvents: string[] = (webhook as any)?.subscribedEvents ?? (webhook as any)?.subscribed_events ?? [];
+  isConnected = subscribedEvents.includes(type || '');
+} catch (e) {
+  console.error('[events/webhook-connect] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variables ?? []) : {};
+---
+
+<AppLayout title="Connect Webhook" eyebrow="Events">
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : (eventInfo && webhook) ? (
+    <>
+      <div class="page-header">
+        <div class="breadcrumb">
+          <a href="/automation/events">Events</a>
+          <span>›</span>
+          <a href={`/automation/events/${type}`}>{eventInfo.label}</a>
+          <span>›</span>
+          <span>Connect Webhook</span>
+        </div>
+        <h2>Connect Webhook to {eventInfo.label}</h2>
+      </div>
+
+      <div class="connect-layout">
+        <div class="connect-info">
+          <div class="info-card">
+            <h3>Event</h3>
+            <div class="event-detail">
+              <strong>{eventInfo.label}</strong>
+              <code class="detail-code">{type}</code>
+              {eventInfo.description && <p class="detail-desc">{eventInfo.description}</p>}
+            </div>
+            {eventInfo.variables?.length > 0 && (
+              <div class="vars-section">
+                <div class="vars-label">Variables in payload</div>
+                {eventInfo.variables.map((v: any) => (
+                  <div class="var-row">
+                    <code class="var-slug">{v.slug}</code>
+                    <span class="var-desc">{v.description}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div class="info-card">
+            <h3>Webhook</h3>
+            <div class="webhook-detail">
+              <strong>{webhook.name}</strong>
+              <code class="webhook-url">{webhook.url}</code>
+              <div class="webhook-meta">
+                Method: {webhook.method || 'POST'} &middot; Status: {webhook.enabled ? 'Active' : 'Inactive'}
+              </div>
+            </div>
+            {isConnected && (
+              <div class="connected-badge">&#10003; Currently connected to this event</div>
+            )}
+          </div>
+        </div>
+
+        <div class="connect-action">
+          <div class="payload-card">
+            <h3>Expected Payload</h3>
+            <p class="payload-desc">Your endpoint will receive this JSON via HTTP POST:</p>
+            <pre class="payload-json">{JSON.stringify(examplePayload, null, 2)}</pre>
+          </div>
+
+          <div class="action-card">
+            {isConnected ? (
+              <>
+                <p>This webhook fires whenever <strong>{eventInfo.label}</strong> occurs in your workspace.</p>
+                <div class="action-row">
+                  <button type="button" id="disconnect-btn" class="button secondary danger">Disconnect</button>
+                  <a href={`/automation/events/${type}`} class="button secondary">Cancel</a>
+                </div>
+              </>
+            ) : (
+              <>
+                <p>Connect this webhook to receive a POST request to <code>{webhook.url}</code> whenever <strong>{eventInfo.label}</strong> occurs.</p>
+                <div class="action-row">
+                  <button type="button" id="connect-btn" class="button">Connect Webhook</button>
+                  <a href={`/automation/events/${type}`} class="button secondary">Cancel</a>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  ) : null}
+</AppLayout>
+
+<script define:vars={{ type, webhookId, isConnected, apiUrl }}>
+  const connectBtn = document.getElementById('connect-btn');
+  const disconnectBtn = document.getElementById('disconnect-btn');
+
+  async function toggleConnection(connect) {
+    try {
+      const res = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const webhook = await res.json();
+
+      const currentEvents = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
+      const updated = connect
+        ? [...new Set([...currentEvents, type])]
+        : currentEvents.filter(e => e !== type);
+
+      const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ...webhook, subscribed_events: updated }),
+      });
+      if (!putRes.ok) {
+        const err = await putRes.json().catch(() => ({}));
+        throw new Error(err.detail || `Save failed: ${putRes.status}`);
+      }
+      window.location.href = `/automation/events/${type}`;
+    } catch (e) {
+      alert('Error: ' + e.message);
+      console.error(e);
+    }
+  }
+
+  connectBtn?.addEventListener('click', () => toggleConnection(true));
+  disconnectBtn?.addEventListener('click', () => toggleConnection(false));
+</script>
+
+<style>
+  .alert {
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .page-header {
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 {
+    margin: 8px 0 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .breadcrumb a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .connect-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 24px;
+    align-items: start;
+    max-width: 1000px;
+  }
+
+  .connect-info {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .connect-action {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .info-card,
+  .payload-card,
+  .action-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .info-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .info-card h3,
+  .payload-card h3 {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .event-detail,
+  .webhook-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .event-detail strong,
+  .webhook-detail strong {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .detail-code,
+  .webhook-url {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 3px;
+    word-break: break-all;
+  }
+
+  .detail-desc {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .webhook-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .vars-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+
+  .vars-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .var-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .var-slug {
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .var-desc {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .connected-badge {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(79, 156, 132, 0.2);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .payload-desc {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .payload-json {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .action-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .action-card p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .action-card p strong {
+    color: var(--ink);
+  }
+
+  .action-card p code {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 1px 5px;
+    border-radius: 3px;
+    word-break: break-all;
+  }
+
+  .action-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .button.danger {
+    color: var(--color-error, #d93025);
+    border-color: var(--color-error, #d93025);
+  }
+
+  .button.danger:hover {
+    background: var(--color-error-bg, rgba(217,48,37,0.06));
+  }
+</style>
