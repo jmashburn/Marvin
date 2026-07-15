@@ -68,5 +68,6 @@ class EmailTemplateSummary(_MarvinModel):
     name: str
     description: str | None
     enabled: bool
+    group_id: UUID4 | None = None  # None = system template, set = workspace customization
 
     model_config = {"from_attributes": True}

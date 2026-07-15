@@ -55,14 +55,22 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         <h3>Email Templates</h3>
         <p class="section-description">Customize the emails sent from your workspace</p>
 
-        <div class="templates-list">
+        {emailTemplates.length > 0 && (
+          <div class="template-search-row">
+            <input type="text" id="template-search" class="input" placeholder="Search templates…" />
+          </div>
+        )}
+
+        <div id="templates-list-container">
           {emailTemplates.length === 0 ? (
             <div class="empty-state">
-              <p>No custom email templates yet</p>
-              <small>Create a template to customize emails sent from this workspace</small>
+              <p>No email templates yet</p>
+              <small>System templates will appear after the server starts</small>
             </div>
-          ) : (
-            emailTemplates.map((template) => (
+          ) : (() => {
+            const systemTemplates = emailTemplates.filter((t: any) => !(t.groupId ?? t.group_id));
+            const customTemplates = emailTemplates.filter((t: any) => !!(t.groupId ?? t.group_id));
+            const renderCard = (template: any) => (
               <div class="template-card" data-template-id={template.id}>
                 <div class="template-info">
                   <div class="template-header">
@@ -74,7 +82,10 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                       <span class="badge badge-inactive">Inactive</span>
                     )}
                     {!template.group_id && (
-                      <span class="badge badge-system" title="System default — editing creates a workspace override">System</span>
+                      <span class="badge badge-system" title="System default — click Customize to create a workspace override">Default</span>
+                    )}
+                    {template.group_id && (
+                      <span class="badge badge-customized" title="Workspace customization — overrides the system default">Customized</span>
                     )}
                   </div>
                   <p>{template.description || 'No description'}</p>
@@ -103,8 +114,24 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                   )}
                 </div>
               </div>
-            ))
-          )}
+            );
+            return (
+              <>
+                {systemTemplates.length > 0 && (
+                  <div class="templates-section">
+                    <p class="templates-section-title">System Templates</p>
+                    <div class="templates-list">{systemTemplates.map(renderCard)}</div>
+                  </div>
+                )}
+                {customTemplates.length > 0 && (
+                  <div class="templates-section">
+                    <p class="templates-section-title">Workspace Customizations &amp; Custom Templates</p>
+                    <div class="templates-list">{customTemplates.map(renderCard)}</div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </section>
 
@@ -489,6 +516,51 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         } else {
           document.getElementById('structured-fields').style.display = 'none';
           document.getElementById('custom-html-field').style.display = 'block';
+
+          // Generate starter HTML from structured fields if custom textarea is empty
+          const customTextarea = document.getElementById('template-custom-html');
+          if (!customTextarea.value.trim()) {
+            const subject = document.getElementById('template-subject').value || 'Email Subject';
+            const header = document.getElementById('template-header').value || subject;
+            const msgTop = document.getElementById('template-message-top').value || '';
+            const msgBottom = document.getElementById('template-message-bottom').value || '';
+            const btnText = document.getElementById('template-button-text').value || '';
+
+            const btnRow = btnText
+              ? `\n        <p style="margin:24px 0;"><a href="{{button_link}}" style="background:#4f9c84;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;">${btnText}</a></p>`
+              : '';
+            const bottomRow = msgBottom
+              ? `\n        <p style="color:#888;font-size:13px;line-height:1.6;">${msgBottom}</p>`
+              : '';
+
+            customTextarea.value = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        <tr><td style="height:4px;background:#4f9c84;"></td></tr>
+        <tr>
+          <td style="padding:28px 40px 20px;border-bottom:1px solid #f0f0f0;">
+            <table width="100%"><tr>
+              <td style="font-size:18px;font-weight:700;color:#1a1a1a;">${header}</td>
+              <td align="right" style="font-size:12px;font-weight:600;color:#4f9c84;text-transform:uppercase;">Marvin</td>
+            </tr></table>
+          </td>
+        </tr>
+        <tr><td style="padding:24px 40px 8px;font-size:15px;line-height:1.7;color:#444;">${msgTop}</td></tr>${btnRow}${bottomRow}
+        <tr>
+          <td style="padding:20px 40px;border-top:1px solid #f0f0f0;background:#fafafa;font-size:12px;color:#aaa;">
+            Sent by <a href="{{button_link}}" style="color:#4f9c84;text-decoration:none;">Marvin CMS</a>{% if workspace_name %} &middot; {{workspace_name}}{% endif %}
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+          }
         }
       });
     });
@@ -667,6 +739,15 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         console.error('Error sending test email:', error);
         alert(error.message);
       }
+    });
+
+    // Template search filter
+    document.getElementById('template-search')?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      document.querySelectorAll('#templates-list-container .template-card').forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(q) ? '' : 'none';
+      });
     });
 
     // Close modal handlers
@@ -998,8 +1079,36 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
   }
 
   .badge-system {
-    background: rgb(139 92 246 / 0.1);
-    color: rgb(139 92 246);
+    background: rgba(100, 100, 100, 0.1);
+    color: var(--muted);
+  }
+
+  .badge-customized {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+  }
+
+  .template-search-row {
+    margin-bottom: 16px;
+  }
+
+  .template-search-row .input {
+    max-width: 320px;
+  }
+
+  .templates-section {
+    margin-bottom: 32px;
+  }
+
+  .templates-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
   }
 
   .button.danger {

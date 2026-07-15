@@ -69,14 +69,17 @@ class EmailTemplateController(BaseUserController):
         from marvin.db.models.groups.email_templates import EmailTemplateModel
         from sqlalchemy import or_
 
-        # Query workspace templates + system templates in one query
-        templates = (
+        all_templates = (
             self.repos.session.query(EmailTemplateModel)
             .filter(or_(EmailTemplateModel.group_id == group_id, EmailTemplateModel.group_id.is_(None)))
+            .order_by(EmailTemplateModel.template_type, EmailTemplateModel.group_id.nullslast())
             .all()
         )
 
-        return [EmailTemplateSummary.model_validate(t) for t in templates]
+        # Show all — system + workspace overrides. User enables the one they want active.
+        # If a workspace override exists, auto-disable the system template visually
+        # (the email service already prefers workspace templates over system ones).
+        return [EmailTemplateSummary.model_validate(t) for t in all_templates]
 
     @router.get("/{template_id}", response_model=EmailTemplateRead, summary="Get Email Template")
     def get_template(self, group_id: UUID4, template_id: UUID4) -> EmailTemplateRead:
