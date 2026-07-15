@@ -515,19 +515,24 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
           document.getElementById('modal-title').textContent = isSystem
             ? 'Customize Template (workspace override)'
             : 'Edit Email Template';
-          document.getElementById('template-id').value = template.id;
-          document.getElementById('template-type').value = template.template_type;
-          document.getElementById('template-name').value = template.name;
-          document.getElementById('template-description').value = template.description || '';
-          document.getElementById('template-subject').value = template.subject;
-          document.getElementById('template-header').value = template.header_text || '';
-          document.getElementById('template-message-top').value = template.message_top || '';
-          document.getElementById('template-message-bottom').value = template.message_bottom || '';
-          document.getElementById('template-button-text').value = template.button_text || '';
-          document.getElementById('template-custom-html').value = template.custom_html || '';
-          document.getElementById('template-enabled').checked = template.enabled;
+          // API returns camelCase due to _MarvinModel alias_generator
+          const tpl = template;
+          const f = (camel, snake) => tpl[camel] ?? tpl[snake] ?? '';
 
-          if (template.custom_html) {
+          document.getElementById('template-id').value = tpl.id;
+          document.getElementById('template-type').value = f('templateType', 'template_type');
+          document.getElementById('template-name').value = tpl.name || '';
+          document.getElementById('template-description').value = tpl.description || '';
+          document.getElementById('template-subject').value = tpl.subject || '';
+          document.getElementById('template-header').value = f('headerText', 'header_text');
+          document.getElementById('template-message-top').value = f('messageTop', 'message_top');
+          document.getElementById('template-message-bottom').value = f('messageBottom', 'message_bottom');
+          document.getElementById('template-button-text').value = f('buttonText', 'button_text');
+          document.getElementById('template-custom-html').value = f('customHtml', 'custom_html');
+          document.getElementById('template-enabled').checked = tpl.enabled !== false;
+
+          const customHtml = f('customHtml', 'custom_html');
+          if (customHtml) {
             document.querySelector('[data-mode="custom"]').click();
           } else {
             document.querySelector('[data-mode="structured"]').click();
@@ -895,17 +900,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     gap: 6px;
   }
 
-  .form-group label {
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .form-group input {
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    font-size: 14px;
-  }
+  /* .form-group label and .form-group input rules now in global.css */
 
   .form-group input:disabled {
     background: var(--panel-2);

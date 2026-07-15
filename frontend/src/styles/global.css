@@ -549,6 +549,28 @@ code {
   border-color: var(--accent);
 }
 
+/* ── Form groups (email settings page + modals) ────────────────────────────── */
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
 /* ── Modal form groups ─────────────────────────────────────────────────────── */
 .modal .form-group {
   margin-bottom: 20px;
