@@ -113,10 +113,10 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
                   data-id={v.id}
                 />
               </div>
-              <div class="env-desc">{v.description || <span class="muted">—</span>}</div>
+              <div class="env-desc">{v.description ? v.description : <span class="muted">—</span>}</div>
               <div class="env-actions">
                 <button class="button secondary small save-var-btn" data-id={v.id} style="display:none">Save</button>
-                <button class="button small danger" data-action="delete-var" data-id={v.id} data-name={v.name}>Delete</button>
+                <button class="button secondary small danger" data-action="delete-var" data-id={v.id} data-name={v.name}>Delete</button>
               </div>
             </div>
           ))}
@@ -186,9 +186,9 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
                 <span class="masked">••••••••</span>
                 <button class="button secondary small rotate-btn" data-id={s.id} data-name={s.name}>Rotate</button>
               </div>
-              <div class="env-desc">{s.description || <span class="muted">—</span>}</div>
+              <div class="env-desc" title={s.description ?? ''}>{s.description ? s.description : <span class="muted">—</span>}</div>
               <div class="env-actions">
-                <button class="button small danger" data-action="delete-sec" data-id={s.id} data-name={s.name}>Delete</button>
+                <button class="button secondary small danger" data-action="delete-sec" data-id={s.id} data-name={s.name}>Delete</button>
               </div>
             </div>
           ))}
@@ -442,6 +442,8 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
   .empty-desc { margin: 0; color: var(--muted); font-size: 13px; }
   .empty-desc code { background: var(--panel); padding: 1px 4px; border-radius: 3px; }
 
+  /* ── Table layout ─────────────────────────────────────────────────────── */
+
   .env-table {
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -450,7 +452,7 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
 
   .env-header {
     display: grid;
-    grid-template-columns: 1.5fr 2fr 2fr auto;
+    grid-template-columns: 180px 1fr minmax(160px, 1.2fr) 120px;
     gap: 16px;
     padding: 10px 16px;
     background: var(--panel);
@@ -459,28 +461,54 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--muted);
+    border-bottom: 1px solid var(--line);
   }
 
   .env-row {
     display: grid;
-    grid-template-columns: 1.5fr 2fr 2fr auto;
+    grid-template-columns: 180px 1fr minmax(160px, 1.2fr) 120px;
     gap: 16px;
     align-items: center;
     padding: 12px 16px;
     border-top: 1px solid var(--line);
     background: var(--bg);
+    transition: background 0.1s;
   }
 
+  .env-row:first-of-type { border-top: none; }
   .env-row:hover { background: var(--panel); }
 
-  .env-name { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
-  .env-slug { font-size: 11px; color: var(--accent); background: rgba(79,156,132,0.08); padding: 1px 5px; border-radius: 3px; }
-  .env-slug-secret { color: #a855f7; background: rgba(168,85,247,0.08); }
+  /* ── Cell content ─────────────────────────────────────────────────────── */
 
-  .env-value { display: flex; align-items: center; gap: 8px; }
+  .env-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+
+  .env-slug {
+    display: inline-block;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    background: rgba(79, 156, 132, 0.1);
+    border: 1px solid rgba(79, 156, 132, 0.2);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .env-slug-secret {
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.08);
+    border-color: rgba(168, 85, 247, 0.2);
+  }
+
+  .env-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
 
   .inline-input {
     flex: 1;
+    min-width: 0;
     padding: 6px 10px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -488,19 +516,82 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
     font-family: ui-monospace, monospace;
     background: var(--bg);
     color: var(--ink);
-    min-width: 0;
+    transition: border-color 0.15s;
   }
 
-  .inline-input:focus { border-color: var(--accent); outline: none; }
+  .inline-input:focus {
+    border-color: var(--accent);
+    outline: none;
+    background: var(--panel);
+  }
 
-  .masked { font-family: ui-monospace, monospace; color: var(--muted); letter-spacing: 2px; font-size: 13px; }
-  .secret-value { gap: 12px; }
+  .masked {
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    letter-spacing: 3px;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
 
-  .env-desc { font-size: 13px; color: var(--muted); }
-  .env-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .secret-value { gap: 10px; }
+
+  .env-desc {
+    font-size: 13px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .env-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
+
+  /* Small size — used throughout action rows */
+  .button.small {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 28px;
+  }
+
+  /* Solid danger — primary destructive action (e.g. delete form button) */
+  .button.danger {
+    background: var(--color-error);
+    border-color: var(--color-error);
+    color: white;
+  }
+
+  .button.danger:hover { opacity: 0.85; }
+
+  /* Outlined danger — secondary destructive in row actions */
+  .button.secondary.danger {
+    background: transparent;
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+
+  .button.secondary.danger:hover {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+
+  /* ── Form cards ───────────────────────────────────────────────────────── */
+
+  .form-card {
+    border-top: 3px solid var(--accent);
+  }
+
+  /* Rotate/new secret form has a warning tone */
+  #rotate-card { border-top-color: #d97706; }
+
+  /* ── Misc ─────────────────────────────────────────────────────────────── */
 
   .muted { color: var(--muted); }
-  .button.small { padding: 5px 10px; font-size: 12px; }
-  .button.danger { color: var(--color-error); }
-  .button.danger:hover { background: var(--color-error-bg); }
 </style>
