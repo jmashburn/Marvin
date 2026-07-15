@@ -67,6 +67,11 @@ class ScheduledTasksController(BaseUserController):
 
         return task
 
+    @router.get("/log", response_model=list[ScheduledTaskExecutionLogRead])
+    def get_workspace_log(self, limit: int = 100):
+        """Get execution log for all tasks in the current workspace."""
+        return self.repos.scheduled_task_executions.get_workspace_log(limit=limit)
+
     @router.get("/{id_or_slug}", response_model=ScheduledTaskRead)
     def get_task(self, id_or_slug: Annotated[str, Path()]):
         """Get a scheduled task by ID or slug."""

@@ -5,6 +5,7 @@ from . import (
     email_controller,
     group_controller,
     maintenance_controller,
+    scheduled_tasks_controller,
     user_controller,
     workspace_members_controller,
 )
@@ -17,3 +18,4 @@ router.include_router(user_controller.router, tags=["Admin: Users"])
 router.include_router(group_controller.router, tags=["Admin: Groups"])
 router.include_router(maintenance_controller.router, tags=["Admin: Maintenance"])
 router.include_router(workspace_members_controller.router)
+router.include_router(scheduled_tasks_controller.router, tags=["Admin: Scheduled Tasks"])

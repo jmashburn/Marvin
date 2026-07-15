@@ -1,22 +1,24 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { requireAdmin } from "@/lib/auth";
 import { getAuthToken } from "@/lib/api/client";
+import { listAllTasks } from "@/lib/api/admin/scheduledTasks";
+import type { ScheduledTaskRead } from "@/lib/api/admin/scheduledTasks";
 
+await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
-const sdk = createSdkClient(authToken);
 
-let tasks: any[] = [];
+let tasks: ScheduledTaskRead[] = [];
 let error: string | null = null;
 
 try {
-  tasks = await sdk.scheduledTasks.list();
+  tasks = await listAllTasks(authToken);
 } catch (e) {
-  console.error('[scheduled-tasks] Error loading:', e);
+  console.error('[admin/scheduled-tasks] Error loading:', e);
   error = e instanceof Error ? e.message : String(e);
 }
 
-function formatSchedule(task: any): string {
+function formatSchedule(task: ScheduledTaskRead): string {
   if (!task.schedule_config) return 'No schedule';
   if (task.schedule_type === 'interval') {
     const s = task.schedule_config.interval_seconds;
@@ -29,41 +31,30 @@ function formatSchedule(task: any): string {
   if (task.schedule_type === 'once') return `Once: ${task.schedule_config.run_at || '—'}`;
   return '—';
 }
-
-function statusClass(status: string | null): string {
-  if (status === 'success') return 'success';
-  if (status === 'failed') return 'failed';
-  if (status === 'timeout') return 'timeout';
-  if (status === 'cancelled') return 'cancelled';
-  return 'none';
-}
 ---
 
-<AppLayout title="Scheduled Tasks" eyebrow="Automation">
+<AdminLayout title="Scheduled Tasks">
   <div class="toolbar">
     <div>
       <h2>Scheduled Tasks</h2>
-      <p>Automate recurring workspace operations</p>
+      <p>Manage system and workspace scheduled tasks</p>
     </div>
     <div class="toolbar-actions">
-      <a href="/workspace/scheduled-tasks/log" class="button secondary">Activity Log</a>
-      <a href="/workspace/scheduled-tasks/new" class="button">New Task</a>
+      <a href="/admin/scheduled-tasks/log" class="button secondary">Activity Log</a>
+      <a href="/admin/scheduled-tasks/new" class="button">New System Task</a>
     </div>
   </div>
 
+  {error && (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  )}
+
   <div class="page-container">
-    {error ? (
-      <div class="alert alert-error">
-        <strong>Error:</strong> {error}
-      </div>
-    ) : tasks.length === 0 ? (
+    {tasks.length === 0 ? (
       <div class="empty-state">
-        <div class="empty-icon">⏱</div>
-        <p class="empty-title">No scheduled tasks configured</p>
-        <p class="empty-description">
-          Scheduled tasks automate recurring operations like cleanup, rebuilds, and maintenance
-        </p>
-        <a href="/workspace/scheduled-tasks/new" class="button">New Task</a>
+        <p class="empty-title">No scheduled tasks found</p>
+        <p class="empty-desc">Create a system task or have workspace owners add workspace tasks</p>
+        <a href="/admin/scheduled-tasks/new" class="button">New System Task</a>
       </div>
     ) : (
       <div class="tasks-grid">
@@ -71,7 +62,12 @@ function statusClass(status: string | null): string {
           <article class="task-card">
             <div class="task-header">
               <div>
-                <h3>{task.name}</h3>
+                <div class="task-title-row">
+                  <h3>{task.name}</h3>
+                  <span class={`scope-badge ${task.group_id ? 'workspace' : 'system'}`}>
+                    {task.group_id ? 'Workspace' : 'System'}
+                  </span>
+                </div>
                 {task.description && <p class="task-description">{task.description}</p>}
               </div>
               <span class={`status-badge ${task.enabled ? 'active' : 'inactive'}`}>
@@ -89,9 +85,7 @@ function statusClass(status: string | null): string {
               </div>
               <div class="meta-item">
                 <span class="meta-label">Last Run</span>
-                <span class={`run-status status-${statusClass(task.last_status)}`}>
-                  {task.last_status || 'Never run'}
-                </span>
+                <span class="meta-value">{task.last_status || 'Never'}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Next Run</span>
@@ -103,7 +97,7 @@ function statusClass(status: string | null): string {
               </div>
             </div>
             <div class="task-actions">
-              <a href={`/workspace/scheduled-tasks/${task.id}`} class="button secondary small">Edit</a>
+              <a href={`/admin/scheduled-tasks/${task.id}`} class="button secondary small">Edit</a>
               <button
                 class="button secondary small"
                 data-action="toggle"
@@ -128,50 +122,52 @@ function statusClass(status: string | null): string {
       </div>
     )}
   </div>
-</AppLayout>
+</AdminLayout>
 
 <script>
-  import { createSdkClient } from '@/lib/sdk';
-  const sdk = createSdkClient();
+  async function apiCall(url: string, method: string, body?: any) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.status === 204 ? null : res.json();
+  }
 
   document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id')!;
-      const currentlyEnabled = btn.getAttribute('data-enabled') === 'true';
+      const id = (btn as HTMLElement).dataset.id!;
+      const enabled = (btn as HTMLElement).dataset.enabled === 'true';
       try {
-        await sdk.scheduledTasks.update(id, { enabled: !currentlyEnabled });
+        await apiCall(`/api/admin/scheduled-tasks/${id}`, 'PATCH', { enabled: !enabled });
         window.location.reload();
-      } catch {
-        alert('Failed to update task');
-      }
+      } catch { alert('Failed to update task'); }
     });
   });
 
   document.querySelectorAll('[data-action="run"]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id')!;
-      const name = btn.getAttribute('data-name');
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name;
       if (!confirm(`Manually trigger "${name}" now?`)) return;
       try {
-        await sdk.scheduledTasks.execute(id);
-        alert('Task triggered! Check the task history for results.');
-      } catch {
-        alert('Failed to trigger task');
-      }
+        await apiCall(`/api/admin/scheduled-tasks/${id}/execute`, 'POST');
+        alert('Task triggered!');
+      } catch { alert('Failed to trigger task'); }
     });
   });
 
   document.querySelectorAll('[data-action="delete"]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id')!;
-      const name = btn.getAttribute('data-name');
-      if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name;
+      if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
       try {
-        await sdk.scheduledTasks.delete(id);
+        await apiCall(`/api/admin/scheduled-tasks/${id}`, 'DELETE');
         window.location.reload();
-      } catch {
-        alert('Failed to delete task');
-      }
+      } catch { alert('Failed to delete task'); }
     });
   });
 </script>
@@ -186,34 +182,17 @@ function statusClass(status: string | null): string {
     border-bottom: 1px solid var(--line);
   }
 
-  .toolbar-actions {
-    display: flex;
-    gap: 8px;
-  }
+  .toolbar h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .toolbar p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
 
-  .toolbar h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 600;
-  }
+  .toolbar-actions { display: flex; gap: 8px; }
 
-  .toolbar p {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
-
-  .page-container {
-    max-width: 1200px;
-  }
+  .page-container { max-width: 1200px; }
 
   .alert {
     padding: 16px;
     margin-bottom: 24px;
     border-radius: var(--radius);
-  }
-
-  .alert-error {
     background: var(--color-error-bg);
     color: var(--color-error);
     border: 1px solid var(--color-error);
@@ -224,31 +203,10 @@ function statusClass(status: string | null): string {
     text-align: center;
   }
 
-  .empty-icon {
-    font-size: 64px;
-    margin-bottom: 16px;
-    opacity: 0.3;
-  }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-desc { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
 
-  .empty-title {
-    margin: 0 0 8px;
-    font-size: 18px;
-    font-weight: 600;
-  }
-
-  .empty-description {
-    margin: 0 0 24px;
-    color: var(--muted);
-    font-size: 14px;
-    max-width: 440px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .tasks-grid {
-    display: grid;
-    gap: 16px;
-  }
+  .tasks-grid { display: grid; gap: 16px; }
 
   .task-card {
     padding: 20px;
@@ -265,17 +223,34 @@ function statusClass(status: string | null): string {
     margin-bottom: 12px;
   }
 
-  .task-header h3 {
-    margin: 0 0 4px;
-    font-size: 16px;
-    font-weight: 600;
+  .task-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
   }
 
-  .task-description {
-    margin: 0;
-    font-size: 13px;
-    color: var(--muted);
+  .task-title-row h3 { margin: 0; font-size: 16px; font-weight: 600; }
+
+  .scope-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
   }
+
+  .scope-badge.system {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+  }
+
+  .scope-badge.workspace {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+  }
+
+  .task-description { margin: 0; font-size: 13px; color: var(--muted); }
 
   .status-badge {
     padding: 4px 10px;
@@ -286,15 +261,8 @@ function statusClass(status: string | null): string {
     white-space: nowrap;
   }
 
-  .status-badge.active {
-    background: rgba(79, 156, 132, 0.1);
-    color: var(--accent);
-  }
-
-  .status-badge.inactive {
-    background: rgba(128, 128, 128, 0.1);
-    color: var(--muted);
-  }
+  .status-badge.active { background: rgba(79, 156, 132, 0.1); color: var(--accent); }
+  .status-badge.inactive { background: rgba(128, 128, 128, 0.1); color: var(--muted); }
 
   .task-meta {
     display: flex;
@@ -305,11 +273,7 @@ function statusClass(status: string | null): string {
     border-bottom: 1px solid var(--line);
   }
 
-  .meta-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
+  .meta-item { display: flex; flex-direction: column; gap: 4px; }
 
   .meta-label {
     font-size: 11px;
@@ -319,37 +283,11 @@ function statusClass(status: string | null): string {
     color: var(--muted);
   }
 
-  .meta-value {
-    font-size: 14px;
-  }
+  .meta-value { font-size: 14px; }
 
-  .run-status {
-    font-size: 13px;
-    font-weight: 500;
-  }
+  .task-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-  .status-success { color: var(--accent); }
-  .status-failed { color: var(--color-error); }
-  .status-timeout { color: #d97706; }
-  .status-cancelled { color: var(--muted); }
-  .status-none { color: var(--muted); }
-
-  .task-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .button.small {
-    padding: 6px 14px;
-    font-size: 13px;
-  }
-
-  .button.danger {
-    color: var(--color-error);
-  }
-
-  .button.danger:hover {
-    background: var(--color-error-bg);
-  }
+  .button.small { padding: 6px 14px; font-size: 13px; }
+  .button.danger { color: var(--color-error); }
+  .button.danger:hover { background: var(--color-error-bg); }
 </style>
