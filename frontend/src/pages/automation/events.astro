@@ -75,14 +75,14 @@ const filtered = categoryFilter === 'all'
 
             {event.variables && event.variables.length > 0 && (
               <div class="event-vars">
-                <div class="vars-label">Available variables</div>
-                <div class="vars-chips">
-                  {event.variables.map((v: any) => (
-                    <span class="var-chip-sm" title={v.description + (v.example ? ' · e.g. ' + v.example : '')}>
-                      {'{{' + v.slug + '}}'}
-                    </span>
-                  ))}
-                </div>
+                {event.variables.slice(0, 3).map((v: any) => (
+                  <span class="var-chip-sm" title={v.description + (v.example ? ' · e.g. ' + v.example : '')}>
+                    {'{{' + v.slug + '}}'}
+                  </span>
+                ))}
+                {event.variables.length > 3 && (
+                  <span class="var-more">+{event.variables.length - 3}</span>
+                )}
               </div>
             )}
 
@@ -225,28 +225,30 @@ const filtered = categoryFilter === 'all'
     line-height: 1.5;
   }
 
-  .event-vars { display: flex; flex-direction: column; gap: 6px; }
-
-  .vars-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--muted);
+  .event-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
   }
 
-  .vars-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-
   .var-chip-sm {
-    font-size: 11px;
+    font-size: 10px;
     font-family: ui-monospace, monospace;
     color: var(--accent);
     font-weight: 600;
     background: rgba(79,156,132,0.08);
-    padding: 1px 6px;
+    padding: 1px 5px;
     border-radius: 3px;
     cursor: default;
     white-space: nowrap;
+    opacity: 0.85;
+  }
+
+  .var-more {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 500;
   }
 
   .event-actions { margin-top: 4px; }
