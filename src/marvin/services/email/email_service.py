@@ -285,26 +285,24 @@ class EmailService(BaseService):
         Returns:
             bool: True if email sent successfully
         """
+        # Validate required variables BEFORE the rendering try-block so ValueError propagates
+        from marvin.services.email.system_templates import validate_template_content
+        content_fields = {
+            "subject": db_template.subject or "",
+            "header_text": db_template.header_text or "",
+            "message_top": db_template.message_top or "",
+            "message_bottom": db_template.message_bottom or "",
+            "custom_html": db_template.custom_html or "",
+        }
+        missing = validate_template_content(db_template.template_type or "", content_fields)
+        if missing:
+            raise ValueError(f"Template is missing required variables: {', '.join('{{' + v + '}}' for v in missing)}")
+
         try:
             from jinja2 import Template
             from marvin.services.secrets.resolver import resolve
 
-            # Resolve {{SLUG}} in template content.
-            # {{UPPER_CASE}} = workspace Variables (allow_secrets=False keeps secrets out of emails)
-            # {{lower_case}} = per-send context variables (user name, token, URL, etc.)
             group_id = getattr(db_template, "group_id", None)
-
-            from marvin.services.email.system_templates import validate_template_content
-            content_fields = {
-                "subject": db_template.subject or "",
-                "header_text": db_template.header_text or "",
-                "message_top": db_template.message_top or "",
-                "message_bottom": db_template.message_bottom or "",
-                "custom_html": db_template.custom_html or "",
-            }
-            missing = validate_template_content(db_template.template_type or "", content_fields)
-            if missing:
-                raise ValueError(f"Template is missing required variables: {', '.join('{{' + v + '}}' for v in missing)}")
 
             def _r(text: str | None) -> str:
                 return resolve(text or "", group_id, allow_secrets=False, context=variables)
