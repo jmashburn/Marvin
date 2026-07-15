@@ -13,7 +13,7 @@ import enum  # For creating enumerations
 from typing import Any
 
 from isodate import parse_time as isodate_parse_time  # Renamed to avoid conflict with datetime.time.parse
-from pydantic import UUID4, ConfigDict, HttpUrl, ValidationInfo, field_validator  # Added ValidationInfo
+from pydantic import UUID4, ConfigDict, HttpUrl, ValidationInfo, field_validator, model_validator  # Added ValidationInfo
 
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model
 
@@ -133,7 +133,16 @@ class WebhookSave(WebhookCreate):
 
     group_id: UUID4  # This field might be redundant if group_id is part of the URL path for update.
     """The unique identifier of the group this webhook belongs to."""
+    headers_json: dict[str, str] | None = None
+    """ORM column name for custom headers. Populated from `headers` by the model validator."""
     model_config = ConfigDict(from_attributes=True)  # Allows creating from ORM model attributes
+
+    @model_validator(mode="after")
+    def _sync_headers_to_headers_json(self) -> "WebhookSave":
+        """Copy `headers` → `headers_json` so auto_init can find the ORM column name."""
+        if self.headers is not None and self.headers_json is None:
+            self.headers_json = self.headers
+        return self
 
 
 class WebhookUpdate(WebhookCreate):

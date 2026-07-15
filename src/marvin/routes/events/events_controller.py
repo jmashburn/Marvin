@@ -27,6 +27,14 @@ from marvin.services.event_bus_service.event_types import (
     EventTypes,
     EventUserSignupData,  # This specific data type seems misused for a generic GET all options.
 )
+from marvin.schemas._marvin import _MarvinModel
+
+
+class EventTypeOption(_MarvinModel):
+    """Represents a single event type available for webhook subscriptions."""
+
+    value: str
+    label: str
 
 # APIRouter for event notifier options, using MarvinCrudRoute for consistent header handling.
 # All routes here will be under /event.
@@ -109,3 +117,17 @@ class EventsNotifierOptionsController(BaseUserController):
         # Set HATEOAS pagination guide URLs for client navigation
         paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
         return paginated_response
+
+    @router.get("/types", response_model=list[EventTypeOption], summary="List Available Event Types")
+    def list_event_types(self) -> list[EventTypeOption]:
+        """
+        Returns all available event types as a flat list for use in webhook
+        subscription pickers and notification configuration UIs.
+        """
+        return [
+            EventTypeOption(
+                value=et.name,
+                label=et.name.replace("_", " ").title(),
+            )
+            for et in EventTypes
+        ]

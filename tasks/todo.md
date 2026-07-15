@@ -1,3 +1,64 @@
+# Bug Fix Batch — 2026-07-15
+
+## Issues (12 total)
+
+### 1. Statistics — add more counts
+- No backend stats endpoint exists (`/api/workspace/stats` is commented out)
+- Add counts: secrets, variables, webhooks, scheduled tasks, entries, assets, members
+- Wire up frontend to show them on the workspace dashboard
+
+### 2. Events page — `eventOptions.filter is not a function`
+- `/api/event/options` endpoint doesn't exist → SDK throws 404 → `eventOptions` stays `[]` but `.filter()` is called outside try-catch
+- Fix: create the endpoint OR guard all `.filter()` calls with Array.isArray check
+
+### 3. Webhooks — headers not saving
+- Schema field is `headers`, ORM column is `headers_json`
+- `auto_init` sees no `headers` attribute on the model → silently skips
+- Fix: map `headers` → `headers_json` in the create/update controller (same pattern as `model_validate` bridge on read)
+
+### 4. Webhook test — `webhookId` out of scope
+- `webhookId` declared inside form submit handler, referenced in test-btn handler → ReferenceError
+- Fix: declare `webhookId` at module scope from hidden input
+
+### 5. Webhook test fires when disabled
+- `test_one` endpoint doesn't check `webhook_config.enabled`
+- Fix: add enabled guard, return 400 if disabled
+
+### 6. Webhook test — POST webhooks silently skipped
+- `current_webhook_payload_body = {}` is falsy → condition `if current_webhook_payload_body or method == GET` skips POST test
+- Fix: treat test/manual triggers differently — always send even with empty body
+
+### 7. Scheduler — camelCase field mismatch in edit form
+- API returns `taskType`, `scheduleType`, `scheduleConfig`, `nextRunAt`, `lastRunAt` etc (camelCase)
+- Edit form reads `task.task_type`, `task.schedule_type` etc (snake_case) → all undefined → form shows wrong/empty values, selects wrong options
+- Fix: use camelCase accessors with snake_case fallback throughout `[id].astro`
+
+### 8. Scheduler — delete task fails
+- Investigate: likely `EventScheduledTaskData.from_model(task)` where `task` is a Pydantic schema after delete returns
+- Fix after confirming root cause
+
+### 9. Delete secret — double-delete bug
+- `delete_secret` calls `backend.delete()` (opens own session, deletes row) then `self.session.delete(secret)` → StaleDataError
+- Fix: same guard as create/update — skip `backend.delete()` for database backend
+
+### 10. Environment page — Variable/Secret Name+Slug layout crowded
+- Name and slug stacked in a narrow first column
+- Fix: show name prominently, slug on its own line with better visual treatment, more column width
+
+### 11. Environment page — add created_at / updated_at
+- Show creation date and last-updated date so rotation is visible
+- `WorkspaceSecretRead` and `WorkspaceVariableRead` need `created_at`/`update_at` fields
+- Display in the table (tooltip or column)
+
+### 12. Execution history — needs breathing room
+- History tables in edit pages are cramped
+- Fix: more padding, better row height, cleaner spacing
+
+## Implementation Order
+1, 9 (quick backend fixes) → 3, 4, 5, 6 (webhook fixes) → 7, 8 (scheduler fixes) → 10, 11, 12 (UI polish)
+
+---
+
 # Workspace Secrets — Implementation Plan
 
 ## Context

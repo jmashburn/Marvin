@@ -45,6 +45,11 @@ function statusClass(status: string | null): string {
   if (status === 'cancelled') return 'cancelled';
   return 'none';
 }
+
+// Normalize camelCase API response fields (alias_generator=camelize on backend)
+const taskType = task ? (task.taskType ?? task.task_type) : '';
+const scheduleType = task ? (task.scheduleType ?? task.schedule_type) : '';
+const scheduleConfig = task ? (task.scheduleConfig ?? task.schedule_config) : null;
 ---
 
 <AppLayout title={task ? `Edit: ${task.name}` : 'Scheduled Task'} eyebrow="Automation">
@@ -77,12 +82,12 @@ function statusClass(status: string | null): string {
                   <option
                     value={t.task_type}
                     data-description={t.description}
-                    selected={t.task_type === task.task_type}
+                    selected={t.task_type === taskType}
                   >{t.name || t.task_type}</option>
                 ))}
               </select>
               <small class="hint" id="task-type-hint">
-                {taskTypes.find(t => t.task_type === task.task_type)?.description || ''}
+                {taskTypes.find(t => t.task_type === taskType)?.description || ''}
               </small>
             </label>
 
@@ -103,34 +108,34 @@ function statusClass(status: string | null): string {
             <label class="form-field">
               <span class="label">Repeat *</span>
               <select name="schedule_type" required class="input" id="schedule-type-select">
-                <option value="interval" selected={task.schedule_type === 'interval'}>Interval (every N seconds)</option>
-                <option value="cron" selected={task.schedule_type === 'cron'}>Cron Expression</option>
-                <option value="once" selected={task.schedule_type === 'once'}>One Time</option>
+                <option value="interval" selected={scheduleType === 'interval'}>Interval (every N seconds)</option>
+                <option value="cron" selected={scheduleType === 'cron'}>Cron Expression</option>
+                <option value="once" selected={scheduleType === 'once'}>One Time</option>
               </select>
             </label>
 
-            <div id="schedule-interval" class="schedule-block" style={task.schedule_type !== 'interval' ? 'display:none' : ''}>
+            <div id="schedule-interval" class="schedule-block" style={scheduleType !== 'interval' ? 'display:none' : ''}>
               <label class="form-field">
                 <span class="label">Interval (seconds) *</span>
                 <input
                   type="number"
                   name="interval_seconds"
                   min="60"
-                  value={task.schedule_config?.interval_seconds ?? 3600}
+                  value={scheduleConfig?.intervalSeconds ?? scheduleConfig?.interval_seconds ?? 3600}
                   class="input"
                 />
                 <small class="hint">Common: 3600 (hourly), 86400 (daily), 604800 (weekly)</small>
               </label>
             </div>
 
-            <div id="schedule-cron" class="schedule-block" style={task.schedule_type !== 'cron' ? 'display:none' : ''}>
+            <div id="schedule-cron" class="schedule-block" style={scheduleType !== 'cron' ? 'display:none' : ''}>
               <label class="form-field">
                 <span class="label">Cron Expression *</span>
                 <input
                   type="text"
                   name="cron_expression"
                   placeholder="0 * * * *"
-                  value={task.schedule_config?.cron_expression ?? ''}
+                  value={scheduleConfig?.cronExpression ?? scheduleConfig?.cron_expression ?? ''}
                   class="input"
                 />
                 <small class="hint">Examples: "0 * * * *" (hourly), "0 0 * * *" (daily midnight)</small>
@@ -141,19 +146,19 @@ function statusClass(status: string | null): string {
                   type="text"
                   name="timezone"
                   placeholder="UTC"
-                  value={task.schedule_config?.timezone ?? ''}
+                  value={scheduleConfig?.timezone ?? ''}
                   class="input"
                 />
               </label>
             </div>
 
-            <div id="schedule-once" class="schedule-block" style={task.schedule_type !== 'once' ? 'display:none' : ''}>
+            <div id="schedule-once" class="schedule-block" style={scheduleType !== 'once' ? 'display:none' : ''}>
               <label class="form-field">
                 <span class="label">Run At (UTC) *</span>
                 <input
                   type="datetime-local"
                   name="run_at"
-                  value={task.schedule_config?.run_at ?? ''}
+                  value={scheduleConfig?.runAt ?? scheduleConfig?.run_at ?? ''}
                   class="input"
                 />
               </label>
@@ -441,7 +446,7 @@ function statusClass(status: string | null): string {
   }
 
   .history-section h3 {
-    margin: 0 0 16px;
+    margin: 0 0 20px;
     font-size: 16px;
     font-weight: 600;
   }
@@ -474,9 +479,10 @@ function statusClass(status: string | null): string {
   }
 
   .history-table td {
-    padding: 10px 12px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--line);
     vertical-align: top;
+    line-height: 1.5;
   }
 
   .history-table tr:last-child td {

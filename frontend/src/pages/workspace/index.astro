@@ -1,6 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken } from "@/lib/api/client";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
 const authToken = getAuthToken(Astro.cookies);
@@ -10,15 +10,10 @@ let stats: any = null;
 let error: string | null = null;
 
 try {
-  workspace = await getCurrentWorkspace(authToken);
-
-  // Try to fetch workspace stats
-  try {
-    // TODO: Replace with actual stats endpoint when available
-    // stats = await fetchApi<any>('/api/workspace/stats', {}, authToken);
-  } catch (e) {
-    console.log('Stats endpoint not available');
-  }
+  [workspace, stats] = await Promise.all([
+    getCurrentWorkspace(authToken),
+    fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch(() => null),
+  ]);
 } catch (e) {
   console.error('[workspace] Error:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -34,6 +29,43 @@ try {
         <h2>{workspace?.workspace?.name || 'Workspace'}</h2>
         <p>Manage your workspace settings and resources</p>
       </div>
+
+      {stats && (
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value">{stats.entries ?? 0}</div>
+            <div class="stat-label">Entries</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{stats.assets ?? 0}</div>
+            <div class="stat-label">Assets</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{stats.collections ?? 0}</div>
+            <div class="stat-label">Collections</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{stats.webhooks ?? 0}</div>
+            <div class="stat-label">Webhooks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{stats.scheduledTasks ?? stats.scheduled_tasks ?? 0}</div>
+            <div class="stat-label">Scheduled Tasks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{stats.secrets ?? 0}</div>
+            <div class="stat-label">Secrets</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{stats.variables ?? 0}</div>
+            <div class="stat-label">Variables</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">{stats.members ?? 0}</div>
+            <div class="stat-label">Members</div>
+          </div>
+        </div>
+      )}
 
       <div class="quick-links">
         <a href="/workspace/settings" class="quick-link-card">
@@ -95,6 +127,37 @@ try {
     margin: 0;
     color: var(--muted);
     font-size: 16px;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
   }
 
   .quick-links {

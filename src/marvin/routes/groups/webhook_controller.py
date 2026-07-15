@@ -9,7 +9,7 @@ for re-running all scheduled webhooks for the day and testing individual webhook
 from datetime import UTC, datetime, time  # Added time for type hint
 from functools import cached_property  # For lazy-loading properties
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status  # Added status for HTTP_201_CREATED
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status  # Added status for HTTP_201_CREATED
 from pydantic import UUID4  # For UUID type validation
 
 # Marvin base controllers, schemas, services, and utilities
@@ -190,6 +190,11 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
             dict[str, str]: A message indicating that the test has been scheduled.
         """
         webhook_to_test = self.mixins.get_one(item_id)  # Fetches WebhookRead schema
+        if not webhook_to_test.enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot test a disabled webhook. Enable it first.",
+            )
         # Add the actual webhook posting as a background task
         bg_tasks.add_task(post_single_webhook, webhook_to_test, "Test Webhook from Marvin", self.user.id)
         self.logger.info(f"Test for webhook ID {item_id} scheduled in background.")
@@ -215,21 +220,19 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         Updates an existing webhook configuration.
 
         The webhook must belong to the current user's group.
-        Note: The input data schema is `WebhookCreate`. If partial updates are desired
-        or if `WebhookUpdate` schema exists and is different, this might need adjustment.
-        The mixin is currently typed as `HttpRepo[WebhookCreate, WebhookRead, WebhookCreate]`,
-        meaning `WebhookCreate` is also used as the Update schema type `U` for the mixin.
+        Uses WebhookSave internally to ensure `headers` is mapped to the ORM column
+        `headers_json` before the update is persisted.
 
         Args:
             item_id (UUID4): The ID of the webhook to update.
             data (WebhookCreate): Pydantic schema with the update data.
-                                  (Typically an Update schema like `WebhookUpdate` would be used here).
 
         Returns:
             WebhookRead: The Pydantic schema of the updated webhook.
         """
-        # The mixin's update_one method is called. It expects data of type U, which is WebhookCreate here.
-        return self.mixins.update_one(item_id=item_id, data=data)  # Corrected param order
+        # Cast to WebhookSave so the model_validator populates headers_json from headers.
+        save_data = cast(data, WebhookSave, group_id=self.group_id)
+        return self.mixins.update_one(item_id=item_id, data=save_data)
 
     @router.delete("/{item_id}", summary="Delete a Webhook")
     def delete_one(self, item_id: UUID4) -> dict:

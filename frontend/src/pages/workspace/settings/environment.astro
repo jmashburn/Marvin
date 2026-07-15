@@ -21,6 +21,21 @@ try {
 }
 
 const tab = Astro.url.searchParams.get('tab') || 'variables';
+
+function fmtRelative(isoStr: string | null | undefined): string {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
 ---
 
 <AppLayout title="Environment" eyebrow="Settings">
@@ -95,14 +110,17 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
           <div class="env-header">
             <span>Name / Slug</span>
             <span>Value</span>
-            <span>Description</span>
             <span></span>
           </div>
-          {variables.map((v: any) => (
+          {variables.map((v: any) => {
+            const updatedAt = v.updateAt ?? v.update_at ?? null;
+            const relDate = fmtRelative(updatedAt);
+            return (
             <div class="env-row" data-id={v.id} data-type="variable">
-              <div>
+              <div title={v.description ?? undefined}>
                 <div class="env-name">{v.name}</div>
                 <code class="env-slug">&#123;&#123;{v.slug}&#125;&#125;</code>
+                {relDate && <span class="env-ts" title={updatedAt}>Updated {relDate}</span>}
               </div>
               <div class="env-value">
                 <input
@@ -113,13 +131,13 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
                   data-id={v.id}
                 />
               </div>
-              <div class="env-desc">{v.description ? v.description : <span class="muted">—</span>}</div>
               <div class="env-actions">
                 <button class="button secondary small save-var-btn" data-id={v.id} style="display:none">Save</button>
                 <button class="button secondary small danger" data-action="delete-var" data-id={v.id} data-name={v.name}>Delete</button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -173,25 +191,28 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
           <div class="env-header">
             <span>Name / Slug</span>
             <span>Value</span>
-            <span>Description</span>
             <span></span>
           </div>
-          {secrets.map((s: any) => (
+          {secrets.map((s: any) => {
+            const updatedAt = s.updateAt ?? s.update_at ?? null;
+            const relDate = fmtRelative(updatedAt);
+            return (
             <div class="env-row">
-              <div>
+              <div title={s.description ?? undefined}>
                 <div class="env-name">{s.name}</div>
                 <code class="env-slug env-slug-secret">&#123;&#123;{s.slug}&#125;&#125;</code>
+                {relDate && <span class="env-ts" title={updatedAt}>Rotated {relDate}</span>}
               </div>
               <div class="env-value secret-value">
                 <span class="masked">••••••••</span>
                 <button class="button secondary small rotate-btn" data-id={s.id} data-name={s.name}>Rotate</button>
               </div>
-              <div class="env-desc" title={s.description ?? ''}>{s.description ? s.description : <span class="muted">—</span>}</div>
               <div class="env-actions">
                 <button class="button secondary small danger" data-action="delete-sec" data-id={s.id} data-name={s.name}>Delete</button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -452,7 +473,7 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
 
   .env-header {
     display: grid;
-    grid-template-columns: 180px 1fr minmax(160px, 1.2fr) 120px;
+    grid-template-columns: minmax(220px, 1.5fr) 1fr 140px;
     gap: 16px;
     padding: 10px 16px;
     background: var(--panel);
@@ -466,10 +487,10 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
 
   .env-row {
     display: grid;
-    grid-template-columns: 180px 1fr minmax(160px, 1.2fr) 120px;
+    grid-template-columns: minmax(220px, 1.5fr) 1fr 140px;
     gap: 16px;
     align-items: center;
-    padding: 12px 16px;
+    padding: 14px 16px;
     border-top: 1px solid var(--line);
     background: var(--bg);
     transition: background 0.1s;
@@ -480,7 +501,14 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
 
   /* ── Cell content ─────────────────────────────────────────────────────── */
 
-  .env-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+  .env-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; line-height: 1.4; }
+
+  .env-ts {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
 
   .env-slug {
     display: inline-block;
@@ -489,7 +517,7 @@ const tab = Astro.url.searchParams.get('tab') || 'variables';
     color: var(--accent);
     background: rgba(79, 156, 132, 0.1);
     border: 1px solid rgba(79, 156, 132, 0.2);
-    padding: 1px 6px;
+    padding: 2px 7px;
     border-radius: 4px;
   }
 

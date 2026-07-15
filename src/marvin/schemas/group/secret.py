@@ -1,5 +1,7 @@
 """Pydantic schemas for workspace secrets."""
 
+import datetime
+
 from pydantic import UUID4, ConfigDict, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
@@ -40,6 +42,8 @@ class WorkspaceSecretRead(_MarvinModel):
     name: str
     slug: str
     description: str | None = None
+    created_at: datetime.datetime | None = None
+    update_at: datetime.datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

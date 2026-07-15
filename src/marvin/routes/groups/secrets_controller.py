@@ -106,7 +106,8 @@ class SecretsController(BaseUserController):
     def delete_secret(self, secret_id: UUID4):
         """Delete a secret from the backend and metadata store."""
         secret = _get_secret_or_404(self.session, secret_id, self.group_id)
-        get_secret_backend().delete(secret.slug, self.group_id)
+        if get_app_settings().SECRET_BACKEND != "database":
+            get_secret_backend().delete(secret.slug, self.group_id)
         self.session.delete(secret)
         self.session.commit()
 

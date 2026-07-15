@@ -17,16 +17,18 @@ try {
 }
 
 function formatSchedule(task: any): string {
-  if (!task.schedule_config) return 'No schedule';
-  if (task.schedule_type === 'interval') {
-    const s = task.schedule_config.interval_seconds;
+  const scheduleType = task.scheduleType ?? task.schedule_type;
+  const sc = task.scheduleConfig ?? task.schedule_config;
+  if (!sc) return 'No schedule';
+  if (scheduleType === 'interval') {
+    const s = sc.intervalSeconds ?? sc.interval_seconds;
     if (s >= 86400) return `Every ${s / 86400} day(s)`;
     if (s >= 3600) return `Every ${s / 3600} hour(s)`;
     if (s >= 60) return `Every ${s / 60} minute(s)`;
     return `Every ${s}s`;
   }
-  if (task.schedule_type === 'cron') return `Cron: ${task.schedule_config.cron_expression}`;
-  if (task.schedule_type === 'once') return `Once: ${task.schedule_config.run_at || '—'}`;
+  if (scheduleType === 'cron') return `Cron: ${sc.cronExpression ?? sc.cron_expression}`;
+  if (scheduleType === 'once') return `Once: ${sc.runAt ?? sc.run_at || '—'}`;
   return '—';
 }
 
@@ -88,7 +90,7 @@ function statusClass(status: string | null): string {
             <div class="task-meta">
               <div class="meta-item">
                 <span class="meta-label">Type</span>
-                <code class="meta-value">{task.task_type}</code>
+                <code class="meta-value">{task.taskType ?? task.task_type}</code>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Scheduled</span>
@@ -97,15 +99,15 @@ function statusClass(status: string | null): string {
               <div class="meta-item">
                 <span class="meta-label">Last Run</span>
                 <span class="meta-value">
-                  {task.last_run_at
-                    ? <>{formatDate(task.last_run_at)} <span class={`run-status status-${statusClass(task.last_status)}`}>({task.last_status})</span></>
+                  {(task.lastRunAt ?? task.last_run_at)
+                    ? <>{formatDate(task.lastRunAt ?? task.last_run_at)} <span class={`run-status status-${statusClass(task.lastStatus ?? task.last_status)}`}>({task.lastStatus ?? task.last_status})</span></>
                     : <span class="muted">Never</span>}
                 </span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Next Run</span>
                 <span class="meta-value">
-                  {task.next_run_at ? formatDate(task.next_run_at) : <span class="muted">Not scheduled</span>}
+                  {(task.nextRunAt ?? task.next_run_at) ? formatDate(task.nextRunAt ?? task.next_run_at) : <span class="muted">Not scheduled</span>}
                 </span>
               </div>
             </div>

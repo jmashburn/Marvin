@@ -127,7 +127,13 @@ class ScheduledTasksController(BaseUserController):
         # Try UUID first
         try:
             uuid_val = UUID4(id_or_slug)
-            task = self.repos.scheduled_tasks.delete(uuid_val)
+            task = self.repos.scheduled_tasks.get_one(uuid_val)
+            if not task:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Scheduled task '{id_or_slug}' not found",
+                )
+            self.repos.scheduled_tasks.delete(uuid_val)
         except ValueError:
             # Try slug
             task = self.repos.scheduled_tasks.get_by_slug(id_or_slug)
