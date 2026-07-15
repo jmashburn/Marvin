@@ -25,10 +25,23 @@ class PlatformEmailController(BaseUserController):
         data: EmailTest,
         accept_language: str | None = Header(default=None),
     ) -> EmailSuccess:
-        """Send a test email to verify SMTP configuration."""
+        """Send a test email. Uses provided subject/message if given, otherwise generic defaults."""
+        from marvin.services.email.email_service import EmailTemplate
+
         email_service = EmailService(locale=accept_language)
         try:
-            success = email_service.send_test_email(data.email)
+            if data.subject or data.message:
+                # Use the form values rendered through the default template
+                template = EmailTemplate(
+                    subject=data.subject or "Test Email",
+                    header_text=data.subject or "Test Email",
+                    message_top=data.message or "This is a test email.",
+                    button_link=str(self.settings.BASE_URL),
+                    button_text="Open",
+                )
+                success = email_service.send_email(data.email, template)
+            else:
+                success = email_service.send_test_email(data.email)
             if not success:
                 return EmailSuccess(success=False, error="Email service returned failure without exception.")
         except Exception as e:

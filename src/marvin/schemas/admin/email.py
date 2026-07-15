@@ -28,9 +28,8 @@ class EmailSuccess(_MarvinModel):
 
 
 class EmailTest(_MarvinModel):
-    """
-    Schema for the request body when sending a test email.
-    Specifies the recipient email address.
-    """
+    """Request body for sending a test email."""
 
-    email: str  # The email address to which the test email should be sent.
+    email: str
+    subject: str | None = None
+    message: str | None = None

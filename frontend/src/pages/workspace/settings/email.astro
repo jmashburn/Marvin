@@ -611,6 +611,8 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
       const payload = {
         email: formData.get('test_email'),
+        subject: formData.get('subject') || null,
+        message: formData.get('message') || null,
       };
 
       testResult?.classList.remove('hidden', 'success', 'error');
