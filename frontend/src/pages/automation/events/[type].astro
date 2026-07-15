@@ -1,0 +1,463 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
+import { listEmailTemplates } from "@/lib/api/emailTemplates";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+const { type } = Astro.params;
+
+let eventInfo: any = null;
+let emailTemplates: any[] = [];
+let webhooks: any[] = [];
+let notifications: any[] = [];
+let error: string | null = null;
+
+try {
+  const allTypes = await sdk.events.getOptions() as any[];
+  eventInfo = allTypes.find((e: any) => e.value === type) || null;
+
+  if (!eventInfo) {
+    return Astro.redirect('/automation/events');
+  }
+
+  const workspace = await getCurrentWorkspace(authToken!);
+  const wsId = workspace?.id;
+
+  [emailTemplates, webhooks, notifications] = await Promise.all([
+    wsId ? listEmailTemplates(wsId, authToken).catch(() => []) : Promise.resolve([]),
+    sdk.webhooks.list().catch(() => []),
+    sdk.notifications.list().catch(() => []),
+  ]);
+} catch (e) {
+  console.error('[events/type] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AppLayout title={eventInfo ? eventInfo.label : 'Event'} eyebrow="Events">
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : eventInfo ? (
+    <>
+      <div class="page-header">
+        <div class="breadcrumb">
+          <a href="/automation/events">Events</a>
+          <span>›</span>
+          <span>{eventInfo.label}</span>
+        </div>
+        <div class="event-meta">
+          <h2>{eventInfo.label}</h2>
+          <span class="event-category">{eventInfo.category}</span>
+        </div>
+        {eventInfo.description && (
+          <p class="event-description">{eventInfo.description}</p>
+        )}
+        <code class="event-type-code">{type}</code>
+      </div>
+
+      {eventInfo.variables?.length > 0 && (
+        <div class="vars-panel">
+          <div class="vars-header">
+            <span class="vars-title">Available Variables</span>
+            <span class="vars-hint">These values are provided by this event and can be used in templates</span>
+          </div>
+          <div class="vars-list">
+            {eventInfo.variables.map((v: any) => (
+              <div class="var-chip" title={v.description}>
+                <span class="var-chip-inner">
+                  <code>{'{{' + v.slug + '}}'}</code>
+                  {v.description && <span class="var-value">{v.description}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div class="subscriptions">
+        <section class="sub-section">
+          <div class="sub-header">
+            <h3>Email Templates</h3>
+            <p>Send an email when this event fires</p>
+          </div>
+          <div class="sub-options">
+            {emailTemplates.map((t: any) => (
+              <div class="sub-option">
+                <div class="sub-option-info">
+                  <strong>{t.name}</strong>
+                  <code class="sub-type">{(t as any).templateType ?? t.template_type}</code>
+                </div>
+                <button
+                  class="button secondary small connect-email-btn"
+                  data-template-id={t.id}
+                  data-event-type={type}
+                >
+                  Connect
+                </button>
+              </div>
+            ))}
+            <a href="/workspace/settings/email" class="sub-option sub-option-create">
+              <span>+ Create or customize an email template</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="sub-section">
+          <div class="sub-header">
+            <h3>Webhooks</h3>
+            <p>Send an HTTP request when this event fires</p>
+          </div>
+          <div class="sub-options">
+            {webhooks.map((w: any) => {
+              const subscribedEvents: string[] = (w as any).subscribedEvents ?? (w as any).subscribed_events ?? [];
+              const isConnected = subscribedEvents.includes(type || '');
+              return (
+                <div class="sub-option">
+                  <div class="sub-option-info">
+                    <strong>{w.name}</strong>
+                    <code class="sub-url">{w.url?.toString().slice(0, 40)}{(w.url?.toString().length || 0) > 40 ? '…' : ''}</code>
+                  </div>
+                  <button
+                    class:list={['button', 'small', isConnected ? 'secondary' : '']}
+                    data-webhook-id={w.id}
+                    data-event-type={type}
+                    data-connected={isConnected ? 'true' : 'false'}
+                  >
+                    {isConnected ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+              );
+            })}
+            <a href="/automation/webhooks/new" class="sub-option sub-option-create">
+              <span>+ Create a new webhook</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="sub-section">
+          <div class="sub-header">
+            <h3>Notifications</h3>
+            <p>Send a notification (Slack, email, SMS, etc.) when this event fires</p>
+          </div>
+          <div class="sub-options">
+            {notifications.map((n: any) => {
+              const opts: any[] = (n as any).options ?? [];
+              const isConnected = opts.some((o: any) => (o.option || o.slug) === ('core.' + type));
+              return (
+                <div class="sub-option">
+                  <div class="sub-option-info">
+                    <strong>{n.name}</strong>
+                  </div>
+                  <button
+                    class:list={['button', 'small', isConnected ? 'secondary' : '']}
+                    data-notifier-id={n.id}
+                    data-event-type={type}
+                    data-connected={isConnected ? 'true' : 'false'}
+                  >
+                    {isConnected ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+              );
+            })}
+            <a href="/automation/notifications/new" class="sub-option sub-option-create">
+              <span>+ Add notification endpoint</span>
+            </a>
+          </div>
+        </section>
+      </div>
+    </>
+  ) : null}
+</AppLayout>
+
+<script define:vars={{ type }}>
+  // Webhook connect/disconnect
+  document.querySelectorAll('[data-webhook-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const webhookId = btn.dataset.webhookId;
+      const eventType = btn.dataset.eventType;
+      const isConnected = btn.dataset.connected === 'true';
+
+      try {
+        // Read current webhook to get its full payload
+        const res = await fetch(`/api/groups/webhooks/${webhookId}`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const webhook = await res.json();
+        const current = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
+
+        const updated = isConnected
+          ? current.filter(e => e !== eventType)
+          : [...current, eventType];
+
+        const putRes = await fetch(`/api/groups/webhooks/${webhookId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...webhook, subscribed_events: updated }),
+        });
+        if (!putRes.ok) throw new Error(`HTTP ${putRes.status}`);
+        window.location.reload();
+      } catch (e) {
+        alert('Failed to update webhook subscription');
+        console.error(e);
+      }
+    });
+  });
+
+  // Notification connect/disconnect
+  document.querySelectorAll('[data-notifier-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const notifierId = btn.dataset.notifierId;
+      const eventType = btn.dataset.eventType;
+      const isConnected = btn.dataset.connected === 'true';
+
+      try {
+        if (isConnected) {
+          // Disconnect: remove via Notifications edit page for now
+          alert('To disconnect, edit the notification directly from the Notifications page.');
+        } else {
+          // Connect: add option slug to notification
+          const res = await fetch(`/api/groups/notifications/${notifierId}`, { credentials: 'include' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const notif = await res.json();
+          const currentOptions: string[] = notif.options ?? [];
+          const newSlug = 'core.' + eventType;
+
+          const putRes = await fetch(`/api/groups/notifications/${notifierId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ ...notif, options: [...currentOptions, newSlug] }),
+          });
+          if (!putRes.ok) throw new Error(`HTTP ${putRes.status}`);
+          window.location.reload();
+        }
+      } catch (e) {
+        alert('Failed to update notification subscription');
+        console.error(e);
+      }
+    });
+  });
+</script>
+
+<style>
+  .alert {
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .page-header {
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .event-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .event-meta h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .event-category {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    background: rgba(79, 156, 132, 0.1);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .event-description {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .event-type-code {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .vars-panel {
+    margin-bottom: 28px;
+    padding: 16px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .vars-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .vars-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .vars-hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .vars-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .var-chip {
+    font-size: 12px;
+    background: rgba(79, 156, 132, 0.08);
+    border: 1px solid rgba(79, 156, 132, 0.2);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: default;
+  }
+
+  .var-chip-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .var-chip code {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    font-weight: 600;
+    background: none;
+    padding: 0;
+  }
+
+  .var-value {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .subscriptions {
+    display: grid;
+    gap: 24px;
+    max-width: 800px;
+  }
+
+  .sub-section {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .sub-header {
+    padding: 16px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sub-header h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .sub-header p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .sub-options {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sub-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line);
+    gap: 16px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .sub-option:last-child { border-bottom: none; }
+  .sub-option:hover { background: var(--panel); }
+
+  .sub-option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .sub-option-info strong {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .sub-type,
+  .sub-url {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+  }
+
+  .sub-option-create {
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  .sub-option-create:hover {
+    color: var(--accent);
+    background: rgba(79, 156, 132, 0.04);
+  }
+
+  .button.small {
+    padding: 5px 12px;
+    font-size: 12px;
+    min-height: 28px;
+    flex-shrink: 0;
+  }
+</style>
