@@ -173,10 +173,11 @@ def post_single_webhook(webhook_config: WebhookRead, message: str = "Test Webhoo
 
     # Construct the event object
     test_event = Event(
-        message=EventBusMessage.from_type(event_type, body=message),  # Create a standard message
+        message=EventBusMessage.from_type(event_type, body=message),
         event_type=event_type,
-        integration_id=f"marvin_test_single_webhook_{webhook_config.id}",  # Specific integration ID for this test
+        integration_id=f"marvin_test_single_webhook_{webhook_config.id}",
         document_data=event_document,
+        workspace_id=webhook_config.group_id,
     )
 
     # Initialize a WebhookEventListener for the group of the specified webhook
