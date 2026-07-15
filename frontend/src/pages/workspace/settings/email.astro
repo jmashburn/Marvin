@@ -565,7 +565,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       const recipient = document.getElementById('test-recipient').value;
 
       try {
-        const response = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${templateId}/test`, {
+        const response = await fetch(`${apiUrl}/api/platform/email/templates/${templateId}/test`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
