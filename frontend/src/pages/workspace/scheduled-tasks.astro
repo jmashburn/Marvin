@@ -30,6 +30,13 @@ function formatSchedule(task: any): string {
   return '—';
 }
 
+function formatDate(isoStr: string | null): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
 function statusClass(status: string | null): string {
   if (status === 'success') return 'success';
   if (status === 'failed') return 'failed';
@@ -84,21 +91,21 @@ function statusClass(status: string | null): string {
                 <code class="meta-value">{task.task_type}</code>
               </div>
               <div class="meta-item">
-                <span class="meta-label">Schedule</span>
+                <span class="meta-label">Scheduled</span>
                 <span class="meta-value">{formatSchedule(task)}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Last Run</span>
-                <span class={`run-status status-${statusClass(task.last_status)}`}>
-                  {task.last_status || 'Never run'}
+                <span class="meta-value">
+                  {task.last_run_at
+                    ? <>{formatDate(task.last_run_at)} <span class={`run-status status-${statusClass(task.last_status)}`}>({task.last_status})</span></>
+                    : <span class="muted">Never</span>}
                 </span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Next Run</span>
                 <span class="meta-value">
-                  {task.next_run_at
-                    ? new Date(task.next_run_at).toLocaleString()
-                    : 'Not scheduled'}
+                  {task.next_run_at ? formatDate(task.next_run_at) : <span class="muted">Not scheduled</span>}
                 </span>
               </div>
             </div>
@@ -322,6 +329,8 @@ function statusClass(status: string | null): string {
   .meta-value {
     font-size: 14px;
   }
+
+  .muted { color: var(--muted); }
 
   .run-status {
     font-size: 13px;
