@@ -62,61 +62,51 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
     <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : (eventInfo && webhook) ? (
     <>
-      <!-- Header -->
-      <div class="page-header">
-        <div class="breadcrumb">
-          <a href="/automation/events">Events</a>
-          <span>›</span>
-          <a href={`/automation/events/${type}`}>{eventInfo.label}</a>
-          <span>›</span>
-          <span>Webhook</span>
-        </div>
+      <div class="breadcrumb">
+        <a href="/automation/events">Events</a>
+        <span>›</span>
+        <a href={`/automation/events/${type}`}>{eventInfo.label}</a>
+        <span>›</span>
+        <span>Webhook</span>
+      </div>
 
-        <div class="header-row">
+      <!-- Card matching modal layout -->
+      <div class="wh-card">
+        <div class="wh-header">
           <div>
-            <h2>{webhook.name}</h2>
-            <code class="webhook-url-head">{webhook.url}</code>
+            <h3>{webhook.name}</h3>
+            <code class="wh-url">{webhook.url}</code>
           </div>
           {isConnected
             ? <span class="connected-pill">&#10003; Connected</span>
             : <span class="disconnected-pill">Not connected</span>}
         </div>
 
-        <p class="header-desc">
-          When <strong>{eventInfo.label}</strong> fires, this webhook receives a POST request.
-          {eventInfo.description && ` ${eventInfo.description}`}
-        </p>
-      </div>
-
-      <!-- Payload section -->
-      <div class="payload-section">
-        <div class="payload-meta">
-          <span class="payload-label">POST to <code>{webhook.url}</code></span>
-          {eventInfo.variables?.length > 0 && (
-            <div class="vars-inline">
-              {eventInfo.variables.map((v: any) => (
+        <div class="wh-body">
+          <p class="wh-label">
+            Your endpoint will receive this JSON via POST when <strong>{eventInfo.label}</strong> fires
+            {eventInfo.variables?.length > 0 && (
+              <span> — variables: {eventInfo.variables.map((v: any) => (
                 <span class="var-tag" title={v.description}>{'{{' + v.slug + '}}'}</span>
-              ))}
-            </div>
-          )}
+              ))}</span>
+            )}:
+          </p>
+          <pre class="wh-payload">{JSON.stringify(examplePayload, null, 2)}</pre>
         </div>
-        <pre class="payload-json">{JSON.stringify(examplePayload, null, 2)}</pre>
-      </div>
 
-      <!-- Action strip -->
-      <div class="action-strip">
-        {isConnected ? (
-          <>
-            <span class="action-note">Disconnect to stop receiving events on this webhook.</span>
-            <button type="button" id="disconnect-btn" class="button secondary danger">Disconnect</button>
-          </>
-        ) : (
-          <>
-            <span class="action-note">Your endpoint will receive the payload above on every <strong>{eventInfo.label}</strong> event.</span>
-            <button type="button" id="connect-btn" class="button">Connect</button>
-          </>
-        )}
-        <a href={`/automation/events/${type}`} class="button secondary">Back</a>
+        <div class="wh-footer">
+          <span class="wh-note">
+            {isConnected
+              ? 'This webhook fires on every ' + eventInfo.label + ' event. Disconnect to stop.'
+              : 'Connect to start receiving ' + eventInfo.label + ' events at this URL.'}
+          </span>
+          <div class="wh-actions">
+            {isConnected
+              ? <button type="button" id="disconnect-btn" class="button secondary danger">Disconnect</button>
+              : <button type="button" id="connect-btn" class="button">Connect</button>}
+            <a href={`/automation/events/${type}`} class="button secondary">Back</a>
+          </div>
+        </div>
       </div>
     </>
   ) : null}
@@ -159,38 +149,40 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
 </script>
 
 <style>
-  .alert { padding: 16px; border-radius: var(--radius); background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); }
+  .alert { padding: 16px; border-radius: var(--radius); background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); margin-bottom: 20px; }
 
-  /* Header */
-  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 20px; }
   .breadcrumb a { color: var(--muted); text-decoration: none; }
   .breadcrumb a:hover { color: var(--ink); }
 
-  .page-header { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  /* Card — mirrors modal content panel */
+  .wh-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
 
-  .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
-  .header-row h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
-  .webhook-url-head { font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted); }
-  .header-desc { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .wh-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+  .wh-header h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .wh-url { font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted); }
 
   .connected-pill { background: rgba(79,156,132,0.1); color: var(--accent); border: 1px solid rgba(79,156,132,0.25); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
-  .disconnected-pill { background: var(--panel); color: var(--muted); border: 1px solid var(--line); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+  .disconnected-pill { background: var(--bg); color: var(--muted); border: 1px solid var(--line); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 
-  /* Payload */
-  .payload-section { max-width: 720px; }
-  .payload-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-  .payload-label { font-size: 12px; color: var(--muted); }
-  .payload-label code { font-family: ui-monospace, monospace; font-size: 11px; }
+  .wh-body { padding: 20px 24px; }
+  .wh-label { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .wh-label strong { color: var(--ink); }
+  .var-tag { font-size: 11px; font-family: ui-monospace, monospace; color: var(--accent); background: rgba(79,156,132,0.08); padding: 1px 5px; border-radius: 3px; }
 
-  .vars-inline { display: flex; flex-wrap: wrap; gap: 4px; }
-  .var-tag { font-size: 11px; font-family: ui-monospace, monospace; color: var(--accent); background: rgba(79,156,132,0.08); padding: 1px 6px; border-radius: 3px; }
+  .wh-payload { font-size: 12px; font-family: ui-monospace, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; overflow-x: auto; max-height: 360px; overflow-y: auto; white-space: pre; margin: 0; color: var(--ink); line-height: 1.5; }
 
-  .payload-json { font-size: 12px; font-family: ui-monospace, monospace; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; overflow-x: auto; max-height: 480px; overflow-y: auto; white-space: pre; margin: 0; color: var(--ink); line-height: 1.5; }
-
-  /* Action strip */
-  .action-strip { display: flex; align-items: center; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); flex-wrap: wrap; max-width: 720px; }
-  .action-note { font-size: 13px; color: var(--muted); flex: 1; min-width: 200px; }
-  .action-note strong { color: var(--ink); }
+  .wh-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .wh-note { font-size: 13px; color: var(--muted); flex: 1; min-width: 160px; }
+  .wh-actions { display: flex; gap: 8px; }
 
   .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
   .button.secondary.danger:hover { background: var(--color-error-bg); }
