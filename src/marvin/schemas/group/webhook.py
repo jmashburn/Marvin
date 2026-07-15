@@ -60,6 +60,30 @@ class WebhookCreate(_MarvinModel):
     This field is processed by `validate_scheduled_time` to handle various input formats.
     """
 
+    @field_validator("url", mode="before")
+    @classmethod
+    def validate_webhook_url(cls, v: Any) -> Any:
+        """Block SSRF targets in production. Localhost/private IPs allowed when PRODUCTION=False."""
+        from marvin.core.config import get_app_settings
+        if get_app_settings().PRODUCTION:
+            import ipaddress
+            from urllib.parse import urlparse
+            url_str = str(v)
+            parsed = urlparse(url_str)
+            hostname = parsed.hostname or ""
+            blocked_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "169.254.169.254"}
+            if hostname in blocked_hosts:
+                raise ValueError("Webhook URL cannot target localhost or internal addresses in production")
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_link_local:
+                    raise ValueError("Webhook URL cannot target private IP ranges in production")
+            except ValueError as e:
+                if "cannot target" in str(e):
+                    raise
+                # Not an IP address — hostname is fine
+        return v
+
     @field_validator("scheduled_time", mode="before")
     @classmethod
     def validate_scheduled_time(cls, v: Any, info: ValidationInfo) -> datetime.datetime:
