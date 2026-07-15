@@ -148,33 +148,44 @@ class EmailService(BaseService):
             self.logger.error(f"Failed to send email '{email_data.subject}' to {email_to}.")
         return success
 
-    def send_forgot_password(self, recipient_address: str, reset_password_url: str) -> bool:  # Renamed params
-        """
-        Sends a "forgot password" email to the user.
-
-        The email contains a unique URL for resetting their password.
-        Content is defined by localization keys (e.g., "emails.password.subject").
-
-        Args:
-            recipient_address (str): The email address of the user who forgot their password.
-            reset_password_url (str): The URL the user will click to reset their password.
-
-        Returns:
-            bool: True if the email was sent successfully, False otherwise.
-        """
-        # Construct the EmailTemplate with content specific to password reset
-        # These string values are presumably localization keys.
+    def send_forgot_password(
+        self,
+        recipient_address: str,
+        reset_password_url: str,
+        username: str = "",
+        group_id: str | None = None,
+    ) -> bool:
+        """Sends a password reset email, using a DB template if available."""
+        db_template = self._get_db_template("password_reset", group_id)
+        if db_template:
+            return self._send_db_template(
+                recipient_address,
+                db_template,
+                {
+                    "reset_url": reset_password_url,
+                    "button_link": reset_password_url,
+                    "username": username,
+                    "expiry_hours": "24",
+                },
+            )
         forgot_password_template = EmailTemplate(
-            subject="Forgot Password",  # Localization key for subject
-            header_text="Forgot Password",
-            message_top="You have requested to reset your password.",
-            message_bottom="Please click the button above to reset your password.",
-            button_link=reset_password_url,  # The actual reset URL
+            subject="Reset your password",
+            header_text="Password Reset Request",
+            message_top=f"We received a request to reset the password for {username or 'your account'}.",
+            message_bottom="If you didn't request this, you can safely ignore this email.",
+            button_link=reset_password_url,
             button_text="Reset Password",
         )
         return self.send_email(recipient_address, forgot_password_template)
 
-    def send_invitation(self, recipient_address: str, invitation_url: str, group_id: str | None = None) -> bool:
+    def send_invitation(
+        self,
+        recipient_address: str,
+        invitation_url: str,
+        group_id: str | None = None,
+        workspace_name: str = "",
+        inviter_name: str = "",
+    ) -> bool:
         """
         Sends a group invitation email to a prospective user.
 
@@ -193,13 +204,14 @@ class EmailService(BaseService):
         db_template = self._get_db_template("invitation", group_id)
 
         if db_template:
-            # Use database template with Jinja2 rendering
             return self._send_db_template(
                 recipient_address,
                 db_template,
                 {
                     "invitation_url": invitation_url,
                     "button_link": invitation_url,
+                    "workspace_name": workspace_name,
+                    "inviter_name": inviter_name,
                 },
             )
 

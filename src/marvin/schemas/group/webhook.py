@@ -63,6 +63,9 @@ class WebhookCreate(_MarvinModel):
     headers: dict[str, str] | None = None
     """Custom HTTP headers. Values support {{SLUG}} secret interpolation."""
 
+    subscribed_events: list[str] | None = None
+    """Event types this webhook fires on (e.g. ['entry_published', 'member_added'])."""
+
     @field_validator("url", mode="before")
     @classmethod
     def validate_webhook_url(cls, v: Any) -> Any:
@@ -176,7 +179,12 @@ class WebhookRead(WebhookUpdate):  # Inherits group_id from WebhookUpdate
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
-        """Bridge headers_json ORM field → headers schema field."""
+        """Bridge ORM fields to schema fields.
+
+        - headers_json → headers (ORM stores custom headers under a different column name)
+        - subscribed_events: same name in ORM and schema; picked up automatically by
+          from_attributes=True, no manual bridging needed.
+        """
         if hasattr(obj, "headers_json") and obj.headers_json and not getattr(obj, "headers", None):
             obj.headers = obj.headers_json
         return super().model_validate(obj, **kwargs)
