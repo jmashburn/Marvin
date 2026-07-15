@@ -40,6 +40,22 @@ try {
 }
 
 const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+
+function buildExamplePayload(eventType: string, variables: any[]): object {
+  const varExamples: Record<string, string> = {};
+  for (const v of variables || []) varExamples[v.slug] = v.example || `<${v.slug}>`;
+  return {
+    eventType,
+    eventId: "evt_a1b2c3d4-...",
+    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    workspaceId: "<workspace-uuid>",
+    message: { title: eventType.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()), body: eventType },
+    documentData: varExamples,
+    userId: "<user-uuid>",
+  };
+}
+
+const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variables || []) : {};
 ---
 
 <AppLayout title={eventInfo ? eventInfo.label : 'Event'} eyebrow="Events">
@@ -134,12 +150,17 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                     <strong>{w.name}</strong>
                     <code class="sub-url">{w.url?.toString().slice(0, 40)}{(w.url?.toString().length || 0) > 40 ? '…' : ''}</code>
                   </div>
-                  <a
-                    href={`/automation/events/${type}/webhook/${w.id}`}
+                  <button
+                    type="button"
                     class:list={['button', 'small', isConnected ? 'secondary' : '']}
+                    data-open-webhook-modal={w.id}
+                    data-webhook-name={w.name}
+                    data-webhook-url={w.url}
+                    data-webhook-method={w.method || 'POST'}
+                    data-is-connected={isConnected ? 'true' : 'false'}
                   >
                     {isConnected ? 'Manage' : 'Connect'}
-                  </a>
+                  </button>
                 </div>
               );
             })}
@@ -183,6 +204,148 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       </div>
     </>
   ) : null}
+<!-- Webhook connection modal -->
+<div id="webhook-modal" class="wh-modal" style="display:none" aria-modal="true">
+  <div class="wh-overlay"></div>
+  <div class="wh-content">
+    <div class="wh-header">
+      <div>
+        <h3 id="wh-title">Connect Webhook</h3>
+        <code id="wh-url" class="wh-url"></code>
+      </div>
+      <button type="button" id="wh-close" class="wh-close">✕</button>
+    </div>
+
+    <div class="wh-body">
+      <p class="wh-label">Your endpoint will receive this JSON via <span id="wh-method">POST</span>:</p>
+      <pre id="wh-payload" class="wh-payload"></pre>
+    </div>
+
+    <div class="wh-footer">
+      <span id="wh-note" class="wh-note"></span>
+      <div class="wh-actions">
+        <button type="button" id="wh-confirm" class="button">Connect</button>
+        <button type="button" id="wh-cancel" class="button secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ type, apiUrl, examplePayload }}>
+  // Webhook modal
+  const modal = document.getElementById('webhook-modal');
+  const whTitle = document.getElementById('wh-title');
+  const whUrl = document.getElementById('wh-url');
+  const whMethod = document.getElementById('wh-method');
+  const whPayload = document.getElementById('wh-payload');
+  const whNote = document.getElementById('wh-note');
+  const whConfirm = document.getElementById('wh-confirm');
+  let activeWebhookId = null;
+  let activeIsConnected = false;
+
+  function openModal(btn) {
+    activeWebhookId = btn.dataset.openWebhookModal;
+    activeIsConnected = btn.dataset.isConnected === 'true';
+    const name = btn.dataset.webhookName;
+    const url = btn.dataset.webhookUrl;
+    const method = btn.dataset.webhookMethod || 'POST';
+
+    whTitle.textContent = (activeIsConnected ? 'Manage: ' : 'Connect: ') + name;
+    whUrl.textContent = url;
+    whMethod.textContent = method;
+    whPayload.textContent = JSON.stringify(examplePayload, null, 2);
+    whNote.innerHTML = activeIsConnected
+      ? 'This webhook is <strong>connected</strong>. Click Disconnect to remove it.'
+      : 'Click Connect to start receiving <strong>' + type + '</strong> events at this URL.';
+    whConfirm.textContent = activeIsConnected ? 'Disconnect' : 'Connect';
+    whConfirm.className = activeIsConnected ? 'button secondary danger' : 'button';
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    activeWebhookId = null;
+  }
+
+  document.querySelectorAll('[data-open-webhook-modal]').forEach(btn => {
+    btn.addEventListener('click', () => openModal(btn));
+  });
+
+  document.getElementById('wh-close')?.addEventListener('click', closeModal);
+  document.getElementById('wh-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('wh-overlay')?.addEventListener('click', closeModal);
+  document.querySelector('.wh-overlay')?.addEventListener('click', closeModal);
+
+  whConfirm?.addEventListener('click', async () => {
+    if (!activeWebhookId) return;
+    whConfirm.disabled = true;
+    whConfirm.textContent = 'Saving…';
+    try {
+      const res = await fetch(`${apiUrl}/api/groups/webhooks/${activeWebhookId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const webhook = await res.json();
+      const current = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
+      const updated = activeIsConnected
+        ? current.filter(e => e !== type)
+        : [...new Set([...current, type])];
+      const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${activeWebhookId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ...webhook, subscribed_events: updated }),
+      });
+      if (!putRes.ok) {
+        const err = await putRes.json().catch(() => ({}));
+        throw new Error(err.detail || `Failed: ${putRes.status}`);
+      }
+      closeModal();
+      window.location.reload();
+    } catch (e) {
+      alert('Error: ' + e.message);
+      whConfirm.disabled = false;
+      whConfirm.textContent = activeIsConnected ? 'Disconnect' : 'Connect';
+    }
+  });
+
+  // Email connect
+  document.querySelectorAll('.connect-email-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      alert('Email template connection coming soon.\n\nThis will fire the selected template when "' + type + '" events occur.');
+    });
+  });
+
+  // Notification connect/disconnect
+  document.querySelectorAll('[data-notifier-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const notifierId = btn.dataset.notifierId;
+      const isConnected = btn.dataset.connected === 'true';
+      const optionSlug = 'core.' + type;
+      try {
+        if (isConnected) {
+          alert('To disconnect, edit the notification from the Notifications page.');
+          return;
+        }
+        const res = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const notif = await res.json();
+        const currentOptions = notif.options ?? [];
+        const putRes = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...notif, options: [...currentOptions, optionSlug] }),
+        });
+        if (!putRes.ok) throw new Error(`HTTP ${putRes.status}`);
+        window.location.reload();
+      } catch (e) {
+        alert('Failed to update notification subscription');
+      }
+    });
+  });
+</script>
+
 </AppLayout>
 
 <script define:vars={{ type, apiUrl }}>
@@ -475,4 +638,105 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     background: rgba(79,156,132,0.1);
     color: var(--accent);
   }
+
+  /* Give the event header more identity */
+  .event-type-code {
+    display: inline-block;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+
+  /* Accent the sub-section headers */
+  .sub-section { border-top: 3px solid var(--line); }
+  .sub-section:first-child { border-top: 3px solid var(--accent); }
+  .sub-header h3 { color: var(--ink); }
+
+  /* Make connected items visually distinct */
+  .sub-option .button.secondary { opacity: 0.7; }
+  .sub-option:has(.button:not(.secondary)) { background: rgba(79,156,132,0.03); }
+
+  /* ── Webhook modal ────────────────────────────────────────────────────── */
+  .wh-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .wh-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+  }
+
+  .wh-content {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.25);
+  }
+
+  .wh-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .wh-header h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .wh-url { font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted); }
+
+  .wh-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; padding: 2px 6px; border-radius: 4px; }
+  .wh-close:hover { background: var(--line); color: var(--ink); }
+
+  .wh-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+  .wh-label { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+  .wh-payload {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    overflow-x: auto;
+    max-height: 360px;
+    overflow-y: auto;
+    white-space: pre;
+    margin: 0;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+
+  .wh-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+
+  .wh-note { font-size: 13px; color: var(--muted); flex: 1; min-width: 160px; }
+  .wh-note strong { color: var(--ink); }
+  .wh-actions { display: flex; gap: 8px; }
+
+  .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
+  .button.secondary.danger:hover { background: var(--color-error-bg); }
 </style>
