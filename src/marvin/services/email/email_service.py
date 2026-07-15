@@ -43,6 +43,7 @@ class EmailTemplate(BaseModel):
     message_bottom: str = ""
     button_link: str = ""
     button_text: str = ""
+    workspace_name: str = ""
 
     def render_html(self, template_file: Path) -> str:  # Renamed `template` to `template_file`
         """
@@ -314,6 +315,7 @@ class EmailService(BaseService):
                     message_bottom=Template(_r(db_template.message_bottom)).render(**variables),
                     button_link=variables.get("button_link", ""),
                     button_text=Template(_r(db_template.button_text)).render(**variables),
+                    workspace_name=variables.get("workspace_name", ""),
                 )
                 # Render with default.html template
                 html_content = template_data.render_html(self.default_template)

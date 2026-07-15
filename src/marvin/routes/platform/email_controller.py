@@ -53,10 +53,12 @@ class PlatformEmailController(BaseUserController):
 
     @router.get("/template-vars")
     def list_template_vars(self, template_type: str | None = None) -> dict:
-        """Return available {{lower_case}} per-send variables for a template type."""
+        """Return available per-send variables and required vars for a template type."""
         from marvin.services.email.template_variables import get_vars_for_type, TEMPLATE_VARS
+        from marvin.services.email.system_templates import get_required_vars
         return {
             "context_vars": get_vars_for_type(template_type),
+            "required_vars": get_required_vars(template_type or ""),
             "available_types": list(TEMPLATE_VARS.keys()),
         }
 
@@ -83,6 +85,17 @@ class PlatformEmailController(BaseUserController):
                     detail="Email template not found.",
                 )
 
+            # Warn if required variables are missing from the template content
+            from marvin.services.email.system_templates import validate_template_content
+            content_fields = {
+                "subject": template.subject or "",
+                "header_text": template.header_text or "",
+                "message_top": template.message_top or "",
+                "message_bottom": template.message_bottom or "",
+                "custom_html": template.custom_html or "",
+            }
+            missing_vars = validate_template_content(template.template_type or "", content_fields)
+
             test_variables = {
                 "workspace_name": self.group.name if hasattr(self, "group") else "Your Workspace",
                 "button_link": str(self.settings.BASE_URL),
@@ -103,4 +116,7 @@ class PlatformEmailController(BaseUserController):
                 self.logger.error(f"Template test email failed: {e}")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-        return {"message": f"Test email sent to {data.recipient_email}"}
+        response = {"message": f"Test email sent to {data.recipient_email}"}
+        if missing_vars:
+            response["warning"] = f"Required variables missing from template: {', '.join('{{' + v + '}}' for v in missing_vars)}"
+        return response

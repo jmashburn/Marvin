@@ -425,11 +425,20 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         varsList.innerHTML = '';
 
         // Per-send context variables (lower_case) — shown first
+        const requiredVars = ctxData.required_vars || [];
+
         if (ctxVars.length) {
           varsList.appendChild(makeSectionLabel('Per-send · changes each email', '#7c6fb0'));
           ctxVars.forEach(v => {
             const chip = makeChip(v.slug, v.description, '{{' + v.slug + '}}');
             chip.classList.add('var-chip-context');
+            if (requiredVars.includes(v.slug)) {
+              chip.title = '⚠ Required — ' + (v.description || v.slug);
+              const badge = document.createElement('span');
+              badge.style.cssText = 'font-size:9px;font-weight:700;color:#c84b4b;letter-spacing:0.3px;margin-top:1px;';
+              badge.textContent = 'REQUIRED';
+              chip.querySelector('.var-chip-inner').appendChild(badge);
+            }
             varsList.appendChild(chip);
           });
         }
@@ -647,7 +656,12 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
           throw new Error(error.detail || 'Failed to send test email');
         }
 
-        alert('Test email sent successfully!');
+        const result = await response.json();
+        if (result.warning) {
+          alert('Test email sent, but: ' + result.warning);
+        } else {
+          alert('Test email sent successfully!');
+        }
         hideModal(testSendModal);
       } catch (error) {
         console.error('Error sending test email:', error);
