@@ -90,11 +90,23 @@ class PlatformEmailController(BaseUserController):
                     detail="Email template not found.",
                 )
 
+            base = str(self.settings.BASE_URL)
+            workspace_name = self.group.name if hasattr(self, "group") else "Your Workspace"
             test_variables = {
-                "workspace_name": self.group.name if hasattr(self, "group") else "Your Workspace",
-                "button_link": str(self.settings.BASE_URL),
-                "invitation_url": str(self.settings.BASE_URL),
-                **data.variables,  # User-provided vars override defaults
+                # Defaults — user-provided values in data.variables override these
+                "workspace_name": workspace_name,
+                "button_link": base,
+                "invitation_url": base,
+                "reset_url": base,
+                "login_url": base,
+                "action_url": base,
+                "inviter_name": "A teammate",
+                "username": "testuser",
+                "first_name": "Test",
+                "expiry_hours": "24",
+                "title": "Test Notification",
+                "message": "This is a test notification message.",
+                **data.variables,  # User-provided values take priority
             }
 
             warning = None
