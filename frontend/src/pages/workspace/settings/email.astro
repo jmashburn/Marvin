@@ -1128,24 +1128,25 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
   .modal .form-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     font-size: 14px;
-    font-weight: 500;
-    color: var(--text);
+    font-weight: 600;
+    color: var(--ink);
   }
 
   .modal .form-group input[type="text"],
   .modal .form-group input[type="email"],
   .modal .form-group textarea {
     width: 100%;
-    padding: 10px 12px;
+    padding: 12px 14px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     font-size: 14px;
     font-family: inherit;
     background: var(--bg);
-    color: var(--text);
+    color: var(--ink);
     transition: border-color 0.15s;
+    box-sizing: border-box;
   }
 
   .modal .form-group input:focus,
