@@ -38,6 +38,8 @@ try {
   console.error('[events/type] Error:', e);
   error = e instanceof Error ? e.message : String(e);
 }
+
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 ---
 
 <AppLayout title={eventInfo ? eventInfo.label : 'Event'} eyebrow="Events">
@@ -184,7 +186,7 @@ try {
   ) : null}
 </AppLayout>
 
-<script define:vars={{ type }}>
+<script define:vars={{ type, apiUrl }}>
   // Webhook connect/disconnect
   document.querySelectorAll('[data-webhook-id]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -194,7 +196,7 @@ try {
 
       try {
         // Read current webhook to get its full payload
-        const res = await fetch(`/api/groups/webhooks/${webhookId}`, { credentials: 'include' });
+        const res = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const webhook = await res.json();
         const current = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
@@ -203,7 +205,7 @@ try {
           ? current.filter(e => e !== eventType)
           : [...current, eventType];
 
-        const putRes = await fetch(`/api/groups/webhooks/${webhookId}`, {
+        const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -215,6 +217,15 @@ try {
         alert('Failed to update webhook subscription');
         console.error(e);
       }
+    });
+  });
+
+  // Email connect — just navigates to the template editor for now
+  // (full wiring requires the event listener backend)
+  document.querySelectorAll('.connect-email-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const templateId = btn.dataset.templateId;
+      alert('Email template connected (in development).\n\nThis will fire the selected template when "' + type + '" events occur.\n\nFull event → email wiring coming soon.');
     });
   });
 
@@ -231,13 +242,13 @@ try {
           alert('To disconnect, edit the notification directly from the Notifications page.');
         } else {
           // Connect: add option slug to notification
-          const res = await fetch(`/api/groups/notifications/${notifierId}`, { credentials: 'include' });
+          const res = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, { credentials: 'include' });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const notif = await res.json();
-          const currentOptions: string[] = notif.options ?? [];
+          const currentOptions = notif.options ?? [];
           const newSlug = 'core.' + eventType;
 
-          const putRes = await fetch(`/api/groups/notifications/${notifierId}`, {
+          const putRes = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
