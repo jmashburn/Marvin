@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 # Import all necessary DB models
 from marvin.db.models.events import EventNotifierOptionsModel
 from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+from marvin.db.models.groups.secrets import WorkspaceSecret
 from marvin.db.models.groups import (
     GroupEventNotifierModel,
     # GroupEventNotifierOptionsModel, # This seems unused directly here, group_event_notifier uses it
@@ -43,6 +44,7 @@ from marvin.schemas.group.event import (
 from marvin.schemas.group.invite_token import InviteTokenRead
 from marvin.schemas.group.preferences import GroupPreferencesRead
 from marvin.schemas.group.report import ReportEntryRead, ReportRead
+from marvin.schemas.group.secret import WorkspaceSecretRead
 from marvin.schemas.group.webhook import WebhookExecutionLogRead, WebhookRead
 from marvin.schemas.user import LongLiveTokenRead, PrivateUser
 from marvin.schemas.user.password import PrivatePasswordResetToken
@@ -247,6 +249,10 @@ class AllRepositories:
         Scoped by `group_id`.
         """
         return GroupRepositoryGeneric(self.session, PK_ID, GroupWebhooksModel, WebhookRead, group_id=self.group_id)
+
+    def workspace_secrets(self) -> GroupRepositoryGeneric[WorkspaceSecretRead, WorkspaceSecret]:
+        """Provides access to workspace-scoped secrets (metadata only — no values)."""
+        return GroupRepositoryGeneric(self.session, PK_ID, WorkspaceSecret, WorkspaceSecretRead, group_id=self.group_id)
 
     def webhook_logs(self) -> GroupRepositoryGeneric[WebhookExecutionLogRead, WebhookExecutionLogModel]:
         """Provides access to webhook execution logs scoped by group."""
