@@ -694,7 +694,7 @@ ${btnRow}${bottomRow}
       btn.addEventListener('click', async () => {
         const templateId = btn.dataset.templateId;
         try {
-          const response = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${templateId}`, {
+          const response = await fetch(`${apiUrl}/api/platform/email/templates/${templateId}`, {
             credentials: 'include',
           });
           if (!response.ok) throw new Error('Failed to fetch template');
@@ -774,10 +774,11 @@ ${btnRow}${bottomRow}
       }
 
       try {
-        // If editing a system template (no group_id), save as a new workspace override (POST)
+        // Editing system template → create workspace override (POST to workspace endpoint)
+        // Editing workspace template → update in place (PATCH to platform endpoint)
         const isSystemTemplate = document.getElementById('edit-is-system')?.value === 'true';
         const url = (templateId && !isSystemTemplate)
-          ? `${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${templateId}`
+          ? `${apiUrl}/api/platform/email/templates/${templateId}`
           : `${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates`;
         const method = (templateId && !isSystemTemplate) ? 'PATCH' : 'POST';
 

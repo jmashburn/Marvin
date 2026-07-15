@@ -63,6 +63,54 @@ class PlatformEmailController(BaseUserController):
             "available_types": list(TEMPLATE_VARS.keys()),
         }
 
+    @router.get("/templates/{template_id}")
+    def get_template(self, template_id: UUID4):
+        """Get a template by ID — workspace template or system template."""
+        from marvin.db.db_setup import session_context
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.schemas.group.email_template import EmailTemplateRead
+        from sqlalchemy import select, or_
+
+        with session_context() as session:
+            template = session.execute(
+                select(EmailTemplateModel).where(
+                    EmailTemplateModel.id == template_id,
+                    or_(
+                        EmailTemplateModel.group_id == self.group_id,
+                        EmailTemplateModel.group_id.is_(None),
+                    ),
+                )
+            ).scalar_one_or_none()
+            if not template:
+                raise HTTPException(status_code=404, detail="Template not found.")
+            return EmailTemplateRead.model_validate(template)
+
+    @router.patch("/templates/{template_id}")
+    def update_template(self, template_id: UUID4, data: dict):
+        """Update a workspace template. Cannot update system templates."""
+        from marvin.db.db_setup import session_context
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.schemas.group.email_template import EmailTemplateRead
+
+        with session_context() as session:
+            template = session.execute(
+                __import__('sqlalchemy', fromlist=['select']).select(EmailTemplateModel).where(
+                    EmailTemplateModel.id == template_id,
+                    EmailTemplateModel.group_id == self.group_id,
+                )
+            ).scalar_one_or_none()
+            if not template:
+                raise HTTPException(status_code=404, detail="Template not found or not editable.")
+
+            allowed = ['name', 'description', 'subject', 'header_text', 'message_top',
+                      'message_bottom', 'button_text', 'custom_html', 'enabled', 'template_type']
+            for key, val in data.items():
+                if key in allowed and val is not None:
+                    setattr(template, key, val)
+            session.commit()
+            session.refresh(template)
+            return EmailTemplateRead.model_validate(template)
+
     @router.post("/templates/{template_id}/test")
     def send_template_test_email(self, template_id: UUID4, data: TemplateTestRequest) -> dict:
         """Send a test email using a specific workspace template with its subject and body."""
