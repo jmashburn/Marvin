@@ -621,7 +621,7 @@ class ScheduledTaskListener(EventListenerBase):
             start_time = datetime.now(UTC)
 
             # Import event bus for handler to use
-            from marvin.services.event_bus_service import EventBusService
+            from marvin.services.event_bus_service.event_bus_service import EventBusService
 
             event_bus = EventBusService(bg_tasks=None)
 
