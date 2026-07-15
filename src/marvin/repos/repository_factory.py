@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 # Import all necessary DB models
 from marvin.db.models.events import EventNotifierOptionsModel
+from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
 from marvin.db.models.groups import (
     GroupEventNotifierModel,
     # GroupEventNotifierOptionsModel, # This seems unused directly here, group_event_notifier uses it
@@ -42,7 +43,7 @@ from marvin.schemas.group.event import (
 from marvin.schemas.group.invite_token import InviteTokenRead
 from marvin.schemas.group.preferences import GroupPreferencesRead
 from marvin.schemas.group.report import ReportEntryRead, ReportRead
-from marvin.schemas.group.webhook import WebhookRead
+from marvin.schemas.group.webhook import WebhookExecutionLogRead, WebhookRead
 from marvin.schemas.user import LongLiveTokenRead, PrivateUser
 from marvin.schemas.user.password import PrivatePasswordResetToken
 
@@ -246,6 +247,10 @@ class AllRepositories:
         Scoped by `group_id`.
         """
         return GroupRepositoryGeneric(self.session, PK_ID, GroupWebhooksModel, WebhookRead, group_id=self.group_id)
+
+    def webhook_logs(self) -> GroupRepositoryGeneric[WebhookExecutionLogRead, WebhookExecutionLogModel]:
+        """Provides access to webhook execution logs scoped by group."""
+        return GroupRepositoryGeneric(self.session, PK_ID, WebhookExecutionLogModel, WebhookExecutionLogRead, group_id=self.group_id)
 
     @cached_property
     def entry_types(self) -> EntryTypesRepository:

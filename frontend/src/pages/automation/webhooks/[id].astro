@@ -106,6 +106,7 @@ if (webhook?.scheduled_time) {
 
         <div class="form-actions">
           <button type="submit" class="button">Save Changes</button>
+          <button type="button" id="test-btn" class="button secondary">Test</button>
           <button type="button" id="delete-btn" class="button danger">Delete</button>
           <a href="/automation/webhooks" class="button secondary">Cancel</a>
         </div>
@@ -140,6 +141,17 @@ if (webhook?.scheduled_time) {
     } catch (error) {
       alert('Failed to update webhook. Please try again.');
       console.error('Error updating webhook:', error);
+    }
+  });
+
+  document.getElementById('test-btn')?.addEventListener('click', async () => {
+    if (!confirm('Send a test request to this webhook?')) return;
+    try {
+      await sdk.webhooks.test(webhookId);
+      alert('Test request sent! Check the Activity Log for results.');
+    } catch (error) {
+      alert('Failed to send test request');
+      console.error(error);
     }
   });
 

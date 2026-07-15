@@ -18,6 +18,7 @@ from marvin.routes._base.controller import controller
 from marvin.routes._base.mixins import HttpRepo
 from marvin.schemas.group.webhook import (  # Pydantic schemas for webhooks
     WebhookCreate,
+    WebhookExecutionLogRead,
     WebhookPagination,
     WebhookRead,  # WebhookUpdate is available but HttpRepo mixin is typed with WebhookCreate for updates
     WebhookSave,
@@ -153,6 +154,11 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         self.logger.info(f"Manual rerun of webhooks initiated for group ID {self.group.id} for today.")
         return {"message": "Re-running scheduled webhooks for today has been initiated."}
 
+    @router.get("/log", response_model=list[WebhookExecutionLogRead], summary="Get Workspace Webhook Execution Log")
+    def get_workspace_log(self, limit: int = 100) -> list[WebhookExecutionLogRead]:
+        """Get recent webhook execution log entries for the current workspace."""
+        return self.repos.webhook_logs().get_all(limit=limit, order_by="executed_at")
+
     @router.get("/{item_id}", response_model=WebhookRead, summary="Get a Specific Webhook")
     def get_one(self, item_id: UUID4) -> WebhookRead:
         """
@@ -188,6 +194,20 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         bg_tasks.add_task(post_single_webhook, webhook_to_test, "Test Webhook from Marvin")
         self.logger.info(f"Test for webhook ID {item_id} scheduled in background.")
         return {"message": f"Test for webhook '{webhook_to_test.name or item_id}' has been scheduled."}
+
+    @router.get("/{item_id}/logs", response_model=list[WebhookExecutionLogRead], summary="Get Execution Logs for a Webhook")
+    def get_webhook_logs(self, item_id: UUID4, limit: int = 50) -> list[WebhookExecutionLogRead]:
+        """Get execution history for a specific webhook."""
+        from sqlalchemy import select, desc
+        from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+        stmt = (
+            select(WebhookExecutionLogModel)
+            .where(WebhookExecutionLogModel.webhook_id == item_id)
+            .order_by(desc(WebhookExecutionLogModel.executed_at))
+            .limit(limit)
+        )
+        results = self.session.execute(stmt).scalars().all()
+        return [WebhookExecutionLogRead.model_validate(r) for r in results]
 
     @router.put("/{item_id}", response_model=WebhookRead, summary="Update a Webhook")
     def update_one(self, item_id: UUID4, data: WebhookCreate) -> WebhookRead:  # data type is WebhookCreate

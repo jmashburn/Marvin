@@ -23,12 +23,9 @@ try {
 
 function formatScheduledTime(time: string | null | undefined): string {
   if (!time) return 'Not scheduled';
-  try {
-    const date = new Date(time);
-    return date.toLocaleString();
-  } catch {
-    return time;
-  }
+  const normalized = time.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? time : d.toLocaleString();
 }
 ---
 
@@ -38,7 +35,10 @@ function formatScheduledTime(time: string | null | undefined): string {
       <h2>Webhooks</h2>
       <p>Configure HTTP callbacks for workspace events</p>
     </div>
-    <a href="/automation/webhooks/new" class="button">New Webhook</a>
+    <div class="toolbar-actions">
+      <a href="/automation/webhooks/log" class="button secondary">Activity Log</a>
+      <a href="/automation/webhooks/new" class="button">New Webhook</a>
+    </div>
   </div>
 
   <div class="page-container">
@@ -83,16 +83,19 @@ function formatScheduledTime(time: string | null | undefined): string {
               </div>
             </div>
             <div class="webhook-actions">
-              <a
-                href={`/automation/webhooks/${webhook.id}`}
-                class="button secondary small"
-              >Edit</a>
+              <a href={`/automation/webhooks/${webhook.id}`} class="button secondary small">Edit</a>
               <button
                 class="button secondary small"
                 data-action="toggle"
                 data-id={webhook.id}
                 data-enabled={webhook.enabled}
               >{webhook.enabled ? 'Disable' : 'Enable'}</button>
+              <button
+                class="button secondary small"
+                data-action="test"
+                data-id={webhook.id}
+                data-name={webhook.name}
+              >Test</button>
               <button
                 class="button secondary small danger"
                 data-action="delete"
@@ -131,6 +134,21 @@ function formatScheduledTime(time: string | null | undefined): string {
         window.location.reload();
       } catch (error) {
         alert('Failed to update webhook');
+      }
+    });
+  });
+
+  // Test webhook
+  document.querySelectorAll('[data-action="test"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name;
+      if (!confirm(`Send a test request to "${name}"?`)) return;
+      try {
+        await sdk.webhooks.test(id);
+        alert('Test request sent! Check the Activity Log for results.');
+      } catch (error) {
+        alert('Failed to send test request');
       }
     });
   });

@@ -146,3 +146,18 @@ class WebhookPagination(PaginationBase):
 
     items: list[WebhookRead]
     """The list of webhook configurations for the current page, serialized as `WebhookRead`."""
+
+
+class WebhookExecutionLogRead(_MarvinModel):
+    """Schema for reading a webhook execution log entry."""
+
+    id: UUID4
+    webhook_id: UUID4
+    group_id: UUID4
+    executed_at: datetime.datetime
+    status: str
+    http_status_code: int | None = None
+    error_message: str | None = None
+    retry_attempt: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
