@@ -614,7 +614,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
       };
 
       testResult?.classList.remove('hidden', 'success', 'error');
-      testResult!.textContent = 'Sending test email...';
+      if (testResult) testResult.textContent = 'Sending test email...';
       testResult?.classList.add('info');
 
       try {
@@ -629,17 +629,17 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
           const result = await response.json();
           testResult?.classList.remove('info');
           testResult?.classList.add('success');
-          testResult!.textContent = '✓ Test email sent successfully! Check your inbox at ' + payload.email;
+          if (testResult) testResult.textContent = '✓ Test email sent successfully! Check your inbox at ' + payload.email;
         } else {
           const error = await response.json();
           testResult?.classList.remove('info');
           testResult?.classList.add('error');
-          testResult!.textContent = `✗ Failed to send test email: ${error.detail || error.error || 'Unknown error'}`;
+          if (testResult) testResult.textContent = `✗ Failed to send test email: ${error.detail || error.error || 'Unknown error'}`;
         }
       } catch (error) {
         testResult?.classList.remove('info');
         testResult?.classList.add('error');
-        testResult!.textContent = '✗ Network error. Please try again.';
+        if (testResult) testResult.textContent = '✗ Network error. Please try again.';
         console.error('Error sending test email:', error);
       }
     });
