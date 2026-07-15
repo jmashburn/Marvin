@@ -87,21 +87,30 @@ try {
             <p>Send an email when this event fires</p>
           </div>
           <div class="sub-options">
-            {emailTemplates.map((t: any) => (
-              <div class="sub-option">
-                <div class="sub-option-info">
-                  <strong>{t.name}</strong>
-                  <code class="sub-type">{(t as any).templateType ?? t.template_type}</code>
+            {emailTemplates.map((t: any) => {
+              const isSystem = !((t as any).groupId ?? t.group_id);
+              const tplType = (t as any).templateType ?? t.template_type;
+              return (
+                <div class="sub-option">
+                  <div class="sub-option-info">
+                    <div class="sub-option-name-row">
+                      <strong>{t.name}</strong>
+                      {isSystem
+                        ? <span class="tpl-badge tpl-badge-system">Default</span>
+                        : <span class="tpl-badge tpl-badge-custom">Customized</span>}
+                    </div>
+                    <code class="sub-type">{tplType}</code>
+                  </div>
+                  <button
+                    class="button secondary small connect-email-btn"
+                    data-template-id={t.id}
+                    data-event-type={type}
+                  >
+                    Connect
+                  </button>
                 </div>
-                <button
-                  class="button secondary small connect-email-btn"
-                  data-template-id={t.id}
-                  data-event-type={type}
-                >
-                  Connect
-                </button>
-              </div>
-            ))}
+              );
+            })}
             <a href="/workspace/settings/email" class="sub-option sub-option-create">
               <span>+ Create or customize an email template</span>
             </a>
@@ -462,5 +471,31 @@ try {
     font-size: 12px;
     min-height: 28px;
     flex-shrink: 0;
+  }
+
+  .sub-option-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tpl-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .tpl-badge-system {
+    background: rgba(128,128,128,0.1);
+    color: var(--muted);
+  }
+
+  .tpl-badge-custom {
+    background: rgba(79,156,132,0.1);
+    color: var(--accent);
   }
 </style>
