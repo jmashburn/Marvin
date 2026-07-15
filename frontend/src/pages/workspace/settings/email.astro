@@ -607,7 +607,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
     testForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const formData = new FormData(e.target as HTMLFormElement);
+      const formData = new FormData(e.target);
 
       const payload = {
         email: formData.get('test_email'),
