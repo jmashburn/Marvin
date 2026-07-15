@@ -368,12 +368,14 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
           varsList.innerHTML = '<span class="vars-empty">No variables defined. Add them in <a href="/workspace/settings/environment">Environment settings</a>.</span>';
           return;
         }
-        varsList.innerHTML = vars.map((v) => `
-          <button type="button" class="var-chip" data-slug="{{${v.slug}}}" title="${v.value || ''}">
-            <code>{{${v.slug}}}</code>
-            ${v.value ? `<span class="var-value">${v.value.length > 30 ? v.value.slice(0, 30) + '…' : v.value}</span>` : ''}
-          </button>
-        `).join('');
+        varsList.innerHTML = vars.map((v) => {
+          const slug = '{{' + v.slug + '}}';
+          const val = v.value || '';
+          const valDisplay = val.length > 30 ? val.slice(0, 30) + '...' : val;
+          const valHtml = val ? '<span class="var-value">' + valDisplay + '</span>' : '';
+          return '<button type="button" class="var-chip" data-slug="' + slug + '" title="' + val + '">' +
+            '<code>' + slug + '</code>' + valHtml + '</button>';
+        }).join('');
         varsList.querySelectorAll('.var-chip').forEach(chip => {
           chip.addEventListener('click', async () => {
             const slug = chip.dataset.slug;
