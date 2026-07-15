@@ -74,7 +74,9 @@ function statusClass(status: string): string {
             <tr>
               <td class="nowrap">{new Date(log.executed_at).toLocaleString()}</td>
               <td class="mono task-id">
-                <a href={`/workspace/scheduled-tasks/${log.task_id}`}>{log.task_id.slice(0, 8)}…</a>
+                {log.task_id
+                  ? <a href={`/workspace/scheduled-tasks/${log.task_id}`}>{log.task_id.slice(0, 8)}…</a>
+                  : <span>—</span>}
               </td>
               <td>
                 <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
