@@ -387,9 +387,17 @@ try {
     </div>
   </div>
 
-  <script is:inline>
+  <script>
+    import {
+      getSystemEmailTemplate,
+      createSystemEmailTemplate,
+      updateSystemEmailTemplate,
+      deleteSystemEmailTemplate,
+      sendSystemTemplateTestEmail,
+    } from '@/lib/api/admin/emailTemplates';
+
     // Slugify function
-    function slugify(text) {
+    function slugify(text: string): string {
       return text
         .toString()
         .toLowerCase()
@@ -402,18 +410,17 @@ try {
     }
 
     // Modal management
-    const templateModal = document.getElementById('template-modal');
-    const testSendModal = document.getElementById('test-send-modal');
-    const templateForm = document.getElementById('template-form');
-    const testSendForm = document.getElementById('test-send-form');
+    const templateModal = document.getElementById('template-modal') as HTMLElement;
+    const testSendModal = document.getElementById('test-send-modal') as HTMLElement;
+    const templateForm = document.getElementById('template-form') as HTMLFormElement;
+    const testSendForm = document.getElementById('test-send-form') as HTMLFormElement;
 
-    // Show/hide modals
-    function showModal(modal) {
+    function showModal(modal: HTMLElement) {
       modal.classList.add('show');
       document.body.style.overflow = 'hidden';
     }
 
-    function hideModal(modal) {
+    function hideModal(modal: HTMLElement) {
       modal.classList.remove('show');
       document.body.style.overflow = '';
     }
@@ -421,69 +428,64 @@ try {
     // Template mode tabs
     document.querySelectorAll('.mode-tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        const mode = tab.dataset.mode;
+        const mode = (tab as HTMLElement).dataset.mode;
         document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
 
         if (mode === 'structured') {
-          document.getElementById('structured-fields').style.display = 'block';
-          document.getElementById('custom-html-field').style.display = 'none';
+          (document.getElementById('structured-fields') as HTMLElement).style.display = 'block';
+          (document.getElementById('custom-html-field') as HTMLElement).style.display = 'none';
         } else {
-          document.getElementById('structured-fields').style.display = 'none';
-          document.getElementById('custom-html-field').style.display = 'block';
+          (document.getElementById('structured-fields') as HTMLElement).style.display = 'none';
+          (document.getElementById('custom-html-field') as HTMLElement).style.display = 'block';
         }
       });
     });
 
     // Auto-generate template type from name
     let isEditMode = false;
-    document.getElementById('template-name').addEventListener('input', (e) => {
+    document.getElementById('template-name')!.addEventListener('input', (e) => {
       if (!isEditMode) {
-        const slug = slugify(e.target.value);
-        document.getElementById('template-type').value = slug;
+        const slug = slugify((e.target as HTMLInputElement).value);
+        (document.getElementById('template-type') as HTMLInputElement).value = slug;
       }
     });
 
     // Create template
-    document.getElementById('create-template-btn').addEventListener('click', () => {
+    document.getElementById('create-template-btn')!.addEventListener('click', () => {
       isEditMode = false;
-      document.getElementById('modal-title').textContent = 'Create System Email Template';
+      document.getElementById('modal-title')!.textContent = 'Create System Email Template';
       templateForm.reset();
-      document.getElementById('template-id').value = '';
-      document.getElementById('template-type').value = '';
+      (document.getElementById('template-id') as HTMLInputElement).value = '';
+      (document.getElementById('template-type') as HTMLInputElement).value = '';
       showModal(templateModal);
     });
 
     // Edit template
     document.querySelectorAll('.edit-template-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const templateId = btn.dataset.templateId;
+        const templateId = (btn as HTMLElement).dataset.templateId!;
         try {
-          const response = await fetch(`/api/admin/email/templates/${templateId}`, {
-            credentials: 'include',
-          });
-          if (!response.ok) throw new Error('Failed to fetch template');
-
-          const template = await response.json();
+          const template = await getSystemEmailTemplate(templateId);
 
           isEditMode = true;
-          document.getElementById('modal-title').textContent = 'Edit System Email Template';
-          document.getElementById('template-id').value = template.id;
-          document.getElementById('template-type').value = template.template_type;
-          document.getElementById('template-name').value = template.name;
-          document.getElementById('template-description').value = template.description || '';
-          document.getElementById('template-subject').value = template.subject;
-          document.getElementById('template-header').value = template.header_text || '';
-          document.getElementById('template-message-top').value = template.message_top || '';
-          document.getElementById('template-message-bottom').value = template.message_bottom || '';
-          document.getElementById('template-button-text').value = template.button_text || '';
-          document.getElementById('template-custom-html').value = template.custom_html || '';
-          document.getElementById('template-enabled').checked = template.enabled;
+          document.getElementById('modal-title')!.textContent = 'Edit System Email Template';
+          (document.getElementById('template-id') as HTMLInputElement).value = template.id as unknown as string;
+          (document.getElementById('template-type') as HTMLInputElement).value = template.template_type;
+          (document.getElementById('template-name') as HTMLInputElement).value = template.name;
+          (document.getElementById('template-description') as HTMLInputElement).value = template.description || '';
+          (document.getElementById('template-subject') as HTMLInputElement).value = template.subject;
+          (document.getElementById('template-header') as HTMLInputElement).value = template.header_text || '';
+          (document.getElementById('template-message-top') as HTMLTextAreaElement).value = template.message_top || '';
+          (document.getElementById('template-message-bottom') as HTMLTextAreaElement).value = template.message_bottom || '';
+          (document.getElementById('template-button-text') as HTMLInputElement).value = template.button_text || '';
+          (document.getElementById('template-custom-html') as HTMLTextAreaElement).value = template.custom_html || '';
+          (document.getElementById('template-enabled') as HTMLInputElement).checked = template.enabled;
 
           if (template.custom_html) {
-            document.querySelector('[data-mode="custom"]').click();
+            (document.querySelector('[data-mode="custom"]') as HTMLElement).click();
           } else {
-            document.querySelector('[data-mode="structured"]').click();
+            (document.querySelector('[data-mode="structured"]') as HTMLElement).click();
           }
 
           showModal(templateModal);
@@ -498,66 +500,50 @@ try {
     templateForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const templateId = document.getElementById('template-id').value;
-      const isCustomMode = document.querySelector('[data-mode="custom"]').classList.contains('active');
+      const templateId = (document.getElementById('template-id') as HTMLInputElement).value;
+      const isCustomMode = document.querySelector('[data-mode="custom"]')!.classList.contains('active');
 
-      const data = {
-        template_type: document.getElementById('template-type').value,
-        name: document.getElementById('template-name').value,
-        description: document.getElementById('template-description').value,
-        subject: document.getElementById('template-subject').value,
-        enabled: document.getElementById('template-enabled').checked,
+      const baseData = {
+        template_type: (document.getElementById('template-type') as HTMLInputElement).value,
+        name: (document.getElementById('template-name') as HTMLInputElement).value,
+        description: (document.getElementById('template-description') as HTMLInputElement).value,
+        subject: (document.getElementById('template-subject') as HTMLInputElement).value,
+        enabled: (document.getElementById('template-enabled') as HTMLInputElement).checked,
       };
 
-      if (isCustomMode) {
-        data.custom_html = document.getElementById('template-custom-html').value;
-      } else {
-        data.header_text = document.getElementById('template-header').value;
-        data.message_top = document.getElementById('template-message-top').value;
-        data.message_bottom = document.getElementById('template-message-bottom').value;
-        data.button_text = document.getElementById('template-button-text').value;
-      }
+      const data = isCustomMode
+        ? { ...baseData, custom_html: (document.getElementById('template-custom-html') as HTMLTextAreaElement).value }
+        : {
+            ...baseData,
+            header_text: (document.getElementById('template-header') as HTMLInputElement).value,
+            message_top: (document.getElementById('template-message-top') as HTMLTextAreaElement).value,
+            message_bottom: (document.getElementById('template-message-bottom') as HTMLTextAreaElement).value,
+            button_text: (document.getElementById('template-button-text') as HTMLInputElement).value,
+          };
 
       try {
-        const url = templateId
-          ? `/api/admin/email/templates/${templateId}`
-          : `/api/admin/email/templates`;
-        const method = templateId ? 'PATCH' : 'POST';
-
-        const response = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to save template');
+        if (templateId) {
+          await updateSystemEmailTemplate(templateId, data);
+        } else {
+          await createSystemEmailTemplate(data as any);
         }
 
         hideModal(templateModal);
         window.location.reload();
       } catch (error) {
         console.error('Error saving template:', error);
-        alert(error.message);
+        alert(error instanceof Error ? error.message : 'Failed to save template');
       }
     });
 
     // Delete template
     document.querySelectorAll('.delete-template-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const templateId = btn.dataset.templateId;
+        const templateId = (btn as HTMLElement).dataset.templateId!;
         if (!confirm('Are you sure you want to delete this system template?')) return;
 
         try {
-          const response = await fetch(`/api/admin/email/templates/${templateId}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          });
-
-          if (!response.ok) throw new Error('Failed to delete template');
-
+          await deleteSystemEmailTemplate(templateId);
           window.location.reload();
         } catch (error) {
           console.error('Error deleting template:', error);
@@ -569,7 +555,7 @@ try {
     // Test send
     document.querySelectorAll('.test-send-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.getElementById('test-template-id').value = btn.dataset.templateId;
+        (document.getElementById('test-template-id') as HTMLInputElement).value = (btn as HTMLElement).dataset.templateId!;
         showModal(testSendModal);
       });
     });
@@ -577,35 +563,24 @@ try {
     testSendForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const templateId = document.getElementById('test-template-id').value;
-      const recipient = document.getElementById('test-recipient').value;
+      const templateId = (document.getElementById('test-template-id') as HTMLInputElement).value;
+      const recipient = (document.getElementById('test-recipient') as HTMLInputElement).value;
 
       try {
-        const response = await fetch(`/api/admin/email/templates/${templateId}/test`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ recipient_email: recipient }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Failed to send test email');
-        }
-
+        await sendSystemTemplateTestEmail(templateId, recipient);
         alert('Test email sent successfully!');
         hideModal(testSendModal);
       } catch (error) {
         console.error('Error sending test email:', error);
-        alert(error.message);
+        alert(error instanceof Error ? error.message : 'Failed to send test email');
       }
     });
 
     // Close modal handlers
-    document.getElementById('close-modal').addEventListener('click', () => hideModal(templateModal));
-    document.getElementById('cancel-btn').addEventListener('click', () => hideModal(templateModal));
-    document.getElementById('close-test-modal').addEventListener('click', () => hideModal(testSendModal));
-    document.getElementById('cancel-test-btn').addEventListener('click', () => hideModal(testSendModal));
+    document.getElementById('close-modal')!.addEventListener('click', () => hideModal(templateModal));
+    document.getElementById('cancel-btn')!.addEventListener('click', () => hideModal(templateModal));
+    document.getElementById('close-test-modal')!.addEventListener('click', () => hideModal(testSendModal));
+    document.getElementById('cancel-test-btn')!.addEventListener('click', () => hideModal(testSendModal));
 
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
       overlay.addEventListener('click', (e) => {
@@ -619,6 +594,8 @@ try {
 </AdminLayout>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
+
   const testForm = document.getElementById('test-email-form');
   const testResult = document.getElementById('test-result');
 
@@ -635,28 +612,20 @@ try {
     testResult?.classList.add('info');
 
     try {
-      const response = await fetch('/api/admin/email', {
+      await fetchApi('/api/admin/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        testResult?.classList.remove('info');
-        testResult?.classList.add('success');
-        testResult!.textContent = '✓ Test email sent successfully! Check your inbox at ' + payload.email;
-      } else {
-        const error = await response.json();
-        testResult?.classList.remove('info');
-        testResult?.classList.add('error');
-        testResult!.textContent = `✗ Failed to send test email: ${error.detail || error.error || 'Unknown error'}`;
-      }
+      testResult?.classList.remove('info');
+      testResult?.classList.add('success');
+      testResult!.textContent = '✓ Test email sent successfully! Check your inbox at ' + payload.email;
     } catch (error) {
       testResult?.classList.remove('info');
       testResult?.classList.add('error');
-      testResult!.textContent = '✗ Network error. Please try again.';
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      testResult!.textContent = `✗ Failed to send test email: ${message}`;
       console.error('Error sending test email:', error);
     }
   });

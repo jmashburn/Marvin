@@ -53,8 +53,9 @@ class AdminEmailController(BaseAdminController):
         """Repository for system email templates (group_id = NULL)."""
         from marvin.repos.repository_generic import RepositoryGeneric
         from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.schemas.group.email_template import EmailTemplateRead
 
-        return RepositoryGeneric(self.repos.session, EmailTemplateModel, group_id=None)
+        return RepositoryGeneric(self.repos.session, "id", EmailTemplateModel, EmailTemplateRead)
 
     @router.get("", response_model=EmailReady, summary="Check Email Configuration Status")
     async def check_email_config(self) -> EmailReady:

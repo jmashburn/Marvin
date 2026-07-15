@@ -80,6 +80,7 @@ function statusClass(status: string): string {
             <th></th>
             <th>Executed At</th>
             <th>Webhook</th>
+            <th>Method</th>
             <th>Status</th>
             <th>HTTP</th>
             <th>Attempt</th>
@@ -110,6 +111,9 @@ function statusClass(status: string): string {
                       : <span class="muted">{webhookId?.slice(0, 8)}…</span>}
                   </td>
                   <td>
+                    <code class="method-badge">{webhook?.method ?? '—'}</code>
+                  </td>
+                  <td>
                     <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
                   </td>
                   <td>
@@ -121,7 +125,7 @@ function statusClass(status: string): string {
                 </tr>
                 {hasDetails && (
                   <tr class="detail-row" id={`detail-${i}`} style="display:none">
-                    <td colspan="6">
+                    <td colspan="7">
                       <div class="detail-body">
                         {errorMsg && (
                           <div class="detail-section">
@@ -325,4 +329,13 @@ function statusClass(status: string): string {
 
   .http-code.ok { background: rgba(79, 156, 132, 0.1); color: var(--accent); }
   .http-code.err { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
+
+  .method-badge {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
 </style>

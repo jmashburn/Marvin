@@ -5,7 +5,10 @@ Resolution order (Secrets win on collision):
   1. Secret backend (encrypted, write-only)
   2. Workspace Variable (plain-text, readable)
 
-Unresolved slugs are left unchanged so misconfiguration is visible in logs.
+Unresolved slugs:
+  - Dev  (PRODUCTION=False): left as {{SLUG}} so misconfiguration is visible.
+  - Prod (PRODUCTION=True):  replaced with UNRESOLVED_SENTINEL so the containing
+    header is dropped by resolve_dict(), preventing leaked placeholder text.
 """
 
 import re
@@ -19,6 +22,8 @@ from .factory import get_secret_backend
 logger = get_logger(__name__)
 
 SLUG_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
+
+UNRESOLVED_SENTINEL = "__MARVIN_UNRESOLVED__"
 
 
 def _get_variable(slug: str, group_id: UUID4 | None) -> str | None:
@@ -57,6 +62,11 @@ def resolve(value: str, group_id: UUID4 | None = None, allow_secrets: bool = Tru
     should never appear in email bodies/subjects visible to recipients.
     Use allow_secrets=True (default) for webhook headers and transport config
     where credentials are needed.
+
+    In production (PRODUCTION=True) an unresolved slug is replaced with
+    UNRESOLVED_SENTINEL so that resolve_dict() can drop the containing header
+    rather than forwarding a raw {{SLUG}} string.  In dev the original
+    placeholder is kept for visibility.
     """
     if "{{" not in value:
         return value
@@ -75,14 +85,27 @@ def resolve(value: str, group_id: UUID4 | None = None, allow_secrets: bool = Tru
         if result is not None:
             return result
         logger.warning(f"'{{{{ {slug} }}}}' not resolved for group {group_id} (allow_secrets={allow_secrets})")
-        return match.group(0)
+        from marvin.core.config import get_app_settings
+        if get_app_settings().PRODUCTION:
+            return UNRESOLVED_SENTINEL  # header will be dropped by resolve_dict
+        return match.group(0)  # dev: leave placeholder visible
 
     return SLUG_RE.sub(replacer, value)
 
 
 def resolve_dict(data: dict[str, str], group_id: UUID4 | None = None, allow_secrets: bool = True) -> dict[str, str]:
-    """Resolve {{SLUG}} in all dict values (e.g. webhook headers)."""
-    return {key: resolve(val, group_id, allow_secrets=allow_secrets) for key, val in data.items()}
+    """Resolve {{SLUG}} in all dict values (e.g. webhook headers).
+
+    Any header whose resolved value contains UNRESOLVED_SENTINEL is silently
+    dropped — this only occurs in production when a slug cannot be found.
+    """
+    result = {}
+    for key, val in data.items():
+        resolved = resolve(val, group_id, allow_secrets=allow_secrets)
+        if UNRESOLVED_SENTINEL not in (resolved or ""):
+            result[key] = resolved or val
+        # else: drop this header (production, slug not found)
+    return result
 
 
 def resolve_secret(slug: str, group_id: UUID4 | None = None) -> str | None:

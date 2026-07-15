@@ -125,7 +125,10 @@ function fmtRelative(isoStr: string | null | undefined): string {
                 {v.description && <div class="env-subdesc">{v.description}</div>}
               </div>
               <div>
-                <code class="env-slug">&#123;&#123;{v.slug}&#125;&#125;</code>
+                <div class="slug-copy">
+                  <code class="env-slug">&#123;&#123;{v.slug}&#125;&#125;</code>
+                  <button class="copy-btn" data-copy={`{{${v.slug}}}`} title="Copy to clipboard">⎘</button>
+                </div>
               </div>
               <div class="env-value">
                 <input
@@ -212,7 +215,10 @@ function fmtRelative(isoStr: string | null | undefined): string {
                 {s.description && <div class="env-subdesc">{s.description}</div>}
               </div>
               <div>
-                <code class="env-slug env-slug-secret">&#123;&#123;{s.slug}&#125;&#125;</code>
+                <div class="slug-copy">
+                  <code class="env-slug env-slug-secret">&#123;&#123;{s.slug}&#125;&#125;</code>
+                  <button class="copy-btn" data-copy={`{{${s.slug}}}`} title="Copy to clipboard">⎘</button>
+                </div>
               </div>
               <div class="env-value secret-value">
                 <span class="masked">••••••••</span>
@@ -377,6 +383,17 @@ function fmtRelative(isoStr: string | null | undefined): string {
       if (!confirm(`Delete secret "${name}"?`)) return;
       try { await sdk.secrets.delete(id); window.location.reload(); }
       catch (err: any) { alert(`Failed: ${err?.message || err}`); }
+    });
+  });
+
+  // ── Copy-to-clipboard ──────────────────────────────────────────────────────
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const text = (btn as HTMLElement).dataset.copy!;
+      await navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = orig; }, 1200);
     });
   });
 </script>
@@ -650,4 +667,10 @@ function fmtRelative(isoStr: string | null | undefined): string {
   /* ── Misc ─────────────────────────────────────────────────────────────── */
 
   .muted { color: var(--muted); }
+
+  /* ── Slug copy button ─────────────────────────────────────────────────── */
+
+  .slug-copy { display: flex; align-items: center; gap: 6px; }
+  .copy-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; padding: 2px 4px; border-radius: 3px; opacity: 0.6; }
+  .copy-btn:hover { opacity: 1; color: var(--accent); background: rgba(79,156,132,0.1); }
 </style>
