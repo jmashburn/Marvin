@@ -135,6 +135,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                     <code class="sub-url">{w.url?.toString().slice(0, 40)}{(w.url?.toString().length || 0) > 40 ? '…' : ''}</code>
                   </div>
                   <button
+                    type="button"
                     class:list={['button', 'small', isConnected ? 'secondary' : '']}
                     data-webhook-id={w.id}
                     data-event-type={type}
@@ -166,6 +167,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
                     <strong>{n.name}</strong>
                   </div>
                   <button
+                    type="button"
                     class:list={['button', 'small', isConnected ? 'secondary' : '']}
                     data-notifier-id={n.id}
                     data-event-type={type}
