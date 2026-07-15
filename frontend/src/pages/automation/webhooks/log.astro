@@ -92,13 +92,14 @@ function statusClass(status: string): string {
             const httpStatus = log.httpStatusCode ?? log.http_status_code;
             const errorMsg = log.errorMessage ?? log.error_message;
             const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
+            const payload = log.requestPayload ?? log.request_payload;
             const webhook = webhookMap.get(webhookId);
-            const hasError = !!errorMsg;
+            const hasDetails = !!(errorMsg || payload);
             return (
               <>
-                <tr class:list={['log-row', { 'has-error': hasError }]}>
+                <tr class:list={['log-row', { 'has-details': hasDetails }]}>
                   <td class="expand-cell">
-                    {hasError && (
+                    {hasDetails && (
                       <button class="expand-btn" data-target={`detail-${i}`}>▶</button>
                     )}
                   </td>
@@ -118,12 +119,22 @@ function statusClass(status: string): string {
                   </td>
                   <td>{retryAttempt > 0 ? `#${retryAttempt + 1}` : '1'}</td>
                 </tr>
-                {hasError && (
+                {hasDetails && (
                   <tr class="detail-row" id={`detail-${i}`} style="display:none">
                     <td colspan="6">
                       <div class="detail-body">
-                        <div class="detail-label">Error</div>
-                        <div class="detail-message">{errorMsg}</div>
+                        {errorMsg && (
+                          <div class="detail-section">
+                            <div class="detail-label">Error</div>
+                            <div class="detail-message">{errorMsg}</div>
+                          </div>
+                        )}
+                        {payload && (
+                          <div class="detail-section">
+                            <div class="detail-label">Payload Sent</div>
+                            <pre class="payload-json">{JSON.stringify(payload, null, 2)}</pre>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -248,22 +259,41 @@ function statusClass(status: string): string {
   .detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
 
   .detail-body {
-    padding: 12px 16px 12px 52px;
+    padding: 16px 16px 16px 52px;
     background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
+
+  .detail-section { display: flex; flex-direction: column; gap: 4px; }
 
   .detail-label {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     color: var(--muted);
-    margin-bottom: 4px;
   }
 
   .detail-message {
     font-size: 13px;
     color: var(--color-error);
     font-family: ui-monospace, monospace;
+  }
+
+  .payload-json {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 0;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre;
+    color: var(--ink);
   }
 
   .nowrap { white-space: nowrap; }

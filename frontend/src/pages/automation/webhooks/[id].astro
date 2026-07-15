@@ -144,29 +144,45 @@ if (webhook?.scheduled_time) {
             <table class="history-table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>Executed At</th>
                   <th>Status</th>
                   <th>HTTP</th>
                   <th>Attempt</th>
-                  <th>Error</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((exec: any) => {
+                {history.map((exec: any, i: number) => {
                   const executedAt = exec.executedAt ?? exec.executed_at;
                   const httpStatus = exec.httpStatusCode ?? exec.http_status_code;
                   const errorMsg = exec.errorMessage ?? exec.error_message;
                   const retryAttempt = exec.retryAttempt ?? exec.retry_attempt ?? 0;
+                  const payload = exec.requestPayload ?? exec.request_payload;
+                  const hasDetails = !!(errorMsg || payload);
                   return (
-                    <tr>
-                      <td class="nowrap">{formatDate(executedAt)}</td>
-                      <td>
-                        <span class={`run-status status-${statusClass(exec.status)}`}>{exec.status}</span>
-                      </td>
-                      <td>{httpStatus ?? '—'}</td>
-                      <td>{retryAttempt > 0 ? `#${retryAttempt + 1}` : '1'}</td>
-                      <td class="error-cell">{errorMsg || '—'}</td>
-                    </tr>
+                    <>
+                      <tr>
+                        <td class="expand-cell">
+                          {hasDetails && <button class="expand-btn" data-target={`h-${i}`}>▶</button>}
+                        </td>
+                        <td class="nowrap">{formatDate(executedAt)}</td>
+                        <td>
+                          <span class={`run-status status-${statusClass(exec.status)}`}>{exec.status}</span>
+                        </td>
+                        <td>{httpStatus ?? '—'}</td>
+                        <td>{retryAttempt > 0 ? `#${retryAttempt + 1}` : '1'}</td>
+                      </tr>
+                      {hasDetails && (
+                        <tr id={`h-${i}`} style="display:none">
+                          <td colspan="5">
+                            <div class="detail-body">
+                              {errorMsg && <div class="error-msg">{errorMsg}</div>}
+                              {payload && <pre class="payload-json">{JSON.stringify(payload, null, 2)}</pre>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>
@@ -181,6 +197,18 @@ if (webhook?.scheduled_time) {
 <script>
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
+
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = (btn as HTMLElement).dataset.target!;
+      const row = document.getElementById(id);
+      if (!row) return;
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      (btn as HTMLElement).textContent = open ? '▶' : '▼';
+    });
+  });
+
   const form = document.getElementById('update-webhook-form');
   const deleteBtn = document.getElementById('delete-btn');
 
@@ -385,11 +413,46 @@ if (webhook?.scheduled_time) {
   .status-timeout { color: #d97706; }
   .status-none { color: var(--muted); }
 
-  .error-cell {
-    font-size: 12px;
+  .expand-cell { width: 32px; padding: 10px 4px 10px 12px; }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
     color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .expand-btn:hover { background: var(--line); color: var(--ink); }
+
+  .detail-body {
+    padding: 12px 16px 12px 52px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .error-msg {
+    font-size: 13px;
+    color: var(--color-error);
     font-family: ui-monospace, monospace;
-    max-width: 280px;
-    word-break: break-word;
+  }
+
+  .payload-json {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 0;
+    overflow-x: auto;
+    max-height: 360px;
+    overflow-y: auto;
+    white-space: pre;
+    color: var(--ink);
   }
 </style>

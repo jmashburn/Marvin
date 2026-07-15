@@ -9,6 +9,7 @@ It includes:
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Optional
 
+import sqlalchemy as sa
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -67,6 +68,8 @@ class WebhookExecutionLogModel(SqlAlchemyBase, BaseMixins):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True, doc="Error message if the execution failed.")
 
     retry_attempt: Mapped[int] = mapped_column(Integer, default=0, doc="Retry attempt number (0 for first attempt).")
+
+    request_payload: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True, doc="The JSON payload sent to the webhook endpoint.")
 
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:
