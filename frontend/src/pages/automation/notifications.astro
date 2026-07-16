@@ -12,6 +12,7 @@ function extractScheme(url: string): string {
 }
 
 let notifications: any[] = [];
+let lastLogByNotifier: Record<string, any> = {};
 let error: string | null = null;
 let appriseReady = false;
 
@@ -32,6 +33,28 @@ if (appriseReady) {
     console.error('[notifications] Error:', e);
     error = e instanceof Error ? e.message : String(e);
   }
+}
+
+// Fetch last execution log for each notifier
+if (notifications.length && authToken) {
+  await Promise.all(notifications.map(async (notif) => {
+    try {
+      const resp = await fetch(`${Astro.url.origin}/api/group/notifications/${notif.id}/logs?limit=1`, {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (resp.ok) {
+        const logs = await resp.json();
+        if (logs.length) lastLogByNotifier[notif.id] = logs[0];
+      }
+    } catch {}
+  }));
+}
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 ---
 
@@ -72,6 +95,9 @@ if (appriseReady) {
         const scheme = extractScheme(notif.appriseUrl ?? notif.apprise_url ?? '');
         const url = notif.appriseUrl ?? notif.apprise_url ?? '';
         const eventCount = notif.options?.length ?? 0;
+        const lastLog = lastLogByNotifier[notif.id];
+        const lastRunAt = lastLog ? (lastLog.executedAt ?? lastLog.executed_at) : null;
+        const lastStatus = lastLog?.status ?? null;
         return (
           <div class="notification-card">
             <div class="notification-info">
@@ -82,6 +108,13 @@ if (appriseReady) {
               </div>
               {url && <p class="notification-url">{url}</p>}
               <p class="notification-count">{eventCount} event{eventCount !== 1 ? 's' : ''} subscribed</p>
+              <p class="notification-last-run">
+                {lastRunAt ? (
+                  <>Last run: {formatDate(lastRunAt)} · <span class={`inline-status status-${lastStatus}`}>{lastStatus}</span></>
+                ) : (
+                  <span class="never-run">Never run</span>
+                )}
+              </p>
             </div>
             <div class="notification-actions">
               <button
@@ -299,4 +332,15 @@ if (appriseReady) {
   .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
   .button.secondary.danger:hover { background: var(--color-error-bg); }
   .button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+  .notification-last-run {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .inline-status { font-weight: 600; }
+  .status-success { color: var(--accent); }
+  .status-failed { color: var(--color-error); }
+  .never-run { font-style: italic; }
 </style>

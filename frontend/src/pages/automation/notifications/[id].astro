@@ -36,10 +36,11 @@ try {
 
 if (notification && authToken) {
   try {
-    const resp = await fetch(`/api/group/notifications/${id}/logs?limit=50`, {
+    const resp = await fetch(`${Astro.url.origin}/api/group/notifications/${id}/logs?limit=50`, {
       headers: { 'Authorization': `Bearer ${authToken}` },
     });
     if (resp.ok) history = await resp.json();
+    else console.error('[notifications/edit] Logs fetch status:', resp.status);
   } catch (e) {
     console.error('[notifications/edit] Error loading history:', e);
   }
