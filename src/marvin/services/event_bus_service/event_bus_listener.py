@@ -434,22 +434,22 @@ class WebhookEventListener(EventListenerBase):
         from marvin.services.webhooks.substitution import apply_substitutions
 
         if event.event_type != EventTypes.webhook_task:
-            # Event-driven path: send a clean event envelope
+            # Event-driven path: send the full event payload, injecting meta if custom_payload set
             for webhook_config in subscribers_webhooks:
                 resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
-                payload: dict = {
-                    "event_type": event.event_type.name,
-                    "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-                    "data": jsonable_encoder(event.document_data, exclude_none=True) if event.document_data else {},
-                }
+                payload_override = None
                 if webhook_config.custom_payload:
                     ctx = {
                         "trigger": event.event_type.name,
                         "timestamp": event.timestamp.isoformat() if event.timestamp else "",
                     }
-                    payload["meta"] = apply_substitutions(
+                    base = jsonable_encoder(event, exclude_none=True)
+                    if "eventType" in base and hasattr(event.event_type, "name"):
+                        base["eventType"] = event.event_type.name
+                    base["meta"] = apply_substitutions(
                         webhook_config.custom_payload, self.group_id, ctx
                     )
+                    payload_override = base
                 self.publisher.publish(
                     event,
                     [webhook_config.url],
@@ -457,7 +457,7 @@ class WebhookEventListener(EventListenerBase):
                     webhook_id=webhook_config.id,
                     group_id=self.group_id,
                     headers=resolved_headers,
-                    payload_override=payload,
+                    payload_override=payload_override,
                 )
             return
 
