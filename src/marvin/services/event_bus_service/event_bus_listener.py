@@ -517,10 +517,6 @@ class WebhookEventListener(EventListenerBase):
             )
 
             resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
-            self.logger.debug(
-                f"webhook_task: firing '{webhook_config.name}' headers={list(resolved_headers.keys()) if resolved_headers else None} "
-                f"raw_headers_json={getattr(webhook_config, 'headers_json', 'N/A')} raw_headers={getattr(webhook_config, 'headers', 'N/A')}"
-            )
             self.publisher.publish(
                 event_copy,
                 [webhook_config.url],
