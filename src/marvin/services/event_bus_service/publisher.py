@@ -19,6 +19,7 @@ from fastapi.encoders import jsonable_encoder  # For encoding Pydantic models to
 
 from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
+from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
 from marvin.db.models._model_utils.guid import GUID
 from marvin.services.event_bus_service.event_types import Event  # Core Event model
@@ -61,70 +62,62 @@ class PublisherLike(Protocol):
 class ApprisePublisher:
     """
     Publishes events using the Apprise library to various notification services.
-
-    It initializes an Apprise instance and uses it to send notifications based on
-    the event's message content. URLs are tagged with the event ID to help Apprise
-    manage notifications, potentially avoiding duplicates if a URL is added multiple times
-    for the same event (though Apprise's internal handling of tags is key here).
     """
 
     def __init__(self, hard_fail: bool = False) -> None:
-        """
-        Initializes the ApprisePublisher.
-
-        Args:
-            hard_fail (bool, optional): If True, an exception will be raised if
-                Apprise fails to add a notification URL. Defaults to False.
-        """
-        # Configure Apprise asset options (e.g., async mode, image handling)
-        asset = apprise.AppriseAsset(
-            async_mode=True,  # Enable asynchronous notifications if supported by Apprise setup
-            image_url_mask="",  # Configuration for image URL masking if needed
-        )
-        self.apprise = apprise.Apprise(asset=asset)  # Create Apprise instance
         self.hard_fail: bool = hard_fail
-        """If True, raise an exception on failure to add an Apprise URL."""
 
-    def publish(self, event: Event, notification_urls: list[str], **_: Any) -> None:  # Added **_ to match protocol
-        """
-        Publishes an event to a list of notification URLs using Apprise.
-
-        Each notification URL is added to the Apprise instance with a tag derived
-        from the event's unique ID. A single `notify` call is then made for all
-        tagged URLs.
-
-        Args:
-            event (Event): The event object containing message title and body.
-            notification_urls (list[str]): A list of Apprise-compatible notification URLs.
-            **_ (Any): Catches any additional keyword arguments (ignored by this publisher).
-        """
+    def publish(
+        self,
+        event: Event,
+        notification_urls: list[str],
+        notifier_id: GUID | None = None,
+        group_id: GUID | None = None,
+        event_type: str | None = None,
+        **_: Any,
+    ) -> None:
         if not notification_urls:
-            return  # No URLs to notify
+            return
 
-        tags_for_this_notification: list[str] = []
+        asset = apprise.AppriseAsset(async_mode=False, image_url_mask="")
+        ap = apprise.Apprise(asset=asset)
+
+        tags: list[str] = []
         for dest_url in notification_urls:
-            # Use the event's unique ID as a tag. This helps Apprise identify
-            # the notification if the same URL is added multiple times for this event.
-            # Apprise typically uses tags to send a notification to all services associated with that tag.
-            event_specific_tag = str(event.event_id)
-            tags_for_this_notification.append(event_specific_tag)
-
-            # Add the destination URL to Apprise with the event-specific tag
-            status = self.apprise.add(dest_url, tag=event_specific_tag)
-
-            if not status and self.hard_fail:
-                # If adding the URL fails and hard_fail is True, raise an exception.
+            tag = str(event.event_id)
+            tags.append(tag)
+            added = ap.add(dest_url, tag=tag)
+            if not added and self.hard_fail:
                 raise Exception(f"Apprise failed to add URL: {dest_url}")
 
-        # Send the notification using the event's message title and body.
-        # The `tag` parameter in `notify` ensures that only services matching these tags receive this notification.
-        # Using a list of unique tags ensures each URL (if tagged uniquely) gets one notification.
-        if tags_for_this_notification:  # Only notify if URLs were successfully added/tagged
-            self.apprise.notify(
+        if not tags:
+            return
+
+        try:
+            result = ap.notify(
                 title=event.message.title,
                 body=event.message.body,
-                tag=list(set(tags_for_this_notification)),  # Use unique tags for the notify call
+                tag=list(set(tags)),
             )
+            success = bool(result)
+        except Exception as exc:
+            _log_notification_execution(
+                notifier_id=notifier_id,
+                group_id=group_id,
+                status="failed",
+                event_type=event_type,
+                error_message=str(exc),
+                request_payload={"title": event.message.title, "body": event.message.body},
+            )
+            return
+
+        _log_notification_execution(
+            notifier_id=notifier_id,
+            group_id=group_id,
+            status="success" if success else "failed",
+            event_type=event_type,
+            request_payload={"title": event.message.title, "body": event.message.body},
+        )
 
 
 def _log_webhook_execution(
@@ -160,6 +153,37 @@ def _log_webhook_execution(
     except Exception as e:
         logger = get_logger()
         logger.error(f"Failed to log webhook execution: {e}")
+
+
+def _log_notification_execution(
+    notifier_id: GUID | None,
+    group_id: GUID | None,
+    status: str,
+    event_type: str | None = None,
+    error_message: str | None = None,
+    request_payload: dict | None = None,
+) -> None:
+    """Log Apprise notification execution to database."""
+    if notifier_id is None or group_id is None:
+        return
+
+    try:
+        with session_context() as session:
+            log = NotificationExecutionLogModel(
+                session=session,
+                notifier_id=notifier_id,
+                group_id=group_id,
+                executed_at=datetime.now(UTC),
+                status=status,
+                event_type=event_type,
+                error_message=error_message,
+                request_payload=request_payload,
+            )
+            session.add(log)
+            session.commit()
+    except Exception as e:
+        logger = get_logger()
+        logger.error(f"Failed to log notification execution: {e}")
 
 
 def _calculate_retry_delay(attempt: int) -> float:

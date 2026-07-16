@@ -9,6 +9,7 @@ const { id } = Astro.params;
 
 let notification: any = null;
 let eventOptions: any[] = [];
+let history: any[] = [];
 let error: string | null = null;
 let appriseReady = false;
 
@@ -33,6 +34,28 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
+if (notification && authToken) {
+  try {
+    const resp = await fetch(`/api/group/notifications/${id}/logs?limit=50`, {
+      headers: { 'Authorization': `Bearer ${authToken}` },
+    });
+    if (resp.ok) history = await resp.json();
+  } catch (e) {
+    console.error('[notifications/edit] Error loading history:', e);
+  }
+}
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
+function statusClass(status: string): string {
+  return status === 'success' ? 'success' : status === 'failed' ? 'failed' : 'none';
+}
+
 // Build set of currently subscribed option strings e.g. "core.invitation_created"
 const subscribedSet = new Set<string>(
   (notification?.options ?? []).map((o: any) => o.option ?? o)
@@ -53,7 +76,7 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
     <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : notification ? (
     <div class="form-container">
-      <form id="update-notification-form" class="form">
+      <form id="update-notification-form" class="form" style="max-width:700px">
         <input type="hidden" name="id" value={notification.id} />
 
         <div class="form-section">
@@ -138,6 +161,59 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
           <a href="/automation/notifications" class="button secondary">Cancel</a>
         </div>
       </form>
+
+      <div class="history-section">
+        <h3>Execution History</h3>
+        {history.length === 0 ? (
+          <p class="no-history">No executions yet. Use the Test button to fire a test notification.</p>
+        ) : (
+          <div class="history-table-wrap">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Executed At</th>
+                  <th>Status</th>
+                  <th>Event Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((exec: any, i: number) => {
+                  const executedAt = exec.executedAt ?? exec.executed_at;
+                  const eventType = exec.eventType ?? exec.event_type;
+                  const errorMsg = exec.errorMessage ?? exec.error_message;
+                  const payload = exec.requestPayload ?? exec.request_payload;
+                  const hasDetails = !!(errorMsg || payload);
+                  return (
+                    <>
+                      <tr>
+                        <td class="expand-cell">
+                          {hasDetails && <button class="expand-btn" data-target={`h-${i}`}>▶</button>}
+                        </td>
+                        <td class="nowrap">{formatDate(executedAt)}</td>
+                        <td>
+                          <span class={`run-status status-${statusClass(exec.status)}`}>{exec.status}</span>
+                        </td>
+                        <td>{eventType ?? '—'}</td>
+                      </tr>
+                      {hasDetails && (
+                        <tr id={`h-${i}`} style="display:none">
+                          <td colspan="4">
+                            <div class="detail-body">
+                              {errorMsg && <div class="error-msg">{errorMsg}</div>}
+                              {payload && <pre class="payload-json">{JSON.stringify(payload, null, 2)}</pre>}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   ) : null}
 </AppLayout>
@@ -145,6 +221,19 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
 <script>
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
+
+  // Expand/collapse history rows
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = (btn as HTMLElement).dataset.target!;
+      const row = document.getElementById(id);
+      if (!row) return;
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      (btn as HTMLElement).textContent = open ? '▶' : '▼';
+    });
+  });
+
   const form = document.getElementById('update-notification-form');
   const deleteBtn = document.getElementById('delete-btn');
   const notificationId = (document.querySelector('input[name="id"]') as HTMLInputElement)?.value;
@@ -488,4 +577,68 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
   .no-events-row a { color: var(--accent); }
 
   .button.small { padding: 5px 12px; font-size: 12px; min-height: 28px; flex-shrink: 0; }
+
+  .history-section {
+    margin-top: 32px;
+    max-width: 700px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+
+  .history-section h3 { margin: 0 0 20px; font-size: 16px; font-weight: 600; }
+  .no-history { color: var(--muted); font-size: 14px; margin: 0; }
+  .history-table-wrap { overflow-x: auto; }
+
+  .history-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+  .history-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .history-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  .history-table tr:last-child td { border-bottom: none; }
+  .nowrap { white-space: nowrap; }
+
+  .run-status { font-size: 12px; font-weight: 600; text-transform: uppercase; }
+  .status-success { color: var(--accent); }
+  .status-failed { color: var(--color-error); }
+  .status-none { color: var(--muted); }
+
+  .expand-cell { width: 32px; padding: 12px 4px 12px 16px; }
+  .expand-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 11px; padding: 2px 4px; border-radius: 3px; }
+  .expand-btn:hover { background: var(--line); color: var(--ink); }
+
+  .detail-body { padding: 12px 16px 12px 52px; background: var(--panel); display: flex; flex-direction: column; gap: 8px; }
+
+  .error-msg { font-size: 13px; color: var(--color-error); font-family: ui-monospace, monospace; }
+
+  .payload-json {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 0;
+    overflow-x: auto;
+    max-height: 360px;
+    overflow-y: auto;
+    white-space: pre;
+    color: var(--ink);
+  }
 </style>

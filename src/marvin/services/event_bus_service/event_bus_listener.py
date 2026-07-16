@@ -230,60 +230,51 @@ class AppriseEventListener(EventListenerBase):
         """
         super().__init__(group_id, ApprisePublisher())  # Uses ApprisePublisher for dispatching
 
-    def get_subscribers(self, event: Event) -> list[str]:
+    def get_subscribers(self, event: Event) -> list[GroupEventNotifierPrivate]:
         """
-        Retrieves a list of Apprise URLs subscribed to the given event for the listener's group.
+        Retrieves a list of enabled notifier objects subscribed to the given event.
 
-        Filters enabled notifiers and their options to match the event's type.
-        Also updates the URLs with event data if applicable (for custom URL schemes).
-
-        Args:
-            event (Event): The event to find subscribers for.
-
-        Returns:
-            list[str]: A list of processed Apprise URLs ready for notification.
+        Returns the matching `GroupEventNotifierPrivate` objects so that
+        `publish_to_subscribers` can fire and log per-notifier.
         """
-        # This listener only acts on events that are not `webhook_task`
         if event.event_type == EventTypes.webhook_task:
             return []
 
-        apprise_urls: list[str] = []
+        target_option = f"{EventNameSpace.namespace.value}.{event.event_type.name.replace('-', '_')}"
+        self.logger.debug(f"Target Event {target_option}")
+
+        matching: list[GroupEventNotifierPrivate] = []
         with self.ensure_repos(self.group_id) as repos:
-            # Fetch all enabled group event notifiers (private schema to access apprise_url)
             enabled_notifiers: list[GroupEventNotifierPrivate] = repos.group_event_notifier.multi_query(
                 {"enabled": True}, override_schema=GroupEventNotifierPrivate
             )
-
-            # Construct the target event option string (e.g., "core.test_message")
-            target_event_option_str = f"{EventNameSpace.namespace.value}.{event.event_type.name.replace('-', '_')}"
-            self.logger.debug(f"Target Event {target_event_option_str}")
-
-            from marvin.services.secrets.resolver import resolve
-
             for notifier in enabled_notifiers:
                 if not notifier.apprise_url:
                     continue
                 for option_summary in notifier.options:
-                    if getattr(option_summary, self._option_value_field_name, None) == target_event_option_str:
-                        resolved_url = resolve(notifier.apprise_url, group_id=self.group_id)
-                        self.logger.debug(f"Appending {resolved_url}")
-                        apprise_urls.append(resolved_url)
+                    if getattr(option_summary, self._option_value_field_name, None) == target_option:
+                        matching.append(notifier)
                         break
 
-            # Update URLs with event-specific parameters if applicable
-            if apprise_urls:
-                apprise_urls = self.update_urls_with_event_data(apprise_urls, event)
-        return apprise_urls
+        return matching
 
-    def publish_to_subscribers(self, event: Event, subscribers_apprise_urls: list[str]) -> None:  # Renamed subscribers
+    def publish_to_subscribers(self, event: Event, subscribers: list[GroupEventNotifierPrivate]) -> None:
         """
-        Publishes the event to the provided list of Apprise URLs.
+        Publishes the event to each notifier individually, logging per-notifier.
+        """
+        from marvin.services.secrets.resolver import resolve
 
-        Args:
-            event (Event): The event to publish.
-            subscribers_apprise_urls (list[str]): A list of Apprise URLs to send the notification to.
-        """
-        self.publisher.publish(event, subscribers_apprise_urls)  # Publisher handles the actual sending
+        for notifier in subscribers:
+            resolved_url = resolve(notifier.apprise_url, group_id=self.group_id)
+            enriched = self.update_urls_with_event_data([resolved_url], event)
+            self.logger.info(f"Notifier '{notifier.name}' → {resolved_url}")
+            self.publisher.publish(
+                event,
+                enriched,
+                notifier_id=notifier.id,
+                group_id=self.group_id,
+                event_type=event.event_type.name,
+            )
 
     @staticmethod
     def update_urls_with_event_data(apprise_urls: list[str], event: Event) -> list[str]:

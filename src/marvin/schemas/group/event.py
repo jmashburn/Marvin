@@ -10,6 +10,8 @@ It includes schemas for:
   notifications, and the set of active event options.
 """
 
+import datetime
+
 from pydantic import UUID4, ConfigDict  # HttpUrl imported but not used directly in this file's models
 
 # SQLAlchemy ORM imports for loader_options method.
@@ -232,4 +234,16 @@ class GroupEventNotifierPrivate(GroupEventNotifierRead):
     The Apprise URL (or similar service URL) for sending notifications.
     This field is considered private and is not included in the standard `GroupEventNotifierRead`.
     """
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NotificationExecutionLogRead(_MarvinModel):
+    id: UUID4
+    notifier_id: UUID4
+    group_id: UUID4
+    executed_at: datetime.datetime
+    event_type: str | None = None
+    status: str
+    error_message: str | None = None
+    request_payload: dict | None = None
     model_config = ConfigDict(from_attributes=True)

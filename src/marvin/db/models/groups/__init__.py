@@ -3,6 +3,7 @@ from .email_templates import *
 from .events import *
 from .groups import *
 from .invite_tokens import *
+from .notification_execution_logs import *
 from .preferences import *
 from .reports import *
 from .secrets import *

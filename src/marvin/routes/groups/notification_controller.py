@@ -8,11 +8,15 @@ testing the notifier configurations.
 
 from functools import cached_property  # For lazy-loading properties
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status  # Added status for HTTP_201_CREATED
 from pydantic import UUID4  # For UUID type validation
+from sqlalchemy import desc, select
 
 # Marvin base controllers, schemas, and services
 from marvin.core.config import get_app_settings  # For checking Apprise availability
+from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.routes._base import MarvinCrudRoute  # Custom route class
 from marvin.routes._base.base_controllers import BaseUserController  # Base for user-auth routes
 from marvin.routes._base.controller import controller  # CBV decorator
@@ -24,6 +28,7 @@ from marvin.schemas.group.event import (  # Pydantic schemas for group event not
     GroupEventNotifierRead,
     GroupEventNotifierSave,  # Intermediate schema for creation logic
     GroupEventNotifierUpdate,
+    NotificationExecutionLogRead,
 )
 from marvin.schemas.mapper import cast  # Utility for casting between schema types
 from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters
@@ -37,6 +42,7 @@ from marvin.services.event_bus_service.event_types import (  # Event system comp
     EventOperation,
     EventTypes,
 )
+from marvin.services.event_bus_service.publisher import _log_notification_execution
 
 # APIRouter for group event notifications, using MarvinCrudRoute for consistent header handling.
 # All routes will be under /group/notifications.
@@ -236,6 +242,19 @@ class GroupEventsNotifierController(BaseUserController):
     # Test Event Notifications
     # =======================================================================
 
+    @router.get("/{item_id}/logs", response_model=list[NotificationExecutionLogRead], summary="Get Notification Execution Logs")
+    def get_notification_logs(self, item_id: UUID4, limit: int = 50) -> list[NotificationExecutionLogRead]:
+        """Returns the most recent execution log entries for a notifier."""
+        self._check_apprise_available()
+        stmt = (
+            select(NotificationExecutionLogModel)
+            .where(NotificationExecutionLogModel.notifier_id == item_id)
+            .order_by(desc(NotificationExecutionLogModel.executed_at))
+            .limit(limit)
+        )
+        rows = self.repos.session.execute(stmt).scalars().all()
+        return [NotificationExecutionLogRead.model_validate(r) for r in rows]
+
     # TODO: "properly re-implement this with new event listeners" - as per original code comment
     @router.post("/{item_id}/test", summary="Test a Group Event Notifier")
     def test_notification(self, item_id: UUID4) -> dict:
@@ -274,21 +293,30 @@ class GroupEventsNotifierController(BaseUserController):
             ),
         )
 
-        test_listener = AppriseEventListener(self.group_id)
-
         try:
             from marvin.services.secrets.resolver import resolve
             resolved_url = resolve(notifier_config.apprise_url, group_id=self.group_id)
-            # Run the same URL enrichment as live events (adds event data for json://, xml://, form:// URLs)
             enriched_urls = AppriseEventListener.update_urls_with_event_data([resolved_url], test_event_payload)
-            test_listener.publish_to_subscribers(test_event_payload, enriched_urls)
-            self.logger.info(f"Test notification sent to notifier ID {item_id} (URL: {notifier_config.apprise_url}) for group {self.group_id}")
+            # Publish directly — the publisher will log the attempt with notifier_id/group_id
+            from marvin.services.event_bus_service.publisher import ApprisePublisher
+            publisher = ApprisePublisher()
+            publisher.publish(
+                test_event_payload,
+                enriched_urls,
+                notifier_id=item_id,
+                group_id=self.group_id,
+                event_type="test_message",
+            )
+            self.logger.info(f"Test notification sent to notifier ID {item_id} for group {self.group_id}")
         except Exception as e:
             self.logger.error(f"Failed to send test notification for notifier ID {item_id}: {e}")
-            # Consider if an error response should be sent to the client here,
-            # e.g., a 500 error if Apprise fails. Currently, it would still return 204.
-            # For a more robust test, this might raise an HTTPException.
-            # For now, matching original behavior of logging and returning status regardless of Apprise outcome.
-            pass
+            _log_notification_execution(
+                notifier_id=item_id,
+                group_id=self.group_id,
+                status="failed",
+                event_type="test_message",
+                error_message=str(e),
+                request_payload={"title": test_event_payload.message.title, "body": test_event_payload.message.body},
+            )
 
         return {"status": "ok", "message": "Test notification sent successfully"}
