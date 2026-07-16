@@ -16,7 +16,7 @@ let error: string | null = null;
 try {
   const [logsResp, notifResult] = await Promise.all([
     authToken
-      ? fetch(getApiUrl('/group/notifications/log?limit=200').toString(), {
+      ? fetch(getApiUrl('/api/group/notifications/log?limit=200').toString(), {
           headers: { 'Authorization': `Bearer ${authToken}` },
         }).then(r => r.ok ? r.json() : [])
       : Promise.resolve([]),

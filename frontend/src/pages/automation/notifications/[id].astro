@@ -37,7 +37,7 @@ try {
 
 if (notification && authToken) {
   try {
-    const resp = await fetch(getApiUrl(`/group/notifications/${id}/logs?limit=50`).toString(), {
+    const resp = await fetch(getApiUrl(`/api/group/notifications/${id}/logs?limit=50`).toString(), {
       headers: { 'Authorization': `Bearer ${authToken}` },
     });
     if (resp.ok) history = await resp.json();

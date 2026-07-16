@@ -40,7 +40,7 @@ if (appriseReady) {
 if (notifications.length && authToken) {
   await Promise.all(notifications.map(async (notif) => {
     try {
-      const resp = await fetch(getApiUrl(`/group/notifications/${notif.id}/logs?limit=1`).toString(), {
+      const resp = await fetch(getApiUrl(`/api/group/notifications/${notif.id}/logs?limit=1`).toString(), {
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
       if (resp.ok) {
