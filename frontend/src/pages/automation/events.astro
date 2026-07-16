@@ -77,48 +77,37 @@ const filtered = categoryFilter === 'all'
         autocomplete="off"
       />
 
-      <!-- Event cards -->
+      <!-- Event chips -->
       <div class="events-grid" id="events-grid">
-        {filtered.map((event: any) => (
-          <article class="event-card">
-            <div class="event-header">
-              <div>
-                <h3 class="event-name">{event.label}</h3>
-                <code class="event-type">{event.value}</code>
-              </div>
-              <span class="event-category">{event.category}</span>
-            </div>
-
-            {event.description && (
-              <p class="event-description">{event.description}</p>
-            )}
-
-            {(() => {
-              const conn = getConnections(event.value);
-              const total = conn.webhooks.length + conn.notifications.length;
-              return total > 0 ? (
-                <div class="event-connections">
-                  {conn.webhooks.length > 0 && (
-                    <span class="conn-badge" title={conn.webhooks.map((w: any) => w.name).join(', ')}>
-                      {conn.webhooks.length} webhook{conn.webhooks.length > 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {conn.notifications.length > 0 && (
-                    <span class="conn-badge" title={conn.notifications.map((n: any) => n.name).join(', ')}>
-                      {conn.notifications.length} notification{conn.notifications.length > 1 ? 's' : ''}
-                    </span>
-                  )}
+        {filtered.map((event: any) => {
+          const conn = getConnections(event.value);
+          const total = conn.webhooks.length + conn.notifications.length;
+          return (
+            <article class:list={['event-chip', { connected: total > 0 }]}>
+              <div class="chip-left">
+                <div class="chip-title">
+                  <span class="event-name">{event.label}</span>
+                  <code class="event-type">{event.value}</code>
                 </div>
-              ) : null;
-            })()}
-
-            <div class="event-actions">
-              <a href={`/automation/events/${event.value}`} class="button secondary small">
-                {getConnections(event.value).webhooks.length + getConnections(event.value).notifications.length > 0 ? 'Manage' : 'Subscribe'}
-              </a>
-            </div>
-          </article>
-        ))}
+                {event.description && (
+                  <p class="event-desc">{event.description}</p>
+                )}
+              </div>
+              <div class="chip-right">
+                <span class="event-category">{event.category}</span>
+                {total > 0 && (
+                  <span class="conn-dot" title={[
+                    ...conn.webhooks.map((w: any) => w.name),
+                    ...conn.notifications.map((n: any) => n.name),
+                  ].join(', ')}>●</span>
+                )}
+                <a href={`/automation/events/${event.value}`} class="button secondary small">
+                  {total > 0 ? 'Manage' : 'Subscribe'}
+                </a>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       <div class="empty-state" id="no-results" style="display:none">
@@ -198,110 +187,91 @@ const filtered = categoryFilter === 'all'
   }
 
   .events-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
-  .event-card {
-    padding: 18px 20px;
+  .event-chip {
+    padding: 10px 14px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 12px;
     transition: border-color 0.15s;
   }
 
-  .event-card:hover { border-color: var(--accent); }
+  .event-chip:hover { border-color: var(--accent); }
+  .event-chip.connected { border-color: rgba(79,156,132,0.35); }
 
-  .event-header {
+  .chip-left {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
+    flex-direction: column;
+    gap: 2px;
   }
 
-  .event-name { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .chip-title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .event-name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .event-type {
-    font-size: 11px;
+    font-size: 10px;
     font-family: ui-monospace, monospace;
     color: var(--muted);
     background: var(--bg);
     padding: 1px 5px;
     border-radius: 3px;
-  }
-
-  .event-category {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--accent);
     white-space: nowrap;
     flex-shrink: 0;
   }
 
-  .event-description {
+  .event-desc {
     margin: 0;
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.5;
-  }
-
-  .event-vars {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-items: center;
-  }
-
-  .var-chip-sm {
-    font-size: 10px;
-    font-family: ui-monospace, monospace;
-    color: var(--accent);
-    font-weight: 600;
-    background: rgba(79,156,132,0.08);
-    padding: 1px 5px;
-    border-radius: 3px;
-    cursor: default;
-    white-space: nowrap;
-    opacity: 0.85;
-  }
-
-  .var-more {
-    font-size: 10px;
-    color: var(--muted);
-    font-weight: 500;
-  }
-
-  .event-connections {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .conn-badge {
     font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chip-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .event-category {
+    font-size: 10px;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .conn-dot {
+    font-size: 8px;
     color: var(--accent);
-    background: rgba(79,156,132,0.1);
-    border: 1px solid rgba(79,156,132,0.2);
-    border-radius: 10px;
-    padding: 2px 8px;
     cursor: default;
+    line-height: 1;
   }
 
-  /* Cards with connections get a subtle indicator */
-  .event-card:has(.conn-badge) {
-    border-color: rgba(79,156,132,0.3);
-  }
-
-  .event-actions { margin-top: 4px; }
-
-  .button.small { padding: 5px 12px; font-size: 12px; font-weight: 600; min-height: 28px; }
+  .button.small { padding: 4px 10px; font-size: 12px; font-weight: 600; min-height: 26px; }
 
   .empty-state { padding: 60px; text-align: center; color: var(--muted); }
 </style>
