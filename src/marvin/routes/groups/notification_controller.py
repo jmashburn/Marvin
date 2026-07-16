@@ -12,11 +12,9 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status  # Added status for HTTP_201_CREATED
 from pydantic import UUID4  # For UUID type validation
-from sqlalchemy import desc, select
 
 # Marvin base controllers, schemas, and services
 from marvin.core.config import get_app_settings  # For checking Apprise availability
-from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.routes._base import MarvinCrudRoute  # Custom route class
 from marvin.routes._base.base_controllers import BaseUserController  # Base for user-auth routes
 from marvin.routes._base.controller import controller  # CBV decorator
@@ -167,14 +165,7 @@ class GroupEventsNotifierController(BaseUserController):
     def get_all_notification_logs(self, limit: int = 200) -> list[NotificationExecutionLogRead]:
         """Returns the most recent notification execution logs across all notifiers in the group."""
         self._check_apprise_available()
-        stmt = (
-            select(NotificationExecutionLogModel)
-            .where(NotificationExecutionLogModel.group_id == self.group_id)
-            .order_by(desc(NotificationExecutionLogModel.executed_at))
-            .limit(limit)
-        )
-        rows = self.repos.session.execute(stmt).scalars().all()
-        return [NotificationExecutionLogRead.model_validate(r) for r in rows]
+        return self.repos.notification_logs().get_all(limit=limit, order_by="executed_at")
 
     @router.get("/{item_id}", response_model=GroupEventNotifierRead, summary="Get a Specific Group Event Notifier")
     def get_one(self, item_id: UUID4) -> GroupEventNotifierRead:
@@ -259,14 +250,7 @@ class GroupEventsNotifierController(BaseUserController):
     def get_notification_logs(self, item_id: UUID4, limit: int = 50) -> list[NotificationExecutionLogRead]:
         """Returns the most recent execution log entries for a notifier."""
         self._check_apprise_available()
-        stmt = (
-            select(NotificationExecutionLogModel)
-            .where(NotificationExecutionLogModel.notifier_id == item_id)
-            .order_by(desc(NotificationExecutionLogModel.executed_at))
-            .limit(limit)
-        )
-        rows = self.repos.session.execute(stmt).scalars().all()
-        return [NotificationExecutionLogRead.model_validate(r) for r in rows]
+        return self.repos.notification_logs().multi_query({"notifier_id": item_id}, limit=limit)
 
     # TODO: "properly re-implement this with new event listeners" - as per original code comment
     @router.post("/{item_id}/test", summary="Test a Group Event Notifier")
