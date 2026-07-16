@@ -439,9 +439,20 @@ class WebhookEventListener(EventListenerBase):
                 resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
                 payload_override = None
                 if webhook_config.custom_payload:
+                    ws_name, ws_slug = "", ""
+                    try:
+                        with self.ensure_repos(self.group_id) as repos:
+                            grp = repos.groups.get_one(self.group_id)
+                            if grp:
+                                ws_name = getattr(grp, "name", "") or ""
+                                ws_slug = getattr(grp, "slug", "") or ""
+                    except Exception:
+                        pass
                     ctx = {
                         "trigger": event.event_type.name,
                         "timestamp": event.timestamp.isoformat() if event.timestamp else "",
+                        "workspace_name": ws_name,
+                        "workspace_slug": ws_slug,
                     }
                     base = jsonable_encoder(event, exclude_none=True)
                     if "eventType" in base and hasattr(event.event_type, "name"):
