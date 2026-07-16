@@ -87,32 +87,20 @@ class WorkspaceController(BaseUserController):
                 "→resource) are cleared and rebuilt from the bundle."
             ),
         ),
-        target_workspace_id: str | None = Query(
-            None,
-            description=(
-                "SUPER_ADMIN only: ID of the workspace to import into. "
-                "When set, overrides the workspace block in the bundle. "
-                "If omitted, the workspace block in the bundle determines the target."
-            ),
-        ),
     ) -> dict:
-        """Import a workspace from a zip bundle exported by /export/bundle.
+        """Import a workspace bundle into the current workspace.
 
-        Requires **SUPER_ADMIN** or workspace **OWNER** role.
+        Always imports into the caller's active workspace — the workspace block
+        in the bundle is ignored for routing. Requires workspace **OWNER** or
+        **SUPER_ADMIN** role. Super admins who need to import into a specific
+        workspace should use the Admin Dashboard import.
 
-        **SUPER_ADMIN path**: the workspace block in the bundle drives which workspace receives
-        the import. A new workspace is created if the slug/name doesn't exist yet.
+        **overwrite=false (default)**: existing records are skipped — safe for
+        seeding into a live workspace without disrupting existing content.
 
-        **OWNER path**: the bundle is always imported into the caller's own workspace.
-        The workspace block in the bundle is ignored for routing — only site preferences
-        within it are applied. Owners cannot import into other workspaces.
-
-        **overwrite=false (default)**: existing records are skipped — safe for seeding
-        into a live workspace without disrupting existing content.
-
-        **overwrite=true**: existing records are updated from the bundle. ⚠️ Can replace
-        entry content and assignments. Entry junction rows (→asset, →collection, →resource)
-        are cleared and rebuilt from the bundle.
+        **overwrite=true**: existing records are updated from the bundle. ⚠️ Can
+        replace entry content and assignments. Entry junction rows (→asset,
+        →collection, →resource) are cleared and rebuilt from the bundle.
 
         Args:
             file: Zip bundle file (from /export/bundle)
@@ -133,7 +121,7 @@ class WorkspaceController(BaseUserController):
 
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="Importing a workspace bundle requires SUPER_ADMIN or workspace OWNER role.",
+                detail="Importing a workspace bundle requires OWNER or SUPER_ADMIN role.",
             )
 
         zip_path = self.directories.TEMP_DIR / f"{uuid4()}-import.zip"
@@ -143,19 +131,9 @@ class WorkspaceController(BaseUserController):
 
             from marvin.repos.all_repositories import get_repositories
 
-            if is_super_admin:
-                instance_repos = get_repositories(self.repos.session, group_id=None)
-                loader = WorkspaceSeedLoader(instance_repos)
-                results = loader.load_seed_zip(
-                    zip_path,
-                    overwrite=overwrite,
-                    target_group_id=target_workspace_id,  # None → JSON drives workspace
-                )
-            else:
-                # Owner path: always import into caller's own workspace
-                instance_repos = get_repositories(self.repos.session, group_id=None)
-                loader = WorkspaceSeedLoader(instance_repos)
-                results = loader.load_seed_zip(zip_path, overwrite=overwrite, target_group_id=self.group_id)
+            instance_repos = get_repositories(self.repos.session, group_id=None)
+            loader = WorkspaceSeedLoader(instance_repos)
+            results = loader.load_seed_zip(zip_path, overwrite=overwrite, target_group_id=self.group_id)
 
             return {"imported": results}
         finally:

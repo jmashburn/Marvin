@@ -3,7 +3,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import { requireAuth } from "@/lib/auth";
 import { getAuthToken } from "@/lib/api/client";
-import { getCurrentWorkspace, listWorkspaces } from "@/lib/api/workspaces";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
 import type { WorkspaceRole } from "@/lib/api/types";
 
@@ -13,7 +13,6 @@ const authToken = getAuthToken(Astro.cookies);
 let workspace = null;
 let currentUserRole: WorkspaceRole | null = null;
 let isPlatformAdmin = false;
-let allWorkspaces: { id: string; name: string; slug: string }[] = [];
 
 try {
   workspace = await getCurrentWorkspace(authToken);
@@ -25,16 +24,12 @@ try {
     isPlatformAdmin = currentUser.admin === true;
     if (!currentUserRole && isPlatformAdmin) currentUserRole = 'ADMIN' as WorkspaceRole;
   }
-
-  if (isPlatformAdmin) {
-    const ws = await listWorkspaces(authToken);
-    allWorkspaces = ws.map((w: any) => ({ id: w.id, name: w.name, slug: w.slug }));
-  }
 } catch (e) {
   console.error('[backups] Error loading:', e);
 }
 
 const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
+const workspaceName = (workspace as any)?.name ?? 'this workspace';
 ---
 
 <AppLayout title="Backups" eyebrow="Settings">
@@ -74,15 +69,17 @@ const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
         <div class="card-header">
           <div>
             <h3>Import</h3>
-            <p>
-              Restore a workspace from a previously exported bundle.
-              {isPlatformAdmin
-                ? " As a platform admin, the workspace block in the bundle determines the target workspace."
-                : " The bundle will be imported into your current workspace."}
-            </p>
+            <p>Restore content from a previously exported bundle into <strong>{workspaceName}</strong>.</p>
           </div>
         </div>
         <div class="card-body">
+
+          <div class="target-note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Content always imports into <strong>{workspaceName}</strong> regardless of which workspace the bundle came from. If the bundle was exported from a different workspace, the workspace names won't match — that's fine, only the content (entries, assets, etc.) is imported.
+          </div>
 
           <div class="drop-zone" id="importDropZone">
             <input type="file" id="import-bundle-file" accept=".zip" hidden />
@@ -109,19 +106,6 @@ const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
               <button type="button" id="importClearFile" class="clear-btn" title="Remove file">✕</button>
             </div>
           </div>
-
-          {isPlatformAdmin && allWorkspaces.length > 0 && (
-            <div class="target-picker">
-              <label for="target-workspace">Target workspace</label>
-              <select id="target-workspace">
-                <option value="">From bundle (use workspace in file)</option>
-                {allWorkspaces.map(w => (
-                  <option value={w.id}>{w.name} <span class="slug">({w.slug})</span></option>
-                ))}
-              </select>
-              <small>Override which workspace receives the import instead of relying on the bundle's workspace block.</small>
-            </div>
-          )}
 
           <label class="overwrite-label">
             <input type="checkbox" id="import-overwrite" />
@@ -313,29 +297,27 @@ const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
     color: var(--ink);
   }
 
-  .target-picker {
-    display: grid;
-    gap: 0.375rem;
-  }
-
-  .target-picker label {
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  .target-picker select {
-    padding: 0.4rem 0.625rem;
+  .target-note {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding: 0.75rem 1rem;
+    background: var(--panel-2, #f5f5f5);
     border: 1px solid var(--line);
     border-radius: 6px;
-    background: var(--bg);
-    font-size: 0.875rem;
-    font-family: inherit;
-    color: var(--ink);
+    font-size: 0.8125rem;
+    color: var(--muted);
+    line-height: 1.5;
   }
 
-  .target-picker small {
-    font-size: 0.75rem;
+  .target-note svg {
+    flex-shrink: 0;
+    margin-top: 1px;
     color: var(--muted);
+  }
+
+  .target-note strong {
+    color: var(--ink);
   }
 
   .overwrite-label {
@@ -484,12 +466,7 @@ const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
     try {
       const body = new FormData();
       body.append('file', selectedFile);
-      const targetWorkspaceId = (document.getElementById('target-workspace') as HTMLSelectElement | null)?.value ?? '';
-      const params = new URLSearchParams();
-      if (overwrite) params.set('overwrite', 'true');
-      if (targetWorkspaceId) params.set('target_workspace_id', targetWorkspaceId);
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      const res = await fetch(`/api/platform/workspace/import${qs}`, { method: 'POST', credentials: 'include', body });
+      const res = await fetch(`/api/platform/workspace/import${overwrite ? '?overwrite=true' : ''}`, { method: 'POST', credentials: 'include', body });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.detail || `Server error: ${res.status}`);
 

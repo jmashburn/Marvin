@@ -14,14 +14,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const url = new URL(request.url);
   const overwrite = url.searchParams.get('overwrite') === 'true';
-  const targetWorkspaceId = url.searchParams.get('target_workspace_id');
 
-  const params = new URLSearchParams();
-  if (overwrite) params.set('overwrite', 'true');
-  if (targetWorkspaceId) params.set('target_workspace_id', targetWorkspaceId);
-  const qs = params.toString() ? `?${params.toString()}` : '';
-
-  const backendUrl = getApiUrl(`/api/platform/workspace/import${qs}`);
+  const backendUrl = getApiUrl(`/api/platform/workspace/import${overwrite ? '?overwrite=true' : ''}`);
 
   const formData = await request.formData();
 
