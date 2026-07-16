@@ -72,6 +72,7 @@ class WorkspaceExporter:
         Returns:
             Path to the created zip file
         """
+        import secrets
         from datetime import date
 
         from marvin.services.storage.provider_factory import get_storage_provider
@@ -85,7 +86,8 @@ class WorkspaceExporter:
             import tempfile
             temp_dir = Path(tempfile.gettempdir())
 
-        basename = f"{workspace_slug}-backup-{date.today().isoformat()}"
+        token = secrets.token_hex(8)
+        basename = f"{workspace_slug}-backup-{date.today().isoformat()}-{token}"
         zip_path = temp_dir / f"{basename}.zip"
         storage_provider = get_storage_provider()
 

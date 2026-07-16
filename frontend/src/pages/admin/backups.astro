@@ -7,6 +7,7 @@ await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
 const authToken = getAuthToken(Astro.cookies);
 let workspaces: { id: string; name: string; slug: string }[] = [];
+let allBackups: { filename: string; size: number; created_at: string; workspace_slug: string }[] = [];
 
 try {
   const response = await fetchApi<any>('/api/admin/groups', {}, authToken);
@@ -14,28 +15,50 @@ try {
 } catch (e) {
   console.error('[admin/backups] Failed to load workspaces:', e);
 }
+
+try {
+  const list = await fetchApi<{ filename: string; size: number; created_at: string; workspace_slug: string }[]>(
+    '/api/admin/backups',
+    {},
+    authToken,
+  );
+  allBackups = Array.isArray(list) ? list : [];
+} catch (e) {
+  console.error('[admin/backups] Failed to load backups:', e);
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
 ---
 
 <AdminLayout title="Backups">
   <div class="toolbar">
     <div>
       <h2>Backups</h2>
-      <p>Export and restore workspace bundles across all workspaces</p>
+      <p>Create, download, and restore workspace bundles across all workspaces</p>
     </div>
   </div>
 
   <div class="sections">
 
-    <!-- Export -->
+    <!-- Create Backup -->
     <section class="card">
       <div class="card-header">
-        <h3>Export</h3>
-        <p>Download a complete bundle for any workspace — collections, entry types, entries, resources, assets, and site configuration.</p>
+        <h3>Create Backup</h3>
+        <p>Generate a ZIP bundle for any workspace — collections, entry types, entries, resources, assets, and site configuration. The backup is persisted on the server and appears in the list below.</p>
       </div>
       <div class="card-body">
         <div class="field">
-          <label for="export-workspace">Workspace</label>
-          <select id="export-workspace">
+          <label for="create-workspace">Workspace</label>
+          <select id="create-workspace">
             <option value="">— select a workspace —</option>
             {workspaces.map(w => (
               <option value={w.id} data-slug={w.slug}>{w.name}</option>
@@ -43,12 +66,63 @@ try {
           </select>
         </div>
         <div class="actions">
-          <button type="button" id="export-btn" class="button" disabled>
-            Download Bundle
+          <button type="button" id="create-btn" class="button" disabled>
+            Create Backup
           </button>
-          <span id="export-status" class="status-msg"></span>
+          <span id="create-status" class="status-msg"></span>
         </div>
       </div>
+    </section>
+
+    <!-- All Backups -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3>All Backups</h3>
+          <p>Backup files on the server, newest first.</p>
+        </div>
+        <div class="filter-field">
+          <select id="filter-workspace">
+            <option value="">All workspaces</option>
+            {workspaces.map(w => (
+              <option value={w.slug}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {allBackups.length > 0 ? (
+        <table class="backup-table" id="backup-table">
+          <thead>
+            <tr>
+              <th>Workspace</th>
+              <th>Filename</th>
+              <th>Size</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="backup-tbody">
+            {allBackups.map(b => (
+              <tr>
+                <td class="slug-cell">{b.workspace_slug}</td>
+                <td class="filename-cell">{b.filename}</td>
+                <td class="num-cell">{fmtSize(b.size)}</td>
+                <td class="num-cell">{fmtDate(b.created_at)}</td>
+                <td class="action-cell">
+                  <a
+                    href={`/api/admin/backups/${encodeURIComponent(b.filename)}`}
+                    download={b.filename}
+                    class="dl-link"
+                  >Download</a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p id="empty-msg" class="empty-msg">No backups yet. Use "Create Backup" above to get started.</p>
+      )}
     </section>
 
     <!-- Import -->
@@ -87,7 +161,7 @@ try {
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             <p class="drop-primary">Drop .zip bundle here or <span class="drop-link">browse</span></p>
-            <p class="drop-secondary">Exported from Download Bundle above</p>
+            <p class="drop-secondary">Exported from a Backup above</p>
           </div>
 
           <div id="importFileInfo" style="display:none;">
@@ -143,7 +217,7 @@ try {
   .sections {
     display: grid;
     gap: 1.5rem;
-    max-width: 680px;
+    max-width: 800px;
   }
 
   .card {
@@ -156,6 +230,10 @@ try {
   .card-header {
     padding: 1.25rem 1.5rem;
     border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
   .card-header h3 {
@@ -241,6 +319,102 @@ try {
   .field select:focus {
     outline: none;
     border-color: var(--accent);
+  }
+
+  /* Filter */
+  .filter-field select {
+    padding: 6px 32px 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+    align-self: center;
+  }
+
+  .filter-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* Backup table */
+  .backup-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .backup-table th {
+    text-align: left;
+    padding: 0.625rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .backup-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .backup-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .backup-table tbody tr:hover td {
+    background: var(--panel-2, rgba(0,0,0,0.02));
+  }
+
+  .slug-cell {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .filename-cell {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    word-break: break-all;
+  }
+
+  .num-cell {
+    white-space: nowrap;
+    color: var(--muted);
+  }
+
+  .action-cell {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .dl-link {
+    font-size: 0.8125rem;
+    color: var(--brand, #0066cc);
+    text-decoration: none;
+  }
+
+  .dl-link:hover {
+    text-decoration: underline;
+  }
+
+  .empty-msg {
+    padding: 2rem 1.5rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
+    text-align: center;
   }
 
   /* Drop zone */
@@ -381,48 +555,148 @@ try {
 </style>
 
 <script>
-  // ── Export ──────────────────────────────────────────────────────────────────
-  const exportSelect = document.getElementById('export-workspace') as HTMLSelectElement;
-  const exportBtn = document.getElementById('export-btn') as HTMLButtonElement;
-  const exportStatus = document.getElementById('export-status') as HTMLElement;
+  function fmt(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  }
 
-  exportSelect?.addEventListener('change', () => {
-    exportBtn.disabled = !exportSelect.value;
-    exportStatus.textContent = '';
+  function fmtDate(iso: string): string {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function makeRow(b: { filename: string; size: number; created_at: string; workspace_slug?: string }): HTMLTableRowElement {
+    const tr = document.createElement('tr');
+    const dlUrl = `/api/admin/backups/${encodeURIComponent(b.filename)}`;
+    tr.innerHTML = `
+      <td class="slug-cell">${b.workspace_slug ?? ''}</td>
+      <td class="filename-cell">${b.filename}</td>
+      <td class="num-cell">${fmt(b.size)}</td>
+      <td class="num-cell">${fmtDate(b.created_at)}</td>
+      <td class="action-cell"><a href="${dlUrl}" download="${b.filename}" class="dl-link">Download</a></td>
+    `;
+    return tr;
+  }
+
+  // ── Create Backup ──────────────────────────────────────────────────────────
+  const createSelect = document.getElementById('create-workspace') as HTMLSelectElement;
+  const createBtn = document.getElementById('create-btn') as HTMLButtonElement;
+  const createStatus = document.getElementById('create-status') as HTMLElement;
+
+  createSelect?.addEventListener('change', () => {
+    createBtn.disabled = !createSelect.value;
+    createStatus.textContent = '';
   });
 
-  exportBtn?.addEventListener('click', async () => {
-    const id = exportSelect.value;
-    const slug = exportSelect.selectedOptions[0]?.dataset.slug ?? id;
+  createBtn?.addEventListener('click', async () => {
+    const id = createSelect.value;
     if (!id) return;
 
-    exportBtn.disabled = true;
-    exportBtn.textContent = 'Exporting…';
-    exportStatus.textContent = '';
+    createBtn.disabled = true;
+    createBtn.textContent = 'Creating…';
+    createStatus.textContent = '';
 
     try {
-      const res = await fetch(`/api/admin/backups/workspaces/${id}/export`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const res = await fetch(`/api/admin/backups/workspaces/${id}`, { method: 'POST', credentials: 'include' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.detail || `Server error: ${res.status}`);
 
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const today = new Date().toISOString().split('T')[0];
-      a.download = `${slug}-backup-${today}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Remove empty-state message if present
+      document.getElementById('empty-msg')?.remove();
+
+      // Ensure table exists
+      let table = document.getElementById('backup-table') as HTMLTableElement | null;
+      if (!table) {
+        const section = createBtn.closest('.sections')?.querySelectorAll('.card')[1];
+        if (section) {
+          table = document.createElement('table');
+          table.id = 'backup-table';
+          table.className = 'backup-table';
+          table.innerHTML = `
+            <thead><tr>
+              <th>Workspace</th><th>Filename</th><th>Size</th><th>Created</th><th></th>
+            </tr></thead>
+            <tbody id="backup-tbody"></tbody>
+          `;
+          section.appendChild(table);
+        }
+      }
+
+      const tbody = document.getElementById('backup-tbody') as HTMLTableSectionElement | null;
+      tbody?.insertBefore(makeRow(json), tbody.firstChild);
+
+      createStatus.textContent = '✓ Backup created';
     } catch (err) {
-      exportStatus.textContent = '✗ ' + (err instanceof Error ? err.message : 'Export failed');
+      createStatus.textContent = '✗ ' + (err instanceof Error ? err.message : 'Failed');
     } finally {
-      exportBtn.disabled = false;
-      exportBtn.textContent = 'Download Bundle';
+      createBtn.disabled = !createSelect.value;
+      createBtn.textContent = 'Create Backup';
     }
   });
 
-  // ── Import ──────────────────────────────────────────────────────────────────
+  // ── Filter by workspace ────────────────────────────────────────────────────
+  const filterSelect = document.getElementById('filter-workspace') as HTMLSelectElement | null;
+
+  filterSelect?.addEventListener('change', async () => {
+    const slug = filterSelect.value;
+    const qs = slug ? `?workspace_slug=${encodeURIComponent(slug)}` : '';
+    try {
+      const res = await fetch(`/api/admin/backups${qs}`, { credentials: 'include' });
+      const list = await res.json() as { filename: string; size: number; created_at: string; workspace_slug: string }[];
+
+      const tbody = document.getElementById('backup-tbody') as HTMLTableSectionElement | null;
+      const emptyMsg = document.getElementById('empty-msg');
+
+      if (!list.length) {
+        if (tbody) tbody.innerHTML = '';
+        if (!emptyMsg) {
+          const p = document.createElement('p');
+          p.id = 'empty-msg';
+          p.className = 'empty-msg';
+          p.textContent = 'No backups for this workspace.';
+          document.getElementById('backup-table')?.after(p);
+          document.getElementById('backup-table')?.remove();
+        } else {
+          emptyMsg.textContent = 'No backups for this workspace.';
+        }
+        return;
+      }
+
+      emptyMsg?.remove();
+
+      let table = document.getElementById('backup-table') as HTMLTableElement | null;
+      if (!table) {
+        const section = filterSelect.closest('.card');
+        table = document.createElement('table');
+        table.id = 'backup-table';
+        table.className = 'backup-table';
+        table.innerHTML = `
+          <thead><tr>
+            <th>Workspace</th><th>Filename</th><th>Size</th><th>Created</th><th></th>
+          </tr></thead>
+          <tbody id="backup-tbody"></tbody>
+        `;
+        section?.appendChild(table);
+      }
+
+      const newTbody = document.getElementById('backup-tbody') as HTMLTableSectionElement | null;
+      if (newTbody) newTbody.innerHTML = list.map(b => {
+        const dlUrl = `/api/admin/backups/${encodeURIComponent(b.filename)}`;
+        return `<tr>
+          <td class="slug-cell">${b.workspace_slug}</td>
+          <td class="filename-cell">${b.filename}</td>
+          <td class="num-cell">${fmt(b.size)}</td>
+          <td class="num-cell">${fmtDate(b.created_at)}</td>
+          <td class="action-cell"><a href="${dlUrl}" download="${b.filename}" class="dl-link">Download</a></td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      console.error('Failed to filter backups:', err);
+    }
+  });
+
+  // ── Import ─────────────────────────────────────────────────────────────────
   const importSelect = document.getElementById('import-workspace') as HTMLSelectElement;
   const dropZone = document.getElementById('importDropZone') as HTMLElement;
   const fileInput = document.getElementById('import-file') as HTMLInputElement;
@@ -435,13 +709,6 @@ try {
   const importStatus = document.getElementById('import-status') as HTMLElement;
 
   let selectedFile: File | null = null;
-
-  function fmt(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
-  }
 
   function syncImportBtn() {
     importBtn.disabled = !selectedFile || !importSelect.value;
