@@ -93,7 +93,7 @@ def get_payload_example(event_type: str) -> dict:
             "invitationToken": "abc123token",
             "workspaceId": "<workspace-uuid>",
             "workspaceName": "My Workspace",
-            "inviterName": "Jane Smith",
+            "inviteeEmail": "user@example.com",
         },
         "member_added": {
             "documentType": "workspace",

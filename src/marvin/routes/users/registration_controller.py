@@ -17,7 +17,7 @@ from marvin.schemas.response import ErrorResponse  # Standardized error response
 from marvin.schemas.user.registration import UserRegistrationCreate  # Pydantic schema for registration data
 from marvin.schemas.user.user import UserRead  # Pydantic schema for user response
 from marvin.services.event_bus_service.event_bus_service import EventBusService  # Event bus for dispatching events
-from marvin.services.event_bus_service.event_types import EventTypes, EventUserSignupData  # Event types
+from marvin.services.event_bus_service.event_types import EventInvitationData, EventOperation, EventTypes, EventUserSignupData  # Event types
 from marvin.services.user.registration_service import RegistrationService  # Service for registration logic
 
 # APIRouter for user registration. This is a public endpoint.
@@ -104,7 +104,28 @@ class RegistrationController(BasePublicController):
             )
             self.logger.info(f"User signup event dispatched for user: {newly_registered_user.username}")
         except Exception as e:
-            # Log if event dispatch fails, but don't let it fail the registration response
             self.logger.error(f"Failed to dispatch user_signup event for {newly_registered_user.username}: {e}")
+
+        # If the registration used an invitation token, fire invitation_accepted
+        if has_group_token and newly_registered_user.group_id:
+            try:
+                group_repos = get_repositories(self.session, group_id=newly_registered_user.group_id)
+                group = group_repos.groups.get_one(newly_registered_user.group_id)
+                self.event_bus.dispatch(
+                    integration_id="invitation_management",
+                    group_id=newly_registered_user.group_id,
+                    event_type=EventTypes.invitation_accepted,
+                    document_data=EventInvitationData(
+                        operation=EventOperation.update,
+                        invitation_token=data.group_token,
+                        workspace_id=newly_registered_user.group_id,
+                        workspace_name=group.name if group else "",
+                        invitee_email=newly_registered_user.email,
+                    ),
+                    message=f"Invitation accepted by {newly_registered_user.username}",
+                )
+                self.logger.info(f"Invitation accepted event dispatched for user: {newly_registered_user.username}")
+            except Exception as e:
+                self.logger.error(f"Failed to dispatch invitation_accepted event for {newly_registered_user.username}: {e}")
 
         return newly_registered_user

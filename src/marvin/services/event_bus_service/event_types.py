@@ -697,7 +697,7 @@ class EventInvitationData(EventDocumentDataBase):
     """The workspace the invitation is for."""
     workspace_name: str | None = None
     """The name of the workspace."""
-    inviter_name: str
+    inviter_name: str | None = None
     """The name of the user who created the invitation."""
     invitee_email: str | None = None
     """The email address of the invited user (if applicable)."""
