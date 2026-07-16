@@ -404,38 +404,49 @@ class WebhookEventListener(EventListenerBase):
             list[WebhookRead]: A list of `WebhookRead` schemas for webhooks that
                                should be triggered by this event.
         """
-        # EXISTING: Handle scheduled webhook_task events
         if event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData):
             webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
-            scheduled_webhooks_list = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
-            return scheduled_webhooks_list
+            scheduled = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
+            self.logger.debug(f"webhook_task: {len(scheduled)} scheduled webhook(s) in window")
+            return scheduled
 
-        # NEW: Handle event-subscribed webhooks
-        # Find webhooks that have subscribed to this specific event type
+        # Event-driven: find webhooks subscribed to this event type
         with self.ensure_session() as session:
-            stmt = select(GroupWebhooksModel).where(
-                GroupWebhooksModel.enabled == True,  # noqa: E712 - SQLAlchemy specific comparison
-                GroupWebhooksModel.group_id == self.group_id,
-            )
-            db_webhooks = session.execute(stmt).scalars().all()
+            db_webhooks = session.execute(
+                select(GroupWebhooksModel).where(
+                    GroupWebhooksModel.enabled == True,  # noqa: E712
+                    GroupWebhooksModel.group_id == self.group_id,
+                )
+            ).scalars().all()
 
-            # Filter to event_driven webhooks whose subscribed_events include this event type
-            filtered_webhooks = [
+            filtered = [
                 wh for wh in db_webhooks
                 if wh.subscribed_events
                 and event.event_type.name in wh.subscribed_events
                 and getattr(wh.webhook_type, "value", None) == "event_driven"
             ]
 
-            return [WebhookRead.model_validate(wh) for wh in filtered_webhooks]
+            if filtered:
+                self.logger.info(
+                    f"event:{event.event_type.name} → {len(filtered)} webhook(s): "
+                    + ", ".join(wh.name or str(wh.id) for wh in filtered)
+                )
+            else:
+                self.logger.debug(f"event:{event.event_type.name} → no webhook subscribers")
+
+            return [WebhookRead.model_validate(wh) for wh in filtered]
 
     def publish_to_subscribers(self, event: Event, subscribers_webhooks: list[WebhookRead]) -> None:
         """Publish event data to each webhook subscriber."""
         from marvin.services.webhooks.substitution import apply_substitutions
 
         if event.event_type != EventTypes.webhook_task:
-            # Event-driven path: send the full event payload, injecting meta if custom_payload set
+            # Event-driven path
             for webhook_config in subscribers_webhooks:
+                self.logger.debug(
+                    f"  → firing event-driven webhook '{webhook_config.name}' "
+                    f"[{webhook_config.method.name} {webhook_config.url}]"
+                )
                 resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
                 payload_override = None
                 if webhook_config.custom_payload:
@@ -502,6 +513,11 @@ class WebhookEventListener(EventListenerBase):
         }
 
         for webhook_config in subscribers_webhooks:
+            self.logger.debug(
+                f"  → scheduled webhook '{webhook_config.name}' "
+                f"[{webhook_config.method.name if webhook_config.method else 'POST'} {webhook_config.url}] "
+                f"type={webhook_config.webhook_type.value if webhook_config.webhook_type else 'generic'}"
+            )
 
             handler_data: dict = {}
             webhook_type_name = webhook_config.webhook_type.value if webhook_config.webhook_type else "generic"

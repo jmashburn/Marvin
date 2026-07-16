@@ -230,13 +230,20 @@ class EventBusService(BaseService):
             entity_type=entity_type,
         )
 
-        # If BackgroundTasks instance is available, run publishing as a background task
+        event_name = event_type.name if hasattr(event_type, "name") else str(event_type)
+        is_internal = event_name in ("webhook_task", "scheduled_task_triggered", "scheduled_task_started", "scheduled_task_completed", "scheduled_task_failed")
+
         if self.bg_tasks:
-            self.logger.debug(f"Adding Event: {event_type} to Background Task")
+            if not is_internal:
+                self.logger.info(f"event dispatched: {event_name} [{integration_id}]")
+            else:
+                self.logger.debug(f"event dispatched: {event_name} [{integration_id}]")
             self.bg_tasks.add_task(self._publish_event, event=event_payload, group_id=group_id)
         else:
-            # Otherwise, publish synchronously (blocks until all listeners processed)
-            self.logger.debug(f"Adding Event: {event_type}")
+            if not is_internal:
+                self.logger.info(f"event dispatched: {event_name} [{integration_id}]")
+            else:
+                self.logger.debug(f"event dispatched: {event_name} [{integration_id}]")
             self._publish_event(event=event_payload, group_id=group_id)
 
     @classmethod
