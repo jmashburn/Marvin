@@ -527,7 +527,7 @@ class WebhookEventListener(EventListenerBase):
                 "webhookType": webhook_type_name,
             }
             if handler_data:
-                clean_payload["data"] = handler_data
+                clean_payload["documentData"] = handler_data
             if webhook_config.custom_payload:
                 clean_payload["meta"] = apply_substitutions(
                     webhook_config.custom_payload, self.group_id, context
