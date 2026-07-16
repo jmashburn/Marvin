@@ -66,6 +66,12 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
     <!-- Import -->
     {canImport ? (
       <section class="card">
+        <div class="target-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Content always imports into <strong>{workspaceName}</strong> regardless of which workspace the bundle came from. If the bundle was exported from a different workspace, the workspace names won't match — that's fine, only the content (entries, assets, etc.) is imported.
+        </div>
         <div class="card-header">
           <div>
             <h3>Import</h3>
@@ -73,13 +79,6 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
           </div>
         </div>
         <div class="card-body">
-
-          <div class="target-note">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            Content always imports into <strong>{workspaceName}</strong> regardless of which workspace the bundle came from. If the bundle was exported from a different workspace, the workspace names won't match — that's fine, only the content (entries, assets, etc.) is imported.
-          </div>
 
           <div class="drop-zone" id="importDropZone">
             <input type="file" id="import-bundle-file" accept=".zip" hidden />
@@ -303,8 +302,7 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
     align-items: flex-start;
     padding: 1rem 1.25rem;
     background: var(--panel-2, #f5f5f5);
-    border: 1px solid var(--line);
-    border-radius: 6px;
+    border-bottom: 1px solid var(--line);
     font-size: 0.8125rem;
     color: var(--muted);
     line-height: 1.6;
@@ -312,7 +310,7 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
 
   .target-note svg {
     flex-shrink: 0;
-    margin-top: 1px;
+    margin-top: 2px;
     color: var(--muted);
   }
 
