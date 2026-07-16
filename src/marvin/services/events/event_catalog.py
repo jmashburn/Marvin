@@ -32,6 +32,10 @@ class CatalogEntry:
 
 COMMON_VARS = [
     EventVariable("workspace_name", "Name of the workspace", "My Blog", type="name"),
+    EventVariable("message_title", "Auto-generated event title (e.g. 'Entry Published')", "Entry Published", type="string"),
+    EventVariable("message_body", "Optional description passed when the event was dispatched", "", type="string"),
+    EventVariable("event_type", "Machine-readable event name", "entry_published", type="string"),
+    EventVariable("timestamp", "ISO 8601 timestamp of when the event fired", "2026-07-16T10:00:00Z", type="datetime"),
 ]
 
 CATALOG: list[CatalogEntry] = [

@@ -26,4 +26,9 @@ def build_event_variables(event: Event) -> dict:
     if event.entity_id:
         variables["entity_id"] = str(event.entity_id)
 
+    # Include the event bus message title and body — useful as email subject/body
+    if event.message:
+        variables["message_title"] = event.message.title or ""
+        variables["message_body"] = event.message.body or ""
+
     return variables

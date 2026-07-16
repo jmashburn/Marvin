@@ -94,7 +94,10 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             {emailTemplates.map((t: any) => {
               const isSystem = !((t as any).groupId ?? t.group_id);
               const tplType = (t as any).templateType ?? t.template_type;
-              const sub = emailSubscriptions.find((s: any) => s.template_id === t.id && s.event_type === type);
+              const sub = emailSubscriptions.find((s: any) =>
+                (s.template_id ?? s.templateId) === t.id &&
+                (s.event_type ?? s.eventType) === type
+              );
               const isConnected = !!sub;
               return (
                 <div class:list={['sub-option', { 'sub-option-connected': isConnected }]}>
@@ -117,9 +120,9 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                           data-template-name={t.name}
                           data-event-type={type}
                           data-subscription-id={sub?.id ?? ''}
-                          data-recipient-type={sub?.recipient_type ?? ''}
-                          data-recipient-field={sub?.recipient_field ?? ''}
-                          data-recipient-email={sub?.recipient_email ?? ''}
+                          data-recipient-type={(sub as any)?.recipient_type ?? (sub as any)?.recipientType ?? ''}
+                          data-recipient-field={(sub as any)?.recipient_field ?? (sub as any)?.recipientField ?? ''}
+                          data-recipient-email={(sub as any)?.recipient_email ?? (sub as any)?.recipientEmail ?? ''}
                           data-is-connected="false"
                           data-is-edit="true"
                         >
@@ -530,13 +533,25 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     // Show event variable chips
     const varsEl = document.getElementById('em-template-vars');
     if (varsEl && eventVariables?.length) {
-      varsEl.innerHTML = '<span class="em-vars-label">Event variables (click to copy):</span> ' +
-        eventVariables.map(v => `<button type="button" class="em-var-chip" data-slug="{{ ${v.slug} }}">{{ ${v.slug} }}</button>`).join('');
+      const nonUuid = eventVariables.filter(v => v.type !== 'uuid');
+      varsEl.innerHTML = `
+        <div class="em-vars-header">
+          <span class="em-vars-title">Available variables</span>
+          <span class="em-vars-hint">Click to copy · paste into subject or message as <code>{{ variable }}</code></span>
+        </div>
+        <div class="em-vars-chips">
+          ${nonUuid.map(v => `
+            <button type="button" class="em-var-chip em-var-type-${v.type || 'string'}" data-slug="{{ ${v.slug} }}" title="${v.description || v.slug}">
+              {{ ${v.slug} }}
+            </button>
+          `).join('')}
+        </div>
+      `;
       varsEl.querySelectorAll('.em-var-chip').forEach(btn => {
         btn.addEventListener('click', async () => {
           await navigator.clipboard.writeText(btn.dataset.slug).catch(() => {});
           const orig = btn.textContent;
-          btn.textContent = '✓';
+          btn.textContent = '✓ copied';
           setTimeout(() => { btn.textContent = orig; }, 1000);
         });
       });
@@ -1095,20 +1110,27 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     resize: vertical;
   }
 
-  .em-vars { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .em-vars-label { font-size: 11px; color: var(--muted); }
+  .em-vars { margin-top: 14px; }
+  .em-vars-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .em-vars-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .em-vars-hint { font-size: 11px; color: var(--muted); }
+  .em-vars-hint code { font-size: 10px; background: var(--panel); border: 1px solid var(--line); padding: 1px 4px; border-radius: 3px; }
+  .em-vars-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .em-var-chip {
     font-size: 11px;
     font-family: ui-monospace, monospace;
     background: rgba(79,156,132,0.08);
-    border: 1px solid rgba(79,156,132,0.25);
+    border: 1px solid rgba(79,156,132,0.2);
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 3px 9px;
     cursor: pointer;
     color: var(--accent);
+    transition: background 0.1s;
   }
-  .em-var-chip:hover { background: rgba(79,156,132,0.16); }
-  .em-subtle-link { font-size: 12px; color: var(--muted); margin-top: 10px; display: inline-block; }
+  .em-var-chip:hover { background: rgba(79,156,132,0.18); }
+  .em-var-type-email { border-color: rgba(79,156,132,0.5); font-weight: 600; }
+  .em-var-type-url { border-color: rgba(100,130,200,0.4); color: #5577cc; }
+  .em-subtle-link { font-size: 12px; color: var(--muted); margin-top: 12px; display: inline-block; }
 
   .em-hint {
     font-size: 12px;
