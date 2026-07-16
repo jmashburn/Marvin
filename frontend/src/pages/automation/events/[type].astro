@@ -300,10 +300,25 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         <input type="text" id="em-specific-email" class="em-email-input" placeholder="user@example.com, other@example.com" style="display:none" />
       </div>
     </div>
+    <!-- Template editor — shown after recipient step -->
+    <div id="em-template-section" style="display:none" class="wh-body em-template-section">
+      <div class="em-section-divider">Template</div>
+      <div class="form-group">
+        <label class="em-field-label">Subject</label>
+        <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry published in {{ workspace_name }}" />
+      </div>
+      <div class="form-group">
+        <label class="em-field-label">Message</label>
+        <textarea id="em-message-top" rows="5" class="em-text-input" placeholder="Use {{ variable }} for event data"></textarea>
+      </div>
+      <div id="em-template-vars" class="em-vars"></div>
+      <a id="em-full-editor-link" href="/workspace/settings/email" class="em-subtle-link" target="_blank">Open full editor ↗</a>
+    </div>
+
     <div class="wh-footer">
       <span id="em-note" class="wh-note"></span>
       <div class="wh-actions">
-        <button type="button" id="em-confirm" class="button">Connect</button>
+        <button type="button" id="em-confirm" class="button">Next: Edit Template →</button>
         <button type="button" id="em-cancel" class="button secondary">Cancel</button>
       </div>
     </div>
@@ -479,6 +494,12 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     document.body.style.overflow = '';
     activeEmailTemplateId = null;
     activeEmailSubscriptionId = null;
+    pendingConfig = null;
+    // Reset template section
+    const ts = document.getElementById('em-template-section');
+    const bc = document.getElementById('em-body-config');
+    if (ts) ts.style.display = 'none';
+    if (bc) bc.style.display = 'block';
   }
 
   document.querySelectorAll('.connect-email-btn').forEach(btn => {
@@ -487,6 +508,46 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   document.getElementById('em-close')?.addEventListener('click', closeEmailModal);
   document.getElementById('em-cancel')?.addEventListener('click', closeEmailModal);
   document.querySelector('#email-modal .wh-overlay')?.addEventListener('click', closeEmailModal);
+
+  let pendingConfig = null;
+
+  async function expandToTemplateEditor(config) {
+    pendingConfig = config;
+    // Fetch template content
+    let tpl = null;
+    try {
+      const res = await fetch(`${apiUrl}/api/platform/email/templates/${config.template_id}`, { credentials: 'include' });
+      if (res.ok) tpl = await res.json();
+    } catch {}
+    const f = (c, s) => tpl ? (tpl[c] ?? tpl[s] ?? '') : '';
+
+    // Populate fields
+    const subj = document.getElementById('em-subject');
+    const msg = document.getElementById('em-message-top');
+    if (subj) subj.value = f('subject', 'subject');
+    if (msg) msg.value = f('messageTop', 'message_top');
+
+    // Show event variable chips
+    const varsEl = document.getElementById('em-template-vars');
+    if (varsEl && eventVariables?.length) {
+      varsEl.innerHTML = '<span class="em-vars-label">Event variables (click to copy):</span> ' +
+        eventVariables.map(v => `<button type="button" class="em-var-chip" data-slug="{{ ${v.slug} }}">{{ ${v.slug} }}</button>`).join('');
+      varsEl.querySelectorAll('.em-var-chip').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await navigator.clipboard.writeText(btn.dataset.slug).catch(() => {});
+          const orig = btn.textContent;
+          btn.textContent = '✓';
+          setTimeout(() => { btn.textContent = orig; }, 1000);
+        });
+      });
+    }
+
+    // Show template section, update confirm button
+    document.getElementById('em-body-config').style.display = 'none';
+    document.getElementById('em-template-section').style.display = 'block';
+    if (emConfirm) { emConfirm.textContent = 'Connect'; emConfirm.disabled = false; }
+    if (emTitle) emTitle.textContent = 'Connect: ' + (tpl?.name || 'Template');
+  }
 
   function collectRecipientConfig() {
     const recipientType = document.querySelector('input[name="em-recipient-type"]:checked')?.value || 'admins';
@@ -515,6 +576,38 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
   emConfirm?.addEventListener('click', async () => {
     if (!activeEmailTemplateId) return;
+    // If template section is visible, this is the final Connect step
+    const templateSectionVisible = document.getElementById('em-template-section')?.style.display !== 'none';
+    if (templateSectionVisible && pendingConfig) {
+      emConfirm.disabled = true;
+      emConfirm.textContent = 'Connecting…';
+      try {
+        // Save template edits first (PATCH workspace template or skip for system)
+        const subject = document.getElementById('em-subject')?.value?.trim();
+        const messageTop = document.getElementById('em-message-top')?.value?.trim();
+        if (subject || messageTop) {
+          await fetch(`${apiUrl}/api/platform/workspaces/${pendingConfig.template_id}/email-templates/${pendingConfig.template_id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ subject, message_top: messageTop }),
+          }).catch(() => {});
+        }
+        // Create subscription
+        const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify(pendingConfig),
+        });
+        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.detail || `POST failed: ${res.status}`); }
+        closeEmailModal();
+        window.location.reload();
+      } catch (e) {
+        alert('Error: ' + e.message);
+        emConfirm.disabled = false;
+        emConfirm.textContent = 'Connect';
+      }
+      return;
+    }
     emConfirm.disabled = true;
     emConfirm.textContent = 'Working…';
     try {
@@ -542,18 +635,10 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         closeEmailModal();
         window.location.reload();
       } else {
-        // New connect — go to template editor with config in URL params
+        // New connect — expand modal to show template editor
         const config = collectRecipientConfig();
         if (!config) { emConfirm.disabled = false; emConfirm.textContent = 'Next: Edit Template →'; return; }
-        closeEmailModal();
-        const p = new URLSearchParams({
-          template: config.template_id,
-          connect_event: config.event_type,
-          recipient_type: config.recipient_type,
-          ...(config.recipient_field ? { recipient_field: config.recipient_field } : {}),
-          ...(config.recipient_email ? { recipient_email: config.recipient_email } : {}),
-        });
-        window.location.href = `/workspace/settings/email?${p.toString()}`;
+        await expandToTemplateEditor(config);
       }
     } catch (e) {
       alert('Error: ' + e.message);
@@ -982,6 +1067,48 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   }
 
   .em-email-input { min-width: 220px; }
+
+  .em-template-section { border-top: 1px solid var(--line); padding-top: 16px; }
+
+  .em-section-divider {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .form-group { margin-bottom: 12px; }
+  .em-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+
+  .em-text-input {
+    width: 100%;
+    font-size: 13px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+    box-sizing: border-box;
+    resize: vertical;
+  }
+
+  .em-vars { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .em-vars-label { font-size: 11px; color: var(--muted); }
+  .em-var-chip {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    background: rgba(79,156,132,0.08);
+    border: 1px solid rgba(79,156,132,0.25);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    color: var(--accent);
+  }
+  .em-var-chip:hover { background: rgba(79,156,132,0.16); }
+  .em-subtle-link { font-size: 12px; color: var(--muted); margin-top: 10px; display: inline-block; }
 
   .em-hint {
     font-size: 12px;
