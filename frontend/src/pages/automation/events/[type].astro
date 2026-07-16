@@ -15,6 +15,7 @@ let emailSubscriptions: any[] = [];
 let webhooks: any[] = [];
 let notifications: any[] = [];
 let error: string | null = null;
+let wsId: string | null = null;
 
 const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
@@ -27,7 +28,7 @@ try {
   }
 
   const workspace = await getCurrentWorkspace(authToken!);
-  const wsId = workspace?.id;
+  wsId = workspace?.id ?? null;
 
   const emailSubsRes = await fetchApi<any[]>('/api/groups/email-event-subscriptions', {}, authToken).catch(() => []);
   emailSubscriptions = Array.isArray(emailSubsRes) ? emailSubsRes : [];
