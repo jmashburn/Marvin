@@ -669,6 +669,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       const tplBody = {
         subject,
         message_top: markdownBody,
+        message_bottom: '',   // clear — markdown body is self-contained
         custom_html: markdownToHtml(markdownBody) || '',
       };
       // Safety: system templates must never be PATCHed directly — this path
