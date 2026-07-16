@@ -20,11 +20,16 @@ def get_latest_github_release(url: str) -> str:
     Gets the latest release from GitHub.
 
     Returns:
-        str: The latest release from GitHub.
+        str: The latest release tag name from GitHub.
     """
-
-    url = url
-    response = requests.get(url)
+    response = requests.get(
+        url,
+        headers={
+            "User-Agent": "marvin-cms/release-checker",
+            "Accept": "application/vnd.github.v3+json",
+        },
+        timeout=5,
+    )
     response.raise_for_status()
     return response.json()["tag_name"]
 
