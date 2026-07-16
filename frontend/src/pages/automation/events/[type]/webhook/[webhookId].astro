@@ -99,6 +99,7 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
             {isConnected
               ? 'This webhook fires on every ' + eventInfo.label + ' event. Disconnect to stop.'
               : 'Connect to start receiving ' + eventInfo.label + ' events at this URL.'}
+            {' '}<a href={`/automation/webhooks/${webhookId}`} class="wh-link">Edit webhook →</a>
           </span>
           <div class="wh-actions">
             {isConnected
@@ -186,4 +187,6 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
 
   .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
   .button.secondary.danger:hover { background: var(--color-error-bg); }
+  .wh-link { color: var(--accent); text-decoration: none; font-size: 12px; }
+  .wh-link:hover { text-decoration: underline; }
 </style>
