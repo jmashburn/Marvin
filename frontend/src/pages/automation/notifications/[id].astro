@@ -68,19 +68,16 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
 
           <div class="form-field">
             <span class="label">Notification URL</span>
-            {currentAppriseUrl && (
-              <p class="current-url">Current: <code>{currentAppriseUrl}</code></p>
-            )}
             <input
               type="text"
               name="apprise_url"
-              placeholder={currentAppriseUrl ? 'Leave blank to keep current URL' : 'slack://token/channel'}
+              value={currentAppriseUrl}
+              placeholder="slack://{{SLACK_TOKEN}}/#channel"
               class="input"
             />
             <small class="hint">
               See <a href="https://github.com/caronc/apprise" target="_blank" rel="noopener">Apprise docs</a> for URL formats.
-              Use <code>&#123;&#123;SLUG&#125;&#125;</code> to embed a <a href="/workspace/settings/environment">workspace secret or variable</a> — e.g. <code>slack://&#123;&#123;SLACK_TOKEN&#125;&#125;/#channel</code>.
-              {currentAppriseUrl && ' Leave blank to keep the existing URL.'}
+              Use <code>&#123;&#123;SLUG&#125;&#125;</code> to embed a <a href="/workspace/settings/environment">workspace secret or variable</a> — stored as-is, resolved at send time.
             </small>
           </div>
 
