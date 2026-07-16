@@ -16,7 +16,7 @@ let notifications: any[] = [];
 let error: string | null = null;
 
 try {
-  const allTypes = await fetchApi<any[]>('/api/event/types', { method: 'GET' }, authToken).catch(() => []);
+  const allTypes = await sdk.events.getOptions() as any[];
   eventInfo = allTypes.find((e: any) => e.value === type) || null;
 
   if (!eventInfo) {

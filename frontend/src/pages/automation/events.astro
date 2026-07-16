@@ -13,7 +13,7 @@ let error: string | null = null;
 
 try {
   [eventTypes, webhooks] = await Promise.all([
-    fetchApi<any[]>('/api/event/types', { method: 'GET' }, authToken).catch(() => []),
+    sdk.events.getOptions() as Promise<any[]>,
     sdk.webhooks.list().catch(() => []),
   ]);
   const notifRes = await sdk.notifications.list().catch(() => ({ items: [] }));
