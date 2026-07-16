@@ -36,9 +36,10 @@ PAYLOAD_WRAPPER = {
 
 # Example values per field name — used to populate example payloads
 FIELD_EXAMPLES = {
-    "invitation_id": "abc123token",
+    "invitation_token": "abc123token",
     "workspace_id": "<workspace-uuid>",
-    "inviter_id": "<user-uuid>",
+    "workspace_name": "My Workspace",
+    "inviter_name": "Jane Smith",
     "invitee_email": "user@example.com",
     "invitation_url": "https://yoursite.com/register?token=abc123",
     "uses_left": 5,
@@ -69,9 +70,10 @@ def get_payload_example(event_type: str) -> dict:
         "invitation_sent": {
             "documentType": "invitation",
             "operation": "info",
-            "invitationId": "abc123token",
+            "invitationToken": "abc123token",
             "workspaceId": "<workspace-uuid>",
-            "inviterId": "<user-uuid>",
+            "workspaceName": "My Workspace",
+            "inviterName": "Jane Smith",
             "inviteeEmail": "user@example.com",
             "invitationUrl": "https://yoursite.com/register?token=abc123",
             "usesLeft": 5,
@@ -79,17 +81,19 @@ def get_payload_example(event_type: str) -> dict:
         "invitation_created": {
             "documentType": "invitation",
             "operation": "create",
-            "invitationId": "abc123token",
+            "invitationToken": "abc123token",
             "workspaceId": "<workspace-uuid>",
-            "inviterId": "<user-uuid>",
+            "workspaceName": "My Workspace",
+            "inviterName": "Jane Smith",
             "usesLeft": 10,
         },
         "invitation_accepted": {
             "documentType": "invitation",
             "operation": "update",
-            "invitationId": "abc123token",
+            "invitationToken": "abc123token",
             "workspaceId": "<workspace-uuid>",
-            "inviterId": "<user-uuid>",
+            "workspaceName": "My Workspace",
+            "inviterName": "Jane Smith",
         },
         "member_added": {
             "documentType": "workspace",

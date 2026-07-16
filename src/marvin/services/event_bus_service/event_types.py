@@ -691,12 +691,14 @@ class EventInvitationData(EventDocumentDataBase):
     """Data payload for invitation events."""
 
     document_type: EventDocumentTypeBase = EventDocumentType.invitation
-    invitation_id: UUID4 | str
-    """The unique identifier or token of the invitation."""
+    invitation_token: UUID4 | str
+    """The unique token of the invitation."""
     workspace_id: UUID4
     """The workspace the invitation is for."""
-    inviter_id: UUID4
-    """The user who created the invitation."""
+    workspace_name: str | None = None
+    """The name of the workspace."""
+    inviter_name: str
+    """The name of the user who created the invitation."""
     invitee_email: str | None = None
     """The email address of the invited user (if applicable)."""
     invitation_url: str | None = None
