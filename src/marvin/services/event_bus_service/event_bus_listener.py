@@ -506,7 +506,11 @@ class WebhookEventListener(EventListenerBase):
                                 f"(type={webhook_type_name}): {e}"
                             )
 
-            # Build clean payload: stats in "data", custom_payload spread at top level
+            # Merge custom_payload into data (alongside handler stats)
+            if webhook_config.custom_payload:
+                custom = apply_substitutions(webhook_config.custom_payload, self.group_id, context)
+                handler_data.update(custom)
+
             clean_payload: dict = {
                 "timestamp": now_iso,
                 "workspace_slug": workspace_slug,
@@ -514,9 +518,6 @@ class WebhookEventListener(EventListenerBase):
                 "type": webhook_type_name,
                 "data": handler_data,
             }
-            if webhook_config.custom_payload:
-                custom = apply_substitutions(webhook_config.custom_payload, self.group_id, context)
-                clean_payload.update(custom)
 
             resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
             self.publisher.publish(
