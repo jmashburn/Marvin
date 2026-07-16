@@ -92,8 +92,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             <p>Send an email when this event fires</p>
           </div>
           <div class="sub-options">
-            {emailTemplates.map((t: any) => {
-              const isSystem = !((t as any).groupId ?? t.group_id);
+            {emailTemplates.filter((t: any) => !!(( t as any).groupId ?? t.group_id)).map((t: any) => {
+              const isSystem = false;
               const tplType = (t as any).templateType ?? t.template_type;
               const sub = emailSubscriptions.find((s: any) =>
                 (s.template_id ?? s.templateId) === t.id &&
@@ -106,9 +106,6 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                     <div class="sub-option-name-row">
                       {isConnected && <span class="connected-check">&#10003;</span>}
                       <strong>{t.name}</strong>
-                      {isSystem
-                        ? <span class="tpl-badge tpl-badge-system">Default</span>
-                        : <span class="tpl-badge tpl-badge-custom">Customized</span>}
                     </div>
                     <code class="sub-type">{tplType}</code>
                   </div>
@@ -154,6 +151,11 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                 </div>
               );
             })}
+            {emailTemplates.filter((t: any) => !!(( t as any).groupId ?? t.group_id)).length === 0 && (
+              <div class="sub-option" style="color:var(--muted);font-size:13px;">
+                No custom templates yet — create one to connect to this event.
+              </div>
+            )}
             <a href="/workspace/settings/email" class="sub-option sub-option-create">
               <span>+ Create or customize an email template</span>
             </a>
@@ -669,6 +671,9 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         message_top: markdownBody,
         custom_html: markdownToHtml(markdownBody) || '',
       };
+      // Safety: system templates must never be PATCHed directly — this path
+      // should no longer be reachable since we only show workspace templates,
+      // but guard anyway.
       if (emIsSystemTemplate) {
         const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
