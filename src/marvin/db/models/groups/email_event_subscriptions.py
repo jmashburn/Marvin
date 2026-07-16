@@ -4,6 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
+from marvin.db.models._model_utils.auto_init import auto_init
 from marvin.db.models._model_utils.guid import GUID
 
 
@@ -40,5 +41,6 @@ class EmailEventSubscriptionModel(SqlAlchemyBase, BaseMixins):
 
     enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
 
+    @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:
         pass
