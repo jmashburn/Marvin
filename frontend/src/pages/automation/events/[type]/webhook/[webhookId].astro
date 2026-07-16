@@ -131,7 +131,7 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...webhook, subscribed_events: updated }),
+        body: JSON.stringify({ ...webhook, subscribedEvents: updated, subscribed_events: updated }),
       });
       if (!putRes.ok) {
         const err = await putRes.json().catch(() => ({}));
