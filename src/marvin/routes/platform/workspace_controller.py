@@ -3,7 +3,7 @@
 import json
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Response, UploadFile
+from fastapi import APIRouter, File, Query, Response, UploadFile
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -75,18 +75,59 @@ class WorkspaceController(BaseUserController):
         )
 
     @router.post("/import", summary="Import Workspace Bundle")
-    async def import_workspace(self, file: UploadFile = File(...)) -> dict:
+    async def import_workspace(
+        self,
+        file: UploadFile = File(...),
+        overwrite: bool = Query(
+            False,
+            description=(
+                "When true, existing records matched by slug are updated with bundle data. "
+                "⚠️ This will overwrite entries, collections, resources, and assets "
+                "that exist in the workspace. Entry junction rows (→asset, →collection, "
+                "→resource) are cleared and rebuilt from the bundle."
+            ),
+        ),
+    ) -> dict:
         """Import a workspace from a zip bundle exported by /export/bundle.
 
-        Accepts a multipart upload of a workspace zip file. Restores all workspace
-        data including asset binaries into the current environment's storage.
+        Requires **SUPER_ADMIN** or workspace **OWNER** role.
+
+        **SUPER_ADMIN path**: the workspace block in the bundle drives which workspace receives
+        the import. A new workspace is created if the slug/name doesn't exist yet.
+
+        **OWNER path**: the bundle is always imported into the caller's own workspace.
+        The workspace block in the bundle is ignored for routing — only site preferences
+        within it are applied. Owners cannot import into other workspaces.
+
+        **overwrite=false (default)**: existing records are skipped — safe for seeding
+        into a live workspace without disrupting existing content.
+
+        **overwrite=true**: existing records are updated from the bundle. ⚠️ Can replace
+        entry content and assignments. Entry junction rows (→asset, →collection, →resource)
+        are cleared and rebuilt from the bundle.
 
         Args:
             file: Zip bundle file (from /export/bundle)
+            overwrite: When True, existing records matched by slug are updated
 
         Returns:
             Import counts by type
         """
+        from fastapi import status as http_status
+
+        from marvin.db.models.users.roles import PlatformRole, WorkspaceRole
+
+        is_super_admin = self.user.platform_role == PlatformRole.SUPER_ADMIN
+        is_owner = self.user.has_workspace_role(self.group_id, WorkspaceRole.OWNER)
+
+        if not (is_super_admin or is_owner):
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=http_status.HTTP_403_FORBIDDEN,
+                detail="Importing a workspace bundle requires SUPER_ADMIN or workspace OWNER role.",
+            )
+
         zip_path = self.directories.TEMP_DIR / f"{uuid4()}-import.zip"
         try:
             content = await file.read()
@@ -94,10 +135,16 @@ class WorkspaceController(BaseUserController):
 
             from marvin.repos.all_repositories import get_repositories
 
-            # Use instance repos (no group_id) so loader can create/find workspaces
-            instance_repos = get_repositories(self.repos.session, group_id=None)
-            loader = WorkspaceSeedLoader(instance_repos)
-            results = loader.load_seed_zip(zip_path)
+            if is_super_admin:
+                # Admin path: JSON workspace block drives which workspace receives the import
+                instance_repos = get_repositories(self.repos.session, group_id=None)
+                loader = WorkspaceSeedLoader(instance_repos)
+                results = loader.load_seed_zip(zip_path, overwrite=overwrite)
+            else:
+                # Owner path: always import into caller's own workspace
+                instance_repos = get_repositories(self.repos.session, group_id=None)
+                loader = WorkspaceSeedLoader(instance_repos)
+                results = loader.load_seed_zip(zip_path, overwrite=overwrite, target_group_id=self.group_id)
 
             return {"imported": results}
         finally:

@@ -33,11 +33,14 @@ class WorkspaceSeedLoader:
         self.repos = repos
         self.logger = logger or get_logger(__name__)
 
-    def load_seed_file(self, seed_file: Path) -> dict[str, int]:
+    def load_seed_file(self, seed_file: Path, overwrite: bool = False, target_group_id: str | None = None) -> dict[str, int]:
         """Load a complete workspace seed from a JSON file.
 
         Args:
             seed_file: Path to workspace seed JSON file
+            overwrite: When True, existing records matched by slug are updated
+            target_group_id: When set, import into this workspace instead of reading from JSON.
+                             Used for owner-scoped imports to prevent cross-workspace access.
 
         Returns:
             Dictionary with counts by type
@@ -47,13 +50,16 @@ class WorkspaceSeedLoader:
         with open(seed_file, "r") as f:
             data = json.load(f)
 
-        return self._load_data(data, zip_file=None)
+        return self._load_data(data, zip_file=None, overwrite=overwrite, target_group_id=target_group_id)
 
-    def load_seed_zip(self, zip_path: Path) -> dict[str, int]:
+    def load_seed_zip(self, zip_path: Path, overwrite: bool = False, target_group_id: str | None = None) -> dict[str, int]:
         """Load a workspace seed bundle from a zip file (JSON + asset binaries).
 
         Args:
             zip_path: Path to workspace bundle zip file
+            overwrite: When True, existing records matched by slug are updated
+            target_group_id: When set, import into this workspace instead of reading from JSON.
+                             Used for owner-scoped imports to prevent cross-workspace access.
 
         Returns:
             Dictionary with counts by type
@@ -64,18 +70,22 @@ class WorkspaceSeedLoader:
             with zf.open("workspace-export.json") as f:
                 data = json.load(f)
 
-            return self._load_data(data, zip_file=zf)
+            return self._load_data(data, zip_file=zf, overwrite=overwrite, target_group_id=target_group_id)
 
-    def _load_data(self, data: dict[str, Any], zip_file: zipfile.ZipFile | None = None) -> dict[str, int]:
+    def _load_data(self, data: dict[str, Any], zip_file: zipfile.ZipFile | None = None, overwrite: bool = False, target_group_id: str | None = None) -> dict[str, int]:
         """Load workspace data from a parsed dict, optionally extracting asset binaries from a zip.
 
         Args:
             data: Parsed workspace seed dict
             zip_file: Open ZipFile for binary extraction, or None for metadata-only
+            overwrite: When True, existing records matched by slug are updated
+            target_group_id: When set, bypass workspace resolution from JSON and import
+                             directly into this workspace (owner-scoped import path).
 
         Returns:
             Dictionary with counts by type
         """
+        self._overwrite = overwrite
         results = {
             "collections": 0,
             "entry_types": 0,
@@ -85,10 +95,20 @@ class WorkspaceSeedLoader:
             "errors": 0,
         }
 
-        # 0. Create or find workspace from seed data
+        # 0. Resolve workspace: use caller-supplied ID (owner path) or read from JSON (admin path)
         workspace_data = data.get("workspace")
         workspace = None
-        if workspace_data:
+        if target_group_id:
+            from marvin.repos.all_repositories import get_repositories
+
+            self.repos = get_repositories(self.repos.session, group_id=target_group_id)
+            workspace = self.repos.groups.get_one(target_group_id)
+            self.logger.info(f"Importing into caller's workspace: {workspace.name if workspace else target_group_id}")
+
+            site_data = data.get("site")
+            if site_data:
+                self._update_site_preferences(site_data)
+        elif workspace_data:
             workspace = self._ensure_workspace(workspace_data)
             from marvin.repos.all_repositories import get_repositories
 
@@ -162,8 +182,8 @@ class WorkspaceSeedLoader:
             f"{results['errors']} errors"
         )
 
-        # 6. Send owner invitation emails if provided
-        if workspace_data and workspace:
+        # 6. Send owner invitation emails if provided (admin path only — owner already has access)
+        if workspace_data and workspace and not target_group_id:
             owner_emails = []
             if workspace_data.get("ownerEmail"):
                 owner_emails.append(workspace_data["ownerEmail"])
@@ -205,7 +225,7 @@ class WorkspaceSeedLoader:
             slug = asset["slug"]
 
             existing = self.repos.assets.multi_query({"slug": slug})
-            if existing:
+            if existing and not self._overwrite:
                 self.logger.debug(f"Asset already exists: {slug}")
                 continue
 
@@ -232,7 +252,7 @@ class WorkspaceSeedLoader:
                 if zip_file is not None:
                     self.logger.warning(f"Asset binary not found in bundle, skipping: {slug}")
                 new_storage_key = asset.get("storageKey", "")
-                new_public_url = asset.get("publicUrl", "")
+                new_public_url = None  # validator computes correct URL at read time
 
             if not user_id:
                 self.logger.warning(f"No user found for asset creation, skipping: {slug}")
@@ -260,8 +280,30 @@ class WorkspaceSeedLoader:
             create_data = {k: v for k, v in create_data.items() if v is not None}
 
             try:
-                self.repos.assets.create(create_data)
-                self.logger.info(f"Imported asset: {slug}")
+                if existing and self._overwrite:
+                    if has_binary:
+                        update_data = {
+                            "storage_key": new_storage_key,
+                            "file_size": asset.get("fileSize"),
+                            "public_url": None,
+                            "metadata_json": asset.get("metadataJson"),
+                            "alt_text": asset.get("altText"),
+                            "description": asset.get("description"),
+                            "name": asset.get("name", slug),
+                        }
+                    else:
+                        update_data = {
+                            "name": asset.get("name", slug),
+                            "alt_text": asset.get("altText"),
+                            "description": asset.get("description"),
+                            "metadata_json": asset.get("metadataJson"),
+                        }
+                    update_data = {k: v for k, v in update_data.items() if v is not None}
+                    self.repos.assets.update(existing[0].id, update_data)
+                    self.logger.info(f"Overwrote asset: {slug}")
+                else:
+                    self.repos.assets.create(create_data)
+                    self.logger.info(f"Imported asset: {slug}")
                 count += 1
             except Exception as e:
                 self.logger.error(f"Failed to create asset record {slug}: {e}")
@@ -342,18 +384,13 @@ class WorkspaceSeedLoader:
                 self.logger.warning("Group preferences not found - cannot update site settings")
 
     def _create_collection(self, data: dict[str, Any]) -> None:
-        """Create a collection if it doesn't exist.
+        """Create a collection if it doesn't exist, or update it when overwrite is enabled.
 
         Args:
             data: Collection data from seed file
         """
-        # Check if exists
         existing = self.repos.collections.multi_query({"slug": data["slug"]})
-        if existing:
-            self.logger.debug(f"Collection already exists: {data['slug']}")
-            return
 
-        # Create collection
         create_data = {
             "name": data["name"],
             "slug": data["slug"],
@@ -364,23 +401,26 @@ class WorkspaceSeedLoader:
             "metadata_json": data.get("metadataJson"),
         }
 
+        if existing:
+            if self._overwrite:
+                self.repos.collections.update(existing[0].id, create_data)
+                self.logger.info(f"Overwrote collection: {data['slug']}")
+            else:
+                self.logger.debug(f"Collection already exists: {data['slug']}")
+            return
+
         self.repos.collections.create(create_data)
         self.logger.info(f"Created collection: {data['slug']}")
 
     def _create_entry_type(self, data: dict[str, Any]) -> None:
-        """Create an entry type if it doesn't exist.
+        """Create an entry type if it doesn't exist, or update it when overwrite is enabled.
 
         Args:
             data: Entry type data from seed file
         """
-        # Check if exists in THIS workspace (not system types)
-        # Need to check both slug AND group_id to respect UNIQUE (group_id, slug) constraint
+        # Check both slug AND group_id to respect UNIQUE (group_id, slug) constraint
         existing = self.repos.entry_types.multi_query({"slug": data["slug"], "group_id": self.repos.group_id})
-        if existing:
-            self.logger.debug(f"Entry type already exists in workspace: {data['slug']}")
-            return
 
-        # Create entry type
         create_data = {
             "name": data["name"],
             "slug": data["slug"],
@@ -391,30 +431,32 @@ class WorkspaceSeedLoader:
             "content_schema": data.get("schemaJson", {}),
         }
 
+        if existing:
+            if self._overwrite:
+                self.repos.entry_types.update(existing[0].id, create_data)
+                self.logger.info(f"Overwrote entry type: {data['slug']}")
+            else:
+                self.logger.debug(f"Entry type already exists in workspace: {data['slug']}")
+            return
+
         self.repos.entry_types.create(create_data)
         self.logger.info(f"Created entry type: {data['slug']}")
 
     def _create_entry(self, data: dict[str, Any]) -> None:
-        """Create an entry with collection assignments.
+        """Create an entry with collection assignments, or update it when overwrite is enabled.
 
         Args:
             data: Entry data from seed file
         """
-        # Check if exists
-        existing = self.repos.entries.multi_query({"slug": data["slug"]})
-        if existing:
-            self.logger.debug(f"Entry already exists: {data['slug']}")
-            return
+        existing_list = self.repos.entries.multi_query({"slug": data["slug"]})
 
         # Get entry type - handle explicit scope or auto-prefer workspace over system
         entry_type_slug = data["entryType"]
         entry_type_scope = data.get("entryTypeScope")  # Optional: "system", "workspace", or None
 
         if entry_type_scope == "system":
-            # Explicitly use system type
             entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug, "group_id": None})
         elif entry_type_scope == "workspace":
-            # Explicitly use workspace type
             entry_types = self.repos.entry_types.multi_query({"slug": entry_type_slug, "group_id": self.repos.group_id})
         else:
             # Auto-prefer: workspace type first, then system type
@@ -428,32 +470,69 @@ class WorkspaceSeedLoader:
 
         entry_type = entry_types[0]
 
-        # Create entry
-        create_data = {
-            "entry_type_id": entry_type.id,
-            "title": data["title"],
-            "slug": data["slug"],
-            "status": data.get("status", "draft"),
-            "summary": data.get("summary"),
-            "description": data.get("description"),
-            "data_json": data.get("data", {}),
-            "metadata_json": data.get("metadataJson"),
-            "publish_at": data.get("publishAt"),
-            "expire_at": data.get("expireAt"),
-        }
+        if existing_list:
+            if not self._overwrite:
+                self.logger.debug(f"Entry already exists: {data['slug']}")
+                return
 
-        entry = self.repos.entries.create(create_data)
-        self.logger.info(f"Created entry: {data['slug']} (type: {entry_type_slug})")
+            existing = existing_list[0]
+
+            # Update content fields only — do not change entry_type_id
+            update_data = {
+                "title": data["title"],
+                "slug": data["slug"],
+                "status": data.get("status", "draft"),
+                "summary": data.get("summary"),
+                "description": data.get("description"),
+                "data_json": data.get("data", {}),
+                "metadata_json": data.get("metadataJson"),
+                "publish_at": data.get("publishAt"),
+                "expire_at": data.get("expireAt"),
+            }
+            self.repos.entries.update(existing.id, update_data)
+            self.logger.info(f"Overwrote entry: {data['slug']}")
+
+            # Clear junction rows and rebuild from bundle
+            from marvin.db.models.platform import EntryAssets, EntryCollections, EntryResources
+
+            self.repos.session.query(EntryCollections).filter(EntryCollections.entry_id == existing.id).delete()
+            self.repos.session.query(EntryResources).filter(EntryResources.entry_id == existing.id).delete()
+            self.repos.session.query(EntryAssets).filter(EntryAssets.entry_id == existing.id).delete()
+            self.repos.session.commit()
+
+            entry_id = existing.id
+        else:
+            create_data = {
+                "entry_type_id": entry_type.id,
+                "title": data["title"],
+                "slug": data["slug"],
+                "status": data.get("status", "draft"),
+                "summary": data.get("summary"),
+                "description": data.get("description"),
+                "data_json": data.get("data", {}),
+                "metadata_json": data.get("metadataJson"),
+                "publish_at": data.get("publishAt"),
+                "expire_at": data.get("expireAt"),
+            }
+
+            entry = self.repos.entries.create(create_data)
+            self.logger.info(f"Created entry: {data['slug']} (type: {entry_type_slug})")
+            entry_id = entry.id
 
         # Handle collection assignments
         collection_assignments = data.get("collections", [])
         if collection_assignments:
-            self._assign_to_collections(entry.id, collection_assignments)
+            self._assign_to_collections(entry_id, collection_assignments)
 
         # Handle resource assignments
         resource_assignments = data.get("resources", [])
         if resource_assignments:
-            self._assign_to_resources(entry.id, resource_assignments)
+            self._assign_to_resources(entry_id, resource_assignments)
+
+        # Handle asset assignments
+        asset_assignments = data.get("assets", [])
+        if asset_assignments:
+            self._assign_to_assets(entry_id, asset_assignments)
 
     def _get_seed_user_id(self) -> str | None:
         """Get a user ID for seed-created records.
@@ -475,15 +554,12 @@ class WorkspaceSeedLoader:
         return self._seed_user_id
 
     def _create_resource(self, data: dict[str, Any]) -> None:
-        """Create a resource if it doesn't exist.
+        """Create a resource if it doesn't exist, or update it when overwrite is enabled.
 
         Args:
             data: Resource data from seed file
         """
         existing = self.repos.resources.multi_query({"slug": data["slug"]})
-        if existing:
-            self.logger.debug(f"Resource already exists: {data['slug']}")
-            return
 
         user_id = self._get_seed_user_id()
         if not user_id:
@@ -497,9 +573,18 @@ class WorkspaceSeedLoader:
             "resource_type": data.get("resourceType", "material"),
             "description": data.get("description"),
             "url": data.get("url"),
+            "external_id": data.get("externalId"),
             "metadata_json": data.get("metadataJson"),
             "created_by": user_id,
         }
+
+        if existing:
+            if self._overwrite:
+                self.repos.resources.update(existing[0].id, create_data)
+                self.logger.info(f"Overwrote resource: {data['slug']}")
+            else:
+                self.logger.debug(f"Resource already exists: {data['slug']}")
+            return
 
         self.repos.resources.create(create_data)
         self.logger.info(f"Created resource: {data['slug']}")
@@ -531,6 +616,7 @@ class WorkspaceSeedLoader:
                     resource_id=resource.id,
                     role=role,
                     position=position,
+                    metadata_json=assignment.get("metadataJson"),
                 )
                 self.repos.session.add(junction)
                 self.repos.session.commit()
@@ -574,6 +660,38 @@ class WorkspaceSeedLoader:
             except Exception as e:
                 self.repos.session.rollback()
                 self.logger.error(f"Failed to add to collection {collection_slug}: {e}")
+
+    def _assign_to_assets(self, entry_id: str, assignments: list[dict[str, Any]]) -> None:
+        """Link an entry to assets with role and position.
+
+        Args:
+            entry_id: UUID of the entry
+            assignments: List of {slug: str, role?: str, position?: int, metadataJson?: dict} dicts
+        """
+        for assignment in assignments:
+            asset_slug = assignment["slug"]
+
+            assets = self.repos.assets.multi_query({"slug": asset_slug})
+            if not assets:
+                self.logger.warning(f"Asset not found: {asset_slug}")
+                continue
+
+            try:
+                from marvin.db.models.platform import EntryAssets
+
+                junction = EntryAssets(
+                    entry_id=entry_id,
+                    asset_id=assets[0].id,
+                    position=assignment.get("position", 0),
+                    role=assignment.get("role"),
+                    metadata_json=assignment.get("metadataJson"),
+                )
+                self.repos.session.add(junction)
+                self.repos.session.commit()
+                self.logger.debug(f"Linked asset: {asset_slug}")
+            except Exception as e:
+                self.repos.session.rollback()
+                self.logger.error(f"Failed to link asset {asset_slug}: {e}")
 
     def _send_owner_invitation(self, owner_email: str, workspace) -> None:
         """Create an owner-level invitation token and send it via email.

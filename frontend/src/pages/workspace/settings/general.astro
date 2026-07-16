@@ -294,6 +294,31 @@ const success = urlParams.get('success') === '1';
           </button>
           <small>ZIP archive containing all collections, entry types, entries, assets (including files), resources, and site configuration</small>
         </div>
+
+        {(isPlatformAdmin || currentUserRole === 'OWNER') && (
+          <div class="backup-actions" style="margin-top: 1.5rem;">
+            <label for="import-bundle-file" style="display:block; font-weight:500; margin-bottom:0.4rem;">Import Workspace Bundle</label>
+            <input
+              type="file"
+              id="import-bundle-file"
+              accept=".zip"
+              style="display:block; margin-bottom:0.75rem;"
+            />
+            <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem; cursor:pointer;">
+              <input type="checkbox" id="import-overwrite" />
+              <span>Overwrite existing records <small style="opacity:0.6">(updates entries, collections, resources, assets matched by slug)</small></span>
+            </label>
+            <button type="button" id="import-bundle-btn" class="button">
+              Import Bundle
+            </button>
+            <div id="import-status" style="margin-top:0.5rem; font-size:0.85rem;"></div>
+            {isPlatformAdmin && (
+              <small style="display:block; margin-top:0.4rem; opacity:0.6;">
+                Platform admin: bundle's workspace block determines the target workspace.
+              </small>
+            )}
+          </div>
+        )}
       </section>
 
       <section class="settings-section danger-zone">
@@ -463,6 +488,60 @@ const success = urlParams.get('success') === '1';
       } finally {
         bundleBtn.disabled = false;
         bundleBtn.textContent = 'Download Workspace Bundle';
+      }
+    });
+  }
+
+  // Import workspace bundle
+  const importBtn = document.getElementById('import-bundle-btn') as HTMLButtonElement | null;
+  const importStatus = document.getElementById('import-status') as HTMLElement | null;
+  if (importBtn) {
+    importBtn.addEventListener('click', async () => {
+      const fileInput = document.getElementById('import-bundle-file') as HTMLInputElement;
+      const overwriteCheckbox = document.getElementById('import-overwrite') as HTMLInputElement;
+
+      if (!fileInput?.files?.length) {
+        if (importStatus) importStatus.textContent = 'Please select a .zip bundle file first.';
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const overwrite = overwriteCheckbox?.checked ?? false;
+
+      importBtn.disabled = true;
+      importBtn.textContent = 'Importing...';
+      if (importStatus) importStatus.textContent = '';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const url = `/api/platform/workspace/import${overwrite ? '?overwrite=true' : ''}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+
+        const json = await response.json();
+
+        if (!response.ok) {
+          throw new Error(json?.detail || `Server error: ${response.status}`);
+        }
+
+        const counts = (json?.imported ?? {}) as Record<string, number>;
+        const summary = Object.entries(counts)
+          .filter(([, v]) => v > 0)
+          .map(([k, v]) => `${v} ${k}`)
+          .join(', ');
+
+        if (importStatus) importStatus.textContent = `✓ Import complete: ${summary || 'nothing new'}`;
+      } catch (err) {
+        console.error('Import error:', err);
+        if (importStatus) importStatus.textContent = '✗ ' + (err instanceof Error ? err.message : 'Import failed');
+      } finally {
+        importBtn.disabled = false;
+        importBtn.textContent = 'Import Bundle';
       }
     });
   }
