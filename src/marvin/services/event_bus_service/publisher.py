@@ -192,19 +192,17 @@ class ConsolePublisher:
         # Format the event nicely for console output
         separator = "=" * 80
         self.logger.info(separator)
-        self.logger.info(f"🔔 EVENT DISPATCHED: {event.event_type.value}")
+        self.logger.info(f"🔔 EVENT DISPATCHED: {event.event_type.name}")
         self.logger.info(f"   Integration: {event.integration_id}")
         self.logger.info(f"   Message: {event.message.title}")
         if event.message.body and event.message.body != "generic":
             self.logger.info(f"   Body: {event.message.body}")
         if event.document_data:
-            # Convert to JSON for readable output
             data_dict = jsonable_encoder(event.document_data)
-            self.logger.info(f"   Document Type: {data_dict.get('document_type', 'unknown')}")
+            self.logger.info(f"   Document Type: {data_dict.get('documentType', 'unknown')}")
             self.logger.info(f"   Operation: {data_dict.get('operation', 'unknown')}")
-            # Log key fields (exclude metadata fields)
             for key, value in data_dict.items():
-                if key not in ["document_type", "operation"]:
+                if key not in ["documentType", "operation"]:
                     self.logger.info(f"   {key}: {value}")
         self.logger.info(separator)
 
@@ -427,7 +425,7 @@ class AuditLogPublisher:
 
                 session.add(log_entry)
                 session.commit()
-                self.logger.debug(f"Persisted event {event.event_id} ({event.event_type.value}) to audit log")
+                self.logger.debug(f"Persisted event {event.event_id} ({event.event_type.name}) to audit log")
 
         except Exception as e:
             self.logger.error(f"Failed to persist event {event.event_id} to audit log: {e}", exc_info=True)
