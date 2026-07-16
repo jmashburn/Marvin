@@ -258,15 +258,17 @@ class AppriseEventListener(EventListenerBase):
             target_event_option_str = f"{EventNameSpace.namespace.value}.{event.event_type.name.replace('-', '_')}"
             self.logger.debug(f"Target Event {target_event_option_str}")
 
+            from marvin.services.secrets.resolver import resolve
+
             for notifier in enabled_notifiers:
-                if not notifier.apprise_url:  # Skip if no URL configured
+                if not notifier.apprise_url:
                     continue
-                # Check if any of this notifier's subscribed options match the current event
                 for option_summary in notifier.options:
                     if getattr(option_summary, self._option_value_field_name, None) == target_event_option_str:
-                        self.logger.debug(f"Appending {notifier.apprise_url}")
-                        apprise_urls.append(notifier.apprise_url)
-                        break  # Found a match for this notifier, no need to check its other options
+                        resolved_url = resolve(notifier.apprise_url, group_id=self.group_id)
+                        self.logger.debug(f"Appending {resolved_url}")
+                        apprise_urls.append(resolved_url)
+                        break
 
             # Update URLs with event-specific parameters if applicable
             if apprise_urls:

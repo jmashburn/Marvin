@@ -66,7 +66,7 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
             <input type="text" name="name" required value={notification.name} class="input" />
           </label>
 
-          <label class="form-field">
+          <div class="form-field">
             <span class="label">Notification URL</span>
             {currentAppriseUrl && (
               <p class="current-url">Current: <code>{currentAppriseUrl}</code></p>
@@ -79,9 +79,10 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
             />
             <small class="hint">
               See <a href="https://github.com/caronc/apprise" target="_blank" rel="noopener">Apprise docs</a> for URL formats.
+              Use <code>&#123;&#123;SLUG&#125;&#125;</code> to reference a <a href="/workspace/settings/environment">workspace variable</a>.
               {currentAppriseUrl && ' Leave blank to keep the existing URL.'}
             </small>
-          </label>
+          </div>
 
           <label class="form-field checkbox-field">
             <input type="checkbox" name="enabled" checked={notification.enabled !== false} />
