@@ -130,13 +130,9 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                           Edit
                         </button>
                         <button
-                          class="button small secondary danger connect-email-btn"
-                          data-template-id={t.id}
-                          data-template-name={t.name}
-                          data-event-type={type}
+                          type="button"
+                          class="button small secondary danger disconnect-email-btn"
                           data-subscription-id={sub?.id ?? ''}
-                          data-is-connected="true"
-                          data-is-edit="false"
                         >
                           Disconnect
                         </button>
@@ -282,19 +278,17 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       </div>
       <button type="button" id="em-close" class="wh-close">✕</button>
     </div>
-    <div class="wh-body" id="em-body-config">
-      <p class="wh-label">Who should receive this email?</p>
+    <div class="wh-body em-combined-body">
+      <div class="em-section-divider">Recipient</div>
       <div class="em-recipient-options">
         <label class="em-radio-label">
           <input type="radio" name="em-recipient-type" value="admins" checked />
           Workspace admins
         </label>
-        <label class="em-radio-label" id="em-event-field-label">
+        <label class="em-radio-label">
           <input type="radio" name="em-recipient-type" value="event_field" id="em-event-field-radio" />
           Field from event data
-          <select id="em-event-field" class="em-field-select" style="display:none">
-            <!-- populated by JS -->
-          </select>
+          <select id="em-event-field" class="em-field-select" style="display:none"></select>
           <span id="em-no-email-fields" class="em-hint" style="display:none">— no email fields for this event</span>
         </label>
         <label class="em-radio-label">
@@ -303,17 +297,15 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         </label>
         <input type="text" id="em-specific-email" class="em-email-input" placeholder="user@example.com, other@example.com" style="display:none" />
       </div>
-    </div>
-    <!-- Template editor — shown after recipient step -->
-    <div id="em-template-section" style="display:none" class="wh-body em-template-section">
-      <div class="em-section-divider">Template</div>
+
+      <div class="em-section-divider" style="margin-top:20px">Template</div>
       <div class="form-group">
         <label class="em-field-label">Subject</label>
-        <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry published in {{ workspace_name }}" />
+        <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
       </div>
       <div class="form-group">
         <label class="em-field-label">Message</label>
-        <textarea id="em-message-top" rows="5" class="em-text-input" placeholder="Use {{ variable }} for event data"></textarea>
+        <textarea id="em-message-top" rows="4" class="em-text-input" placeholder="Use {{ variable }} for event data"></textarea>
       </div>
       <div id="em-template-vars" class="em-vars"></div>
       <a id="em-full-editor-link" href="/workspace/settings/email" class="em-subtle-link" target="_blank">Open full editor ↗</a>
@@ -322,7 +314,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     <div class="wh-footer">
       <span id="em-note" class="wh-note"></span>
       <div class="wh-actions">
-        <button type="button" id="em-confirm" class="button">Next: Edit Template →</button>
+        <button type="button" id="em-confirm" class="button">Connect</button>
         <button type="button" id="em-cancel" class="button secondary">Cancel</button>
       </div>
     </div>
@@ -421,7 +413,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     }
   });
 
-  // Email connect — open modal
+  // ── Email modal ──────────────────────────────────────────────────────────
   const emailModal = document.getElementById('email-modal');
   const emTitle = document.getElementById('em-title');
   const emTemplateName = document.getElementById('em-template-name');
@@ -429,268 +421,184 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   const emNote = document.getElementById('em-note');
   const emEventField = document.getElementById('em-event-field');
   const emSpecificEmail = document.getElementById('em-specific-email');
-  let activeEmailTemplateId = null;
-  let activeEmailSubscriptionId = null;
-  let activeEmailIsConnected = false;
-  let activeEmailIsEdit = false;
 
-  // Populate event field dropdown — only email-typed variables from the catalog
+  let emTemplateId = null;
+  let emSubscriptionId = null;
+  let emIsEdit = false;
+  let emIsSystemTemplate = false;
+
+  // Populate email field dropdown from catalog
   const emailVars = (eventVariables || []).filter(v => v.type === 'email');
   const emEventFieldRadio = document.getElementById('em-event-field-radio');
   const emNoEmailFields = document.getElementById('em-no-email-fields');
   if (emailVars.length > 0) {
     if (emEventField) emEventField.innerHTML = emailVars.map(v => `<option value="${v.slug}">${v.slug}</option>`).join('');
   } else {
-    if (emEventFieldRadio) { emEventFieldRadio.disabled = true; }
+    if (emEventFieldRadio) emEventFieldRadio.disabled = true;
     if (emNoEmailFields) emNoEmailFields.style.display = 'inline';
   }
 
+  // Recipient radio show/hide
   document.querySelectorAll('input[name="em-recipient-type"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const val = e.target.value;
-      if (emEventField) emEventField.style.display = val === 'event_field' ? 'inline-block' : 'none';
-      if (emSpecificEmail) emSpecificEmail.style.display = val === 'specific' ? 'inline-block' : 'none';
+    radio.addEventListener('change', e => {
+      const v = e.target.value;
+      if (emEventField) emEventField.style.display = v === 'event_field' ? 'inline-block' : 'none';
+      if (emSpecificEmail) emSpecificEmail.style.display = v === 'specific' ? 'block' : 'none';
     });
   });
 
-  function openEmailModal(btn) {
-    activeEmailTemplateId = btn.dataset.templateId;
-    activeEmailSubscriptionId = btn.dataset.subscriptionId || '';
-    activeEmailIsConnected = btn.dataset.isConnected === 'true';
-    activeEmailIsEdit = btn.dataset.isEdit === 'true';
-    // Reset modal state
-    const bodyConfig = document.getElementById('em-body-config');
-    const bodySuccess = document.getElementById('em-body-success');
-    if (bodyConfig) bodyConfig.style.display = 'block';
-    if (bodySuccess) bodySuccess.style.display = 'none';
-    if (emConfirm) emConfirm.style.display = 'inline-flex';
-    const emCancel = document.getElementById('em-cancel');
-    if (emCancel) { emCancel.textContent = 'Cancel'; emCancel.onclick = closeEmailModal; }
+  // Variable chips
+  const varsEl = document.getElementById('em-template-vars');
+  if (varsEl && eventVariables?.length) {
+    const chips = eventVariables.filter(v => v.type !== 'uuid');
+    varsEl.innerHTML = `
+      <div class="em-vars-header">
+        <span class="em-vars-title">Available variables</span>
+        <span class="em-vars-hint">Click to copy · use as <code>{{ variable }}</code></span>
+      </div>
+      <div class="em-vars-chips">
+        ${chips.map(v => `<button type="button" class="em-var-chip em-var-type-${v.type||'string'}" data-slug="{{ ${v.slug} }}" title="${v.description||v.slug}">{{ ${v.slug} }}</button>`).join('')}
+      </div>`;
+    varsEl.querySelectorAll('.em-var-chip').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(btn.dataset.slug).catch(() => {});
+        const orig = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(() => { btn.textContent = orig; }, 900);
+      });
+    });
+  }
+
+  async function openEmailModal(btn) {
+    emTemplateId = btn.dataset.templateId;
+    emSubscriptionId = btn.dataset.subscriptionId || '';
+    emIsEdit = btn.dataset.isEdit === 'true';
     const name = btn.dataset.templateName || 'Template';
-    if (emTitle) emTitle.textContent = (activeEmailIsEdit ? 'Edit: ' : 'Connect: ') + name;
+
+    if (emTitle) emTitle.textContent = (emIsEdit ? 'Edit: ' : 'Connect: ') + name;
     if (emTemplateName) emTemplateName.textContent = name;
-    if (emNote) emNote.innerHTML = activeEmailIsEdit
-      ? 'Update recipient and template for <strong>' + type + '</strong>.'
-      : 'Send this template when <strong>' + type + '</strong> fires.';
-    if (emConfirm) {
-      emConfirm.textContent = activeEmailIsEdit ? 'Next: Edit Template →' : 'Next: Edit Template →';
-      emConfirm.className = 'button';
-    }
-    // Pre-fill recipient fields
-    const rt = activeEmailIsEdit ? (btn.dataset.recipientType || 'admins') : 'admins';
+    if (emNote) emNote.innerHTML = `Fires on every <strong>${type}</strong> event.`;
+    if (emConfirm) { emConfirm.textContent = emIsEdit ? 'Save' : 'Connect'; emConfirm.disabled = false; emConfirm.className = 'button'; }
+
+    // Pre-fill recipient — default admins for new, stored value for edit
+    const rt = emIsEdit ? (btn.dataset.recipientType || 'admins') : 'admins';
     const radio = document.querySelector(`input[name="em-recipient-type"][value="${rt}"]`);
     if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
     if (rt === 'event_field' && emEventField) emEventField.value = btn.dataset.recipientField || '';
     if (rt === 'specific' && emSpecificEmail) emSpecificEmail.value = btn.dataset.recipientEmail || '';
 
-    if (emailModal) {
-      emailModal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-    }
+    if (emailModal) { emailModal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
 
-    // Edit mode: show both recipient config and template editor together
-    if (activeEmailIsEdit) {
-      const config = collectRecipientConfig();
-      if (config) {
-        pendingConfig = { ...config, _editSubscriptionId: activeEmailSubscriptionId };
-        // Show template section below recipient section (don't hide recipient)
-        expandToTemplateEditor(config, { keepRecipientVisible: true });
+    // Fetch and pre-fill template content
+    emIsSystemTemplate = false;
+    try {
+      const res = await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, { credentials: 'include' });
+      if (res.ok) {
+        const tpl = await res.json();
+        emIsSystemTemplate = !(tpl.groupId || tpl.group_id);
+        const f = (c, s) => tpl[c] ?? tpl[s] ?? '';
+        const subj = document.getElementById('em-subject');
+        const msg = document.getElementById('em-message-top');
+        if (subj) subj.value = f('subject', 'subject');
+        if (msg) msg.value = f('messageTop', 'message_top');
       }
-    }
+    } catch {}
   }
 
   function closeEmailModal() {
     if (emailModal) emailModal.style.display = 'none';
     document.body.style.overflow = '';
-    activeEmailTemplateId = null;
-    activeEmailSubscriptionId = null;
-    pendingConfig = null;
-    // Reset template section
-    const ts = document.getElementById('em-template-section');
-    const bc = document.getElementById('em-body-config');
-    if (ts) ts.style.display = 'none';
-    if (bc) bc.style.display = 'block';
+    emTemplateId = null; emSubscriptionId = null;
+    const subj = document.getElementById('em-subject');
+    const msg = document.getElementById('em-message-top');
+    if (subj) subj.value = '';
+    if (msg) msg.value = '';
   }
 
   document.querySelectorAll('.connect-email-btn').forEach(btn => {
     btn.addEventListener('click', () => openEmailModal(btn));
   });
+  document.querySelectorAll('.disconnect-email-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Disconnect this email template?')) return;
+      const subId = btn.dataset.subscriptionId;
+      if (!subId) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${subId}`, { method: 'DELETE', credentials: 'include' });
+        if (!res.ok && res.status !== 204) throw new Error(`DELETE failed: ${res.status}`);
+        window.location.reload();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    });
+  });
   document.getElementById('em-close')?.addEventListener('click', closeEmailModal);
   document.getElementById('em-cancel')?.addEventListener('click', closeEmailModal);
   document.querySelector('#email-modal .wh-overlay')?.addEventListener('click', closeEmailModal);
 
-  let pendingConfig = null;
+  emConfirm?.addEventListener('click', async () => {
+    if (!emTemplateId) return;
 
-  async function expandToTemplateEditor(config, opts = {}) {
-    pendingConfig = config;
-    // Fetch template content
-    let tpl = null;
-    try {
-      const res = await fetch(`${apiUrl}/api/platform/email/templates/${config.template_id}`, { credentials: 'include' });
-      if (res.ok) tpl = await res.json();
-    } catch {}
-    const f = (c, s) => tpl ? (tpl[c] ?? tpl[s] ?? '') : '';
-    // Store whether this is a system template so save uses the right endpoint
-    if (tpl) pendingConfig._isSystemTemplate = !(tpl.groupId || tpl.group_id);
-
-    // Populate fields
-    const subj = document.getElementById('em-subject');
-    const msg = document.getElementById('em-message-top');
-    if (subj) subj.value = f('subject', 'subject');
-    if (msg) msg.value = f('messageTop', 'message_top');
-
-    // Show event variable chips
-    const varsEl = document.getElementById('em-template-vars');
-    if (varsEl && eventVariables?.length) {
-      const nonUuid = eventVariables.filter(v => v.type !== 'uuid');
-      varsEl.innerHTML = `
-        <div class="em-vars-header">
-          <span class="em-vars-title">Available variables</span>
-          <span class="em-vars-hint">Click to copy · paste into subject or message as <code>{{ variable }}</code></span>
-        </div>
-        <div class="em-vars-chips">
-          ${nonUuid.map(v => `
-            <button type="button" class="em-var-chip em-var-type-${v.type || 'string'}" data-slug="{{ ${v.slug} }}" title="${v.description || v.slug}">
-              {{ ${v.slug} }}
-            </button>
-          `).join('')}
-        </div>
-      `;
-      varsEl.querySelectorAll('.em-var-chip').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          await navigator.clipboard.writeText(btn.dataset.slug).catch(() => {});
-          const orig = btn.textContent;
-          btn.textContent = '✓ copied';
-          setTimeout(() => { btn.textContent = orig; }, 1000);
-        });
-      });
-    }
-
-    // Show template section; optionally keep recipient section visible (edit mode)
-    if (!opts.keepRecipientVisible) {
-      document.getElementById('em-body-config').style.display = 'none';
-    }
-    document.getElementById('em-template-section').style.display = 'block';
-    if (emConfirm) { emConfirm.textContent = opts.keepRecipientVisible ? 'Save' : 'Connect'; emConfirm.disabled = false; }
-    if (emTitle) emTitle.textContent = (opts.keepRecipientVisible ? 'Edit: ' : 'Connect: ') + (tpl?.name || 'Template');
-  }
-
-  function collectRecipientConfig() {
+    // Validate recipient
     const recipientType = document.querySelector('input[name="em-recipient-type"]:checked')?.value || 'admins';
     if (recipientType === 'specific') {
       const raw = emSpecificEmail?.value?.trim() || '';
-      if (!raw) { alert('Please enter at least one email address.'); return null; }
-      const addrs = raw.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
-      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const bad = addrs.filter(a => !emailRe.test(a));
-      if (bad.length) { alert('Invalid email address: ' + bad.join(', ')); return null; }
+      if (!raw) { alert('Please enter at least one email address.'); return; }
+      const bad = raw.split(/[,\n]+/).map(s => s.trim()).filter(Boolean).filter(a => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a));
+      if (bad.length) { alert('Invalid email: ' + bad.join(', ')); return; }
     }
-    if (recipientType === 'event_field' && !emEventField?.value) {
-      alert('No email field available for this event type.'); return null;
-    }
-    const rawEmails = recipientType === 'specific' ? emSpecificEmail?.value?.trim() : null;
-    const emails = rawEmails ? rawEmails.split(/[,\n]+/).map(s => s.trim()).filter(Boolean) : null;
-    return {
-      template_id: activeEmailTemplateId,
-      event_type: type,
-      recipient_type: recipientType,
-      recipient_field: recipientType === 'event_field' ? emEventField?.value : null,
-      recipient_email: emails ? emails.join(',') : null,
-      enabled: true,
-    };
-  }
+    if (recipientType === 'event_field' && !emEventField?.value) { alert('No email field available.'); return; }
 
-  emConfirm?.addEventListener('click', async () => {
-    if (!activeEmailTemplateId) return;
-    // If template section is visible, this is the final Connect step
-    const templateSectionVisible = document.getElementById('em-template-section')?.style.display !== 'none';
-    if (templateSectionVisible && pendingConfig) {
-      emConfirm.disabled = true;
-      emConfirm.textContent = 'Saving…';
-      try {
-        // Save template edits
-        const subject = document.getElementById('em-subject')?.value?.trim();
-        const messageTop = document.getElementById('em-message-top')?.value?.trim();
-        if (subject || messageTop) {
-          const isSystem = pendingConfig._isSystemTemplate;
-          const tplUrl = isSystem
-            ? `${apiUrl}/api/platform/workspaces/${wsId}/email-templates`
-            : `${apiUrl}/api/platform/email/templates/${pendingConfig.template_id}`;
-          const tplMethod = isSystem ? 'POST' : 'PATCH';
-          const tplBody = isSystem
-            ? { template_type: 'custom', name: 'Custom template', subject: subject || '', message_top: messageTop || '', enabled: true }
-            : { subject, message_top: messageTop };
-          const tplRes = await fetch(tplUrl, {
-            method: tplMethod,
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(tplBody),
-          });
-          // If we created a new workspace override, use its ID for the subscription
-          if (isSystem && tplRes.ok) {
-            const newTpl = await tplRes.json().catch(() => null);
-            if (newTpl?.id) pendingConfig.template_id = newTpl.id;
-          }
-        }
-        // Delete old subscription if editing
-        const oldSubId = pendingConfig._editSubscriptionId;
-        if (oldSubId) {
-          await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${oldSubId}`, {
-            method: 'DELETE', credentials: 'include',
-          }).catch(() => {});
-        }
-        // Create subscription (strip internal tracking fields)
-        const { _editSubscriptionId, _isSystemTemplate, ...subPayload } = pendingConfig;
-        const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-          body: JSON.stringify(subPayload),
-        });
-        if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.detail || `POST failed: ${res.status}`); }
-        closeEmailModal();
-        window.location.reload();
-      } catch (e) {
-        alert('Error: ' + e.message);
-        emConfirm.disabled = false;
-        emConfirm.textContent = 'Save';
-      }
-      return;
-    }
     emConfirm.disabled = true;
-    emConfirm.textContent = 'Working…';
+    emConfirm.textContent = 'Saving…';
+
     try {
-      if (activeEmailIsConnected && activeEmailSubscriptionId) {
-        // Disconnect
-        const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${activeEmailSubscriptionId}`, {
-          method: 'DELETE', credentials: 'include',
-        });
-        if (!res.ok && res.status !== 204) throw new Error(`DELETE failed: ${res.status}`);
-        closeEmailModal();
-        window.location.reload();
-      } else if (activeEmailIsEdit && activeEmailSubscriptionId) {
-        // Save updated recipient config — delete old, create new, stay on page
-        const config = collectRecipientConfig();
-        if (!config) { emConfirm.disabled = false; emConfirm.textContent = 'Save'; return; }
-        const delRes = await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${activeEmailSubscriptionId}`, {
-          method: 'DELETE', credentials: 'include',
-        });
-        if (!delRes.ok && delRes.status !== 204) throw new Error(`DELETE failed: ${delRes.status}`);
-        const postRes = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-          body: JSON.stringify(config),
-        });
-        if (!postRes.ok) { const d = await postRes.json().catch(() => ({})); throw new Error(d.detail || `POST failed: ${postRes.status}`); }
-        closeEmailModal();
-        window.location.reload();
-      } else {
-        // New connect — expand modal to show template editor
-        const config = collectRecipientConfig();
-        if (!config) { emConfirm.disabled = false; emConfirm.textContent = 'Next: Edit Template →'; return; }
-        await expandToTemplateEditor(config);
+      // 1. Save template edits
+      const subject = document.getElementById('em-subject')?.value?.trim();
+      const messageTop = document.getElementById('em-message-top')?.value?.trim();
+      let finalTemplateId = emTemplateId;
+
+      if (subject || messageTop) {
+        if (emIsSystemTemplate) {
+          // Create workspace override
+          const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ template_type: 'custom', name: document.getElementById('em-template-name')?.textContent || 'Custom', subject: subject || '', message_top: messageTop || '', enabled: true }),
+          });
+          if (res.ok) { const t = await res.json().catch(() => null); if (t?.id) finalTemplateId = t.id; }
+        } else {
+          await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ subject, message_top: messageTop }),
+          });
+        }
       }
+
+      // 2. Delete old subscription if editing
+      if (emIsEdit && emSubscriptionId) {
+        await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${emSubscriptionId}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+      }
+
+      // 3. Create new subscription
+      const rawEmails = recipientType === 'specific' ? emSpecificEmail?.value?.trim() : null;
+      const emails = rawEmails ? rawEmails.split(/[,\n]+/).map(s => s.trim()).filter(Boolean) : null;
+      const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({
+          template_id: finalTemplateId,
+          event_type: type,
+          recipient_type: recipientType,
+          recipient_field: recipientType === 'event_field' ? emEventField?.value : null,
+          recipient_email: emails ? emails.join(',') : null,
+          enabled: true,
+        }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || `POST failed: ${res.status}`); }
+      closeEmailModal();
+      window.location.reload();
     } catch (e) {
       alert('Error: ' + e.message);
       emConfirm.disabled = false;
-      emConfirm.textContent = activeEmailIsEdit ? 'Save' : 'Next: Edit Template →';
+      emConfirm.textContent = emIsEdit ? 'Save' : 'Connect';
     }
   });
 
