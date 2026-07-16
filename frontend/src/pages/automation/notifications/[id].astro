@@ -8,10 +8,10 @@ const sdk = createSdkClient(authToken);
 const { id } = Astro.params;
 
 let notification: any = null;
+let eventOptions: any[] = [];
 let error: string | null = null;
 let appriseReady = false;
 
-// Check if Apprise is available
 try {
   const configCheck = await sdk.adminSystem.check() as any;
   appriseReady = (configCheck as any)?.appriseReady ?? configCheck?.apprise_ready ?? false;
@@ -19,17 +19,26 @@ try {
   console.error('[notifications/edit] Error checking Apprise availability:', e);
 }
 
-// Redirect if Apprise is not available
 if (!appriseReady) {
   return Astro.redirect('/automation/notifications');
 }
 
 try {
-  notification = await sdk.notifications.get(id!);
+  [notification, eventOptions] = await Promise.all([
+    sdk.notifications.get(id!),
+    sdk.events.getOptions().then((r: any) => Array.isArray(r) ? r : (r?.items ?? [])).catch(() => []),
+  ]);
 } catch (e) {
   console.error('[notifications/edit] Error:', e);
   error = e instanceof Error ? e.message : String(e);
 }
+
+// Build set of currently subscribed option strings e.g. "core.invitation_created"
+const subscribedSet = new Set<string>(
+  (notification?.options ?? []).map((o: any) => o.option ?? o)
+);
+
+const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url ?? '';
 ---
 
 <AppLayout title="Edit Notification" eyebrow="Automation">
@@ -50,28 +59,27 @@ try {
         <div class="form-section">
           <h3>Notification Details</h3>
 
+          <input type="hidden" name="group_id" value={notification.groupId} />
+
           <label class="form-field">
             <span class="label">Name</span>
-            <input
-              type="text"
-              name="name"
-              required
-              value={notification.name}
-              class="input"
-            />
+            <input type="text" name="name" required value={notification.name} class="input" />
           </label>
 
           <label class="form-field">
             <span class="label">Notification URL</span>
+            {currentAppriseUrl && (
+              <p class="current-url">Current: <code>{currentAppriseUrl}</code></p>
+            )}
             <input
               type="text"
               name="apprise_url"
-              required
-              value={notification.apprise_url}
+              placeholder={currentAppriseUrl ? 'Leave blank to keep current URL' : 'slack://token/channel'}
               class="input"
             />
             <small class="hint">
-              Notification URL. See <a href="https://github.com/caronc/apprise" target="_blank">Apprise docs</a> for formats.
+              See <a href="https://github.com/caronc/apprise" target="_blank" rel="noopener">Apprise docs</a> for URL formats.
+              {currentAppriseUrl && ' Leave blank to keep the existing URL.'}
             </small>
           </label>
 
@@ -79,6 +87,50 @@ try {
             <input type="checkbox" name="enabled" checked={notification.enabled !== false} />
             <span>Enabled</span>
           </label>
+        </div>
+
+        <div class="form-section">
+          <div class="section-header">
+            <div>
+              <h3>Event Subscriptions</h3>
+              <p class="section-description">Select which events should trigger this notification</p>
+            </div>
+            <div class="selection-actions">
+              <button type="button" id="select-all" class="link-button">Select All</button>
+              <span class="separator">•</span>
+              <button type="button" id="select-none" class="link-button">Clear All</button>
+            </div>
+          </div>
+
+          <div class="search-field">
+            <input type="text" id="event-search" placeholder="Search events..." class="input" />
+          </div>
+
+          <div class="events-checklist" id="events-checklist">
+            {eventOptions.map((event: any) => {
+              const optionValue = event.value;
+              const isChecked = subscribedSet.has(optionValue);
+              return (
+                <label
+                  class="event-checkbox"
+                  data-event-name={event.label?.toLowerCase() ?? ''}
+                  data-event-description={event.description?.toLowerCase() ?? ''}
+                >
+                  <input type="checkbox" name="events" value={optionValue} checked={isChecked} />
+                  <div class="event-checkbox-content">
+                    <span class="event-checkbox-name">{event.label}</span>
+                    {event.description && (
+                      <span class="event-checkbox-description">{event.description}</span>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+
+          <div class="selection-summary">
+            <span id="selection-count">Loading…</span>
+          </div>
         </div>
 
         <div class="form-actions">
@@ -98,14 +150,51 @@ try {
   const deleteBtn = document.getElementById('delete-btn');
   const notificationId = (document.querySelector('input[name="id"]') as HTMLInputElement)?.value;
 
+  const checkboxes = document.querySelectorAll('input[name="events"]') as NodeListOf<HTMLInputElement>;
+  const searchInput = document.getElementById('event-search') as HTMLInputElement;
+  const selectionCount = document.getElementById('selection-count');
+  const eventCheckboxes = document.querySelectorAll('.event-checkbox');
+
+  function updateSelectionCount() {
+    const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+    if (selectionCount) selectionCount.textContent = `${checked} event${checked !== 1 ? 's' : ''} selected`;
+  }
+
+  searchInput?.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase();
+    eventCheckboxes.forEach(label => {
+      const name = label.getAttribute('data-event-name') || '';
+      const desc = label.getAttribute('data-event-description') || '';
+      (label as HTMLElement).style.display = (!q || name.includes(q) || desc.includes(q)) ? 'flex' : 'none';
+    });
+  });
+
+  document.getElementById('select-all')?.addEventListener('click', () => {
+    checkboxes.forEach(cb => cb.checked = true);
+    updateSelectionCount();
+  });
+
+  document.getElementById('select-none')?.addEventListener('click', () => {
+    checkboxes.forEach(cb => cb.checked = false);
+    updateSelectionCount();
+  });
+
+  checkboxes.forEach(cb => cb.addEventListener('change', updateSelectionCount));
+  updateSelectionCount();
+
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+    const groupId = (document.querySelector('input[name="group_id"]') as HTMLInputElement)?.value;
+    const selectedEvents = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+    const appriseUrlValue = (formData.get('apprise_url') as string)?.trim() || null;
 
-    const payload = {
+    const payload: any = {
       name: formData.get('name'),
-      apprise_url: formData.get('apprise_url'),
+      apprise_url: appriseUrlValue,
       enabled: formData.get('enabled') === 'on',
+      options: selectedEvents,
+      group_id: groupId,
     };
 
     try {
@@ -215,6 +304,52 @@ try {
     text-decoration: underline;
   }
 
+  .current-url { margin: 0; font-size: 12px; color: var(--muted); }
+  .current-url code { font-family: ui-monospace, monospace; font-size: 11px; word-break: break-all; }
+
+  .section-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .section-description { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+  .selection-actions { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .link-button { padding: 0; border: none; background: none; color: var(--accent); font-size: 13px; cursor: pointer; text-decoration: underline; }
+  .separator { color: var(--muted); }
+  .search-field { margin-top: 4px; }
+
+  .events-checklist {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--panel-2, var(--bg));
+    border-radius: var(--radius);
+    display: grid;
+    gap: 8px;
+  }
+
+  .event-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .event-checkbox:hover { border-color: var(--accent); }
+  .event-checkbox input[type="checkbox"] { margin-top: 2px; cursor: pointer; }
+  .event-checkbox-content { display: grid; gap: 2px; flex: 1; }
+  .event-checkbox-name { font-size: 14px; font-weight: 500; }
+  .event-checkbox-description { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+  .selection-summary {
+    padding: 8px 12px;
+    background: var(--panel-2, var(--bg));
+    border-radius: var(--radius);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
   .form-actions {
     display: flex;
     gap: 12px;
@@ -241,4 +376,102 @@ try {
     background: var(--color-error);
     opacity: 0.9;
   }
+
+  .current-url {
+    margin: 0 0 4px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .current-url code {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    background: var(--bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    word-break: break-all;
+  }
+
+  .connected-events-section {
+    margin-top: 32px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 700px;
+  }
+
+  .sub-header-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .sub-header-row h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .sub-header-row p { margin: 0; font-size: 13px; color: var(--muted); }
+  .sub-header-row a { color: var(--accent); }
+
+  .sub-options {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .sub-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    gap: 16px;
+    color: inherit;
+  }
+
+  .sub-option:last-child { border-bottom: none; }
+
+  .sub-option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .sub-option-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sub-option-info strong { font-size: 14px; font-weight: 500; }
+
+  .sub-url {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+  }
+
+  .sub-option-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .sub-option-connected {
+    background: rgba(79, 156, 132, 0.04);
+    border-left: 3px solid var(--accent);
+  }
+
+  .connected-check {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .no-events-row { color: var(--muted); font-size: 13px; }
+  .no-events-row a { color: var(--accent); }
+
+  .button.small { padding: 5px 12px; font-size: 12px; min-height: 28px; flex-shrink: 0; }
 </style>

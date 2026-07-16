@@ -181,13 +181,10 @@ class GroupEventNotifierRead(_MarvinModel):
     """
 
     id: UUID4
-    """The unique identifier of the group event notifier."""
     name: str
-    """The user-defined name of the notifier."""
     enabled: bool
-    """Indicates if this notifier is currently active."""
     group_id: UUID4
-    """The ID of the group this notifier belongs to."""
+    apprise_url: str | None = None
     options: list[GroupEventNotifierOptionsSummary] = []
     """
     A list of event option summaries that this notifier is subscribed to.

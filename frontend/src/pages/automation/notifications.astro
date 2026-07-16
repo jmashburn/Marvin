@@ -6,6 +6,11 @@ import { getAuthToken } from "@/lib/api/client";
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
 
+function extractScheme(url: string): string {
+  const match = url.match(/^([a-z][a-z0-9+\-.]*):\/\//i);
+  return match ? match[1].toLowerCase() : '';
+}
+
 let notifications: any[] = [];
 let error: string | null = null;
 let appriseReady = false;
@@ -69,11 +74,12 @@ if (appriseReady) {
             <div class="notification-header">
               <strong>{notif.name}</strong>
               {notif.enabled === false && <span class="badge-disabled">Disabled</span>}
+              {(() => {
+                const scheme = extractScheme(notif.appriseUrl ?? notif.apprise_url ?? '');
+                return scheme ? <span class="badge-service">{scheme}</span> : null;
+              })()}
             </div>
-            <p class="notification-url">{(notif.options?.length ?? 0)} event{(notif.options?.length ?? 0) !== 1 ? 's' : ''} subscribed</p>
-            <div class="notification-meta">
-              <span>ID: {notif.id}</span>
-            </div>
+            <p class="notification-count">{(notif.options?.length ?? 0)} event{(notif.options?.length ?? 0) !== 1 ? 's' : ''}</p>
           </div>
           <div class="notification-actions">
             <a href={`/automation/notifications/${notif.id}`} class="button secondary small">Edit</a>
@@ -204,16 +210,21 @@ if (appriseReady) {
     text-transform: uppercase;
   }
 
-  .notification-url {
-    margin: 0;
-    font-size: 13px;
-    font-family: ui-monospace, monospace;
+  .badge-service {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: var(--bg);
+    border: 1px solid var(--line);
     color: var(--muted);
-    word-break: break-all;
   }
 
-  .notification-meta {
-    font-size: 12px;
+  .notification-count {
+    margin: 0;
+    font-size: 13px;
     color: var(--muted);
   }
 
