@@ -7,13 +7,33 @@ const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
 
 let eventTypes: any[] = [];
+let webhooks: any[] = [];
+let notifications: any[] = [];
 let error: string | null = null;
 
 try {
-  eventTypes = await sdk.events.getOptions() as any[];
+  [eventTypes, webhooks] = await Promise.all([
+    sdk.events.getOptions() as Promise<any[]>,
+    sdk.webhooks.list().catch(() => []),
+  ]);
+  const notifRes = await sdk.notifications.list().catch(() => ({ items: [] }));
+  notifications = Array.isArray(notifRes) ? notifRes : (notifRes as any)?.items ?? [];
 } catch (e) {
   console.error('[events] Error:', e);
   error = e instanceof Error ? e.message : String(e);
+}
+
+// Build connection map: eventType → { webhooks: string[], notifications: string[] }
+function getConnections(eventType: string) {
+  const connectedWebhooks = webhooks.filter((w: any) => {
+    const sub = (w as any).subscribedEvents ?? (w as any).subscribed_events ?? [];
+    return Array.isArray(sub) && sub.includes(eventType);
+  });
+  const connectedNotifs = notifications.filter((n: any) => {
+    const opts: any[] = (n as any).options ?? [];
+    return opts.some((o: any) => (o.option || o.slug || o) === ('core.' + eventType));
+  });
+  return { webhooks: connectedWebhooks, notifications: connectedNotifs };
 }
 
 const categoryFilter = Astro.url.searchParams.get('category') || 'all';
@@ -86,9 +106,28 @@ const filtered = categoryFilter === 'all'
               </div>
             )}
 
+            {(() => {
+              const conn = getConnections(event.value);
+              const total = conn.webhooks.length + conn.notifications.length;
+              return total > 0 ? (
+                <div class="event-connections">
+                  {conn.webhooks.length > 0 && (
+                    <span class="conn-badge" title={conn.webhooks.map((w: any) => w.name).join(', ')}>
+                      {conn.webhooks.length} webhook{conn.webhooks.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {conn.notifications.length > 0 && (
+                    <span class="conn-badge" title={conn.notifications.map((n: any) => n.name).join(', ')}>
+                      {conn.notifications.length} notification{conn.notifications.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              ) : null;
+            })()}
+
             <div class="event-actions">
               <a href={`/automation/events/${event.value}`} class="button secondary small">
-                Subscribe
+                {getConnections(event.value).webhooks.length + getConnections(event.value).notifications.length > 0 ? 'Manage' : 'Subscribe'}
               </a>
             </div>
           </article>
@@ -249,6 +288,28 @@ const filtered = categoryFilter === 'all'
     font-size: 10px;
     color: var(--muted);
     font-weight: 500;
+  }
+
+  .event-connections {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .conn-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(79,156,132,0.1);
+    border: 1px solid rgba(79,156,132,0.2);
+    border-radius: 10px;
+    padding: 2px 8px;
+    cursor: default;
+  }
+
+  /* Cards with connections get a subtle indicator */
+  .event-card:has(.conn-badge) {
+    border-color: rgba(79,156,132,0.3);
   }
 
   .event-actions { margin-top: 4px; }
