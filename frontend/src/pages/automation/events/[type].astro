@@ -330,6 +330,12 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   </div>
 </div>
 
+<script>
+  import { marked } from 'marked';
+  marked.setOptions({ breaks: true, gfm: true });
+  window.__marvinMarked = (md) => marked(md);
+</script>
+
 <script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId: wsId ?? null }}>
   // Webhook modal
   const modal = document.getElementById('webhook-modal');
@@ -422,35 +428,19 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     }
   });
 
-  // ── Markdown parser (from MarkdownField.astro) ───────────────────────────
+  // ── Markdown rendering via marked (injected by sibling <script>) ─────────
   function parseMarkdown(md) {
     if (!md || !md.trim()) return '<span class="em-md-empty">Nothing to preview</span>';
-    let html = md
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/__(.+?)__/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/_(.+?)_/g, '<em>$1</em>')
-      .replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>');
-    return html.startsWith('<') ? html : '<p>' + html + '</p>';
+    return window.__marvinMarked ? window.__marvinMarked(md) : '<em>Loading…</em>';
   }
 
   function markdownToHtml(md) {
-    // Protect {{ variables }} from HTML escaping so they survive Jinja2 rendering
-    const placeholders = [];
-    const protected_md = md.replace(/\{\{[^}]+\}\}/g, m => {
-      placeholders.push(m);
-      return `\x00PLACEHOLDER${placeholders.length - 1}\x00`;
-    });
-    let html = parseMarkdown(protected_md);
-    placeholders.forEach((p, i) => { html = html.replace(`\x00PLACEHOLDER${i}\x00`, p); });
+    if (!md || !md.trim()) return '';
+    // Protect {{ variables }} — replace before parsing, restore after
+    const vars = [];
+    const safe = md.replace(/\{\{[^}]+\}\}/g, m => { vars.push(m); return `\x00VAR${vars.length-1}\x00`; });
+    let html = window.__marvinMarked ? window.__marvinMarked(safe) : safe;
+    vars.forEach((v, i) => { html = html.replaceAll(`\x00VAR${i}\x00`, v); });
     return html;
   }
 
