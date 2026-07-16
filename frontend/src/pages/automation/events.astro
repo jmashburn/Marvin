@@ -63,7 +63,7 @@ const filtered = categoryFilter === 'all'
         </a>
         {categories.map((cat: string) => (
           <a href={`?category=${cat}`} class:list={['filter-btn', { active: categoryFilter === cat }]}>
-            {cat}
+            {cat} ({eventTypes.filter((e: any) => e.category === cat).length})
           </a>
         ))}
       </div>
@@ -131,7 +131,7 @@ const filtered = categoryFilter === 'all'
   search?.addEventListener('input', () => {
     const q = search.value.toLowerCase();
     let visible = 0;
-    grid?.querySelectorAll('.event-card').forEach(card => {
+    grid?.querySelectorAll('.event-chip').forEach(card => {
       const text = card.textContent?.toLowerCase() || '';
       const show = !q || text.includes(q);
       (card as HTMLElement).style.display = show ? '' : 'none';
