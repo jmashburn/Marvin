@@ -32,4 +32,15 @@ def build_event_variables(event: Event) -> dict:
         variables["message_title"] = event.message.title or ""
         variables["message_body"] = event.message.body or ""
 
+    # Derive button_link from whichever URL field is present
+    variables["button_link"] = (
+        variables.get("invitation_url")
+        or variables.get("reset_url")
+        or variables.get("login_url")
+        or variables.get("action_url")
+        or variables.get("url")
+        or variables.get("site_url")
+        or ""
+    )
+
     return variables
