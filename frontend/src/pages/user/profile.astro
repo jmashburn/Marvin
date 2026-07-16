@@ -182,6 +182,21 @@ try {
           </form>
         </section>
 
+        <!-- API Tokens -->
+        <section class="profile-section">
+          <div class="section-header">
+            <div class="section-header-row">
+              <div>
+                <h3>API Tokens</h3>
+                <p>Long-lived tokens for accessing the API programmatically</p>
+              </div>
+              <a href="/user/api-tokens" class="button secondary small">Manage Tokens</a>
+            </div>
+          </div>
+          <p class="token-hint">Generate API tokens to authenticate CLI tools, scripts, and integrations without using your password.</p>
+          <a href="/user/api-tokens/new" class="button small">Create API Token</a>
+        </section>
+
         <!-- Account Info -->
         <section class="profile-section">
           <div class="section-header">
@@ -338,6 +353,24 @@ try {
 
   .info-value {
     font-size: 14px;
+  }
+
+  .section-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .token-hint {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 16px;
+  }
+
+  .button.small {
+    padding: 6px 14px;
+    font-size: 13px;
   }
 
   .info-value code {
