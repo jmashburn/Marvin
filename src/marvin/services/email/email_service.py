@@ -299,16 +299,18 @@ class EmailService(BaseService):
         """
         # Validate required variables BEFORE the rendering try-block so ValueError propagates
         from marvin.services.email.system_templates import validate_template_content
-        content_fields = {
-            "subject": db_template.subject or "",
-            "header_text": db_template.header_text or "",
-            "message_top": db_template.message_top or "",
-            "message_bottom": db_template.message_bottom or "",
-            "custom_html": db_template.custom_html or "",
-        }
-        missing = validate_template_content(db_template.template_type or "", content_fields)
-        if missing:
-            raise ValueError(f"Template is missing required variables: {', '.join('{{' + v + '}}' for v in missing)}")
+        # Only validate structured-field required vars when not using custom HTML or markdown-rendered HTML
+        has_custom_html = bool(db_template.custom_html and db_template.custom_html.strip())
+        if not has_custom_html:
+            content_fields = {
+                "subject": db_template.subject or "",
+                "header_text": db_template.header_text or "",
+                "message_top": db_template.message_top or "",
+                "message_bottom": db_template.message_bottom or "",
+            }
+            missing = validate_template_content(db_template.template_type or "", content_fields)
+            if missing:
+                raise ValueError(f"Template is missing required variables: {', '.join('{{' + v + '}}' for v in missing)}")
 
         try:
             from jinja2 import Template
@@ -324,7 +326,7 @@ class EmailService(BaseService):
             subject = subject_template.render(**variables)
 
             # Determine rendering mode
-            if db_template.custom_html:
+            if db_template.custom_html and db_template.custom_html.strip():
                 # Mode 1: Custom HTML - resolve slugs then render with Jinja2
                 html_template = Template(_r(db_template.custom_html))
                 html_content = html_template.render(**variables)
