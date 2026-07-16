@@ -261,14 +261,14 @@ function fmtDate(iso: string): string {
     align-self: center;
   }
 
-  /* Backup table */
-  .backup-table {
+  /* Backup table — :global so dynamically-inserted rows get the styles */
+  :global(.backup-table) {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
   }
 
-  .backup-table th {
+  :global(.backup-table th) {
     text-align: left;
     padding: 0.625rem 1rem;
     font-size: 0.75rem;
@@ -279,47 +279,47 @@ function fmtDate(iso: string): string {
     border-bottom: 1px solid var(--line);
   }
 
-  .backup-table td {
+  :global(.backup-table td) {
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--line);
     vertical-align: middle;
   }
 
-  .backup-table tbody tr:last-child td {
+  :global(.backup-table tbody tr:last-child td) {
     border-bottom: none;
   }
 
-  .backup-table tbody tr:hover td {
+  :global(.backup-table tbody tr:hover td) {
     background: var(--panel-2, rgba(0,0,0,0.02));
   }
 
-  .filename-cell {
+  :global(.filename-cell) {
     font-family: var(--font-mono, monospace);
     font-size: 0.8125rem;
     word-break: break-all;
   }
 
-  .num-cell {
+  :global(.num-cell) {
     white-space: nowrap;
     color: var(--muted);
   }
 
-  .action-cell {
+  :global(.action-cell) {
     text-align: right;
     white-space: nowrap;
   }
 
-  .dl-link {
+  :global(.dl-link) {
     font-size: 0.8125rem;
     color: var(--brand, #0066cc);
     text-decoration: none;
   }
 
-  .dl-link:hover {
+  :global(.dl-link:hover) {
     text-decoration: underline;
   }
 
-  .empty-msg {
+  :global(.empty-msg) {
     padding: 2rem 1.5rem;
     margin: 0;
     font-size: 0.875rem;
