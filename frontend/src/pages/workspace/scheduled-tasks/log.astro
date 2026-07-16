@@ -93,8 +93,9 @@ function statusClass(status: string): string {
             const errorMessage = log.errorMessage ?? log.error_message;
             const errorTraceback = log.errorTraceback ?? log.error_traceback;
             const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
+            const output = log.output ?? null;
             const task = taskMap.get(taskId);
-            const hasDetails = errorMessage || errorTraceback;
+            const hasDetails = output || errorMessage || errorTraceback;
             return (
               <>
                 <tr class:list={['log-row', { 'has-details': hasDetails }]} data-row={i}>
@@ -119,6 +120,12 @@ function statusClass(status: string): string {
                   <tr class="detail-row" id={`details-${i}`} style="display:none">
                     <td colspan="6">
                       <div class="detail-body">
+                        {output && (
+                          <div class="detail-section">
+                            <div class="detail-label">Output</div>
+                            <div class="detail-output">{output}</div>
+                          </div>
+                        )}
                         {errorMessage && (
                           <div class="detail-section">
                             <div class="detail-label">Error</div>
@@ -276,6 +283,12 @@ function statusClass(status: string): string {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--muted);
+  }
+
+  .detail-output {
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+    color: var(--ink);
   }
 
   .detail-message {

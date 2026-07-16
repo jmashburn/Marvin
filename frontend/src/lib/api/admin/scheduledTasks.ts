@@ -6,20 +6,20 @@ import { fetchApi } from '../client';
 
 export interface ScheduledTaskRead {
   id: string;
-  group_id: string | null;
+  groupId: string | null;
   name: string;
   slug: string;
   description: string | null;
   enabled: boolean;
-  schedule_type: string;
-  schedule_config: Record<string, any>;
-  task_type: string;
-  task_config: Record<string, any>;
-  last_run_at: string | null;
-  next_run_at: string | null;
-  last_status: string | null;
-  last_duration_ms: number | null;
-  failure_count: number;
+  scheduleType: string;
+  scheduleConfig: Record<string, any>;
+  taskType: string;
+  taskConfig: Record<string, any>;
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  lastStatus: string | null;
+  lastDurationMs: number | null;
+  failureCount: number;
 }
 
 export interface ScheduledTaskCreate {
@@ -50,6 +50,8 @@ export interface ScheduledTaskExecutionLogRead {
   status: string;
   duration_ms: number | null;
   error_message: string | null;
+  error_traceback: string | null;
+  output: string | null;
   retry_attempt: number;
 }
 
