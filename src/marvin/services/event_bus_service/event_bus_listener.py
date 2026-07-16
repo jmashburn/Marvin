@@ -870,7 +870,13 @@ class EmailEventListener(EventListenerBase):
                 field = sub.recipient_field
                 if field and field in variables:
                     addr = variables[field]
-                    return [addr] if isinstance(addr, str) and addr else []
+                    if isinstance(addr, str) and addr and "@" in addr:
+                        return [addr]
+                    self.logger.warning(
+                        f"EmailEventListener: event_field '{field}' resolved to non-email value "
+                        f"'{addr}' for subscription {sub.id} — possible misconfiguration, skipping"
+                    )
+                    return []
                 return []
             case "specific":
                 if not sub.recipient_email:

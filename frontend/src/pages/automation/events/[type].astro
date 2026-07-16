@@ -252,12 +252,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
           <input type="radio" name="em-recipient-type" value="admins" checked />
           Workspace admins
         </label>
-        <label class="em-radio-label">
-          <input type="radio" name="em-recipient-type" value="event_field" />
+        <label class="em-radio-label" id="em-event-field-label">
+          <input type="radio" name="em-recipient-type" value="event_field" id="em-event-field-radio" />
           Field from event data
           <select id="em-event-field" class="em-field-select" style="display:none">
             <!-- populated by JS -->
           </select>
+          <span id="em-no-email-fields" class="em-hint" style="display:none">— no email fields for this event</span>
         </label>
         <label class="em-radio-label">
           <input type="radio" name="em-recipient-type" value="specific" />
@@ -382,12 +383,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
   // Populate event field dropdown — only email-typed variables from the catalog
   const emailVars = (eventVariables || []).filter(v => v.type === 'email');
-  if (emEventField) {
-    if (emailVars.length > 0) {
-      emEventField.innerHTML = emailVars.map(v => `<option value="${v.slug}">${v.slug}</option>`).join('');
-    } else {
-      emEventField.innerHTML = '<option value="" disabled>No email fields for this event</option>';
-    }
+  const emEventFieldRadio = document.getElementById('em-event-field-radio');
+  const emNoEmailFields = document.getElementById('em-no-email-fields');
+  if (emailVars.length > 0) {
+    if (emEventField) emEventField.innerHTML = emailVars.map(v => `<option value="${v.slug}">${v.slug}</option>`).join('');
+  } else {
+    if (emEventFieldRadio) { emEventFieldRadio.disabled = true; }
+    if (emNoEmailFields) emNoEmailFields.style.display = 'inline';
   }
 
   document.querySelectorAll('input[name="em-recipient-type"]').forEach(radio => {
@@ -910,5 +912,11 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   }
 
   .em-email-input { min-width: 220px; }
+
+  .em-hint {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+  }
 
 </style>
