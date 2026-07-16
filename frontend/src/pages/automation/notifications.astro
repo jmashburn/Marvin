@@ -21,7 +21,8 @@ try {
 // Only fetch notifications if Apprise is available
 if (appriseReady) {
   try {
-    notifications = await sdk.notifications.list();
+    const result = await sdk.notifications.list();
+    notifications = Array.isArray(result) ? result : ((result as any)?.items ?? []);
   } catch (e) {
     console.error('[notifications] Error:', e);
     error = e instanceof Error ? e.message : String(e);
@@ -69,7 +70,7 @@ if (appriseReady) {
               <strong>{notif.name}</strong>
               {notif.enabled === false && <span class="badge-disabled">Disabled</span>}
             </div>
-            <p class="notification-url">{notif.apprise_url}</p>
+            <p class="notification-url">{(notif.options?.length ?? 0)} event{(notif.options?.length ?? 0) !== 1 ? 's' : ''} subscribed</p>
             <div class="notification-meta">
               <span>ID: {notif.id}</span>
             </div>

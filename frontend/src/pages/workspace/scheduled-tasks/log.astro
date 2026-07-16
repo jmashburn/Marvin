@@ -13,10 +13,12 @@ let tasks: any[] = [];
 let error: string | null = null;
 
 try {
-  [logs, tasks] = await Promise.all([
+  const [logsResult, tasksResult] = await Promise.all([
     sdk.scheduledTasks.log({ limit: 200 }),
     sdk.scheduledTasks.list(),
   ]);
+  logs = Array.isArray(logsResult) ? logsResult : ((logsResult as any)?.items ?? []);
+  tasks = Array.isArray(tasksResult) ? tasksResult : ((tasksResult as any)?.items ?? []);
 } catch (e) {
   console.error('[workspace/scheduled-tasks/log] Error:', e);
   error = e instanceof Error ? e.message : String(e);

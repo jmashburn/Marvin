@@ -13,7 +13,7 @@ let appriseReady = false;
 // Check if Apprise is available
 try {
   const configCheck = await sdk.adminSystem.check() as any;
-  appriseReady = configCheck?.apprise_ready === true;
+  appriseReady = (configCheck as any)?.appriseReady === true;
 } catch (e) {
   console.error('[notifications/new] Error checking Apprise availability:', e);
 }
@@ -24,7 +24,8 @@ if (!appriseReady) {
 }
 
 try {
-  eventOptions = await sdk.events.getOptions();
+  const result = await sdk.events.getOptions();
+  eventOptions = Array.isArray(result) ? result : ((result as any)?.items ?? []);
 } catch (e) {
   console.error('[notifications/new] Error loading events:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -115,13 +116,13 @@ const defaultEvents = [
 
           <div class="events-checklist" id="events-checklist">
             {eventOptions.map((event) => {
-              const optionValue = event.option || `core.${event.slug || event.name.toLowerCase().replace(/\s+/g, '_')}`;
+              const optionValue = event.value;
               const isDefault = defaultEvents.includes(optionValue);
               return (
                 <label
                   class="event-checkbox"
-                  data-event-name={event.name.toLowerCase()}
-                  data-event-description={event.description?.toLowerCase() || ''}
+                  data-event-name={event.label?.toLowerCase() ?? ''}
+                  data-event-description={event.description?.toLowerCase() ?? ''}
                 >
                   <input
                     type="checkbox"
@@ -130,7 +131,7 @@ const defaultEvents = [
                     checked={isDefault}
                   />
                   <div class="event-checkbox-content">
-                    <span class="event-checkbox-name">{event.name}</span>
+                    <span class="event-checkbox-name">{event.label}</span>
                     {event.description && (
                       <span class="event-checkbox-description">{event.description}</span>
                     )}

@@ -10,7 +10,8 @@ let tasks: any[] = [];
 let error: string | null = null;
 
 try {
-  tasks = await sdk.scheduledTasks.list();
+  const result = await sdk.scheduledTasks.list();
+  tasks = Array.isArray(result) ? result : ((result as any)?.items ?? []);
 } catch (e) {
   console.error('[scheduled-tasks] Error loading:', e);
   error = e instanceof Error ? e.message : String(e);
