@@ -507,15 +507,13 @@ class WebhookEventListener(EventListenerBase):
                                 f"(type={webhook_type_name}): {e}"
                             )
 
+            clean_payload: dict = {"type": webhook_type_name}
+            if handler_data:
+                clean_payload["data"] = handler_data
             if webhook_config.custom_payload:
-                handler_data.update(
-                    apply_substitutions(webhook_config.custom_payload, self.group_id, context)
+                clean_payload["meta"] = apply_substitutions(
+                    webhook_config.custom_payload, self.group_id, context
                 )
-
-            clean_payload: dict = {
-                "type": webhook_type_name,
-                "data": handler_data,
-            }
 
             resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
             self.publisher.publish(
