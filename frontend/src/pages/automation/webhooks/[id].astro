@@ -109,6 +109,8 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
             </label>
           </div>
 
+          <p id="type-description" class="type-desc"></p>
+
           <div id="scheduled-time-field" class="form-field" style={isEventDriven ? 'display:none' : ''}>
             <span class="label">Daily Trigger Time *</span>
             <input
@@ -120,21 +122,6 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
             <small class="hint">Time of day this webhook fires automatically (uses your local time)</small>
           </div>
 
-          <div id="subscribed-events-field" class="form-field" style={isEventDriven ? '' : 'display:none'}>
-            <span class="label">Subscribed Events *</span>
-            <div id="events-list" class="events-list">
-              {existingSubscribedEvents.map((ev: string) => (
-                <span class="event-tag" data-event={ev}>
-                  {ev}
-                  <button type="button" class="event-tag-remove">✕</button>
-                </span>
-              ))}
-            </div>
-            <input type="text" id="event-input" class="input" placeholder="e.g. entry_published" />
-            <button type="button" id="add-event-btn" class="button secondary small" style="margin-top:6px">+ Add Event</button>
-            <small class="hint">Event types that trigger this webhook (e.g. entry_published, member_added)</small>
-          </div>
-
           <label class="checkbox-field">
             <input type="checkbox" name="enabled" checked={webhook.enabled !== false} />
             <span>Enabled</span>
@@ -143,7 +130,7 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
 
         <div class="form-section">
           <h3>Custom Payload <span class="optional">(optional)</span></h3>
-          <p class="section-hint">JSON merged into every outgoing POST. Supports <code>&#123;&#123;timestamp&#125;&#125;</code>, <code>&#123;&#123;workspace_slug&#125;&#125;</code>, <code>&#123;&#123;workspace_name&#125;&#125;</code>, <code>&#123;&#123;trigger&#125;&#125;</code>, and workspace <a href="/workspace/settings/secrets">secrets</a>.</p>
+          <p class="section-hint">JSON merged into every outgoing POST. Supports <code>&#123;&#123;timestamp&#125;&#125;</code>, <code>&#123;&#123;workspace_slug&#125;&#125;</code>, <code>&#123;&#123;workspace_name&#125;&#125;</code>, <code>&#123;&#123;trigger&#125;&#125;</code>, and workspace <a href="/workspace/settings/environment">variables</a>. Secrets are not injected here — use the Headers section for those.</p>
           <textarea
             id="custom-payload-input"
             class="input code-input"
@@ -176,6 +163,39 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
           <a href="/automation/webhooks" class="button secondary">Cancel</a>
         </div>
       </form>
+
+      {isEventDriven && (
+        <div class="connected-events-section">
+          <div class="sub-header-row">
+            <h3>Connected Events</h3>
+            <p>Manage connections from the <a href="/automation/events">Events page</a></p>
+          </div>
+          <div class="sub-options">
+            {existingSubscribedEvents.length === 0 ? (
+              <div class="sub-option no-events-row">
+                <span>No events connected yet.</span>
+                <a href="/automation/events" class="button secondary small">Go to Events →</a>
+              </div>
+            ) : (
+              existingSubscribedEvents.map((ev: string) => (
+                <div class="sub-option sub-option-connected" data-event-slug={ev}>
+                  <div class="sub-option-info">
+                    <div class="sub-option-name-row">
+                      <span class="connected-check">&#10003;</span>
+                      <strong>{ev.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</strong>
+                    </div>
+                    <code class="sub-url">{ev}</code>
+                  </div>
+                  <div class="sub-option-actions">
+                    <a href={`/automation/events/${ev}`} class="button secondary small">Edit</a>
+                    <button type="button" class="button secondary small danger disconnect-event-btn" data-event={ev}>Disconnect</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       <div class="history-section">
         <h3>Execution History</h3>
@@ -261,63 +281,31 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
     });
   });
 
-  // Type selector — show/hide scheduled time vs subscribed events
+  // Type selector — show/hide scheduled time field, update description
   const typeSelect = document.getElementById('webhook-type-select') as HTMLSelectElement;
   const scheduledField = document.getElementById('scheduled-time-field')!;
   const scheduledInput = scheduledField?.querySelector('input') as HTMLInputElement;
-  const eventsField = document.getElementById('subscribed-events-field')!;
+  const typeDesc = document.getElementById('type-description')!;
+
+  // Fetch type descriptions from backend (source of truth: WEBHOOK_MODE_DESCRIPTIONS in event_types.py)
+  let typeDescriptions: Record<string, string> = {};
+  fetch('/api/groups/webhooks/types', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : [])
+    .then((types: { value: string; description: string }[]) => {
+      typeDescriptions = Object.fromEntries(types.map(t => [t.value, t.description]));
+      updateFieldVisibility();
+    })
+    .catch(() => {});
 
   function updateFieldVisibility() {
     const isEventDriven = typeSelect.value === 'event_driven';
     if (scheduledField) scheduledField.style.display = isEventDriven ? 'none' : '';
     if (scheduledInput) scheduledInput.required = !isEventDriven;
-    if (eventsField) eventsField.style.display = isEventDriven ? '' : 'none';
+    if (typeDesc) typeDesc.textContent = typeDescriptions[typeSelect.value] ?? '';
   }
 
   typeSelect?.addEventListener('change', updateFieldVisibility);
   updateFieldVisibility();
-
-  // Subscribed events builder — initialise from server-rendered tags
-  const eventsList = document.getElementById('events-list')!;
-  const eventInput = document.getElementById('event-input') as HTMLInputElement;
-  const subscribedEvents: string[] = Array.from(
-    document.querySelectorAll('.event-tag[data-event]')
-  ).map(el => (el as HTMLElement).dataset.event!);
-
-  function addEvent(val: string) {
-    val = val.trim();
-    if (!val || subscribedEvents.includes(val)) return;
-    subscribedEvents.push(val);
-    const tag = document.createElement('span');
-    tag.className = 'event-tag';
-    tag.dataset.event = val;
-    tag.textContent = val;
-    const rm = document.createElement('button');
-    rm.type = 'button';
-    rm.className = 'event-tag-remove';
-    rm.textContent = '✕';
-    rm.addEventListener('click', () => {
-      subscribedEvents.splice(subscribedEvents.indexOf(val), 1);
-      tag.remove();
-    });
-    tag.appendChild(rm);
-    eventsList.appendChild(tag);
-    eventInput.value = '';
-  }
-
-  // Wire remove buttons on existing server-rendered tags
-  document.querySelectorAll('.event-tag-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tag = btn.closest('.event-tag') as HTMLElement;
-      const ev = tag.dataset.event!;
-      const idx = subscribedEvents.indexOf(ev);
-      if (idx !== -1) subscribedEvents.splice(idx, 1);
-      tag.remove();
-    });
-  });
-
-  document.getElementById('add-event-btn')?.addEventListener('click', () => addEvent(eventInput.value));
-  eventInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addEvent(eventInput.value); } });
 
   // Header builder
   const headersList = document.getElementById('headers-list')!;
@@ -374,9 +362,7 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
       custom_payload: customPayload,
     };
 
-    if (isEventDriven) {
-      payload.subscribed_events = subscribedEvents.length ? subscribedEvents : null;
-    } else {
+    if (!isEventDriven) {
       payload.scheduled_time = formData.get('scheduled_time');
     }
 
@@ -411,6 +397,37 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
       console.error('Error deleting webhook:', error);
     }
   });
+
+  // Disconnect event buttons in the Connected Events section
+  document.querySelectorAll('.disconnect-event-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const eventSlug = (btn as HTMLElement).dataset.event!;
+      if (!confirm(`Disconnect "${eventSlug}" from this webhook?`)) return;
+      (btn as HTMLButtonElement).disabled = true;
+      try {
+        const res = await fetch('/api/groups/webhooks/' + webhookId, { credentials: 'include' });
+        if (!res.ok) throw new Error(`GET failed: ${res.status}`);
+        const webhook = await res.json();
+        const current: string[] = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
+        const updated = current.filter((e: string) => e !== eventSlug);
+        const putRes = await fetch('/api/groups/webhooks/' + webhookId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...webhook, subscribedEvents: updated, subscribed_events: updated }),
+        });
+        if (!putRes.ok) {
+          const d = await putRes.json().catch(() => ({}));
+          throw new Error(d.detail || `PUT failed: ${putRes.status}`);
+        }
+        const row = (btn as HTMLElement).closest('[data-event-slug]') as HTMLElement;
+        row?.remove();
+      } catch (e: any) {
+        alert('Error: ' + e.message);
+        (btn as HTMLButtonElement).disabled = false;
+      }
+    });
+  });
 </script>
 
 <style>
@@ -439,6 +456,8 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
   .form-section h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
 
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .type-desc { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.4em; }
 
   .form-field { display: grid; gap: 6px; }
 
@@ -539,29 +558,89 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
   .section-hint code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
   .section-hint a { color: var(--accent); }
 
-  .events-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .connected-events-section {
+    margin-top: 32px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
 
-  :global(.event-tag) {
-    display: inline-flex;
+  .sub-header-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .sub-header-row h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .sub-header-row p { margin: 0; font-size: 13px; color: var(--muted); }
+  .sub-header-row a { color: var(--accent); }
+
+  .sub-options {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .sub-option {
+    display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    background: var(--accent-bg, #e8f4fd);
-    color: var(--accent);
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 500;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    gap: 16px;
+    text-decoration: none;
+    color: inherit;
   }
 
-  :global(.event-tag-remove) {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--accent);
-    font-size: 12px;
-    padding: 0 0 0 4px;
-    line-height: 1;
+  .sub-option:last-child { border-bottom: none; }
+  .sub-option:hover { background: var(--bg); }
+
+  .sub-option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
+
+  .sub-option-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sub-option-info strong { font-size: 14px; font-weight: 500; }
+
+  .sub-url {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+  }
+
+  .sub-option-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .sub-option-connected {
+    background: rgba(79, 156, 132, 0.04);
+    border-left: 3px solid var(--accent);
+  }
+
+  .connected-check {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .no-events-row { color: var(--muted); font-size: 13px; }
+
+  .button.small { padding: 5px 12px; font-size: 12px; min-height: 28px; flex-shrink: 0; }
+  .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
+  .button.secondary.danger:hover { background: var(--color-error-bg); }
 
   :global(.header-row) { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   :global(.header-key) { flex: 1; min-width: 0; }

@@ -444,6 +444,14 @@ class WebhookMode(str, Enum):
     event_driven = "event_driven"
 
 
+WEBHOOK_MODE_DESCRIPTIONS: dict[str, str] = {
+    "generic": "Fires on a schedule and sends your custom payload as-is. Use this for simple timed pings or custom data pushes.",
+    "user": "Fires on a schedule and includes workspace member statistics (total members, new members since last run) alongside your custom payload.",
+    "entries": "Fires on a schedule and includes content entry statistics (totals, published, draft, new since last run) alongside your custom payload.",
+    "event_driven": "Fires immediately when a subscribed workspace event occurs (e.g. entry published, member added). Connect events from the Events page after creating.",
+}
+
+
 class EventOperationBase(Enum):
     """
     Abstract base class for event operation types.

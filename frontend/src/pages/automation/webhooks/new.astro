@@ -57,6 +57,8 @@ import AppLayout from "@/layouts/AppLayout.astro";
           </label>
         </div>
 
+        <p id="type-description" class="type-desc"></p>
+
         <div id="scheduled-time-field" class="form-field">
           <span class="label">Daily Trigger Time *</span>
           <input
@@ -67,12 +69,8 @@ import AppLayout from "@/layouts/AppLayout.astro";
           <small class="hint">Time of day this webhook fires automatically (uses your local time)</small>
         </div>
 
-        <div id="subscribed-events-field" class="form-field" style="display:none">
-          <span class="label">Subscribed Events *</span>
-          <div id="events-list" class="events-list"></div>
-          <input type="text" id="event-input" class="input" placeholder="e.g. entry_published" />
-          <button type="button" id="add-event-btn" class="button secondary small" style="margin-top:6px">+ Add Event</button>
-          <small class="hint">Event types that trigger this webhook (e.g. entry_published, member_added)</small>
+        <div id="event-driven-note" class="event-driven-callout" style="display:none">
+          After creating this webhook, go to the <a href="/automation/events"><strong>Events page</strong></a> to connect it to specific event types.
         </div>
 
         <label class="checkbox-field">
@@ -83,7 +81,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
       <div class="form-section">
         <h3>Custom Payload <span class="optional">(optional)</span></h3>
-        <p class="section-hint">JSON merged into every outgoing POST. Supports <code>&#123;&#123;timestamp&#125;&#125;</code>, <code>&#123;&#123;workspace_slug&#125;&#125;</code>, <code>&#123;&#123;workspace_name&#125;&#125;</code>, <code>&#123;&#123;trigger&#125;&#125;</code>, and workspace <a href="/workspace/settings/secrets">secrets</a>.</p>
+        <p class="section-hint">JSON merged into every outgoing POST. Supports <code>&#123;&#123;timestamp&#125;&#125;</code>, <code>&#123;&#123;workspace_slug&#125;&#125;</code>, <code>&#123;&#123;workspace_name&#125;&#125;</code>, <code>&#123;&#123;trigger&#125;&#125;</code>, and workspace <a href="/workspace/settings/environment">variables</a>. Secrets are not injected here — use the Headers section for those.</p>
         <textarea
           id="custom-payload-input"
           class="input code-input"
@@ -112,17 +110,29 @@ import AppLayout from "@/layouts/AppLayout.astro";
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
 
-  // Type selector — show/hide scheduled time vs subscribed events
+  // Type selector — show/hide scheduled time or event-driven callout, update description
   const typeSelect = document.getElementById('webhook-type-select') as HTMLSelectElement;
   const scheduledField = document.getElementById('scheduled-time-field')!;
   const scheduledInput = scheduledField.querySelector('input') as HTMLInputElement;
-  const eventsField = document.getElementById('subscribed-events-field')!;
+  const eventDrivenNote = document.getElementById('event-driven-note')!;
+  const typeDesc = document.getElementById('type-description')!;
+
+  // Fetch type descriptions from backend (source of truth: WEBHOOK_MODE_DESCRIPTIONS in event_types.py)
+  let typeDescriptions: Record<string, string> = {};
+  fetch('/api/groups/webhooks/types', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : [])
+    .then((types: { value: string; description: string }[]) => {
+      typeDescriptions = Object.fromEntries(types.map(t => [t.value, t.description]));
+      updateFieldVisibility();
+    })
+    .catch(() => {});
 
   function updateFieldVisibility() {
     const isEventDriven = typeSelect.value === 'event_driven';
     scheduledField.style.display = isEventDriven ? 'none' : '';
     scheduledInput.required = !isEventDriven;
-    eventsField.style.display = isEventDriven ? '' : 'none';
+    eventDrivenNote.style.display = isEventDriven ? '' : 'none';
+    typeDesc.textContent = typeDescriptions[typeSelect.value] ?? '';
   }
 
   typeSelect.addEventListener('change', updateFieldVisibility);
@@ -132,34 +142,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
   const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   scheduledInput.value = localDateTime;
   updateFieldVisibility();
-
-  // Subscribed events builder
-  const eventsList = document.getElementById('events-list')!;
-  const eventInput = document.getElementById('event-input') as HTMLInputElement;
-  const subscribedEvents: string[] = [];
-
-  function addEvent(val: string) {
-    val = val.trim();
-    if (!val || subscribedEvents.includes(val)) return;
-    subscribedEvents.push(val);
-    const tag = document.createElement('span');
-    tag.className = 'event-tag';
-    tag.textContent = val;
-    const rm = document.createElement('button');
-    rm.type = 'button';
-    rm.className = 'event-tag-remove';
-    rm.textContent = '✕';
-    rm.addEventListener('click', () => {
-      subscribedEvents.splice(subscribedEvents.indexOf(val), 1);
-      tag.remove();
-    });
-    tag.appendChild(rm);
-    eventsList.appendChild(tag);
-    eventInput.value = '';
-  }
-
-  document.getElementById('add-event-btn')?.addEventListener('click', () => addEvent(eventInput.value));
-  eventInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addEvent(eventInput.value); } });
 
   // Header builder
   const headersList = document.getElementById('headers-list')!;
@@ -219,9 +201,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
       custom_payload: customPayload,
     };
 
-    if (isEventDriven) {
-      payload.subscribed_events = subscribedEvents.length ? subscribedEvents : null;
-    } else {
+    if (!isEventDriven) {
       payload.scheduled_time = formData.get('scheduled_time') as string;
     }
 
@@ -285,6 +265,13 @@ import AppLayout from "@/layouts/AppLayout.astro";
     gap: 16px;
   }
 
+  .type-desc {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+    min-height: 1.4em;
+  }
+
   .form-field {
     display: grid;
     gap: 6px;
@@ -344,6 +331,18 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
   .section-hint code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
   .section-hint a { color: var(--accent); }
+
+  .event-driven-callout {
+    padding: 12px 16px;
+    border: 1px solid var(--accent);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--accent);
+    background: rgba(79, 156, 132, 0.06);
+  }
+
+  .event-driven-callout a { color: var(--accent); }
 
   .events-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 

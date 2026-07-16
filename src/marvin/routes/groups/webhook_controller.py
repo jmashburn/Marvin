@@ -24,10 +24,9 @@ from marvin.schemas.group.webhook import (
     WebhookRead,
     WebhookSave,
 )
-from marvin.schemas.mapper import cast  # Utility for casting between schema types
-from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters
-
-# Services for webhook execution logic
+from marvin.schemas.mapper import cast
+from marvin.schemas.response.pagination import PaginationQuery
+from marvin.services.event_bus_service.event_types import WEBHOOK_MODE_DESCRIPTIONS
 from marvin.services.scheduler.tasks.post_webhooks import post_group_webhooks, post_single_webhook
 
 # EventDocumentType was imported but not used in the current code.
@@ -37,14 +36,12 @@ router = APIRouter(prefix="/groups/webhooks")
 
 
 def _validate_webhook_mode(data: WebhookCreate) -> None:
-    """Enforce scheduling/event constraints based on webhook_type."""
-    if data.webhook_type == WebhookMode.event_driven:
-        if not data.subscribed_events:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="event_driven webhooks must have at least one subscribed_event.",
-            )
-    else:
+    """Enforce scheduling constraints based on webhook_type.
+
+    event_driven webhooks fire on subscribed events (connected via the Events page),
+    so they don't need a scheduled_time. All other types require one.
+    """
+    if data.webhook_type != WebhookMode.event_driven:
         if not data.scheduled_time:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -88,6 +85,14 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
             # Assuming registered_exceptions is available from BaseUserController
             # self.registered_exceptions
         )
+
+    @router.get("/types", summary="List available webhook types with descriptions")
+    def get_types(self) -> list[dict]:
+        """Return webhook modes and their descriptions (source of truth is event_types.py)."""
+        return [
+            {"value": mode.value, "description": WEBHOOK_MODE_DESCRIPTIONS.get(mode.value, "")}
+            for mode in WebhookMode
+        ]
 
     @router.get("", response_model=WebhookPagination, summary="List Webhooks for Group")
     def get_all(self, q: PaginationQuery = Depends(PaginationQuery)) -> WebhookPagination:

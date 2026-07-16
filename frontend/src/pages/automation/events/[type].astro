@@ -165,10 +165,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         <section class="sub-section">
           <div class="sub-header">
             <h3>Webhooks</h3>
-            <p>Send an HTTP request when this event fires</p>
+            <p>Send an HTTP request when this event fires — only Event-Driven webhooks appear here.</p>
           </div>
           <div class="sub-options">
-            {webhooks.map((w: any) => {
+            {webhooks.filter((w: any) => {
+              const webhookType = (w as any).webhookType ?? (w as any).webhook_type;
+              return webhookType === 'event_driven';
+            }).map((w: any) => {
               const subscribedEvents: string[] = (w as any).subscribedEvents ?? (w as any).subscribed_events ?? [];
               const isConnected = subscribedEvents.includes(type || '');
               return (
