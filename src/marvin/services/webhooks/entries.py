@@ -9,7 +9,6 @@ from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogMo
 from marvin.db.models.platform.entries import Entries
 
 from .base_webhook import BaseWebhook
-from .substitution import apply_substitutions
 
 
 class EntriesWebhook(BaseWebhook):
@@ -30,7 +29,7 @@ class EntriesWebhook(BaseWebhook):
                 )
             ).scalar() or 0
 
-        data = {
+        return {
             "total_entries": _count(),
             "published_entries": _count(Entries.status == "published"),
             "draft_entries": _count(Entries.status == "draft"),
@@ -40,5 +39,3 @@ class EntriesWebhook(BaseWebhook):
                 Entries.published_at >= since_naive,
             ),
         }
-        custom = apply_substitutions(webhook_config.custom_payload or {}, self._group_id, context)
-        return {**data, **custom}

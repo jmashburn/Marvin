@@ -9,7 +9,6 @@ from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogMo
 from marvin.db.models.users.workspace_members import WorkspaceMembers
 
 from .base_webhook import BaseWebhook
-from .substitution import apply_substitutions
 
 
 class UserWebhook(BaseWebhook):
@@ -36,9 +35,7 @@ class UserWebhook(BaseWebhook):
             )
         ).scalar() or 0
 
-        data = {
+        return {
             "total_members": total,
             "new_members_since_last_run": new_count,
         }
-        custom = apply_substitutions(webhook_config.custom_payload or {}, self._group_id, context)
-        return {**data, **custom}
