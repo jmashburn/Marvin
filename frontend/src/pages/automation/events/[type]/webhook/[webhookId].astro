@@ -54,7 +54,7 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
-const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variables ?? []) : {};
+const examplePayload = (eventInfo as any)?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables ?? []) : {});
 ---
 
 <AppLayout title="Connect Webhook" eyebrow="Events">

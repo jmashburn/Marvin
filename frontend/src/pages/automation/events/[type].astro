@@ -55,7 +55,8 @@ function buildExamplePayload(eventType: string, variables: any[]): object {
   };
 }
 
-const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variables || []) : {};
+// Use real payload structure from the API if available, else fall back to client builder
+const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables || []) : {});
 ---
 
 <AppLayout title={eventInfo ? eventInfo.label : 'Event'} eyebrow="Events">

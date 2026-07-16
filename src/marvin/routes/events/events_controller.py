@@ -130,6 +130,8 @@ class EventsNotifierOptionsController(BaseUserController):
         by_category: dict[str, list] = {c: [] for c in CATEGORIES}
         by_category["Other"] = []
 
+        from marvin.services.events.payload_schemas import get_payload_example
+
         for entry in CATALOG:
             cat = entry.category if entry.category in by_category else "Other"
             by_category[cat].append({
@@ -142,6 +144,7 @@ class EventsNotifierOptionsController(BaseUserController):
                     {"slug": v.slug, "description": v.description, "example": v.example}
                     for v in entry.variables
                 ],
+                "payloadExample": get_payload_example(entry.event_type),
             })
 
         return [
