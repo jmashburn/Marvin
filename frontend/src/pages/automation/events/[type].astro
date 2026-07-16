@@ -328,7 +328,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   </div>
 </div>
 
-<script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId }}>
+<script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId: wsId ?? null }}>
   // Webhook modal
   const modal = document.getElementById('webhook-modal');
   const whTitle = document.getElementById('wh-title');
