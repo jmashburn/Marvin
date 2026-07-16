@@ -74,22 +74,16 @@ const scheduleConfig = task ? (task.scheduleConfig ?? task.schedule_config) : nu
           <div class="form-section">
             <h3>Task Details</h3>
 
-            <label class="form-field">
-              <span class="label">What to Run *</span>
-              <select name="task_type" required class="input" id="task-type-select">
-                <option value="">Select a task type…</option>
-                {taskTypes.map(t => (
-                  <option
-                    value={t.task_type}
-                    data-description={t.description}
-                    selected={t.task_type === taskType}
-                  >{t.name || t.task_type}</option>
-                ))}
-              </select>
-              <small class="hint" id="task-type-hint">
+            <div class="form-field">
+              <span class="label">What to Run</span>
+              <div class="readonly-field">
+                {taskTypes.find(t => t.task_type === taskType)?.name || taskType}
+                <span class="readonly-tag">locked</span>
+              </div>
+              <small class="hint">
                 {taskTypes.find(t => t.task_type === taskType)?.description || ''}
               </small>
-            </label>
+            </div>
 
             <label class="form-field">
               <span class="label">Name *</span>
@@ -266,8 +260,6 @@ const scheduleConfig = task ? (task.scheduleConfig ?? task.schedule_config) : nu
   const taskId = (document.querySelector('[data-task-id]') as HTMLElement)?.dataset.taskId!;
 
   const scheduleTypeSelect = document.getElementById('schedule-type-select');
-  const taskTypeSelect = document.getElementById('task-type-select');
-  const taskTypeHint = document.getElementById('task-type-hint');
 
   function updateScheduleFields() {
     const val = scheduleTypeSelect?.value;
@@ -277,11 +269,6 @@ const scheduleConfig = task ? (task.scheduleConfig ?? task.schedule_config) : nu
   }
 
   scheduleTypeSelect?.addEventListener('change', updateScheduleFields);
-
-  taskTypeSelect?.addEventListener('change', () => {
-    const selected = taskTypeSelect.selectedOptions[0];
-    if (taskTypeHint) taskTypeHint.textContent = selected?.dataset.description || '';
-  });
 
   document.getElementById('update-task-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -466,6 +453,29 @@ const scheduleConfig = task ? (task.scheduleConfig ?? task.schedule_config) : nu
   .hint {
     font-size: 12px;
     color: var(--muted);
+  }
+
+  .readonly-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--panel);
+    color: var(--ink);
+  }
+
+  .readonly-tag {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 1px 5px;
   }
 
   .form-actions {

@@ -71,9 +71,6 @@ class ScheduledTaskUpdate(_MarvinModel):
     schedule_config: dict | None = None
     """Schedule configuration."""
 
-    task_type: str | None = None
-    """Task type identifier."""
-
     task_config: dict | None = None
     """Task-specific configuration parameters."""
 
