@@ -28,7 +28,7 @@ function formatSchedule(task: any): string {
     return `Every ${s}s`;
   }
   if (scheduleType === 'cron') return `Cron: ${sc.cronExpression ?? sc.cron_expression}`;
-  if (scheduleType === 'once') return `Once: ${sc.runAt ?? sc.run_at || '—'}`;
+  if (scheduleType === 'once') return `Once: ${(sc.runAt ?? sc.run_at) || '—'}`;
   return '—';
 }
 
