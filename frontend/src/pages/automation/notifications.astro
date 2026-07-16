@@ -102,7 +102,8 @@ if (appriseReady) {
 </AppLayout>
 
 <script>
-  const apiUrl = (window as any).__MARVIN_API_URL__ || '';
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
 
   document.querySelectorAll('[data-test-id]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -111,17 +112,10 @@ if (appriseReady) {
       (btn as HTMLButtonElement).disabled = true;
       (btn as HTMLButtonElement).textContent = 'Sending…';
       try {
-        const res = await fetch(`${apiUrl}/api/group/notifications/${id}/test`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.detail || `HTTP ${res.status}`);
-        }
+        await sdk.notifications.test(id);
         alert(`Test notification sent to "${name}".`);
       } catch (e: any) {
-        alert(`Test failed: ${e.message}`);
+        alert(`Test failed: ${e?.message || e}`);
       } finally {
         (btn as HTMLButtonElement).disabled = false;
         (btn as HTMLButtonElement).textContent = 'Test';
@@ -135,14 +129,10 @@ if (appriseReady) {
       const name = (btn as HTMLElement).dataset.deleteName!;
       if (!confirm(`Delete notification "${name}"?`)) return;
       try {
-        const res = await fetch(`${apiUrl}/api/group/notifications/${id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await sdk.notifications.delete(id);
         (btn as HTMLElement).closest('.notification-card')?.remove();
       } catch (e: any) {
-        alert(`Delete failed: ${e.message}`);
+        alert(`Delete failed: ${e?.message || e}`);
       }
     });
   });

@@ -133,6 +133,7 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
 
         <div class="form-actions">
           <button type="submit" class="button">Save Changes</button>
+          <button type="button" id="test-btn" class="button secondary" disabled={notification.enabled === false}>Test</button>
           <button type="button" id="delete-btn" class="button danger">Delete</button>
           <a href="/automation/notifications" class="button secondary">Cancel</a>
         </div>
@@ -204,9 +205,24 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
     }
   });
 
+  document.getElementById('test-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('test-btn') as HTMLButtonElement;
+    if (btn?.disabled) return;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      await sdk.notifications.test(notificationId);
+      alert('Test notification sent!');
+    } catch (e: any) {
+      alert(`Test failed: ${e?.message || e}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Test';
+    }
+  });
+
   deleteBtn?.addEventListener('click', async () => {
     if (!confirm('Are you sure you want to delete this notification?')) return;
-
     try {
       await sdk.notifications.delete(notificationId);
       window.location.href = '/automation/notifications?deleted=true';
