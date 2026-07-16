@@ -265,8 +265,9 @@ class GroupEventsNotifierController(BaseUserController):
         test_event_payload = Event(
             message=EventBusMessage.from_type(event_type, "This is a test message from Marvin."),
             event_type=event_type,
-            integration_id="marvin_test_event_notification",  # Unique ID for this test event source
-            document_data=EventDocumentDataBase(  # Basic document data for the event
+            integration_id="marvin_test_event_notification",
+            workspace_id=self.group_id,
+            document_data=EventDocumentDataBase(
                 document_type=EventDocumentType.generic, operation=EventOperation.info
             ),
         )
