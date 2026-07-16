@@ -646,10 +646,14 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         });
         if (res.ok) { const t = await res.json().catch(() => null); if (t?.id) finalTemplateId = t.id; }
       } else {
-        await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, {
+        const patchRes = await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
           body: JSON.stringify(tplBody),
         });
+        if (!patchRes.ok) {
+          const d = await patchRes.json().catch(() => ({}));
+          throw new Error(d.detail || `Template update failed: ${patchRes.status}`);
+        }
       }
 
       // 2. Delete old subscription if editing
