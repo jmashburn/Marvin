@@ -26,6 +26,7 @@ from marvin.services.event_bus_service.event_bus_listener import (
     AppriseEventListener,
     AuditLogListener,
     ConsoleEventListener,
+    EmailEventListener,
     EventListenerBase,
     ScheduledTaskListener,
     WebhookEventListener,
@@ -150,6 +151,7 @@ class EventBusService(BaseService):
             ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
             AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.
+            EmailEventListener(group_id),  # Fires email templates on matching events.
         ]
 
     def _publish_event(self, event: Event, group_id: UUID4) -> None:

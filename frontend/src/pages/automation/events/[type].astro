@@ -11,9 +11,12 @@ const { type } = Astro.params;
 
 let eventInfo: any = null;
 let emailTemplates: any[] = [];
+let emailSubscriptions: any[] = [];
 let webhooks: any[] = [];
 let notifications: any[] = [];
 let error: string | null = null;
+
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
 try {
   const allTypes = await sdk.events.getOptions() as any[];
@@ -25,6 +28,12 @@ try {
 
   const workspace = await getCurrentWorkspace(authToken!);
   const wsId = workspace?.id;
+
+  const emailSubsRes = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+    headers: authToken ? { 'Authorization': `Bearer ${authToken}`, 'Cookie': `marvin.access_token=${authToken}` } : {},
+    credentials: 'include',
+  }).then(r => r.ok ? r.json() : []).catch(() => []);
+  emailSubscriptions = Array.isArray(emailSubsRes) ? emailSubsRes : [];
 
   const [emailRes, webhookRes, notifRes] = await Promise.all([
     wsId ? listEmailTemplates(wsId, authToken).catch(() => []) : Promise.resolve([]),
@@ -38,8 +47,6 @@ try {
   console.error('[events/type] Error:', e);
   error = e instanceof Error ? e.message : String(e);
 }
-
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
 function buildExamplePayload(eventType: string, variables: any[]): object {
   const varExamples: Record<string, string> = {};
@@ -90,10 +97,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             {emailTemplates.map((t: any) => {
               const isSystem = !((t as any).groupId ?? t.group_id);
               const tplType = (t as any).templateType ?? t.template_type;
+              const sub = emailSubscriptions.find((s: any) => s.template_id === t.id && s.event_type === type);
+              const isConnected = !!sub;
               return (
-                <div class="sub-option">
+                <div class:list={['sub-option', { 'sub-option-connected': isConnected }]}>
                   <div class="sub-option-info">
                     <div class="sub-option-name-row">
+                      {isConnected && <span class="connected-check">&#10003;</span>}
                       <strong>{t.name}</strong>
                       {isSystem
                         ? <span class="tpl-badge tpl-badge-system">Default</span>
@@ -102,11 +112,14 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                     <code class="sub-type">{tplType}</code>
                   </div>
                   <button
-                    class="button secondary small connect-email-btn"
+                    class:list={['button', 'small', isConnected ? 'secondary' : '', 'connect-email-btn']}
                     data-template-id={t.id}
+                    data-template-name={t.name}
                     data-event-type={type}
+                    data-subscription-id={sub?.id ?? ''}
+                    data-is-connected={isConnected ? 'true' : 'false'}
                   >
-                    Connect
+                    {isConnected ? 'Disconnect' : 'Connect'}
                   </button>
                 </div>
               );
@@ -224,7 +237,49 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   </div>
 </div>
 
-<script define:vars={{ type, apiUrl, examplePayload }}>
+<!-- Email connection modal -->
+<div id="email-modal" class="wh-modal" style="display:none" aria-modal="true">
+  <div class="wh-overlay"></div>
+  <div class="wh-content">
+    <div class="wh-header">
+      <div>
+        <h3 id="em-title">Connect Email Template</h3>
+        <code id="em-template-name" class="wh-url"></code>
+      </div>
+      <button type="button" id="em-close" class="wh-close">✕</button>
+    </div>
+    <div class="wh-body">
+      <p class="wh-label">Who should receive this email?</p>
+      <div class="em-recipient-options">
+        <label class="em-radio-label">
+          <input type="radio" name="em-recipient-type" value="admins" checked />
+          Workspace admins
+        </label>
+        <label class="em-radio-label">
+          <input type="radio" name="em-recipient-type" value="event_field" />
+          Field from event data
+          <select id="em-event-field" class="em-field-select" style="display:none">
+            <!-- populated by JS -->
+          </select>
+        </label>
+        <label class="em-radio-label">
+          <input type="radio" name="em-recipient-type" value="specific" />
+          Specific email address
+          <input type="email" id="em-specific-email" class="em-email-input" placeholder="user@example.com" style="display:none" />
+        </label>
+      </div>
+    </div>
+    <div class="wh-footer">
+      <span id="em-note" class="wh-note"></span>
+      <div class="wh-actions">
+        <button type="button" id="em-confirm" class="button">Connect</button>
+        <button type="button" id="em-cancel" class="button secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload }}>
   // Webhook modal
   const modal = document.getElementById('webhook-modal');
   const whTitle = document.getElementById('wh-title');
@@ -316,11 +371,108 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     }
   });
 
-  // Email connect
-  document.querySelectorAll('.connect-email-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      alert('Email template connection coming soon.\n\nThis will fire the selected template when "' + type + '" events occur.');
+  // Email connect — open modal
+  const emailModal = document.getElementById('email-modal');
+  const emTitle = document.getElementById('em-title');
+  const emTemplateName = document.getElementById('em-template-name');
+  const emConfirm = document.getElementById('em-confirm');
+  const emNote = document.getElementById('em-note');
+  const emEventField = document.getElementById('em-event-field');
+  const emSpecificEmail = document.getElementById('em-specific-email');
+  let activeEmailTemplateId = null;
+  let activeEmailSubscriptionId = null;
+  let activeEmailIsConnected = false;
+
+  // Populate event field dropdown from catalog variables
+  const eventVarSlugs = (examplePayload?.documentData ? Object.keys(examplePayload.documentData) : []);
+  if (emEventField) {
+    emEventField.innerHTML = eventVarSlugs.map(slug => `<option value="${slug}">${slug}</option>`).join('');
+    if (eventVarSlugs.length === 0) {
+      emEventField.innerHTML = '<option value="" disabled>No fields available</option>';
+    }
+  }
+
+  document.querySelectorAll('input[name="em-recipient-type"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (emEventField) emEventField.style.display = val === 'event_field' ? 'inline-block' : 'none';
+      if (emSpecificEmail) emSpecificEmail.style.display = val === 'specific' ? 'inline-block' : 'none';
     });
+  });
+
+  function openEmailModal(btn) {
+    activeEmailTemplateId = btn.dataset.templateId;
+    activeEmailSubscriptionId = btn.dataset.subscriptionId || '';
+    activeEmailIsConnected = btn.dataset.isConnected === 'true';
+    const name = btn.dataset.templateName || 'Template';
+    if (emTitle) emTitle.textContent = (activeEmailIsConnected ? 'Connected: ' : 'Connect: ') + name;
+    if (emTemplateName) emTemplateName.textContent = name;
+    if (emNote) emNote.innerHTML = activeEmailIsConnected
+      ? '&#10003; Fires on every <strong>' + type + '</strong> event.'
+      : 'Send this template when <strong>' + type + '</strong> fires.';
+    if (emConfirm) {
+      emConfirm.textContent = activeEmailIsConnected ? 'Disconnect' : 'Connect';
+      emConfirm.className = activeEmailIsConnected ? 'button secondary danger' : 'button';
+    }
+    if (emailModal) {
+      emailModal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+  }
+
+  function closeEmailModal() {
+    if (emailModal) emailModal.style.display = 'none';
+    document.body.style.overflow = '';
+    activeEmailTemplateId = null;
+    activeEmailSubscriptionId = null;
+  }
+
+  document.querySelectorAll('.connect-email-btn').forEach(btn => {
+    btn.addEventListener('click', () => openEmailModal(btn));
+  });
+  document.getElementById('em-close')?.addEventListener('click', closeEmailModal);
+  document.getElementById('em-cancel')?.addEventListener('click', closeEmailModal);
+  document.querySelector('#email-modal .wh-overlay')?.addEventListener('click', closeEmailModal);
+
+  emConfirm?.addEventListener('click', async () => {
+    if (!activeEmailTemplateId) return;
+    emConfirm.disabled = true;
+    emConfirm.textContent = 'Saving…';
+    try {
+      if (activeEmailIsConnected && activeEmailSubscriptionId) {
+        const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${activeEmailSubscriptionId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!res.ok && res.status !== 204) throw new Error(`DELETE failed: ${res.status}`);
+      } else {
+        const recipientType = document.querySelector('input[name="em-recipient-type"]:checked')?.value || 'admins';
+        const body = {
+          template_id: activeEmailTemplateId,
+          event_type: type,
+          recipient_type: recipientType,
+          recipient_field: recipientType === 'event_field' ? emEventField?.value : null,
+          recipient_email: recipientType === 'specific' ? emSpecificEmail?.value : null,
+          enabled: true,
+        };
+        const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.detail || `POST failed: ${res.status}`);
+        }
+      }
+      closeEmailModal();
+      window.location.reload();
+    } catch (e) {
+      alert('Error: ' + e.message);
+      emConfirm.disabled = false;
+      emConfirm.textContent = activeEmailIsConnected ? 'Disconnect' : 'Connect';
+    }
   });
 
   // Notification connect/disconnect
@@ -355,51 +507,6 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
 </AppLayout>
 
-<script define:vars={{ type, apiUrl }}>
-  // Email connect — just navigates to the template editor for now
-  // (full wiring requires the event listener backend)
-  document.querySelectorAll('.connect-email-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const templateId = btn.dataset.templateId;
-      alert('Email template connected (in development).\n\nThis will fire the selected template when "' + type + '" events occur.\n\nFull event → email wiring coming soon.');
-    });
-  });
-
-  // Notification connect/disconnect
-  document.querySelectorAll('[data-notifier-id]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const notifierId = btn.dataset.notifierId;
-      const eventType = btn.dataset.eventType;
-      const isConnected = btn.dataset.connected === 'true';
-
-      try {
-        if (isConnected) {
-          // Disconnect: remove via Notifications edit page for now
-          alert('To disconnect, edit the notification directly from the Notifications page.');
-        } else {
-          // Connect: add option slug to notification
-          const res = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, { credentials: 'include' });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const notif = await res.json();
-          const currentOptions = notif.options ?? [];
-          const newSlug = 'core.' + eventType;
-
-          const putRes = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ ...notif, options: [...currentOptions, newSlug] }),
-          });
-          if (!putRes.ok) throw new Error(`HTTP ${putRes.status}`);
-          window.location.reload();
-        }
-      } catch (e) {
-        alert('Failed to update notification subscription');
-        console.error(e);
-      }
-    });
-  });
-</script>
 
 <style>
   .alert {
@@ -761,5 +868,32 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     font-size: 13px;
     flex-shrink: 0;
   }
+
+  /* Email modal recipient options */
+  .em-recipient-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .em-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .em-field-select,
+  .em-email-input {
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .em-email-input { min-width: 220px; }
 
 </style>

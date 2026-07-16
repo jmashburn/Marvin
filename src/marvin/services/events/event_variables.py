@@ -1,0 +1,29 @@
+"""Build a flat variable dict from an Event for use in email template rendering."""
+
+from fastapi.encoders import jsonable_encoder
+
+from marvin.services.event_bus_service.event_types import Event
+
+
+def build_event_variables(event: Event) -> dict:
+    """Return a flat dict of all variables available for event-triggered email templates.
+
+    Pulls all fields from event.document_data, plus top-level event metadata.
+    Template authors can reference any of these as {{ variable_name }}.
+    """
+    variables: dict = {}
+
+    if event.document_data is not None:
+        raw = jsonable_encoder(event.document_data, exclude_none=True)
+        if isinstance(raw, dict):
+            variables.update(raw)
+
+    variables["event_type"] = event.event_type.name
+    variables["timestamp"] = event.timestamp.isoformat() if event.timestamp else ""
+    variables["workspace_id"] = str(event.workspace_id)
+    if event.user_id:
+        variables["user_id"] = str(event.user_id)
+    if event.entity_id:
+        variables["entity_id"] = str(event.entity_id)
+
+    return variables

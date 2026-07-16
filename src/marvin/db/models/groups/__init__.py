@@ -1,3 +1,5 @@
+from .email_event_subscriptions import *
+from .email_templates import *
 from .events import *
 from .groups import *
 from .invite_tokens import *

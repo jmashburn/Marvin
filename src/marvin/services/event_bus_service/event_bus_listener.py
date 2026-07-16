@@ -799,6 +799,98 @@ class ConsoleEventListener(EventListenerBase):
         self.publisher.publish(event, subscribers)
 
 
+class EmailEventListener(EventListenerBase):
+    """
+    Event listener that fires email templates when a matching event occurs.
+
+    Reads EmailEventSubscription rows for the group, resolves recipients,
+    and sends email via EmailService._send_db_template.
+    """
+
+    def __init__(self, group_id) -> None:
+        from .publisher import ConsolePublisher
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[Any]:
+        if event.event_type == EventTypes.webhook_task:
+            return []
+        with self.ensure_repos(self.group_id) as repos:
+            return repos.email_event_subscriptions.multi_query(
+                {"event_type": event.event_type.name, "enabled": True}
+            )
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[Any]) -> None:
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+        from marvin.db.models.users.roles import WorkspaceRole
+        from marvin.db.models.users import Users
+        from marvin.services.email.email_service import EmailService
+        from marvin.services.events.event_variables import build_event_variables
+
+        variables = build_event_variables(event)
+        email_service = EmailService()
+
+        with self.ensure_session() as session:
+            for sub in subscribers:
+                template = session.get(EmailTemplateModel, sub.template_id)
+                if template is None or not template.enabled:
+                    self.logger.warning(f"EmailEventListener: template {sub.template_id} not found or disabled")
+                    continue
+
+                recipients = self._resolve_recipients(sub, variables, session)
+                if not recipients:
+                    self.logger.info(
+                        f"EmailEventListener: no recipients for subscription {sub.id} "
+                        f"(event={event.event_type.name})"
+                    )
+                    continue
+
+                for addr in recipients:
+                    try:
+                        self.logger.info(
+                            f"EmailEventListener: sending template '{template.name}' "
+                            f"to {addr} for event {event.event_type.name}"
+                        )
+                        email_service._send_db_template(addr, template, variables)
+                    except Exception as exc:
+                        self.logger.error(
+                            f"EmailEventListener: failed sending to {addr} "
+                            f"(template={template.name}, event={event.event_type.name}): {exc}"
+                        )
+
+    def _resolve_recipients(self, sub: Any, variables: dict, session) -> list[str]:
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+        from marvin.db.models.users.roles import WorkspaceRole
+        from marvin.db.models.users import Users
+        from sqlalchemy.orm import Session
+
+        match sub.recipient_type:
+            case "event_field":
+                field = sub.recipient_field
+                if field and field in variables:
+                    addr = variables[field]
+                    return [addr] if isinstance(addr, str) and addr else []
+                return []
+            case "specific":
+                return [sub.recipient_email] if sub.recipient_email else []
+            case "admins":
+                stmt = (
+                    select(Users.email)
+                    .join(WorkspaceMembers, WorkspaceMembers.user_id == Users.id)
+                    .where(
+                        WorkspaceMembers.group_id == self.group_id,
+                        WorkspaceMembers.workspace_role.in_(
+                            [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]
+                        ),
+                    )
+                )
+                rows = session.execute(stmt).scalars().all()
+                return [r for r in rows if r]
+            case _:
+                return []
+
+
 class AuditLogListener(EventListenerBase):
     """
     Event listener that persists all events to the database for audit trail.
