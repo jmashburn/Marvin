@@ -70,7 +70,10 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          Content always imports into <strong>{workspaceName}</strong> regardless of which workspace the bundle came from. If the bundle was exported from a different workspace, the workspace names won't match — that's fine, only the content (entries, assets, etc.) is imported.
+          <div>
+            <p class="target-note-headline">Content always imports into <strong>{workspaceName}</strong></p>
+            <p class="target-note-body">If the bundle was exported from a different workspace, the workspace names won't match — that's fine, only the content (entries, assets, etc.) is imported here.</p>
+          </div>
         </div>
         <div class="card-header">
           <div>
@@ -310,12 +313,26 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
 
   .target-note svg {
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: 3px;
     color: var(--muted);
   }
 
-  .target-note strong {
+  .target-note-headline {
+    margin: 0;
+    font-weight: 500;
     color: var(--ink);
+    font-size: 0.875rem;
+  }
+
+  .target-note-headline strong {
+    font-weight: 600;
+  }
+
+  .target-note-body {
+    margin: 0.375rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    line-height: 1.5;
   }
 
   .overwrite-label {
