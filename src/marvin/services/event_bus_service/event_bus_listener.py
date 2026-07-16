@@ -421,7 +421,7 @@ class WebhookEventListener(EventListenerBase):
 
             # Filter webhooks by subscribed_events in Python (SQLite compatible)
             # subscribed_events is stored as JSON array, filter to those containing this event
-            filtered_webhooks = [wh for wh in db_webhooks if wh.subscribed_events and event.event_type.value in wh.subscribed_events]
+            filtered_webhooks = [wh for wh in db_webhooks if wh.subscribed_events and event.event_type.name in wh.subscribed_events]
 
             return [WebhookRead.model_validate(wh) for wh in filtered_webhooks]
 
