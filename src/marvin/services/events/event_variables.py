@@ -32,6 +32,14 @@ def build_event_variables(event: Event) -> dict:
         variables["message_title"] = event.message.title or ""
         variables["message_body"] = event.message.body or ""
 
+    # Convenience alias — whichever email field is in the event
+    variables["email_address"] = (
+        variables.get("invitee_email")
+        or variables.get("recipient_email")
+        or variables.get("email")
+        or ""
+    )
+
     # Derive button_link from whichever URL field is present
     variables["button_link"] = (
         variables.get("invitation_url")
