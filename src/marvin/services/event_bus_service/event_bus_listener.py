@@ -501,6 +501,14 @@ class WebhookEventListener(EventListenerBase):
             "trigger": "scheduled",
         }
 
+        # Base context always included in data — receivers always know when/where
+        base_data = {
+            "timestamp": now_iso,
+            "workspace_id": str(self.group_id),
+            "workspace_name": workspace_name,
+            "workspace_slug": workspace_slug,
+        }
+
         for webhook_config in subscribers_webhooks:
 
             handler_data: dict = {}
@@ -518,9 +526,8 @@ class WebhookEventListener(EventListenerBase):
                                 f"(type={webhook_type_name}): {e}"
                             )
 
-            clean_payload: dict = {}
-            if handler_data:
-                clean_payload["data"] = handler_data
+            data = {**base_data, **handler_data}
+            clean_payload: dict = {"data": data}
             if webhook_config.custom_payload:
                 clean_payload["meta"] = apply_substitutions(
                     webhook_config.custom_payload, self.group_id, context
