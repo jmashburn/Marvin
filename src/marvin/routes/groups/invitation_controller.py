@@ -109,6 +109,7 @@ class GroupInvitationsController(BaseUserController):
                 workspace_name=self.group.name if self.group else "",
                 inviter_name=self.user.full_name or self.user.username or "",
                 uses_left=created_token.uses_left,
+                invitation_url=f"{self.settings.BASE_URL}/register?token={created_token.token}",
             ),
             message=f"Invitation token created with {created_token.uses_left} uses",
         )
