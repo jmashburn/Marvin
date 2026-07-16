@@ -816,7 +816,15 @@ class ConsoleEventListener(EventListenerBase):
         Returns:
             list[str]: Always returns ["console"] to log all events.
         """
-        # Always log all events to console
+        _INTERNAL = {
+            EventTypes.webhook_task,
+            EventTypes.scheduled_task_triggered,
+            EventTypes.scheduled_task_started,
+            EventTypes.scheduled_task_completed,
+            EventTypes.scheduled_task_failed,
+        }
+        if event.event_type in _INTERNAL:
+            return []
         return ["console"]
 
     def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
