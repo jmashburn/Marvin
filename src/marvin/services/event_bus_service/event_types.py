@@ -581,8 +581,12 @@ class EventEntryData(EventDocumentDataBase):
     """The type/schema of the entry."""
     workspace_id: UUID4
     """The workspace containing the entry."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     author_id: UUID4 | None = None
     """The user who created/modified the entry."""
+    author_name: str | None = None
+    """The full name of the entry author."""
 
 
 class EventFormData(EventDocumentDataBase):
