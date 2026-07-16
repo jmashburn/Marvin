@@ -330,13 +330,6 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   </div>
 </div>
 
-<script>
-  import { marked } from 'marked';
-  marked.use({ breaks: true });
-  window.__marvinMarked = (md) => marked(md);
-  window.__marvinMarkedReady = true;
-</script>
-
 <script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId: wsId ?? null }}>
   // Webhook modal
   const modal = document.getElementById('webhook-modal');
@@ -429,25 +422,67 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     }
   });
 
-  // ── Markdown rendering via marked (injected by sibling <script>) ─────────
+  // ── Markdown parser — inline, block-level, no external dependency ────────
+  function _mdInline(s) {
+    return s
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  }
+
+  function _mdParse(md) {
+    const lines = md.split('\n');
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.startsWith('```')) {
+        const code = []; i++;
+        while (i < lines.length && !lines[i].startsWith('```')) code.push(lines[i++]);
+        out.push('<pre><code>' + code.join('\n') + '</code></pre>'); i++; continue;
+      }
+      const hm = line.match(/^(#{1,3})\s+(.*)/);
+      if (hm) { out.push(`<h${hm[1].length}>${_mdInline(hm[2])}</h${hm[1].length}>`); i++; continue; }
+      if (/^[-*]\s/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^[-*]\s/.test(lines[i])) items.push('<li>' + _mdInline(lines[i++].replace(/^[-*]\s/, '')) + '</li>');
+        out.push('<ul>' + items.join('') + '</ul>'); continue;
+      }
+      if (/^\d+\.\s/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^\d+\.\s/.test(lines[i])) items.push('<li>' + _mdInline(lines[i++].replace(/^\d+\.\s/, '')) + '</li>');
+        out.push('<ol>' + items.join('') + '</ol>'); continue;
+      }
+      if (line.startsWith('> ')) { out.push('<blockquote><p>' + _mdInline(line.slice(2)) + '</p></blockquote>'); i++; continue; }
+      if (/^---+$/.test(line.trim())) { out.push('<hr>'); i++; continue; }
+      if (line.trim()) {
+        const para = [];
+        while (i < lines.length && lines[i].trim()) para.push(lines[i++]);
+        out.push('<p>' + para.map(_mdInline).join('<br>') + '</p>'); continue;
+      }
+      i++;
+    }
+    return out.join('\n');
+  }
+
+  function _mdConvert(md) {
+    if (!md || !md.trim()) return '';
+    const vars = [];
+    const safe = md.replace(/\{\{[^}]+\}\}/g, m => { vars.push(m); return `\x00V${vars.length - 1}\x00`; });
+    let html = _mdParse(safe);
+    vars.forEach((v, i) => { html = html.replaceAll(`\x00V${i}\x00`, v); });
+    return html;
+  }
+
   function parseMarkdown(md) {
-    if (!md || !md.trim()) return '<span class="em-md-empty">Nothing to preview</span>';
-    if (window.__marvinMarked) return window.__marvinMarked(md);
-    // Fallback if marked hasn't initialised yet — good enough for a glance
-    return '<p>' + md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
-      .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>') + '</p>';
+    return (!md || !md.trim()) ? '<span class="em-md-empty">Nothing to preview</span>' : _mdConvert(md);
   }
 
   function markdownToHtml(md) {
-    if (!md || !md.trim()) return '';
-    if (!window.__marvinMarked) throw new Error('Markdown renderer not ready — please try again.');
-    // Protect {{ variables }} — replace before parsing, restore after
-    const vars = [];
-    const safe = md.replace(/\{\{[^}]+\}\}/g, m => { vars.push(m); return `\x00VAR${vars.length-1}\x00`; });
-    let html = window.__marvinMarked(safe);
-    vars.forEach((v, i) => { html = html.replaceAll(`\x00VAR${i}\x00`, v); });
-    return html;
+    return _mdConvert(md);
   }
 
   // ── Email modal ──────────────────────────────────────────────────────────
@@ -627,13 +662,12 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       // 1. Save template edits
       const subject = document.getElementById('em-subject')?.value?.trim();
       const markdownBody = emMdBody?.value?.trim() || '';
-      const renderedHtml = markdownBody ? markdownToHtml(markdownBody) : null;
       let finalTemplateId = emTemplateId;
 
       const tplBody = {
         subject,
-        message_top: markdownBody,           // source for re-editing
-        custom_html: markdownToHtml(markdownBody) || '',  // rendered HTML for sending
+        message_top: markdownBody,
+        custom_html: markdownToHtml(markdownBody) || '',
       };
       if (emIsSystemTemplate) {
         const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
