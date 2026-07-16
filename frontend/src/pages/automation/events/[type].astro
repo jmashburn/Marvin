@@ -469,26 +469,32 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     if (emTitle) emTitle.textContent = (activeEmailIsEdit ? 'Edit: ' : 'Connect: ') + name;
     if (emTemplateName) emTemplateName.textContent = name;
     if (emNote) emNote.innerHTML = activeEmailIsEdit
-      ? 'Update recipient settings for <strong>' + type + '</strong>.'
+      ? 'Update recipient and template for <strong>' + type + '</strong>.'
       : 'Send this template when <strong>' + type + '</strong> fires.';
     if (emConfirm) {
-      emConfirm.textContent = activeEmailIsEdit ? 'Save' : 'Next: Edit Template →';
+      emConfirm.textContent = activeEmailIsEdit ? 'Next: Edit Template →' : 'Next: Edit Template →';
       emConfirm.className = 'button';
     }
-    // Pre-fill fields in edit mode
-    if (activeEmailIsEdit) {
-      const rt = btn.dataset.recipientType || 'admins';
-      const radio = document.querySelector(`input[name="em-recipient-type"][value="${rt}"]`);
-      if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
-      if (rt === 'event_field' && emEventField) emEventField.value = btn.dataset.recipientField || '';
-      if (rt === 'specific' && emSpecificEmail) emSpecificEmail.value = btn.dataset.recipientEmail || '';
-    } else {
-      const defaultRadio = document.querySelector('input[name="em-recipient-type"][value="admins"]');
-      if (defaultRadio) { defaultRadio.checked = true; defaultRadio.dispatchEvent(new Event('change')); }
-    }
+    // Pre-fill recipient fields
+    const rt = activeEmailIsEdit ? (btn.dataset.recipientType || 'admins') : 'admins';
+    const radio = document.querySelector(`input[name="em-recipient-type"][value="${rt}"]`);
+    if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
+    if (rt === 'event_field' && emEventField) emEventField.value = btn.dataset.recipientField || '';
+    if (rt === 'specific' && emSpecificEmail) emSpecificEmail.value = btn.dataset.recipientEmail || '';
+
     if (emailModal) {
       emailModal.style.display = 'flex';
       document.body.style.overflow = 'hidden';
+    }
+
+    // Edit mode: skip straight to template editor step
+    if (activeEmailIsEdit) {
+      const config = collectRecipientConfig();
+      if (config) {
+        // Delete old subscription will happen on final Save
+        pendingConfig = { ...config, _editSubscriptionId: activeEmailSubscriptionId };
+        expandToTemplateEditor(config);
+      }
     }
   }
 
@@ -595,9 +601,9 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     const templateSectionVisible = document.getElementById('em-template-section')?.style.display !== 'none';
     if (templateSectionVisible && pendingConfig) {
       emConfirm.disabled = true;
-      emConfirm.textContent = 'Connecting…';
+      emConfirm.textContent = 'Saving…';
       try {
-        // Save template edits first (PATCH workspace template or skip for system)
+        // Save template edits via PATCH
         const subject = document.getElementById('em-subject')?.value?.trim();
         const messageTop = document.getElementById('em-message-top')?.value?.trim();
         if (subject || messageTop) {
@@ -608,10 +614,18 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             body: JSON.stringify({ subject, message_top: messageTop }),
           }).catch(() => {});
         }
+        // Delete old subscription if editing
+        const oldSubId = pendingConfig._editSubscriptionId;
+        if (oldSubId) {
+          await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${oldSubId}`, {
+            method: 'DELETE', credentials: 'include',
+          }).catch(() => {});
+        }
         // Create subscription
+        const { _editSubscriptionId, ...subPayload } = pendingConfig;
         const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-          body: JSON.stringify(pendingConfig),
+          body: JSON.stringify(subPayload),
         });
         if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.detail || `POST failed: ${res.status}`); }
         closeEmailModal();
@@ -619,7 +633,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       } catch (e) {
         alert('Error: ' + e.message);
         emConfirm.disabled = false;
-        emConfirm.textContent = 'Connect';
+        emConfirm.textContent = 'Save';
       }
       return;
     }

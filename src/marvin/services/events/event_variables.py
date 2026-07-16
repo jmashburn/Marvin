@@ -14,7 +14,8 @@ def build_event_variables(event: Event) -> dict:
     variables: dict = {}
 
     if event.document_data is not None:
-        raw = jsonable_encoder(event.document_data, exclude_none=True)
+        # by_alias=False ensures snake_case keys so {{ workspace_name }} works in templates
+        raw = jsonable_encoder(event.document_data, exclude_none=True, by_alias=False)
         if isinstance(raw, dict):
             variables.update(raw)
 
