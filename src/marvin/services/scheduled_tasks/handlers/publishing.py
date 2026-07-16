@@ -22,10 +22,9 @@ logger = get_logger(__name__)
 
 class PublishScheduledEntriesHandler(ScheduledTaskHandler):
     """
-    Publish entries with publish_at <= now.
+    Publish entries with publish_at <= now, scoped to the task's workspace.
 
     Configuration (task_config):
-    - workspace_id: str (required) - Workspace to scan for scheduled entries
     - dry_run: bool (default: False) - If true, log what would be published
     """
 
@@ -34,13 +33,12 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
-        raw_workspace_id = config.get("workspace_id") or task.group_id
         dry_run = config.get("dry_run", False)
 
-        if not raw_workspace_id:
-            raise ValueError("workspace_id is required in task_config or task.group_id")
+        if not task.group_id:
+            raise ValueError("Task has no workspace scope — cannot publish entries")
 
-        workspace_id = UUID(str(raw_workspace_id))
+        workspace_id = UUID(str(task.group_id))
 
         with session_context() as session:
             now = datetime.now(UTC)
@@ -98,10 +96,9 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
 
 class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
     """
-    Unpublish entries with expire_at <= now.
+    Unpublish entries with expire_at <= now, scoped to the task's workspace.
 
     Configuration (task_config):
-    - workspace_id: str (required) - Workspace to scan for expired entries
     - dry_run: bool (default: False) - If true, log what would be unpublished
     """
 
@@ -110,13 +107,12 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
-        raw_workspace_id = config.get("workspace_id") or task.group_id
         dry_run = config.get("dry_run", False)
 
-        if not raw_workspace_id:
-            raise ValueError("workspace_id is required in task_config or task.group_id")
+        if not task.group_id:
+            raise ValueError("Task has no workspace scope — cannot unpublish entries")
 
-        workspace_id = UUID(str(raw_workspace_id))
+        workspace_id = UUID(str(task.group_id))
 
         with session_context() as session:
             now = datetime.now(UTC)
@@ -173,10 +169,9 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
 
 class RequestSiteRebuildHandler(ScheduledTaskHandler):
     """
-    Trigger a static site rebuild via webhook.
+    Trigger a static site rebuild via webhook, scoped to the task's workspace.
 
     Configuration (task_config):
-    - workspace_id: str (required) - Workspace context for the rebuild
     - reason: str (default: "scheduled") - Reason for the rebuild
     """
 
@@ -185,13 +180,12 @@ class RequestSiteRebuildHandler(ScheduledTaskHandler):
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
-        raw_workspace_id = config.get("workspace_id") or task.group_id
         reason = config.get("reason", "scheduled")
 
-        if not raw_workspace_id:
-            raise ValueError("workspace_id is required in task_config or task.group_id")
+        if not task.group_id:
+            raise ValueError("Task has no workspace scope — cannot request site rebuild")
 
-        workspace_id = UUID(str(raw_workspace_id))
+        workspace_id = UUID(str(task.group_id))
 
         event_bus.dispatch(
             integration_id="scheduled_tasks",

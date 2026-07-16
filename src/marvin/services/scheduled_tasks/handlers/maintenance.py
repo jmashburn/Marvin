@@ -112,7 +112,7 @@ class PruneExpiredSessionsHandler(ScheduledTaskHandler):
 
 class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
     """
-    Remove expired workspace invitations.
+    Remove expired workspace invitations scoped to the task's workspace.
 
     Configuration (task_config):
     - age_days: int (default: 30) - Invitations older than this are deleted
@@ -134,6 +134,9 @@ class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         from marvin.db.models.groups.invite_tokens import GroupInviteToken
 
+        if not task.group_id:
+            return "Skipped: task has no workspace scope"
+
         config = task.task_config
         age_days = config.get("age_days", 30)
         cutoff = datetime.now(UTC) - timedelta(days=age_days)
@@ -141,7 +144,10 @@ class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
         with session_context() as session:
             expired = (
                 session.query(GroupInviteToken)
-                .filter(GroupInviteToken.created_at <= cutoff)
+                .filter(
+                    GroupInviteToken.group_id == task.group_id,
+                    GroupInviteToken.created_at <= cutoff,
+                )
                 .all()
             )
             count = len(expired)
@@ -156,16 +162,16 @@ class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
 
 class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
     """
-    Find and optionally remove assets not linked to any entries.
+    Find and optionally remove assets not linked to any entries,
+    scoped to the task's workspace.
 
     Configuration (task_config):
     - age_days: int (default: 30) - Only consider assets older than this
     - auto_delete: bool (default: False) - If true, delete orphans; if false, just report
-    - workspace_id: str (optional) - Limit to specific workspace
     """
 
     name = "Remove Orphaned Assets"
-    description = "Find (and optionally delete) assets not linked to any entries"
+    description = "Find (and optionally delete) assets not linked to any entries in this workspace"
     config_schema = {
         "type": "object",
         "properties": {
@@ -179,34 +185,39 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
                 "default": False,
                 "description": "If true, delete orphans; if false, just report",
             },
-            "workspace_id": {
-                "type": "string",
-                "description": "Limit scan to this workspace UUID (omit for all workspaces)",
-            },
         },
     }
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         from marvin.db.models.platform import Assets, EntryAssets
 
+        if not task.group_id:
+            return "Skipped: task has no workspace scope"
+
         config = task.task_config
         age_days = config.get("age_days", 30)
         auto_delete = config.get("auto_delete", False)
-        workspace_id_raw = config.get("workspace_id")
-        workspace_id = UUID(str(workspace_id_raw)) if workspace_id_raw else None
+        workspace_id = task.group_id
 
         cutoff = datetime.now(UTC) - timedelta(days=age_days)
 
         with session_context() as session:
-            q = session.query(Assets).filter(Assets.created_at <= cutoff)
-            if workspace_id:
-                q = q.filter(Assets.group_id == workspace_id)
+            all_assets = (
+                session.query(Assets)
+                .filter(
+                    Assets.group_id == workspace_id,
+                    Assets.created_at <= cutoff,
+                )
+                .all()
+            )
 
-            all_assets = q.all()
-
+            # Only consider entry-asset links within this workspace
             linked_ids = {
                 row[0]
-                for row in session.query(EntryAssets.asset_id).all()
+                for row in session.query(EntryAssets.asset_id)
+                .join(Assets, Assets.id == EntryAssets.asset_id)
+                .filter(Assets.group_id == workspace_id)
+                .all()
             }
 
             orphans = [a for a in all_assets if a.id not in linked_ids]
@@ -220,10 +231,9 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
             else:
                 label = "found (auto_delete=false, not removed)"
 
-        scope = str(workspace_id) if workspace_id else "all workspaces"
         summary = (
             f"{count} orphaned asset{'s' if count != 1 else ''} {label} "
-            f"(older than {age_days} days, scope: {scope})"
+            f"(older than {age_days} days)"
         )
         logger.info("Orphaned asset scan: %s", summary)
         return summary
