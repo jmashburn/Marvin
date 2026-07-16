@@ -873,7 +873,9 @@ class EmailEventListener(EventListenerBase):
                     return [addr] if isinstance(addr, str) and addr else []
                 return []
             case "specific":
-                return [sub.recipient_email] if sub.recipient_email else []
+                if not sub.recipient_email:
+                    return []
+                return [a.strip() for a in sub.recipient_email.split(",") if a.strip()]
             case "admins":
                 stmt = (
                     select(Users.email)
