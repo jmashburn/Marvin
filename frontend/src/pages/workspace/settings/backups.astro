@@ -30,6 +30,7 @@ try {
 
 const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
 const workspaceName = (workspace as any)?.name ?? 'this workspace';
+const workspaceSlug = (workspace as any)?.slug ?? 'workspace';
 ---
 
 <AppLayout title="Backups" eyebrow="Settings">
@@ -372,7 +373,7 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
   }
 </style>
 
-<script>
+<script define:vars={{ workspaceSlug }}>
   // Export bundle
   const exportBtn = document.getElementById('export-bundle-btn') as HTMLButtonElement | null;
   if (exportBtn) {
@@ -387,7 +388,7 @@ const workspaceName = (workspace as any)?.name ?? 'this workspace';
         const a = document.createElement('a');
         a.href = url;
         const today = new Date().toISOString().split('T')[0];
-        a.download = `workspace-backup-${today}.zip`;
+        a.download = `${workspaceSlug}-backup-${today}.zip`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
