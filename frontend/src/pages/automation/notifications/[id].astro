@@ -79,7 +79,7 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
             />
             <small class="hint">
               See <a href="https://github.com/caronc/apprise" target="_blank" rel="noopener">Apprise docs</a> for URL formats.
-              Use <code>&#123;&#123;SLUG&#125;&#125;</code> to reference a <a href="/workspace/settings/environment">workspace variable</a>.
+              Use <code>&#123;&#123;SLUG&#125;&#125;</code> to embed a <a href="/workspace/settings/environment">workspace secret or variable</a> — e.g. <code>slack://&#123;&#123;SLACK_TOKEN&#125;&#125;/#channel</code>.
               {currentAppriseUrl && ' Leave blank to keep the existing URL.'}
             </small>
           </div>
