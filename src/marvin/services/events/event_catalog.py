@@ -36,6 +36,8 @@ COMMON_VARS = [
     EventVariable("message_body", "Optional description passed when the event was dispatched", "", type="string"),
     EventVariable("event_type", "Machine-readable event name", "entry_published", type="string"),
     EventVariable("timestamp", "ISO 8601 timestamp of when the event fired", "2026-07-16T10:00:00Z", type="datetime"),
+    EventVariable("email_address", "Email address from the event (invitee, recipient, etc.)", "user@example.com", type="email"),
+    EventVariable("button_link", "Primary URL from the event (invitation link, reset link, etc.)", "https://...", type="url"),
 ]
 
 CATALOG: list[CatalogEntry] = [

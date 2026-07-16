@@ -141,7 +141,7 @@ class EventsNotifierOptionsController(BaseUserController):
                 "category": entry.category,
                 "enabled": entry.enabled,
                 "variables": [
-                    {"slug": v.slug, "description": v.description, "example": v.example}
+                    {"slug": v.slug, "description": v.description, "example": v.example, "type": v.type}
                     for v in entry.variables
                 ],
                 "payloadExample": get_payload_example(entry.event_type),
