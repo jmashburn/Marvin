@@ -83,12 +83,15 @@ class WorkspaceExporter:
             import tempfile
             temp_dir = Path(tempfile.gettempdir())
 
-        zip_path = temp_dir / f"{workspace_slug}-export.zip"
+        from datetime import date
+
+        basename = f"{workspace_slug}-backup-{date.today().isoformat()}"
+        zip_path = temp_dir / f"{basename}.zip"
         storage_provider = get_storage_provider()
 
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             json_content = json.dumps(export_data, indent=2, ensure_ascii=False)
-            zf.writestr("workspace-export.json", json_content)
+            zf.writestr(f"{basename}.json", json_content)
 
             for asset in export_data["assets"]:
                 storage_key = asset["storageKey"]

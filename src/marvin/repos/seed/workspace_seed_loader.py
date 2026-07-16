@@ -67,7 +67,12 @@ class WorkspaceSeedLoader:
         self.logger.info(f"Loading workspace bundle from: {zip_path}")
 
         with zipfile.ZipFile(zip_path, "r") as zf:
-            with zf.open("workspace-export.json") as f:
+            # Find the root-level JSON file (name varies by export date/slug)
+            json_name = next(
+                (n for n in zf.namelist() if n.endswith(".json") and "/" not in n),
+                "workspace-export.json",  # fallback for older bundles
+            )
+            with zf.open(json_name) as f:
                 data = json.load(f)
 
             return self._load_data(data, zip_file=zf, overwrite=overwrite, target_group_id=target_group_id)
