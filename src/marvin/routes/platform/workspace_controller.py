@@ -4,7 +4,6 @@ import json
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Query, Response, UploadFile
-from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, JSONResponse
 
 from marvin.repos.seed.workspace_exporter import WorkspaceExporter
@@ -64,14 +63,13 @@ class WorkspaceController(BaseUserController):
         exporter = WorkspaceExporter(self.repos)
         zip_path = exporter.export_workspace_bundle(
             include_system_types=include_system_types,
-            temp_dir=self.directories.TEMP_DIR,
+            temp_dir=self.directories.BACKUP_DIR,
         )
 
         return FileResponse(
             path=str(zip_path),
             media_type="application/zip",
-            filename="workspace-export.zip",
-            background=BackgroundTask(zip_path.unlink, missing_ok=True),
+            filename=zip_path.name,
         )
 
     @router.post("/import", summary="Import Workspace Bundle")

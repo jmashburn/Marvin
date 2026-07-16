@@ -5,7 +5,6 @@ from uuid import uuid4
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import UUID4
-from starlette.background import BackgroundTask
 
 from marvin.repos.seed.workspace_exporter import WorkspaceExporter
 from marvin.repos.seed.workspace_seed_loader import WorkspaceSeedLoader
@@ -36,14 +35,13 @@ class AdminBackupsController(BaseAdminController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
         exporter = WorkspaceExporter(workspace_repos)
-        zip_path = exporter.export_workspace_bundle(temp_dir=self.directories.TEMP_DIR)
+        zip_path = exporter.export_workspace_bundle(temp_dir=self.directories.BACKUP_DIR)
 
         safe_slug = getattr(workspace, "slug", str(workspace_id))
         return FileResponse(
             path=str(zip_path),
             media_type="application/zip",
-            filename=f"{safe_slug}-export.zip",
-            background=BackgroundTask(zip_path.unlink, missing_ok=True),
+            filename=zip_path.name,
         )
 
     @router.post("/workspaces/{workspace_id}/import", summary="Admin: Import Workspace Bundle")
