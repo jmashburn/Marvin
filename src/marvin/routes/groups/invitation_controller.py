@@ -168,6 +168,8 @@ class GroupInvitationsController(BaseUserController):
                 recipient_address=invite_data.email,
                 invitation_url=registration_url,
                 group_id=str(self.group_id) if self.group_id else None,
+                workspace_name=self.group.name if self.group else "",
+                inviter_name=self.user.full_name or self.user.username or "",
             )
             if email_sent_successfully:
                 self.logger.info(f"Invitation email sent to {invite_data.email} with token {invite_data.token}")
