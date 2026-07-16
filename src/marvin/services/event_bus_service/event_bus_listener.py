@@ -518,7 +518,7 @@ class WebhookEventListener(EventListenerBase):
                                 f"(type={webhook_type_name}): {e}"
                             )
 
-            clean_payload: dict = {"type": webhook_type_name}
+            clean_payload: dict = {}
             if handler_data:
                 clean_payload["data"] = handler_data
             if webhook_config.custom_payload:
