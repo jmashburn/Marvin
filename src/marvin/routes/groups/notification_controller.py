@@ -280,7 +280,9 @@ class GroupEventsNotifierController(BaseUserController):
         # The `publish_to_subscribers` method here is used somewhat unconventionally
         # by passing a list containing just the single Apprise URL to test.
         try:
-            test_listener.publish_to_subscribers(test_event_payload, [notifier_config.apprise_url])
+            from marvin.services.secrets.resolver import resolve
+            resolved_url = resolve(notifier_config.apprise_url, group_id=self.group_id)
+            test_listener.publish_to_subscribers(test_event_payload, [resolved_url])
             self.logger.info(f"Test notification sent to notifier ID {item_id} (URL: {notifier_config.apprise_url}) for group {self.group_id}")
         except Exception as e:
             self.logger.error(f"Failed to send test notification for notifier ID {item_id}: {e}")
