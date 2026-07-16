@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -23,7 +23,6 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
-// Build connection map: eventType → { webhooks: string[], notifications: string[] }
 function getConnections(eventType: string) {
   const connectedWebhooks = webhooks.filter((w: any) => {
     const sub = (w as any).subscribedEvents ?? (w as any).subscribed_events ?? [];
@@ -36,120 +35,190 @@ function getConnections(eventType: string) {
   return { webhooks: connectedWebhooks, notifications: connectedNotifs };
 }
 
-const categoryFilter = Astro.url.searchParams.get('category') || 'all';
-
-const categories = [...new Set(eventTypes.map((e: any) => e.category).filter(Boolean))];
-const filtered = categoryFilter === 'all'
-  ? eventTypes
-  : eventTypes.filter((e: any) => e.category === categoryFilter);
+const categories = [...new Set(eventTypes.map((e: any) => e.category).filter(Boolean))] as string[];
+const groupedByCategory = categories.map(cat => ({
+  category: cat,
+  events: eventTypes.filter((e: any) => e.category === cat),
+}));
 ---
 
 <AppLayout title="Events" eyebrow="Automation">
   <div class="toolbar">
     <div>
       <h2>Events</h2>
-      <p>Events are dispatched when things happen in your workspace. Subscribe to them to trigger notifications, webhooks, and emails.</p>
+      <p>Events fire when things happen in your workspace. Subscribe to trigger webhooks, notifications, and emails.</p>
     </div>
   </div>
 
   {error ? (
-    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+    <div class="alert"><strong>Error:</strong> {error}</div>
   ) : (
-    <div class="events-layout">
-      <!-- Category filter -->
-      <div class="filters">
-        <a href="?category=all" class:list={['filter-btn', { active: categoryFilter === 'all' }]}>
-          All ({eventTypes.length})
-        </a>
-        {categories.map((cat: string) => (
-          <a href={`?category=${cat}`} class:list={['filter-btn', { active: categoryFilter === cat }]}>
-            {cat} ({eventTypes.filter((e: any) => e.category === cat).length})
-          </a>
+    <>
+      <div class="controls">
+        <input
+          type="search"
+          id="event-search"
+          class="filter-search"
+          placeholder="Search events…"
+          autocomplete="off"
+        />
+        <div class="view-toggle">
+          <button class="toggle-btn active" id="view-all">All ({eventTypes.length})</button>
+          <button class="toggle-btn" id="view-types">Types</button>
+        </div>
+      </div>
+
+      <!-- Flat list -->
+      <div id="view-all-section">
+        <div class="chips" id="chips-all">
+          {eventTypes.map((event: any) => {
+            const conn = getConnections(event.value);
+            const total = conn.webhooks.length + conn.notifications.length;
+            return (
+              <article
+                class:list={['event-chip', { connected: total > 0 }]}
+                data-name={event.label.toLowerCase()}
+                data-type={event.value.toLowerCase()}
+                data-desc={(event.description || '').toLowerCase()}
+                data-category={(event.category || '').toLowerCase()}
+              >
+                <div class="chip-left">
+                  <div class="chip-title">
+                    <span class="event-name">{event.label}</span>
+                    <code class="event-type">{event.value}</code>
+                  </div>
+                  {event.description && <p class="event-desc">{event.description}</p>}
+                </div>
+                <div class="chip-right">
+                  <span class="event-category">{event.category}</span>
+                  {total > 0 && (
+                    <span class="conn-dot" title={[
+                      ...conn.webhooks.map((w: any) => w.name),
+                      ...conn.notifications.map((n: any) => n.name),
+                    ].join(', ')}>●</span>
+                  )}
+                  <a href={`/automation/events/${event.value}`} class="button secondary small">
+                    {total > 0 ? 'Manage' : 'Subscribe'}
+                  </a>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div class="empty-state" id="no-results" style="display:none">
+          <p>No events match your search.</p>
+        </div>
+      </div>
+
+      <!-- Grouped by category -->
+      <div id="view-types-section" style="display:none">
+        {groupedByCategory.map(({ category, events }) => (
+          <details class="category-group" open data-category={category.toLowerCase()}>
+            <summary class="category-header">
+              <span class="collapse-chevron"></span>
+              <span class="category-name">{category}</span>
+              <span class="category-count">{events.length}</span>
+            </summary>
+            <div class="chips group-chips">
+              {events.map((event: any) => {
+                const conn = getConnections(event.value);
+                const total = conn.webhooks.length + conn.notifications.length;
+                return (
+                  <article
+                    class:list={['event-chip', { connected: total > 0 }]}
+                    data-name={event.label.toLowerCase()}
+                    data-type={event.value.toLowerCase()}
+                    data-desc={(event.description || '').toLowerCase()}
+                    data-category={(event.category || '').toLowerCase()}
+                  >
+                    <div class="chip-left">
+                      <div class="chip-title">
+                        <span class="event-name">{event.label}</span>
+                        <code class="event-type">{event.value}</code>
+                      </div>
+                      {event.description && <p class="event-desc">{event.description}</p>}
+                    </div>
+                    <div class="chip-right">
+                      {total > 0 && (
+                        <span class="conn-dot" title={[
+                          ...conn.webhooks.map((w: any) => w.name),
+                          ...conn.notifications.map((n: any) => n.name),
+                        ].join(', ')}>●</span>
+                      )}
+                      <a href={`/automation/events/${event.value}`} class="button secondary small">
+                        {total > 0 ? 'Manage' : 'Subscribe'}
+                      </a>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </details>
         ))}
       </div>
-
-      <!-- Search -->
-      <input
-        type="text"
-        id="event-search"
-        class="input event-search"
-        placeholder="Search events…"
-        autocomplete="off"
-      />
-
-      <!-- Event chips -->
-      <div class="events-grid" id="events-grid">
-        {filtered.map((event: any) => {
-          const conn = getConnections(event.value);
-          const total = conn.webhooks.length + conn.notifications.length;
-          return (
-            <article class:list={['event-chip', { connected: total > 0 }]}>
-              <div class="chip-left">
-                <div class="chip-title">
-                  <span class="event-name">{event.label}</span>
-                  <code class="event-type">{event.value}</code>
-                </div>
-                {event.description && (
-                  <p class="event-desc">{event.description}</p>
-                )}
-              </div>
-              <div class="chip-right">
-                <span class="event-category">{event.category}</span>
-                {total > 0 && (
-                  <span class="conn-dot" title={[
-                    ...conn.webhooks.map((w: any) => w.name),
-                    ...conn.notifications.map((n: any) => n.name),
-                  ].join(', ')}>●</span>
-                )}
-                <a href={`/automation/events/${event.value}`} class="button secondary small">
-                  {total > 0 ? 'Manage' : 'Subscribe'}
-                </a>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <div class="empty-state" id="no-results" style="display:none">
-        <p>No events match your search.</p>
-      </div>
-
-      {filtered.length === 0 && (
-        <div class="empty-state">
-          <p>No events in this category.</p>
-        </div>
-      )}
-    </div>
+    </>
   )}
 </AppLayout>
 
 <script>
   const search = document.getElementById('event-search') as HTMLInputElement;
-  const grid = document.getElementById('events-grid');
-  const noResults = document.getElementById('no-results');
+  const allSection = document.getElementById('view-all-section')!;
+  const typesSection = document.getElementById('view-types-section')!;
+  const btnAll = document.getElementById('view-all')!;
+  const btnTypes = document.getElementById('view-types')!;
+  const noResults = document.getElementById('no-results')!;
 
-  search?.addEventListener('input', () => {
-    const q = search.value.toLowerCase();
-    let visible = 0;
-    grid?.querySelectorAll('.event-chip').forEach(card => {
-      const text = card.textContent?.toLowerCase() || '';
-      const show = !q || text.includes(q);
-      (card as HTMLElement).style.display = show ? '' : 'none';
-      if (show) visible++;
+  let currentView: 'all' | 'types' = (localStorage.getItem('events-view') as any) || 'all';
+
+  function setView(v: 'all' | 'types') {
+    currentView = v;
+    localStorage.setItem('events-view', v);
+    allSection.style.display = v === 'all' ? '' : 'none';
+    typesSection.style.display = v === 'types' ? '' : 'none';
+    btnAll.classList.toggle('active', v === 'all');
+    btnTypes.classList.toggle('active', v === 'types');
+    applySearch();
+  }
+
+  function applySearch() {
+    const q = search.value.toLowerCase().trim();
+    let visibleAll = 0;
+
+    document.querySelectorAll('.event-chip').forEach(chip => {
+      const el = chip as HTMLElement;
+      const matches = !q ||
+        (el.dataset.name || '').includes(q) ||
+        (el.dataset.type || '').includes(q) ||
+        (el.dataset.desc || '').includes(q) ||
+        (el.dataset.category || '').includes(q);
+      el.style.display = matches ? '' : 'none';
+      if (matches && el.closest('#view-all-section')) visibleAll++;
     });
-    if (noResults) noResults.style.display = visible === 0 ? 'block' : 'none';
-  });
+
+    // In types view: hide empty groups
+    document.querySelectorAll('.category-group').forEach(group => {
+      const visible = group.querySelectorAll('.event-chip:not([style*="display: none"])').length;
+      (group as HTMLElement).style.display = visible > 0 ? '' : 'none';
+    });
+
+    if (noResults) noResults.style.display = (currentView === 'all' && visibleAll === 0 && q) ? 'block' : 'none';
+  }
+
+  btnAll.addEventListener('click', () => setView('all'));
+  btnTypes.addEventListener('click', () => setView('types'));
+  search.addEventListener('input', applySearch);
+
+  setView(currentView);
 </script>
 
 <style>
   .toolbar {
-    margin-bottom: 28px;
+    margin-bottom: 24px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--line);
   }
-
-  .toolbar h2 { margin: 0 0 6px; font-size: 24px; font-weight: 600; }
-  .toolbar p { margin: 0; color: var(--muted); font-size: 14px; max-width: 560px; }
+  .toolbar h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+  .toolbar p { margin: 0; color: var(--muted); font-size: 13px; max-width: 520px; }
 
   .alert {
     padding: 16px; border-radius: var(--radius);
@@ -157,40 +226,55 @@ const filtered = categoryFilter === 'all'
     border: 1px solid var(--color-error);
   }
 
-  .events-layout { display: flex; flex-direction: column; gap: 20px; }
-
-  .filters {
+  .controls {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
   }
 
-  .filter-btn {
-    padding: 5px 14px;
+  .filter-search {
+    flex: 1;
+    max-width: 320px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
     border-radius: var(--radius);
+    background: var(--bg);
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .filter-search:focus { outline: none; border-color: var(--accent); }
+  .filter-search::placeholder { color: var(--muted); }
+
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--panel-2, var(--panel));
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .toggle-btn {
+    padding: 5px 14px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
     font-size: 13px;
     font-weight: 500;
-    text-decoration: none;
-    color: var(--muted);
-    border: 1px solid var(--line);
-    background: var(--panel);
+    cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
-
-  .filter-btn:hover { color: var(--ink); border-color: var(--ink); }
-  .filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-
-  .event-search {
-    width: 100%;
-    max-width: 360px;
+  .toggle-btn:hover { color: var(--ink); }
+  .toggle-btn.active {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.07);
   }
 
-  .events-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
+  /* Chips */
+  .chips { display: flex; flex-direction: column; gap: 4px; }
 
   .event-chip {
     padding: 10px 14px;
@@ -202,76 +286,73 @@ const filtered = categoryFilter === 'all'
     gap: 12px;
     transition: border-color 0.15s;
   }
-
   .event-chip:hover { border-color: var(--accent); }
   .event-chip.connected { border-color: rgba(79,156,132,0.35); }
 
-  .chip-left {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
+  .chip-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .chip-title { display: flex; align-items: baseline; gap: 8px; }
 
-  .chip-title {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-  }
-
-  .event-name {
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  .event-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .event-type {
-    font-size: 10px;
-    font-family: ui-monospace, monospace;
-    color: var(--muted);
-    background: var(--bg);
-    padding: 1px 5px;
-    border-radius: 3px;
-    white-space: nowrap;
-    flex-shrink: 0;
+    font-size: 10px; font-family: ui-monospace, monospace;
+    color: var(--muted); background: var(--bg);
+    padding: 1px 5px; border-radius: 3px; white-space: nowrap; flex-shrink: 0;
   }
 
   .event-desc {
-    margin: 0;
-    font-size: 11px;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin: 0; font-size: 11px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  .chip-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
+  .chip-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
   .event-category {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--muted);
-    white-space: nowrap;
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted); white-space: nowrap;
   }
 
-  .conn-dot {
-    font-size: 8px;
-    color: var(--accent);
-    cursor: default;
-    line-height: 1;
-  }
+  .conn-dot { font-size: 8px; color: var(--accent); cursor: default; line-height: 1; }
 
   .button.small { padding: 4px 10px; font-size: 12px; font-weight: 600; min-height: 26px; }
 
-  .empty-state { padding: 60px; text-align: center; color: var(--muted); }
+  /* Category groups */
+  .category-group { margin-bottom: 8px; }
+  .group-chips { margin-top: 6px; }
+
+  .category-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 4px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 2px;
+  }
+  .category-header::-webkit-details-marker { display: none; }
+
+  .collapse-chevron {
+    display: inline-block; width: 14px; height: 14px; flex-shrink: 0; transition: transform 0.15s;
+  }
+  .collapse-chevron::before {
+    content: '';
+    display: block;
+    width: 5px; height: 5px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
+    transform: rotate(-45deg) translate(1px, -1px);
+    margin: 4px auto;
+  }
+  details[open] > .category-header .collapse-chevron { transform: rotate(90deg); }
+
+  .category-name { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+
+  .category-count {
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    background: var(--bg); padding: 1px 7px; border-radius: 10px;
+  }
+
+  .empty-state { padding: 48px; text-align: center; color: var(--muted); font-size: 13px; }
 </style>
