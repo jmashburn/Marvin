@@ -15,7 +15,7 @@ class RecipientType(str, Enum):
 
 
 class EmailEventSubscriptionCreate(_MarvinModel):
-    group_id: UUID4
+    group_id: UUID4 | None = None  # injected by controller from session
     template_id: UUID4
     event_type: str
     recipient_type: RecipientType = RecipientType.admins
