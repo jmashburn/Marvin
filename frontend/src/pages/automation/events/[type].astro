@@ -30,8 +30,7 @@ try {
   const wsId = workspace?.id;
 
   const emailSubsRes = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
-    headers: authToken ? { 'Authorization': `Bearer ${authToken}`, 'Cookie': `marvin.access_token=${authToken}` } : {},
-    credentials: 'include',
+    headers: { 'Cookie': Astro.request.headers.get('cookie') || '' },
   }).then(r => r.ok ? r.json() : []).catch(() => []);
   emailSubscriptions = Array.isArray(emailSubsRes) ? emailSubsRes : [];
 
