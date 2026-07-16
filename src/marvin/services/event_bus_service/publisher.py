@@ -199,7 +199,7 @@ class ConsolePublisher:
             self.logger.info(f"   Body: {event.message.body}")
         if event.document_data:
             data_dict = jsonable_encoder(event.document_data)
-            self.logger.info(f"   Document Type: {data_dict.get('documentType', 'unknown')}")
+            self.logger.info(f"   Document Type: {data_dict.get('documentType') or 'unknown'}")
             self.logger.info(f"   Operation: {data_dict.get('operation', 'unknown')}")
             for key, value in data_dict.items():
                 if key not in ["documentType", "operation"]:
