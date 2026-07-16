@@ -286,7 +286,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       </div>
     </div>
     <div class="wh-body em-body-success" id="em-body-success" style="display:none">
-      <p class="em-success-msg">&#10003; Template connected. To use event data in the email, add variables like <code>{{ invitee_email }}</code> to your template.</p>
+      <p class="em-success-msg" id="em-success-msg">&#10003; Template connected.</p>
       <a id="em-edit-link" href="/workspace/settings/email" class="button secondary small" style="margin-top:12px;display:inline-block">Edit template →</a>
     </div>
     <div class="wh-footer">
@@ -519,6 +519,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       } else {
         const bodyConfig = document.getElementById('em-body-config');
         const bodySuccess = document.getElementById('em-body-success');
+        const successMsg = document.getElementById('em-success-msg');
+        if (successMsg) {
+          const varHint = emailVars.length > 0
+            ? ` To use event data, add variables like ${emailVars.map(v => `<code>{{ ${v.slug} }}</code>`).join(', ')} to your template.`
+            : ' Edit your template to add event variables.';
+          successMsg.innerHTML = '&#10003; Template connected.' + varHint;
+        }
         if (bodyConfig) bodyConfig.style.display = 'none';
         if (bodySuccess) bodySuccess.style.display = 'block';
         if (emNote) emNote.textContent = '';
