@@ -315,6 +315,7 @@ class EntriesController(BaseUserController):
                 entry_type_slug = entry_type.slug
 
         # Emit event
+        workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
         self.event_bus.dispatch(
             integration_id="entry_management",
             group_id=self.group_id,
@@ -325,7 +326,9 @@ class EntriesController(BaseUserController):
                 entry_title=entry.title,
                 entry_type=entry_type_slug,
                 workspace_id=entry.group_id,
+                workspace_name=workspace_name,
                 author_id=entry.created_by,
+                author_name=author_name,
             ),
             message=f"Entry '{entry.title}' added to collection '{collection.name}'",
             user_id=self.user.id if self.user else None,
@@ -363,6 +366,7 @@ class EntriesController(BaseUserController):
                 if entry_type:
                     entry_type_slug = entry_type.slug
 
+            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
             self.event_bus.dispatch(
                 integration_id="entry_management",
                 group_id=self.group_id,
@@ -373,7 +377,9 @@ class EntriesController(BaseUserController):
                     entry_title=entry.title,
                     entry_type=entry_type_slug,
                     workspace_id=entry.group_id,
+                    workspace_name=workspace_name,
                     author_id=entry.created_by,
+                    author_name=author_name,
                 ),
                 message=f"Entry '{entry.title}' removed from collection '{collection.name if collection else collection_id}'",
                 user_id=self.user.id if self.user else None,

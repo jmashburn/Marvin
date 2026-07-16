@@ -98,8 +98,10 @@ class WorkspaceMembersController(BaseUserController):
             document_data=EventMemberData(
                 operation=EventOperation.create,
                 workspace_id=workspace_id,
+                workspace_name=workspace.name,
                 user_id=data.user_id,
                 username=user.username,
+                user_full_name=user.full_name if user else None,
                 role=data.workspace_role.value,
             ),
             message=f"User {user.username} added to workspace with role {data.workspace_role.value}",
@@ -195,6 +197,8 @@ class WorkspaceMembersController(BaseUserController):
 
         self.session.commit()
 
+        workspace_obj = self.repos.groups.get_one(workspace_id)
+        updated_username = updated.user.username if updated.user else str(user_id)
         # Emit event
         self.event_bus.dispatch(
             integration_id="workspace_management",
@@ -203,12 +207,14 @@ class WorkspaceMembersController(BaseUserController):
             document_data=EventMemberData(
                 operation=EventOperation.update,
                 workspace_id=workspace_id,
+                workspace_name=workspace_obj.name if workspace_obj else None,
                 user_id=user_id,
-                username=updated.user.username if updated.user else str(user_id),
+                username=updated_username,
+                user_full_name=updated.user.full_name if updated.user else None,
                 role=data.workspace_role.value,
                 previous_role=membership.workspace_role.value,
             ),
-            message=f"User {updated.user.username if updated.user else user_id} role changed from {membership.workspace_role.value} to {data.workspace_role.value}",
+            message=f"User {updated_username} role changed from {membership.workspace_role.value} to {data.workspace_role.value}",
         )
 
         return updated
@@ -259,6 +265,8 @@ class WorkspaceMembersController(BaseUserController):
                     status_code=status.HTTP_403_FORBIDDEN, detail="Cannot remove the last OWNER. Promote another member to OWNER first."
                 )
 
+        workspace_obj = self.repos.groups.get_one(workspace_id)
+        removed_username = membership.user.username if membership.user else str(user_id)
         # Emit event before removal
         self.event_bus.dispatch(
             integration_id="workspace_management",
@@ -267,11 +275,13 @@ class WorkspaceMembersController(BaseUserController):
             document_data=EventMemberData(
                 operation=EventOperation.delete,
                 workspace_id=workspace_id,
+                workspace_name=workspace_obj.name if workspace_obj else None,
                 user_id=user_id,
-                username=membership.user.username if membership.user else str(user_id),
+                username=removed_username,
+                user_full_name=membership.user.full_name if membership.user else None,
                 role=membership.workspace_role.value,
             ),
-            message=f"User {membership.user.username if membership.user else user_id} removed from workspace",
+            message=f"User {removed_username} removed from workspace",
         )
 
         # Remove the member

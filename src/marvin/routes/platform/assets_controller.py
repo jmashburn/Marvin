@@ -82,7 +82,13 @@ class AssetsController(BaseUserController):
             integration_id="asset_management",
             group_id=self.group_id,
             event_type=EventTypes.asset_uploaded,
-            document_data=EventAssetData.from_schema(asset),
+            document_data=EventAssetData.from_schema(
+                asset,
+                workspace_id=self.group_id,
+                workspace_name=self.group.name if self.group else None,
+                uploader_id=self.user.id if self.user else None,
+                uploader_name=self.user.full_name if self.user else None,
+            ),
             message=f"Asset {asset.name} uploaded",
         )
 
@@ -114,7 +120,13 @@ class AssetsController(BaseUserController):
             integration_id="asset_management",
             group_id=self.group_id,
             event_type=EventTypes.asset_updated,
-            document_data=EventAssetData.from_schema(AssetRead.model_validate(updated_asset)),
+            document_data=EventAssetData.from_schema(
+                AssetRead.model_validate(updated_asset),
+                workspace_id=self.group_id,
+                workspace_name=self.group.name if self.group else None,
+                uploader_id=self.user.id if self.user else None,
+                uploader_name=self.user.full_name if self.user else None,
+            ),
             message=f"Asset {updated_asset.name} updated",
         )
 
@@ -138,7 +150,13 @@ class AssetsController(BaseUserController):
             integration_id="asset_management",
             group_id=self.group_id,
             event_type=EventTypes.asset_deleted,
-            document_data=EventAssetData.from_schema(AssetRead.model_validate(asset)),
+            document_data=EventAssetData.from_schema(
+                AssetRead.model_validate(asset),
+                workspace_id=self.group_id,
+                workspace_name=self.group.name if self.group else None,
+                uploader_id=self.user.id if self.user else None,
+                uploader_name=self.user.full_name if self.user else None,
+            ),
             message=f"Asset {asset.name} deleted",
         )
 
@@ -169,9 +187,5 @@ class AssetsController(BaseUserController):
 
             return FileResponse(path=str(file_path), media_type=asset.mime_type or "application/octet-stream", filename=asset.original_filename)
 
-        # For S3 or other providers, redirect to public URL
-        if asset.public_url:
-            return RedirectResponse(url=asset.public_url)
-
-        # Fallback error
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asset file URL not available")
+        # For remote providers, redirect to computed URL from current config
+        return RedirectResponse(url=get_storage_provider().get_public_url(asset.storage_key))

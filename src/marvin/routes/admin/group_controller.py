@@ -158,6 +158,7 @@ class AdminGroupManagementRoutes(BaseAdminController):
                 workspace_id=group.id,
                 workspace_name=group.name,
                 creator_id=self.user.id,
+                creator_name=self.user.full_name or self.user.username,
             ),
             message=f"Workspace '{group.name}' created by {self.user.username}",
         )
