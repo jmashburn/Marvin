@@ -68,27 +68,85 @@ if (appriseReady) {
     </div>
   ) : (
     <div class="notifications-list">
-      {notifications.map((notif) => (
-        <div class="notification-card">
-          <div class="notification-info">
-            <div class="notification-header">
-              <strong>{notif.name}</strong>
-              {notif.enabled === false && <span class="badge-disabled">Disabled</span>}
-              {(() => {
-                const scheme = extractScheme(notif.appriseUrl ?? notif.apprise_url ?? '');
-                return scheme ? <span class="badge-service">{scheme}</span> : null;
-              })()}
+      {notifications.map((notif) => {
+        const scheme = extractScheme(notif.appriseUrl ?? notif.apprise_url ?? '');
+        const url = notif.appriseUrl ?? notif.apprise_url ?? '';
+        const eventCount = notif.options?.length ?? 0;
+        return (
+          <div class="notification-card">
+            <div class="notification-info">
+              <div class="notification-header">
+                <strong>{notif.name}</strong>
+                {notif.enabled === false && <span class="badge-disabled">Disabled</span>}
+                {scheme && <span class="badge-service">{scheme}</span>}
+              </div>
+              {url && <p class="notification-url">{url}</p>}
+              <p class="notification-count">{eventCount} event{eventCount !== 1 ? 's' : ''} subscribed</p>
             </div>
-            <p class="notification-count">{(notif.options?.length ?? 0)} event{(notif.options?.length ?? 0) !== 1 ? 's' : ''}</p>
+            <div class="notification-actions">
+              <button
+                type="button"
+                class="button secondary small"
+                data-test-id={notif.id}
+                data-test-name={notif.name}
+                disabled={notif.enabled === false}
+              >Test</button>
+              <a href={`/automation/notifications/${notif.id}`} class="button secondary small">Edit</a>
+              <button type="button" class="button secondary small danger" data-delete-id={notif.id} data-delete-name={notif.name}>Delete</button>
+            </div>
           </div>
-          <div class="notification-actions">
-            <a href={`/automation/notifications/${notif.id}`} class="button secondary small">Edit</a>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   )}
 </AppLayout>
+
+<script>
+  const apiUrl = (window as any).__MARVIN_API_URL__ || '';
+
+  document.querySelectorAll('[data-test-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.testId!;
+      const name = (btn as HTMLElement).dataset.testName!;
+      (btn as HTMLButtonElement).disabled = true;
+      (btn as HTMLButtonElement).textContent = 'Sending…';
+      try {
+        const res = await fetch(`${apiUrl}/api/group/notifications/${id}/test`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.detail || `HTTP ${res.status}`);
+        }
+        alert(`Test notification sent to "${name}".`);
+      } catch (e: any) {
+        alert(`Test failed: ${e.message}`);
+      } finally {
+        (btn as HTMLButtonElement).disabled = false;
+        (btn as HTMLButtonElement).textContent = 'Test';
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-delete-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.deleteId!;
+      const name = (btn as HTMLElement).dataset.deleteName!;
+      if (!confirm(`Delete notification "${name}"?`)) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/group/notifications/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        (btn as HTMLElement).closest('.notification-card')?.remove();
+      } catch (e: any) {
+        alert(`Delete failed: ${e.message}`);
+      }
+    });
+  });
+</script>
 
 <style>
   .toolbar {
@@ -222,18 +280,33 @@ if (appriseReady) {
     color: var(--muted);
   }
 
+  .notification-url {
+    margin: 2px 0 0;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
   .notification-count {
-    margin: 0;
+    margin: 2px 0 0;
     font-size: 13px;
     color: var(--muted);
   }
 
   .notification-actions {
+    display: flex;
+    gap: 6px;
     flex-shrink: 0;
+    align-items: center;
   }
 
   .button.small {
     padding: 6px 14px;
     font-size: 13px;
   }
+
+  .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
+  .button.secondary.danger:hover { background: var(--color-error-bg); }
+  .button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 </style>
