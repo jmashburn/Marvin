@@ -332,8 +332,9 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
 <script>
   import { marked } from 'marked';
-  marked.setOptions({ breaks: true, gfm: true });
+  marked.use({ breaks: true });
   window.__marvinMarked = (md) => marked(md);
+  window.__marvinMarkedReady = true;
 </script>
 
 <script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId: wsId ?? null }}>
@@ -440,10 +441,11 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
   function markdownToHtml(md) {
     if (!md || !md.trim()) return '';
+    if (!window.__marvinMarked) throw new Error('Markdown renderer not ready — please try again.');
     // Protect {{ variables }} — replace before parsing, restore after
     const vars = [];
     const safe = md.replace(/\{\{[^}]+\}\}/g, m => { vars.push(m); return `\x00VAR${vars.length-1}\x00`; });
-    let html = window.__marvinMarked ? window.__marvinMarked(safe) : safe;
+    let html = window.__marvinMarked(safe);
     vars.forEach((v, i) => { html = html.replaceAll(`\x00VAR${i}\x00`, v); });
     return html;
   }
