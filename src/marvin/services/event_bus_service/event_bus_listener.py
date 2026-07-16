@@ -549,6 +549,11 @@ class WebhookEventListener(EventListenerBase):
                     webhook_config.custom_payload, self.group_id, context
                 )
 
+            self.logger.info(
+                f"WEBHOOK FIRING: '{webhook_config.name}' "
+                f"[{webhook_config.method.name if webhook_config.method else 'POST'} {webhook_config.url}] "
+                f"type={webhook_type_name}"
+            )
             resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
             self.publisher.publish(
                 event,
