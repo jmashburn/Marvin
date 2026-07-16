@@ -36,10 +36,14 @@ function getConnections(eventType: string) {
 }
 
 const categories = [...new Set(eventTypes.map((e: any) => e.category).filter(Boolean))] as string[];
-const groupedByCategory = categories.map(cat => ({
-  category: cat,
-  events: eventTypes.filter((e: any) => e.category === cat),
-}));
+const groupedByCategory = categories.map(cat => {
+  const events = eventTypes.filter((e: any) => e.category === cat);
+  const connectedCount = events.filter((e: any) => {
+    const c = getConnections(e.value);
+    return c.webhooks.length + c.notifications.length > 0;
+  }).length;
+  return { category: cat, events, connectedCount };
+});
 ---
 
 <AppLayout title="Events" eyebrow="Automation">
@@ -112,12 +116,15 @@ const groupedByCategory = categories.map(cat => ({
 
       <!-- Grouped by category -->
       <div id="view-types-section" style="display:none">
-        {groupedByCategory.map(({ category, events }) => (
-          <details class="category-group" open data-category={category.toLowerCase()}>
+        {groupedByCategory.map(({ category, events, connectedCount }) => (
+          <details class="category-group" data-category={category.toLowerCase()}>
             <summary class="category-header">
               <span class="collapse-chevron"></span>
               <span class="category-name">{category}</span>
               <span class="category-count">{events.length}</span>
+              {connectedCount > 0 && (
+                <span class="group-conn-dot" title={`${connectedCount} subscribed`}>● {connectedCount}</span>
+              )}
             </summary>
             <div class="chips group-chips">
               {events.map((event: any) => {
@@ -352,6 +359,12 @@ const groupedByCategory = categories.map(cat => ({
   .category-count {
     font-size: 11px; font-weight: 500; color: var(--muted);
     background: var(--bg); padding: 1px 7px; border-radius: 10px;
+  }
+
+  .group-conn-dot {
+    font-size: 10px; font-weight: 600; color: var(--accent);
+    display: flex; align-items: center; gap: 3px;
+    margin-left: 4px;
   }
 
   .empty-state { padding: 48px; text-align: center; color: var(--muted); font-size: 13px; }
