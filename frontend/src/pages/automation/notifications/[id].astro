@@ -77,8 +77,8 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
   {error ? (
     <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : notification ? (
-    <div class="form-container">
-      <form id="update-notification-form" class="form" style="max-width:700px">
+    <div>
+      <form id="update-notification-form" class="form">
         <input type="hidden" name="id" value={notification.id} />
 
         <div class="form-section">
@@ -346,13 +346,10 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
     font-size: 14px;
   }
 
-  .form-container {
-    max-width: 700px;
-  }
-
   .form {
     display: grid;
     gap: 24px;
+    max-width: 700px;
   }
 
   .form-section {
@@ -582,7 +579,6 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
 
   .history-section {
     margin-top: 32px;
-    max-width: 700px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
