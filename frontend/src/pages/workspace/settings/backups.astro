@@ -1,0 +1,459 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { requireAuth } from "@/lib/auth";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import type { WorkspaceRole } from "@/lib/api/types";
+
+const currentUser = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
+
+const authToken = getAuthToken(Astro.cookies);
+let workspace = null;
+let currentUserRole: WorkspaceRole | null = null;
+let isPlatformAdmin = false;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+
+  if (workspace) {
+    const members = await listWorkspaceMembers(workspace.id, authToken);
+    const membership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+    currentUserRole = (membership as any)?.workspaceRole || (membership as any)?.workspace_role || null;
+    isPlatformAdmin = currentUser.admin === true;
+    if (!currentUserRole && isPlatformAdmin) currentUserRole = 'ADMIN' as WorkspaceRole;
+  }
+} catch (e) {
+  console.error('[backups] Error loading:', e);
+}
+
+const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
+---
+
+<AppLayout title="Backups" eyebrow="Settings">
+  <Breadcrumb items={[
+    { label: "Settings", href: "/workspace/settings" },
+    { label: "Backups" },
+  ]} />
+
+  <div class="page-header">
+    <div>
+      <h2>Backups</h2>
+      <p>Export your workspace for backup or migration, and restore from a bundle.</p>
+    </div>
+  </div>
+
+  <div class="sections">
+
+    <!-- Export -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3>Export</h3>
+          <p>Download a complete snapshot of your workspace — collections, entry types, entries, resources, assets (including files), and site configuration.</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <button type="button" id="export-bundle-btn" class="button" data-workspace-id={workspace?.id}>
+          Download Workspace Bundle
+        </button>
+        <p class="hint">ZIP archive · includes all asset binaries</p>
+      </div>
+    </section>
+
+    <!-- Import -->
+    {canImport ? (
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h3>Import</h3>
+            <p>
+              Restore a workspace from a previously exported bundle.
+              {isPlatformAdmin
+                ? " As a platform admin, the workspace block in the bundle determines the target workspace."
+                : " The bundle will be imported into your current workspace."}
+            </p>
+          </div>
+        </div>
+        <div class="card-body">
+
+          <div class="drop-zone" id="importDropZone">
+            <input type="file" id="import-bundle-file" accept=".zip" hidden />
+
+            <div id="importPlaceholder">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p class="drop-primary">Drop .zip bundle here or <span class="drop-link">browse</span></p>
+              <p class="drop-secondary">Exported from Download Workspace Bundle above</p>
+            </div>
+
+            <div id="importFileInfo" style="display:none;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                <polyline points="13 2 13 9 20 9"/>
+              </svg>
+              <div class="file-meta">
+                <p id="importFileName" class="file-name"></p>
+                <p id="importFileSize" class="file-size"></p>
+              </div>
+              <button type="button" id="importClearFile" class="clear-btn" title="Remove file">✕</button>
+            </div>
+          </div>
+
+          <label class="overwrite-label">
+            <input type="checkbox" id="import-overwrite" />
+            <span>Overwrite existing records</span>
+            <small>Updates entries, collections, resources, and assets matched by slug. Junction rows are cleared and rebuilt.</small>
+          </label>
+
+          <div class="import-actions">
+            <button type="button" id="import-bundle-btn" class="button" disabled>
+              Import Bundle
+            </button>
+            <span id="import-status" class="import-status"></span>
+          </div>
+        </div>
+      </section>
+    ) : (
+      <section class="card muted-card">
+        <div class="card-header">
+          <div>
+            <h3>Import</h3>
+            <p>Requires workspace <strong>Owner</strong> or platform <strong>Super Admin</strong> role.</p>
+          </div>
+        </div>
+      </section>
+    )}
+
+  </div>
+</AppLayout>
+
+<style>
+  .page-header {
+    margin-bottom: 2rem;
+  }
+
+  .page-header h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9375rem;
+  }
+
+  .sections {
+    display: grid;
+    gap: 1.5rem;
+    max-width: 680px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .muted-card {
+    opacity: 0.6;
+  }
+
+  .card-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .card-header h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .card-header p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .card-body {
+    padding: 1.5rem;
+    display: grid;
+    gap: 1rem;
+  }
+
+  .hint {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .drop-zone:hover,
+  .drop-zone.dragover {
+    border-color: var(--ink);
+    background: var(--panel-2, #f5f5f5);
+  }
+
+  .drop-zone.has-file {
+    border-style: solid;
+    cursor: default;
+    padding: 1.25rem 1.5rem;
+    text-align: left;
+  }
+
+  #importPlaceholder svg {
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .drop-primary {
+    margin: 0 0 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .drop-link {
+    color: var(--brand, #0066cc);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .drop-secondary {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  #importFileInfo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  #importFileInfo svg {
+    flex-shrink: 0;
+    color: var(--muted);
+  }
+
+  .file-meta {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .file-name {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-size {
+    margin: 0.125rem 0 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .clear-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--muted);
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .clear-btn:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+
+  .overwrite-label {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 0.5rem;
+    row-gap: 0.125rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    align-items: start;
+  }
+
+  .overwrite-label input[type="checkbox"] {
+    margin-top: 3px;
+    grid-row: 1 / 3;
+  }
+
+  .overwrite-label span {
+    font-weight: 500;
+  }
+
+  .overwrite-label small {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .import-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .import-status {
+    font-size: 0.875rem;
+  }
+</style>
+
+<script>
+  // Export bundle
+  const exportBtn = document.getElementById('export-bundle-btn') as HTMLButtonElement | null;
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      exportBtn.disabled = true;
+      exportBtn.textContent = 'Exporting…';
+      try {
+        const response = await fetch('/api/platform/workspace/export/bundle', { credentials: 'include' });
+        if (!response.ok) throw new Error(`Server error: ${response.status}`);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const today = new Date().toISOString().split('T')[0];
+        a.download = `workspace-backup-${today}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (err) {
+        alert('Export failed: ' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        exportBtn.disabled = false;
+        exportBtn.textContent = 'Download Workspace Bundle';
+      }
+    });
+  }
+
+  // Import — drop zone
+  const dropZone = document.getElementById('importDropZone') as HTMLElement | null;
+  const fileInput = document.getElementById('import-bundle-file') as HTMLInputElement | null;
+  const placeholder = document.getElementById('importPlaceholder') as HTMLElement | null;
+  const fileInfo = document.getElementById('importFileInfo') as HTMLElement | null;
+  const fileNameEl = document.getElementById('importFileName') as HTMLElement | null;
+  const fileSizeEl = document.getElementById('importFileSize') as HTMLElement | null;
+  const clearBtn = document.getElementById('importClearFile') as HTMLButtonElement | null;
+  const importBtn = document.getElementById('import-bundle-btn') as HTMLButtonElement | null;
+  const statusEl = document.getElementById('import-status') as HTMLElement | null;
+
+  let selectedFile: File | null = null;
+
+  function fmt(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  }
+
+  function setFile(file: File) {
+    selectedFile = file;
+    if (fileNameEl) fileNameEl.textContent = file.name;
+    if (fileSizeEl) fileSizeEl.textContent = fmt(file.size);
+    if (placeholder) placeholder.style.display = 'none';
+    if (fileInfo) fileInfo.style.display = 'flex';
+    dropZone?.classList.add('has-file');
+    if (importBtn) importBtn.disabled = false;
+    if (statusEl) statusEl.textContent = '';
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    if (fileInput) fileInput.value = '';
+    if (placeholder) placeholder.style.display = '';
+    if (fileInfo) fileInfo.style.display = 'none';
+    dropZone?.classList.remove('has-file');
+    if (importBtn) importBtn.disabled = true;
+  }
+
+  if (dropZone) {
+    dropZone.addEventListener('click', (e) => {
+      if (clearBtn && (e.target === clearBtn || clearBtn.contains(e.target as Node))) return;
+      if (!dropZone.classList.contains('has-file')) fileInput?.click();
+    });
+
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('drop', (e) => e.preventDefault());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+      if (!dropZone.contains(e.relatedTarget as Node)) dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer?.files[0];
+      if (file) { if (fileInput) fileInput.files = e.dataTransfer!.files; setFile(file); }
+    });
+  }
+
+  fileInput?.addEventListener('change', () => { const f = fileInput?.files?.[0]; if (f) setFile(f); });
+  clearBtn?.addEventListener('click', (e) => { e.stopPropagation(); clearFile(); });
+
+  importBtn?.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    const overwrite = (document.getElementById('import-overwrite') as HTMLInputElement)?.checked ?? false;
+
+    importBtn.disabled = true;
+    importBtn.textContent = 'Importing…';
+    if (statusEl) statusEl.textContent = '';
+
+    try {
+      const body = new FormData();
+      body.append('file', selectedFile);
+      const url = `/api/platform/workspace/import${overwrite ? '?overwrite=true' : ''}`;
+      const res = await fetch(url, { method: 'POST', credentials: 'include', body });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.detail || `Server error: ${res.status}`);
+
+      const counts = (json?.imported ?? {}) as Record<string, number>;
+      const summary = Object.entries(counts).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`).join(', ');
+      if (statusEl) statusEl.textContent = `✓ ${summary || 'nothing new'}`;
+      clearFile();
+    } catch (err) {
+      if (statusEl) statusEl.textContent = '✗ ' + (err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      importBtn.disabled = !selectedFile;
+      importBtn.textContent = 'Import Bundle';
+    }
+  });
+</script>
