@@ -157,7 +157,7 @@ class AppSettings(BaseSettings):
     DAILY_SCHEDULE_TIME: str = "23:47"
     """Local server time, in HH:MM format. See `DAILY_SCHEDULE_TIME_UTC` for the parsed UTC equivalent"""
 
-    GITHUB_VERSION_URL: str = "https://github.com/jmashburn/Marvin/releases/latest"
+    GITHUB_VERSION_URL: str = "https://api.github.com/repos/InnerOpen/marvin/tags"
 
     GIT_COMMIT_HASH: str = "unknown"
 
@@ -284,8 +284,8 @@ class AppSettings(BaseSettings):
     STORAGE_S3_SECRET_KEY: MaskedNoneString | None = None
     """S3 secret access key. Required when STORAGE_PROVIDER=s3. Masked in output."""
 
-    STORAGE_S3_PUBLIC_URL: str | None = None
-    """Public URL for S3 assets (CDN URL if using one). Optional."""
+    STORAGE_REMOTE_PUBLIC_URL: str | None = None
+    """Public base URL for remote storage assets (CDN, custom domain, etc). Works with S3, R2, MinIO, Spaces, etc. Optional."""
 
     # ===============================================
     # Secrets Backend Configuration

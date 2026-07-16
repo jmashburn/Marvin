@@ -31,7 +31,11 @@ def get_latest_github_release(url: str) -> str:
         timeout=5,
     )
     response.raise_for_status()
-    return response.json()["tag_name"]
+    data = response.json()
+    # Support both /releases/latest ({"tag_name": ...}) and /tags ([{"name": ...}, ...])
+    if isinstance(data, list):
+        return data[0]["name"] if data else "no releases"
+    return data["tag_name"]
 
 
 def get_latest_version(url: str) -> str:
