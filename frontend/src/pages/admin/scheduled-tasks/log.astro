@@ -2,7 +2,7 @@
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import { requireAdmin } from "@/lib/auth";
 import { getAuthToken } from "@/lib/api/client";
-import { getGlobalLog } from "@/lib/api/admin/scheduledTasks";
+import { getGlobalLog, listAllTasks } from "@/lib/api/admin/scheduledTasks";
 import type { ScheduledTaskExecutionLogRead } from "@/lib/api/admin/scheduledTasks";
 
 await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
@@ -12,9 +12,16 @@ const filter = Astro.url.searchParams.get('filter') || 'all';
 
 let logs: ScheduledTaskExecutionLogRead[] = [];
 let error: string | null = null;
+let taskMap = new Map<string, { name: string; task_type: string }>();
 
 try {
-  logs = await getGlobalLog(200, authToken);
+  const [logsResult, tasksResult] = await Promise.all([
+    getGlobalLog(200, authToken),
+    listAllTasks(authToken),
+  ]);
+  logs = Array.isArray(logsResult) ? logsResult : (logsResult as any)?.items ?? [];
+  const tasks = Array.isArray(tasksResult) ? tasksResult : (tasksResult as any)?.items ?? [];
+  taskMap = new Map(tasks.map((t: any) => [t.id, { name: t.name, task_type: t.task_type ?? t.taskType ?? '' }]));
 } catch (e) {
   console.error('[admin/scheduled-tasks/log] Error:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -71,6 +78,7 @@ function statusClass(status: string): string {
             <th></th>
             <th>Executed At</th>
             <th>Task ID</th>
+            <th>Type</th>
             <th>Workspace</th>
             <th>Status</th>
             <th>Duration</th>
@@ -79,6 +87,7 @@ function statusClass(status: string): string {
         <tbody>
           {filteredLogs.map((log, i) => {
             const hasDetails = log.output || log.error_message || log.error_traceback;
+            const taskInfo = taskMap.get(log.task_id);
             return (
               <>
                 <tr class:list={['log-row', { 'has-details': hasDetails }]}>
@@ -90,9 +99,10 @@ function statusClass(status: string): string {
                   <td class="nowrap">{formatDate(log.executed_at)}</td>
                   <td class="mono task-id">
                     {log.task_id
-                      ? <a href={`/admin/scheduled-tasks/${log.task_id}`}>{log.task_id.slice(0, 8)}…</a>
+                      ? <a href={`/admin/scheduled-tasks/${log.task_id}`} title={taskInfo?.name}>{log.task_id.slice(0, 8)}…</a>
                       : <span>—</span>}
                   </td>
+                  <td class="type-cell">{taskInfo?.task_type || '—'}</td>
                   <td class="mono">{log.group_id ? log.group_id.slice(0, 8) + '…' : 'System'}</td>
                   <td>
                     <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
@@ -101,7 +111,7 @@ function statusClass(status: string): string {
                 </tr>
                 {hasDetails && (
                   <tr class="detail-row" id={`details-${i}`} style="display:none">
-                    <td colspan="6">
+                    <td colspan="7">
                       <div class="detail-body">
                         {log.output && (
                           <div class="detail-section">
@@ -283,6 +293,7 @@ function statusClass(status: string): string {
 
   .nowrap { white-space: nowrap; }
   .mono { font-family: ui-monospace, monospace; font-size: 13px; }
+  .type-cell { font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted); white-space: nowrap; }
 
   .task-id a { color: var(--accent); text-decoration: none; }
   .task-id a:hover { text-decoration: underline; }

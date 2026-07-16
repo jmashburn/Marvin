@@ -79,6 +79,7 @@ function statusClass(status: string): string {
             <th></th>
             <th>Executed At</th>
             <th>Task</th>
+            <th>Type</th>
             <th>Status</th>
             <th>Duration</th>
             <th>Attempt</th>
@@ -95,6 +96,7 @@ function statusClass(status: string): string {
             const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
             const output = log.output ?? null;
             const task = taskMap.get(taskId);
+            const taskType = task ? (task.taskType ?? task.task_type ?? '') : '';
             const hasDetails = output || errorMessage || errorTraceback;
             return (
               <>
@@ -110,6 +112,7 @@ function statusClass(status: string): string {
                       ? <a href={`/workspace/scheduled-tasks/${taskId}`} class="task-link">{task.name}</a>
                       : <span class="muted">{taskId ? taskId.slice(0, 8) + '…' : '—'}</span>}
                   </td>
+                  <td class="type-cell">{taskType || '—'}</td>
                   <td>
                     <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
                   </td>
@@ -314,6 +317,7 @@ function statusClass(status: string): string {
 
   .nowrap { white-space: nowrap; }
   .muted { color: var(--muted); font-size: 13px; }
+  .type-cell { font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted); white-space: nowrap; }
 
   .task-link { color: var(--ink); text-decoration: none; font-weight: 500; }
   .task-link:hover { color: var(--accent); }

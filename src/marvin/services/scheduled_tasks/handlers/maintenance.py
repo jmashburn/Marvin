@@ -132,7 +132,7 @@ class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
     }
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
-        from marvin.db.models.users.invitations import GroupInviteModel
+        from marvin.db.models.groups.invite_tokens import GroupInviteToken
 
         config = task.task_config
         age_days = config.get("age_days", 30)
@@ -140,8 +140,8 @@ class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
 
         with session_context() as session:
             expired = (
-                session.query(GroupInviteModel)
-                .filter(GroupInviteModel.created_at <= cutoff)
+                session.query(GroupInviteToken)
+                .filter(GroupInviteToken.created_at <= cutoff)
                 .all()
             )
             count = len(expired)
