@@ -550,6 +550,7 @@ class EventWebhookData(EventDocumentDataBase):
     Contains information needed by WebhookEventListener to find and trigger scheduled webhooks.
     """
 
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
     webhook_start_dt: datetime
     """The start datetime for the window in which to find scheduled webhooks."""
     webhook_end_dt: datetime
