@@ -524,6 +524,19 @@ class EventUserSignupData(EventDocumentDataBase):
     """The email address of the newly signed-up user."""
 
 
+class EventPasswordResetData(EventDocumentDataBase):
+    """Data payload for a password reset request event."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.user
+    operation: EventOperationBase = EventOperation.info
+    email: str
+    """The email address of the user requesting a password reset. Resolves as email_address convenience alias."""
+    reset_url: str
+    """The password reset URL. Resolves as button_link convenience alias."""
+    username: str | None = None
+    """The username of the user requesting the reset."""
+
+
 class EventWorkspaceCreatedData(EventDocumentDataBase):
     """
     Data payload for an event indicating a workspace has been created.

@@ -21,7 +21,6 @@ from marvin.schemas.user.password import PasswordResetToken as PasswordResetToke
 # For DB creation, a schema like `SavePasswordResetToken` (with user_id, token) is used in other files.
 # Let's assume `PasswordResetTokenSchema` is flexible enough or that the repo handles it.
 from marvin.services import BaseService  # Base service class
-from marvin.services.email.email_service import EmailService  # Email sending service
 
 
 class PasswordResetService(BaseService):
@@ -108,49 +107,69 @@ class PasswordResetService(BaseService):
 
     def send_reset_email(self, email: str, accept_language: str | None = None) -> bool:  # Return bool for success
         """
-        Generates a password reset token and sends it to the user via email.
-
-        If token generation is successful (user exists and is eligible), an email
-        containing a password reset link (with the token) is sent.
+        Generates a password reset token and dispatches a user_password_reset_requested
+        event so the EmailEventListener can send the reset email via the configured template.
 
         Args:
             email (str): The user's email address.
-            accept_language (str | None, optional): Preferred language for the email,
-                                                    extracted from 'Accept-Language' header.
-                                                    Defaults to None.
+            accept_language (str | None, optional): Unused — kept for API compatibility.
 
         Returns:
-            bool: True if the email was dispatched successfully, False otherwise.
-                  Note: This does not confirm if the email address exists, to prevent enumeration.
-
-        Raises:
-            HTTPException (500 Internal Server Error): If email sending fails due to
-                                                      an unexpected server error.
+            bool: True if the event was dispatched successfully, False if user not found/LDAP.
         """
-        # Generate the password reset token. This also handles checks for user existence/LDAP.
+        # Generate the password reset token (also checks user existence / LDAP).
         token_entry_schema = self.generate_reset_token(email)
 
         if token_entry_schema is None:
-            # Token generation failed (e.g., user not found, LDAP user).
-            # Log already happened in generate_reset_token. Silently return to prevent enumeration.
-            return False  # Indicate that no email was sent.
+            # User not found or LDAP user — silently return to prevent enumeration.
+            return False
 
-        # Initialize email service with locale preference
-        email_service = EmailService(locale=accept_language)
-        # Construct the full password reset URL
         reset_url = f"{self.settings.BASE_URL}/reset-password/?token={token_entry_schema.token}"
 
+        # Fetch the user to get their group_id for event routing
+        user = self.db.users.get_one(email, key="email", any_case=True)
+        group_id = getattr(user, "group_id", None) if user else None
+
+        if group_id is None:
+            # No group context — fall back to direct email send
+            from marvin.services.email.email_service import EmailService
+            try:
+                success = EmailService(locale=accept_language).send_forgot_password(email, reset_url)
+                if success:
+                    self.logger.info(f"Password reset email sent (direct) for: {email}")
+                return success
+            except Exception as e:
+                self.logger.exception(f"Failed to send password reset email to {email}: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to send password reset email due to a server error.",
+                ) from e
+
         try:
-            # Send the "forgot password" email
-            success = email_service.send_forgot_password(email, reset_url)
-            if success:
-                self.logger.info(f"Password reset email successfully dispatched for: {email}")
-            else:
-                self.logger.error(f"Password reset email failed to dispatch for: {email} (EmailService returned False)")
-            return success
+            from marvin.services.event_bus_service.event_bus_service import EventBusService
+            from marvin.services.event_bus_service.event_types import (
+                EventPasswordResetData,
+                EventOperation,
+                EventTypes,
+            )
+
+            event_bus = EventBusService(bg_tasks=None)
+            event_bus.dispatch(
+                integration_id="password_reset",
+                group_id=group_id,
+                event_type=EventTypes.user_password_reset_requested,
+                document_data=EventPasswordResetData(
+                    operation=EventOperation.info,
+                    email=email,
+                    reset_url=reset_url,
+                    username=getattr(user, "username", None),
+                ),
+                message=f"Password reset requested for {email}",
+            )
+            self.logger.info(f"Password reset event dispatched for: {email}")
+            return True
         except Exception as e:
-            self.logger.exception(f"Failed to send password reset email to {email} due to an unexpected error: {e}")
-            # Re-raise as HTTPException to be handled by FastAPI error middleware
+            self.logger.exception(f"Failed to dispatch password reset event for {email}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send password reset email due to a server error.",

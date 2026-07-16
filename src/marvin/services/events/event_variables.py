@@ -5,6 +5,34 @@ from fastapi.encoders import jsonable_encoder
 from marvin.services.event_bus_service.event_types import Event
 
 
+def enrich_variables(variables: dict, group_id=None) -> dict:
+    """Inject derived convenience variables that may be missing from the raw event dict.
+
+    Currently injects login_url from BASE_URL if not already present, so the welcome
+    template (which has no invitation_url or reset_url in the event) gets a valid button_link.
+    """
+    if not variables.get("login_url"):
+        try:
+            from marvin.core.config import get_app_settings
+            variables["login_url"] = get_app_settings().BASE_URL
+        except Exception:
+            pass
+
+    # Re-compute button_link to pick up any newly-injected URL fields
+    if not variables.get("button_link"):
+        variables["button_link"] = (
+            variables.get("invitation_url")
+            or variables.get("reset_url")
+            or variables.get("login_url")
+            or variables.get("action_url")
+            or variables.get("url")
+            or variables.get("site_url")
+            or ""
+        )
+
+    return variables
+
+
 def build_event_variables(event: Event) -> dict:
     """Return a flat dict of all variables available for event-triggered email templates.
 

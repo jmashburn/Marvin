@@ -12,6 +12,7 @@ const { type } = Astro.params;
 let eventInfo: any = null;
 let emailTemplates: any[] = [];
 let emailSubscriptions: any[] = [];
+let eventConnections: any[] = [];
 let webhooks: any[] = [];
 let notifications: any[] = [];
 let error: string | null = null;
@@ -41,6 +42,16 @@ try {
   emailTemplates = Array.isArray(emailRes) ? emailRes : (emailRes as any)?.items ?? [];
   webhooks = Array.isArray(webhookRes) ? webhookRes : (webhookRes as any)?.items ?? [];
   notifications = Array.isArray(notifRes) ? notifRes : (notifRes as any)?.items ?? [];
+
+  // Fetch event-connections to show system template row
+  if (wsId) {
+    try {
+      const connRes = await fetchApi<any[]>(`/api/platform/workspaces/${wsId}/email-templates/event-connections`, {}, authToken).catch(() => []);
+      if (Array.isArray(connRes)) {
+        (eventConnections as any[]).push(...connRes);
+      }
+    } catch { /* non-fatal */ }
+  }
 } catch (e) {
   console.error('[events/type] Error:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -92,14 +103,46 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             <p>Send an email when this event fires</p>
           </div>
           <div class="sub-options">
+            {(() => {
+              const sysCon = eventConnections.find((c: any) => c.event_type === type);
+              return sysCon ? (
+                <div class="sub-option sub-option-connected">
+                  <div class="sub-option-info">
+                    <div class="sub-option-name-row">
+                      <span class="connected-check">&#10003;</span>
+                      <strong>{sysCon.has_workspace_override ? (sysCon.workspace_template?.name ?? sysCon.system_template?.name) : sysCon.system_template?.name}</strong>
+                      {sysCon.has_workspace_override ? (
+                        <span class="badge-inline badge-custom">Custom</span>
+                      ) : (
+                        <span class="badge-inline badge-system-sm">System</span>
+                      )}
+                    </div>
+                    <code class="sub-type">{sysCon.template_type}</code>
+                  </div>
+                  <div class="sub-option-actions">
+                    {sysCon.has_workspace_override ? (
+                      <>
+                        <a href={`/workspace/settings/email/${sysCon.workspace_template?.id}`} class="button small secondary">Edit</a>
+                        <button type="button" class="button small secondary danger disconnect-email-btn" data-subscription-id={sysCon.subscription_id ?? ''}>Disconnect</button>
+                      </>
+                    ) : (
+                      <a href={`/workspace/settings/email?customize=${sysCon.system_template?.id}`} class="button small secondary">Customize</a>
+                    )}
+                  </div>
+                </div>
+              ) : null;
+            })()}
             {emailTemplates.filter((t: any) => !!(( t as any).groupId ?? t.group_id)).map((t: any) => {
-              const isSystem = false;
               const tplType = (t as any).templateType ?? t.template_type;
               const sub = emailSubscriptions.find((s: any) =>
                 (s.template_id ?? s.templateId) === t.id &&
                 (s.event_type ?? s.eventType) === type
               );
               const isConnected = !!sub;
+              const isSysOverride = eventConnections.some((c: any) =>
+                c.event_type === type && c.workspace_template?.id === t.id
+              );
+              if (isSysOverride) return null;
               return (
                 <div class:list={['sub-option', { 'sub-option-connected': isConnected }]}>
                   <div class="sub-option-info">
@@ -112,20 +155,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                   <div class="sub-option-actions">
                     {isConnected ? (
                       <>
-                        <button
-                          class="button small secondary connect-email-btn"
-                          data-template-id={t.id}
-                          data-template-name={t.name}
-                          data-event-type={type}
-                          data-subscription-id={sub?.id ?? ''}
-                          data-recipient-type={(sub as any)?.recipient_type ?? (sub as any)?.recipientType ?? ''}
-                          data-recipient-field={(sub as any)?.recipient_field ?? (sub as any)?.recipientField ?? ''}
-                          data-recipient-email={(sub as any)?.recipient_email ?? (sub as any)?.recipientEmail ?? ''}
-                          data-is-connected="false"
-                          data-is-edit="true"
-                        >
-                          Edit
-                        </button>
+                        <a href={`/workspace/settings/email/${t.id}`} class="button small secondary">Edit</a>
                         <button
                           type="button"
                           class="button small secondary danger disconnect-email-btn"
@@ -151,7 +181,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                 </div>
               );
             })}
-            {emailTemplates.filter((t: any) => !!(( t as any).groupId ?? t.group_id)).length === 0 && (
+            {emailTemplates.filter((t: any) => !!(( t as any).groupId ?? t.group_id)).length === 0 &&
+              !eventConnections.some((c: any) => c.event_type === type) && (
               <div class="sub-option" style="color:var(--muted);font-size:13px;">
                 No custom templates yet — create one to connect to this event.
               </div>
@@ -1027,6 +1058,26 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   .tpl-badge-custom {
     background: rgba(79,156,132,0.1);
     color: var(--accent);
+  }
+
+  .badge-inline {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .badge-custom {
+    background: rgba(79,156,132,0.1);
+    color: var(--accent);
+  }
+
+  .badge-system-sm {
+    background: rgba(128,128,128,0.1);
+    color: var(--muted);
   }
 
   /* Give the event header more identity */

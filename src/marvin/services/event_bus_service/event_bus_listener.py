@@ -842,7 +842,9 @@ class EmailEventListener(EventListenerBase):
     Event listener that fires email templates when a matching event occurs.
 
     Reads EmailEventSubscription rows for the group, resolves recipients,
-    and sends email via EmailService._send_db_template.
+    and sends email via EmailService._send_db_template.  When no workspace
+    subscription exists for an event that has a system template mapping, a
+    VirtualEmailSubscription pointing to the system template is used instead.
     """
 
     def __init__(self, group_id) -> None:
@@ -851,12 +853,64 @@ class EmailEventListener(EventListenerBase):
         super().__init__(group_id, ConsolePublisher())
 
     def get_subscribers(self, event: Event) -> list[Any]:
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.services.email.system_email_events import (
+            VirtualEmailSubscription,
+            get_template_type_for_event,
+            SYSTEM_TEMPLATE_EVENT_MAP,
+        )
+
         if event.event_type == EventTypes.webhook_task:
             return []
+
         with self.ensure_repos(self.group_id) as repos:
-            return repos.email_event_subscriptions.multi_query(
+            workspace_subs = repos.email_event_subscriptions.multi_query(
                 {"event_type": event.event_type.name, "enabled": True}
             )
+
+            # Check for system template mapping for this event
+            system_template_type = get_template_type_for_event(event.event_type.name)
+            if not system_template_type:
+                return workspace_subs
+
+            system_mapping = SYSTEM_TEMPLATE_EVENT_MAP[system_template_type]
+
+            # Check if any workspace subscription already covers a template of this type
+            has_workspace_override = False
+            for sub in workspace_subs:
+                template = repos.session.get(EmailTemplateModel, sub.template_id)
+                if (
+                    template is not None
+                    and template.template_type == system_template_type
+                    and template.group_id is not None
+                ):
+                    has_workspace_override = True
+                    break
+
+            if has_workspace_override:
+                return workspace_subs
+
+            # No workspace override — try the system template
+            system_template = (
+                repos.session.query(EmailTemplateModel)
+                .filter(
+                    EmailTemplateModel.group_id.is_(None),
+                    EmailTemplateModel.template_type == system_template_type,
+                )
+                .first()
+            )
+
+            if system_template and system_template.enabled:
+                virtual = VirtualEmailSubscription(
+                    template_id=system_template.id,
+                    event_type=event.event_type.name,
+                    recipient_type=system_mapping["recipient_type"],
+                    recipient_field=system_mapping.get("recipient_field"),
+                    recipient_email=system_mapping.get("recipient_email"),
+                )
+                return list(workspace_subs) + [virtual]
+
+            return workspace_subs
 
     def publish_to_subscribers(self, event: Event, subscribers: list[Any]) -> None:
         from marvin.db.models.groups.email_templates import EmailTemplateModel
@@ -864,9 +918,9 @@ class EmailEventListener(EventListenerBase):
         from marvin.db.models.users.roles import WorkspaceRole
         from marvin.db.models.users import Users
         from marvin.services.email.email_service import EmailService
-        from marvin.services.events.event_variables import build_event_variables
+        from marvin.services.events.event_variables import build_event_variables, enrich_variables
 
-        variables = build_event_variables(event)
+        variables = enrich_variables(build_event_variables(event), self.group_id)
         email_service = EmailService(group_id=str(self.group_id))
 
         with self.ensure_session() as session:

@@ -9,18 +9,20 @@ const authToken = getAuthToken(Astro.cookies);
 
 let workspace = null;
 let emailTemplates = [];
+let eventConnections: any[] = [];
 let error: string | null = null;
 
 try {
   workspace = await getCurrentWorkspace(authToken);
   const wsId = (workspace as any)?.id ?? (workspace as any)?.groupId;
-  console.log('[email-settings] workspace keys:', Object.keys(workspace || {}));
-  console.log('[email-settings] wsId:', wsId);
   if (wsId) {
-    emailTemplates = await listEmailTemplates(wsId, authToken);
-    console.log('[email-settings] templates loaded:', emailTemplates.length);
-  } else {
-    console.warn('[email-settings] wsId is undefined — workspace shape:', JSON.stringify(workspace));
+    [emailTemplates, eventConnections] = await Promise.all([
+      listEmailTemplates(wsId, authToken),
+      fetch(`${import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080'}/api/platform/workspaces/${wsId}/email-templates/event-connections`, {
+        headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+        credentials: 'include',
+      }).then(r => r.ok ? r.json() : []).catch(() => []),
+    ]);
   }
 } catch (e) {
   console.error('[email-settings] Error:', e);
@@ -29,6 +31,17 @@ try {
 
 const groupId = (workspace as any)?.id ?? (workspace as any)?.groupId;
 const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+
+// Build a map from system template id → event_type for quick lookups
+const systemEventByTemplateId = new Map<string, string>();
+for (const conn of eventConnections) {
+  if (conn.system_template?.id) {
+    systemEventByTemplateId.set(conn.system_template.id, conn.event_type);
+  }
+  if (conn.workspace_template?.id && conn.subscription_id) {
+    systemEventByTemplateId.set(conn.workspace_template.id, conn.event_type);
+  }
+}
 
 // Group templates by type to compute effective state
 const templatesByType = new Map<string, any[]>();
@@ -90,58 +103,77 @@ function isSuperseded(template: any): boolean {
           ) : (() => {
             const systemTemplates = emailTemplates.filter((t: any) => !(t.groupId ?? t.group_id));
             const customTemplates = emailTemplates.filter((t: any) => !!(t.groupId ?? t.group_id));
-            const renderCard = (template: any) => (
-              <div class:list={['template-card', { 'is-superseded': isSuperseded(template) }]} data-template-id={template.id}>
-                <div class="template-info">
-                  <div class="template-header">
-                    <strong>{template.name}</strong>
-                    <span class="badge badge-type">{(template as any).templateType ?? template.template_type}</span>
-                    {template.enabled ? (
-                      <span class="badge badge-active">Active</span>
-                    ) : (
-                      <span class="badge badge-inactive">Inactive</span>
-                    )}
-                    {!(template.groupId ?? template.group_id) && (
-                      <span class="badge badge-system" title="System default — click Customize to create a workspace override">Default</span>
-                    )}
-                    {!!(template.groupId ?? template.group_id) && (
-                      <span class="badge badge-customized" title="Workspace customization — overrides the system default">Customized</span>
+            const renderCard = (template: any) => {
+              const isSystemTpl = !(template.groupId ?? template.group_id);
+              const connectedEvent = systemEventByTemplateId.get(template.id) ?? null;
+              return (
+                <div class:list={['template-card', { 'is-superseded': isSuperseded(template) }]} data-template-id={template.id}>
+                  <div class="template-info">
+                    <div class="template-header">
+                      <strong>{template.name}</strong>
+                      <span class="badge badge-type">{(template as any).templateType ?? template.template_type}</span>
+                      {template.enabled ? (
+                        <span class="badge badge-active">Active</span>
+                      ) : (
+                        <span class="badge badge-inactive">Inactive</span>
+                      )}
+                      {isSystemTpl && (
+                        <span class="badge badge-system" title="System default — click Customize to create a workspace override">Default</span>
+                      )}
+                      {!isSystemTpl && (
+                        <span class="badge badge-customized" title="Workspace customization — overrides the system default">Customized</span>
+                      )}
+                      {isSuperseded(template) && (
+                        <span class="badge badge-superseded" title="A workspace customization is active for this type">Superseded</span>
+                      )}
+                    </div>
+                    <p>{template.description || 'No description'}</p>
+                    {connectedEvent && (
+                      <p class="connected-event-line">
+                        <span class="connected-dot">&#9679;</span>
+                        Connected to <code>{connectedEvent}</code>
+                      </p>
                     )}
                     {isSuperseded(template) && (
-                      <span class="badge badge-superseded" title="A workspace customization is active for this type">Superseded</span>
+                      <small class="superseded-note">A workspace customization is currently active — this template won't be used.</small>
                     )}
                   </div>
-                  <p>{template.description || 'No description'}</p>
-                  {isSuperseded(template) && (
-                    <small class="superseded-note">A workspace customization is currently active — this template won't be used.</small>
-                  )}
-                </div>
-                <div class="template-actions">
-                  <button
-                    class="button secondary small edit-template-btn"
-                    data-template-id={template.id}
-                    data-is-system={!(template.groupId ?? template.group_id) ? 'true' : 'false'}
-                  >
-                    {!(template.groupId ?? template.group_id) ? 'Customize' : 'Edit'}
-                  </button>
-                  <button
-                    class="button secondary small test-send-btn"
-                    data-template-id={template.id}
-                    data-template-type={(template as any).templateType ?? template.template_type}
-                  >
-                    Test Send
-                  </button>
-                  {!!(template.groupId ?? template.group_id) && (
+                  <div class="template-actions">
+                    {isSystemTpl ? (
+                      <button
+                        class="button secondary small edit-template-btn"
+                        data-template-id={template.id}
+                        data-is-system="true"
+                      >
+                        Customize
+                      </button>
+                    ) : (
+                      <a
+                        href={`/workspace/settings/email/${template.id}`}
+                        class="button secondary small"
+                      >
+                        Edit
+                      </a>
+                    )}
                     <button
-                      class="button danger small delete-template-btn"
+                      class="button secondary small test-send-btn"
                       data-template-id={template.id}
+                      data-template-type={(template as any).templateType ?? template.template_type}
                     >
-                      Delete
+                      Test Send
                     </button>
-                  )}
+                    {!isSystemTpl && (
+                      <button
+                        class="button danger small delete-template-btn"
+                        data-template-id={template.id}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
+              );
+            };
             return (
               <>
                 {systemTemplates.length > 0 && (
@@ -1275,6 +1307,28 @@ ${btnRow}${bottomRow}
     margin: 0;
     font-size: 13px;
     color: var(--muted);
+  }
+
+  .connected-event-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px !important;
+    font-size: 12px;
+    color: var(--accent) !important;
+  }
+
+  .connected-dot {
+    font-size: 8px;
+    color: var(--accent);
+  }
+
+  .connected-event-line code {
+    font-family: monospace;
+    font-size: 11px;
+    background: rgba(79,156,132,0.1);
+    padding: 1px 5px;
+    border-radius: 3px;
   }
 
   .template-actions {
