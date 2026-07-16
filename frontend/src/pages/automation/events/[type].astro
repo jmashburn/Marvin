@@ -299,26 +299,21 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       </div>
 
       <div class="em-section-divider" style="margin-top:20px">Template</div>
-      <!-- Structured fields — shown when template has no custom HTML -->
-      <div id="em-structured-fields">
-        <div class="form-group">
-          <label class="em-field-label">Subject</label>
-          <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
-        </div>
-        <div class="form-group">
-          <label class="em-field-label">Message</label>
-          <textarea id="em-message-top" rows="4" class="em-text-input" placeholder="Use {{ variable }} for event data"></textarea>
-        </div>
+      <div class="form-group">
+        <label class="em-field-label">Subject</label>
+        <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
       </div>
-      <!-- Custom HTML editor — shown when template has custom_html -->
-      <div id="em-custom-html-fields" style="display:none">
-        <div class="form-group">
-          <label class="em-field-label">Subject</label>
-          <input type="text" id="em-subject-html" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
-        </div>
-        <div class="form-group">
-          <label class="em-field-label">Custom HTML</label>
-          <textarea id="em-custom-html" rows="10" class="em-text-input em-code" placeholder="Full HTML template — use {{ variable }} for event data"></textarea>
+      <div class="form-group">
+        <label class="em-field-label">Body</label>
+        <div class="em-md-container">
+          <div class="em-md-tabs">
+            <button type="button" class="em-md-tab active" data-em-tab="write">Write</button>
+            <button type="button" class="em-md-tab" data-em-tab="preview">Preview</button>
+          </div>
+          <textarea id="em-md-body" rows="8" class="em-text-input em-md-write" placeholder="Write in markdown — use {{ variable }} for event data"></textarea>
+          <div id="em-md-preview" class="em-md-preview" style="display:none">
+            <span class="em-md-empty">Nothing to preview</span>
+          </div>
         </div>
       </div>
       <div id="em-template-vars" class="em-vars"></div>
@@ -427,6 +422,38 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     }
   });
 
+  // ── Markdown parser (from MarkdownField.astro) ───────────────────────────
+  function parseMarkdown(md) {
+    if (!md || !md.trim()) return '<span class="em-md-empty">Nothing to preview</span>';
+    let html = md
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+    return html.startsWith('<') ? html : '<p>' + html + '</p>';
+  }
+
+  function markdownToHtml(md) {
+    // Protect {{ variables }} from HTML escaping so they survive Jinja2 rendering
+    const placeholders = [];
+    const protected_md = md.replace(/\{\{[^}]+\}\}/g, m => {
+      placeholders.push(m);
+      return `\x00PLACEHOLDER${placeholders.length - 1}\x00`;
+    });
+    let html = parseMarkdown(protected_md);
+    placeholders.forEach((p, i) => { html = html.replace(`\x00PLACEHOLDER${i}\x00`, p); });
+    return html;
+  }
+
   // ── Email modal ──────────────────────────────────────────────────────────
   const emailModal = document.getElementById('email-modal');
   const emTitle = document.getElementById('em-title');
@@ -451,6 +478,30 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     if (emEventFieldRadio) emEventFieldRadio.disabled = true;
     if (emNoEmailFields) emNoEmailFields.style.display = 'inline';
   }
+
+  // Write/Preview tabs for markdown editor
+  const emMdBody = document.getElementById('em-md-body');
+  const emMdPreview = document.getElementById('em-md-preview');
+  document.querySelectorAll('.em-md-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.em-md-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const isPreview = tab.dataset.emTab === 'preview';
+      if (emMdBody) emMdBody.style.display = isPreview ? 'none' : 'block';
+      if (emMdPreview) {
+        emMdPreview.style.display = isPreview ? 'block' : 'none';
+        if (isPreview) emMdPreview.innerHTML = parseMarkdown(emMdBody?.value || '');
+      }
+    });
+  });
+  // Debounced preview update while on preview tab
+  let mdDebounce;
+  emMdBody?.addEventListener('input', () => {
+    clearTimeout(mdDebounce);
+    mdDebounce = setTimeout(() => {
+      if (emMdPreview?.style.display !== 'none') emMdPreview.innerHTML = parseMarkdown(emMdBody.value);
+    }, 300);
+  });
 
   // Recipient radio show/hide
   document.querySelectorAll('input[name="em-recipient-type"]').forEach(radio => {
@@ -503,34 +554,25 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
     if (emailModal) { emailModal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
 
-    // Fetch and pre-fill template content
+    // Reset Write tab active
+    document.querySelectorAll('.em-md-tab').forEach(t => t.classList.toggle('active', t.dataset.emTab === 'write'));
+    if (emMdBody) { emMdBody.style.display = 'block'; }
+    if (emMdPreview) { emMdPreview.style.display = 'none'; }
+
+    // Fetch and pre-fill template
     emIsSystemTemplate = false;
-    const structuredEl = document.getElementById('em-structured-fields');
-    const customHtmlEl = document.getElementById('em-custom-html-fields');
     try {
       const res = await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, { credentials: 'include' });
       if (res.ok) {
         const tpl = await res.json();
         emIsSystemTemplate = !(tpl.groupId || tpl.group_id);
         const f = (c, s) => tpl[c] ?? tpl[s] ?? '';
-        const customHtml = f('customHtml', 'custom_html');
-        if (customHtml) {
-          // Custom HTML mode
-          if (structuredEl) structuredEl.style.display = 'none';
-          if (customHtmlEl) customHtmlEl.style.display = 'block';
-          const subjHtml = document.getElementById('em-subject-html');
-          const htmlArea = document.getElementById('em-custom-html');
-          if (subjHtml) subjHtml.value = f('subject', 'subject');
-          if (htmlArea) htmlArea.value = customHtml;
-        } else {
-          // Structured mode
-          if (structuredEl) structuredEl.style.display = 'block';
-          if (customHtmlEl) customHtmlEl.style.display = 'none';
-          const subj = document.getElementById('em-subject');
-          const msg = document.getElementById('em-message-top');
-          if (subj) subj.value = f('subject', 'subject');
-          if (msg) msg.value = f('messageTop', 'message_top');
-        }
+        const subj = document.getElementById('em-subject');
+        // Use message_top as the markdown source (saved there on previous edits),
+        // fall back to stripping tags from custom_html for first-open of HTML templates
+        const markdownSource = f('messageTop', 'message_top') || '';
+        if (subj) subj.value = f('subject', 'subject');
+        if (emMdBody) emMdBody.value = markdownSource;
       }
     } catch {}
   }
@@ -539,14 +581,14 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     if (emailModal) emailModal.style.display = 'none';
     document.body.style.overflow = '';
     emTemplateId = null; emSubscriptionId = null;
-    ['em-subject', 'em-message-top', 'em-subject-html', 'em-custom-html'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
-    const structuredEl = document.getElementById('em-structured-fields');
-    const customHtmlEl = document.getElementById('em-custom-html-fields');
-    if (structuredEl) structuredEl.style.display = 'block';
-    if (customHtmlEl) customHtmlEl.style.display = 'none';
+    const subj = document.getElementById('em-subject');
+    if (subj) subj.value = '';
+    if (emMdBody) emMdBody.value = '';
+    if (emMdPreview) emMdPreview.innerHTML = '<span class="em-md-empty">Nothing to preview</span>';
+    // Reset to Write tab
+    document.querySelectorAll('.em-md-tab').forEach(t => t.classList.toggle('active', t.dataset.emTab === 'write'));
+    if (emMdBody) emMdBody.style.display = 'block';
+    if (emMdPreview) emMdPreview.style.display = 'none';
   }
 
   document.querySelectorAll('.connect-email-btn').forEach(btn => {
@@ -586,32 +628,28 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     emConfirm.textContent = 'Saving…';
 
     try {
-      // 1. Save template edits — detect which mode is active
-      const isCustomMode = document.getElementById('em-custom-html-fields')?.style.display !== 'none';
-      const subject = isCustomMode
-        ? document.getElementById('em-subject-html')?.value?.trim()
-        : document.getElementById('em-subject')?.value?.trim();
-      const messageTop = isCustomMode ? null : document.getElementById('em-message-top')?.value?.trim();
-      const customHtml = isCustomMode ? document.getElementById('em-custom-html')?.value?.trim() : null;
+      // 1. Save template edits
+      const subject = document.getElementById('em-subject')?.value?.trim();
+      const markdownBody = emMdBody?.value?.trim() || '';
+      const renderedHtml = markdownBody ? markdownToHtml(markdownBody) : null;
       let finalTemplateId = emTemplateId;
 
-      const hasEdits = subject || messageTop || customHtml;
-      if (hasEdits) {
-        const tplBody = isCustomMode
-          ? { subject, custom_html: customHtml }
-          : { subject, message_top: messageTop };
-        if (emIsSystemTemplate) {
-          const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify({ template_type: 'custom', name: document.getElementById('em-template-name')?.textContent || 'Custom', enabled: true, ...tplBody }),
-          });
-          if (res.ok) { const t = await res.json().catch(() => null); if (t?.id) finalTemplateId = t.id; }
-        } else {
-          await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify(tplBody),
-          });
-        }
+      const tplBody = {
+        subject,
+        message_top: markdownBody,   // store markdown source for re-editing
+        custom_html: renderedHtml,   // store rendered HTML for email sending
+      };
+      if (emIsSystemTemplate) {
+        const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ template_type: 'custom', name: document.getElementById('em-template-name')?.textContent || 'Custom', enabled: true, ...tplBody }),
+        });
+        if (res.ok) { const t = await res.json().catch(() => null); if (t?.id) finalTemplateId = t.id; }
+      } else {
+        await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify(tplBody),
+        });
       }
 
       // 2. Delete old subscription if editing
@@ -1078,7 +1116,61 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   .form-group { margin-bottom: 12px; }
   .em-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
 
-  .em-code { font-family: ui-monospace, monospace; font-size: 12px; }
+  .em-md-container {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .em-md-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .em-md-tab {
+    padding: 6px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .em-md-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .em-md-tab:hover { color: var(--ink); background: var(--bg); }
+
+  .em-md-write {
+    border: none !important;
+    border-radius: 0 !important;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    resize: vertical;
+  }
+
+  .em-md-write:focus { box-shadow: none !important; }
+
+  .em-md-preview {
+    padding: 12px 14px;
+    min-height: 120px;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-y: auto;
+  }
+
+  .em-md-empty { color: var(--muted); font-style: italic; }
+
+  .em-md-preview h1, .em-md-preview h2, .em-md-preview h3 { font-weight: 600; margin: 12px 0 6px; }
+  .em-md-preview p { margin: 6px 0; }
+  .em-md-preview code { font-family: ui-monospace, monospace; font-size: 12px; background: var(--panel); padding: 1px 5px; border-radius: 3px; }
+  .em-md-preview a { color: var(--accent); }
+  .em-md-preview ul, .em-md-preview ol { padding-left: 20px; margin: 6px 0; }
+  .em-md-preview strong { font-weight: 600; }
+  .em-md-preview em { font-style: italic; }
 
   .em-text-input {
     width: 100%;
