@@ -260,10 +260,12 @@ class GroupEventsNotifierController(BaseUserController):
         if not notifier_config:  # Should be caught by get_one if not found
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notifier configuration not found.")
 
-        # Construct a test event payload
         event_type = EventTypes.test_message
         test_event_payload = Event(
-            message=EventBusMessage.from_type(event_type, "This is a test message from Marvin."),
+            message=EventBusMessage.from_type(
+                event_type,
+                f"Test from Marvin — notification '{notifier_config.name}' is working correctly."
+            ),
             event_type=event_type,
             integration_id="marvin_test_event_notification",
             workspace_id=self.group_id,
@@ -272,17 +274,14 @@ class GroupEventsNotifierController(BaseUserController):
             ),
         )
 
-        # Initialize a temporary AppriseEventListener for this test.
-        # It's scoped to the current user's group_id.
         test_listener = AppriseEventListener(self.group_id)
 
-        # Directly publish to the specific Apprise URL of the notifier being tested.
-        # The `publish_to_subscribers` method here is used somewhat unconventionally
-        # by passing a list containing just the single Apprise URL to test.
         try:
             from marvin.services.secrets.resolver import resolve
             resolved_url = resolve(notifier_config.apprise_url, group_id=self.group_id)
-            test_listener.publish_to_subscribers(test_event_payload, [resolved_url])
+            # Run the same URL enrichment as live events (adds event data for json://, xml://, form:// URLs)
+            enriched_urls = AppriseEventListener.update_urls_with_event_data([resolved_url], test_event_payload)
+            test_listener.publish_to_subscribers(test_event_payload, enriched_urls)
             self.logger.info(f"Test notification sent to notifier ID {item_id} (URL: {notifier_config.apprise_url}) for group {self.group_id}")
         except Exception as e:
             self.logger.error(f"Failed to send test notification for notifier ID {item_id}: {e}")
