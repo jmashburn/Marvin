@@ -287,21 +287,19 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
   const scheduledInput = scheduledField?.querySelector('input') as HTMLInputElement;
   const typeDesc = document.getElementById('type-description')!;
 
-  // Fetch type descriptions from backend (source of truth: WEBHOOK_MODE_DESCRIPTIONS in event_types.py)
-  let typeDescriptions: Record<string, string> = {};
-  fetch('/api/groups/webhooks/types', { credentials: 'include' })
-    .then(r => r.ok ? r.json() : [])
-    .then((types: { value: string; description: string }[]) => {
-      typeDescriptions = Object.fromEntries(types.map(t => [t.value, t.description]));
-      updateFieldVisibility();
-    })
-    .catch(() => {});
+  // Keep in sync with WEBHOOK_MODE_DESCRIPTIONS in src/marvin/services/event_bus_service/event_types.py
+  const TYPE_DESCRIPTIONS: Record<string, string> = {
+    generic: 'Fires on a schedule and sends your custom payload as-is. Use this for simple timed pings or custom data pushes.',
+    user: 'Fires on a schedule and includes workspace member statistics (total members, new members since last run) alongside your custom payload.',
+    entries: 'Fires on a schedule and includes content entry statistics (totals, published, draft, new since last run) alongside your custom payload.',
+    event_driven: 'Fires immediately when a subscribed workspace event occurs (e.g. entry published, member added). Connect events from the Events page after creating.',
+  };
 
   function updateFieldVisibility() {
     const isEventDriven = typeSelect.value === 'event_driven';
     if (scheduledField) scheduledField.style.display = isEventDriven ? 'none' : '';
     if (scheduledInput) scheduledInput.required = !isEventDriven;
-    if (typeDesc) typeDesc.textContent = typeDescriptions[typeSelect.value] ?? '';
+    if (typeDesc) typeDesc.textContent = TYPE_DESCRIPTIONS[typeSelect.value] ?? '';
   }
 
   typeSelect?.addEventListener('change', updateFieldVisibility);
