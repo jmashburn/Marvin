@@ -193,29 +193,23 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
                     data_dict["slug"] = slugify(data_dict["title"])
             # else: user provided explicit slug, use it as-is
 
+        # Skip slug update if unchanged — SQLite re-checks UNIQUE constraints on every
+        # UPDATE even when the value doesn't change, which causes spurious conflicts.
+        if "slug" in data_dict and existing_entry and data_dict.get("slug") == existing_entry.slug:
+            data_dict.pop("slug")
+
         # Handle published_at based on status changes
         if "status" in data_dict:
-            print(f"\n{'='*80}")
-            print(f"DEBUG: Status change detected: {data_dict['status']}")
             if data_dict["status"] == "published":
                 # Only set published_at if not already provided (first publish)
                 if "published_at" not in data_dict:
                     # Get current entry to check if it was already published
                     current_entry = self.get_one(match_value, key=match_key)
-                    print(f"Current entry published_at: {current_entry.published_at if current_entry else 'None'}")
                     if current_entry and not current_entry.published_at:
-                        new_timestamp = datetime.now(timezone.utc)
-                        data_dict["published_at"] = new_timestamp
-                        print(f"Setting published_at to: {new_timestamp}")
-                    else:
-                        print(f"Not setting published_at (already has value or entry not found)")
-                else:
-                    print(f"published_at already in data_dict: {data_dict['published_at']}")
+                        data_dict["published_at"] = datetime.now(timezone.utc)
             else:
                 # If unpublishing (changing to draft/etc), clear published_at
                 data_dict["published_at"] = None
-                print(f"Clearing published_at (status changed to {data_dict['status']})")
-            print(f"{'='*80}\n")
 
         # Validate entry type exists if being changed
         entry_type_id = data_dict.get("entry_type_id")

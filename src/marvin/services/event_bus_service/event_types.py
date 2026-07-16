@@ -581,7 +581,7 @@ class EventEntryData(EventDocumentDataBase):
     """The type/schema of the entry."""
     workspace_id: UUID4
     """The workspace containing the entry."""
-    author_id: UUID4
+    author_id: UUID4 | None = None
     """The user who created/modified the entry."""
 
 
