@@ -648,7 +648,7 @@ class ScheduledTaskListener(EventListenerBase):
                 # Get and execute handler
                 handler = TaskHandlerRegistry.get_handler(task.task_type)
                 self.logger.info(f"Executing scheduled task: {task.name} (type: {task.task_type})")
-                handler.execute(task, event_bus)
+                output = handler.execute(task, event_bus)
 
                 # Calculate duration
                 end_time = datetime.now(UTC)
@@ -661,6 +661,7 @@ class ScheduledTaskListener(EventListenerBase):
                     status="success",
                     executed_at=start_time,
                     duration_ms=duration_ms,
+                    output=output,
                 )
 
                 # Update task state

@@ -141,6 +141,9 @@ class ScheduledTaskExecutionLogModel(SqlAlchemyBase):
     error_traceback: Mapped[str | None] = mapped_column(Text, nullable=True)
     """Full error traceback for debugging."""
 
+    output: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """Human-readable summary of what the handler did (e.g. '3 files deleted, 4.2 KB freed')."""
+
     retry_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     """Retry attempt number (0 = first attempt)."""
 

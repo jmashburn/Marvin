@@ -29,7 +29,7 @@ class ScheduledTaskHandler(ABC):
     """JSON schema describing expected task_config fields."""
 
     @abstractmethod
-    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
+    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         """
         Execute the scheduled task.
 

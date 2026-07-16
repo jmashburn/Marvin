@@ -176,6 +176,9 @@ class ScheduledTaskExecutionLogRead(_MarvinModel):
     error_traceback: str | None = None
     """Full error traceback for debugging."""
 
+    output: str | None = None
+    """Human-readable summary of what the handler did."""
+
     retry_attempt: int
     """Retry attempt number (0 = first attempt)."""
 

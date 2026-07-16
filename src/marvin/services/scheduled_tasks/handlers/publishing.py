@@ -29,7 +29,10 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
     - dry_run: bool (default: False) - If true, log what would be published
     """
 
-    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
+    name = "Publish Scheduled Entries"
+    description = "Publish entries whose publish_at time has arrived"
+
+    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
         raw_workspace_id = config.get("workspace_id") or task.group_id
         dry_run = config.get("dry_run", False)
@@ -41,12 +44,6 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
 
         with session_context() as session:
             now = datetime.now(UTC)
-            logger.info(
-                "Scanning for scheduled entries in workspace %s (now=%s, dry_run=%s)",
-                workspace_id,
-                now,
-                dry_run,
-            )
 
             scheduled_entries = (
                 session.query(Entries)
@@ -58,15 +55,19 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
                 .all()
             )
 
-            logger.info("Found %d entries to publish", len(scheduled_entries))
+            count = len(scheduled_entries)
+            logger.info(
+                "Found %d entries to publish in workspace %s (dry_run=%s)",
+                count, workspace_id, dry_run,
+            )
 
+            published_titles = []
             for entry in scheduled_entries:
                 if not dry_run:
                     entry.status = "published"
                     entry.published_at = now
                     session.commit()
                     logger.info("Published entry '%s' (id=%s)", entry.title, entry.id)
-
                     event_bus.dispatch(
                         integration_id="scheduled_tasks",
                         group_id=workspace_id,
@@ -77,10 +78,22 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
                 else:
                     logger.info(
                         "Would publish: %s (id=%s, publish_at=%s)",
-                        entry.title,
-                        entry.id,
-                        entry.publish_at,
+                        entry.title, entry.id, entry.publish_at,
                     )
+                published_titles.append(entry.title)
+
+        if count == 0:
+            summary = "No entries due for publishing"
+        else:
+            label = "would publish" if dry_run else "published"
+            names = ", ".join(f"'{t}'" for t in published_titles[:5])
+            suffix = f" and {count - 5} more" if count > 5 else ""
+            summary = f"{count} entr{'y' if count == 1 else 'ies'} {label}: {names}{suffix}"
+            if dry_run:
+                summary += " (dry run)"
+
+        logger.info("Publish scheduled entries: %s", summary)
+        return summary
 
 
 class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
@@ -92,7 +105,10 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
     - dry_run: bool (default: False) - If true, log what would be unpublished
     """
 
-    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
+    name = "Unpublish Expired Entries"
+    description = "Archive entries whose expire_at time has passed"
+
+    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
         raw_workspace_id = config.get("workspace_id") or task.group_id
         dry_run = config.get("dry_run", False)
@@ -104,12 +120,6 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
 
         with session_context() as session:
             now = datetime.now(UTC)
-            logger.info(
-                "Scanning for expired entries in workspace %s (now=%s, dry_run=%s)",
-                workspace_id,
-                now,
-                dry_run,
-            )
 
             expired_entries = (
                 session.query(Entries)
@@ -121,14 +131,18 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
                 .all()
             )
 
-            logger.info("Found %d expired entries", len(expired_entries))
+            count = len(expired_entries)
+            logger.info(
+                "Found %d expired entries in workspace %s (dry_run=%s)",
+                count, workspace_id, dry_run,
+            )
 
+            expired_titles = []
             for entry in expired_entries:
                 if not dry_run:
                     entry.status = "archived"
                     session.commit()
                     logger.info("Unpublished expired entry '%s' (id=%s)", entry.title, entry.id)
-
                     event_bus.dispatch(
                         integration_id="scheduled_tasks",
                         group_id=workspace_id,
@@ -139,10 +153,22 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
                 else:
                     logger.info(
                         "Would unpublish: %s (id=%s, expire_at=%s)",
-                        entry.title,
-                        entry.id,
-                        entry.expire_at,
+                        entry.title, entry.id, entry.expire_at,
                     )
+                expired_titles.append(entry.title)
+
+        if count == 0:
+            summary = "No entries found past their expiry date"
+        else:
+            label = "would unpublish" if dry_run else "archived"
+            names = ", ".join(f"'{t}'" for t in expired_titles[:5])
+            suffix = f" and {count - 5} more" if count > 5 else ""
+            summary = f"{count} entr{'y' if count == 1 else 'ies'} {label}: {names}{suffix}"
+            if dry_run:
+                summary += " (dry run)"
+
+        logger.info("Unpublish expired entries: %s", summary)
+        return summary
 
 
 class RequestSiteRebuildHandler(ScheduledTaskHandler):
@@ -154,7 +180,10 @@ class RequestSiteRebuildHandler(ScheduledTaskHandler):
     - reason: str (default: "scheduled") - Reason for the rebuild
     """
 
-    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> None:
+    name = "Request Site Rebuild"
+    description = "Dispatch a webhook_triggered event to kick off a static site rebuild"
+
+    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
         raw_workspace_id = config.get("workspace_id") or task.group_id
         reason = config.get("reason", "scheduled")
@@ -172,7 +201,9 @@ class RequestSiteRebuildHandler(ScheduledTaskHandler):
             message=f"Site rebuild requested: {reason}",
         )
 
-        logger.info("Site rebuild requested for workspace %s (reason: %s)", workspace_id, reason)
+        summary = f"Site rebuild event dispatched (workspace: {workspace_id}, reason: {reason})"
+        logger.info(summary)
+        return summary
 
 
 # Register handlers

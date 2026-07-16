@@ -190,6 +190,7 @@ class ScheduledTaskExecutionLogRepository(GroupRepositoryGeneric[ScheduledTaskEx
         duration_ms: int | None = None,
         error_message: str | None = None,
         error_traceback: str | None = None,
+        output: str | None = None,
         retry_attempt: int = 0,
     ) -> ScheduledTaskExecutionLogRead:
         """
@@ -217,6 +218,7 @@ class ScheduledTaskExecutionLogRepository(GroupRepositoryGeneric[ScheduledTaskEx
             duration_ms=duration_ms,
             error_message=error_message,
             error_traceback=error_traceback,
+            output=output,
             retry_attempt=retry_attempt,
         )
         self.session.add(log_entry)
