@@ -48,28 +48,49 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
           <label class="form-field">
             <span class="label">Type</span>
-            <select name="webhook_type" class="input">
+            <select name="webhook_type" id="webhook-type-select" class="input">
               <option value="generic">Generic</option>
               <option value="user">User</option>
+              <option value="entries">Entries</option>
+              <option value="event_driven">Event-Driven</option>
             </select>
           </label>
         </div>
 
-        <label class="form-field">
+        <div id="scheduled-time-field" class="form-field">
           <span class="label">Daily Trigger Time *</span>
           <input
             type="datetime-local"
             name="scheduled_time"
-            required
             class="input"
           />
           <small class="hint">Time of day this webhook fires automatically (uses your local time)</small>
-        </label>
+        </div>
+
+        <div id="subscribed-events-field" class="form-field" style="display:none">
+          <span class="label">Subscribed Events *</span>
+          <div id="events-list" class="events-list"></div>
+          <input type="text" id="event-input" class="input" placeholder="e.g. entry_published" />
+          <button type="button" id="add-event-btn" class="button secondary small" style="margin-top:6px">+ Add Event</button>
+          <small class="hint">Event types that trigger this webhook (e.g. entry_published, member_added)</small>
+        </div>
 
         <label class="checkbox-field">
           <input type="checkbox" name="enabled" checked />
           <span>Enabled</span>
         </label>
+      </div>
+
+      <div class="form-section">
+        <h3>Custom Payload <span class="optional">(optional)</span></h3>
+        <p class="section-hint">JSON merged into every outgoing POST. Supports <code>&#123;&#123;timestamp&#125;&#125;</code>, <code>&#123;&#123;workspace_slug&#125;&#125;</code>, <code>&#123;&#123;workspace_name&#125;&#125;</code>, <code>&#123;&#123;trigger&#125;&#125;</code>, and workspace <a href="/workspace/settings/secrets">secrets</a>.</p>
+        <textarea
+          id="custom-payload-input"
+          class="input code-input"
+          placeholder='{"env": "production", "ts": "{{timestamp}}"}'
+          rows="5"
+        ></textarea>
+        <small id="payload-error" class="error-hint" style="display:none">Invalid JSON</small>
       </div>
 
       <div class="form-section">
@@ -91,6 +112,55 @@ import AppLayout from "@/layouts/AppLayout.astro";
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
 
+  // Type selector — show/hide scheduled time vs subscribed events
+  const typeSelect = document.getElementById('webhook-type-select') as HTMLSelectElement;
+  const scheduledField = document.getElementById('scheduled-time-field')!;
+  const scheduledInput = scheduledField.querySelector('input') as HTMLInputElement;
+  const eventsField = document.getElementById('subscribed-events-field')!;
+
+  function updateFieldVisibility() {
+    const isEventDriven = typeSelect.value === 'event_driven';
+    scheduledField.style.display = isEventDriven ? 'none' : '';
+    scheduledInput.required = !isEventDriven;
+    eventsField.style.display = isEventDriven ? '' : 'none';
+  }
+
+  typeSelect.addEventListener('change', updateFieldVisibility);
+
+  // Set default scheduled time to now
+  const now = new Date();
+  const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  scheduledInput.value = localDateTime;
+  updateFieldVisibility();
+
+  // Subscribed events builder
+  const eventsList = document.getElementById('events-list')!;
+  const eventInput = document.getElementById('event-input') as HTMLInputElement;
+  const subscribedEvents: string[] = [];
+
+  function addEvent(val: string) {
+    val = val.trim();
+    if (!val || subscribedEvents.includes(val)) return;
+    subscribedEvents.push(val);
+    const tag = document.createElement('span');
+    tag.className = 'event-tag';
+    tag.textContent = val;
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'event-tag-remove';
+    rm.textContent = '✕';
+    rm.addEventListener('click', () => {
+      subscribedEvents.splice(subscribedEvents.indexOf(val), 1);
+      tag.remove();
+    });
+    tag.appendChild(rm);
+    eventsList.appendChild(tag);
+    eventInput.value = '';
+  }
+
+  document.getElementById('add-event-btn')?.addEventListener('click', () => addEvent(eventInput.value));
+  eventInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addEvent(eventInput.value); } });
+
   // Header builder
   const headersList = document.getElementById('headers-list')!;
   document.getElementById('add-header-btn')?.addEventListener('click', () => {
@@ -106,16 +176,27 @@ import AppLayout from "@/layouts/AppLayout.astro";
     headersList.appendChild(row);
   });
 
-  // Set default scheduled time to now
-  const now = new Date();
-  const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  (document.querySelector('[name="scheduled_time"]') as HTMLInputElement).value = localDateTime;
-
   const form = document.getElementById('create-webhook-form');
+  const payloadInput = document.getElementById('custom-payload-input') as HTMLTextAreaElement;
+  const payloadError = document.getElementById('payload-error')!;
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+
+    // Validate and parse custom_payload
+    let customPayload: Record<string, unknown> | null = null;
+    const rawPayload = payloadInput.value.trim();
+    if (rawPayload) {
+      try {
+        customPayload = JSON.parse(rawPayload);
+        payloadError.style.display = 'none';
+      } catch {
+        payloadError.style.display = '';
+        payloadInput.focus();
+        return;
+      }
+    }
 
     // Collect headers
     const headerRows = document.querySelectorAll('.header-row');
@@ -126,18 +207,26 @@ import AppLayout from "@/layouts/AppLayout.astro";
       if (k && v) headers[k] = v;
     });
 
-    const payload = {
+    const isEventDriven = typeSelect.value === 'event_driven';
+
+    const payload: Record<string, unknown> = {
       name: formData.get('name') as string,
       url: formData.get('url') as string,
       method: formData.get('method') as string,
       webhook_type: formData.get('webhook_type') as string,
-      scheduled_time: formData.get('scheduled_time') as string,
       enabled: formData.get('enabled') === 'on',
       headers: Object.keys(headers).length ? headers : null,
-    } as any;
+      custom_payload: customPayload,
+    };
+
+    if (isEventDriven) {
+      payload.subscribed_events = subscribedEvents.length ? subscribedEvents : null;
+    } else {
+      payload.scheduled_time = formData.get('scheduled_time') as string;
+    }
 
     try {
-      await sdk.webhooks.create(payload);
+      await sdk.webhooks.create(payload as any);
       window.location.href = '/automation/webhooks?created=true';
     } catch (error: any) {
       const msg = error?.message || error?.detail || String(error);
@@ -224,9 +313,20 @@ import AppLayout from "@/layouts/AppLayout.astro";
     font-size: 14px;
   }
 
+  .code-input {
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    resize: vertical;
+  }
+
   .hint {
     font-size: 12px;
     color: var(--muted);
+  }
+
+  .error-hint {
+    font-size: 12px;
+    color: var(--color-error);
   }
 
   .form-actions {
@@ -244,6 +344,30 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
   .section-hint code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
   .section-hint a { color: var(--accent); }
+
+  .events-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+
+  :global(.event-tag) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px 3px 10px;
+    background: var(--accent-bg, #e8f4fd);
+    color: var(--accent);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  :global(.event-tag-remove) {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 12px;
+    padding: 0 0 0 4px;
+    line-height: 1;
+  }
 
   :global(.header-row) { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   :global(.header-key) { flex: 1; min-width: 0; }

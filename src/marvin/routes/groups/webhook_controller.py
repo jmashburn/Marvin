@@ -16,11 +16,12 @@ from pydantic import UUID4  # For UUID type validation
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
 from marvin.routes._base.mixins import HttpRepo
-from marvin.schemas.group.webhook import (  # Pydantic schemas for webhooks
+from marvin.schemas.group.webhook import (
     WebhookCreate,
     WebhookExecutionLogRead,
+    WebhookMode,
     WebhookPagination,
-    WebhookRead,  # WebhookUpdate is available but HttpRepo mixin is typed with WebhookCreate for updates
+    WebhookRead,
     WebhookSave,
 )
 from marvin.schemas.mapper import cast  # Utility for casting between schema types
@@ -32,8 +33,23 @@ from marvin.services.scheduler.tasks.post_webhooks import post_group_webhooks, p
 # EventDocumentType was imported but not used in the current code.
 # from marvin.services.event_bus_service.event_types import EventDocumentType
 
-# APIRouter for group webhooks. All routes will be under /groups/webhooks.
 router = APIRouter(prefix="/groups/webhooks")
+
+
+def _validate_webhook_mode(data: WebhookCreate) -> None:
+    """Enforce scheduling/event constraints based on webhook_type."""
+    if data.webhook_type == WebhookMode.event_driven:
+        if not data.subscribed_events:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="event_driven webhooks must have at least one subscribed_event.",
+            )
+    else:
+        if not data.scheduled_time:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{data.webhook_type.value} webhooks must have a scheduled_time.",
+            )
 
 
 @controller(router)
@@ -115,17 +131,9 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         # and `group_id` needs to be added, it's better to create a new `WebhookCreate` instance
         # or modify a dict representation.
         # Assuming the goal is to ensure group_id is set:
+        _validate_webhook_mode(data)
         save_data_dict = data.model_dump()
-        save_data_dict["group_id"] = self.group_id  # Ensure group_id is set for the current user's group
-
-        # Use WebhookCreate as the input type for create_one as per mixin typing.
-        # If the repository expects a model with group_id already set, this is correct.
-        # The original `mapper.cast(data, WebhookUpdate, group_id=self.group_id)` was unusual.
-        # A more direct approach if `WebhookCreate` can take `group_id`:
-        # save_payload = WebhookCreate(**data.model_dump(), group_id=self.group_id)
-        # For now, matching the spirit of ensuring group_id is part of the data sent to repo.create:
-        # The mixin is HttpRepo[WebhookCreate, WebhookRead, WebhookCreate], so C is WebhookCreate.
-        # The repo's create method will expect a WebhookCreate compatible dict or object.
+        save_data_dict["group_id"] = self.group_id
         create_payload = WebhookCreate(**save_data_dict)
         save_data = cast(create_payload, WebhookSave, group_id=self.group_id)
         return self.mixins.create_one(save_data)
@@ -230,7 +238,7 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         Returns:
             WebhookRead: The Pydantic schema of the updated webhook.
         """
-        # Cast to WebhookSave so the model_validator populates headers_json from headers.
+        _validate_webhook_mode(data)
         save_data = cast(data, WebhookSave, group_id=self.group_id)
         return self.mixins.update_one(item_id=item_id, data=save_data)
 

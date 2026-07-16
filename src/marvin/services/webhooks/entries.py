@@ -1,4 +1,4 @@
-"""User webhook handler — sends workspace member statistics."""
+"""Entries webhook handler — sends content entry statistics."""
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -6,13 +6,13 @@ from typing import Any
 from sqlalchemy import func, select
 
 from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
-from marvin.db.models.users.workspace_members import WorkspaceMembers
+from marvin.db.models.platform.entries import Entries
 
 from .base_webhook import BaseWebhook
 from .substitution import apply_substitutions
 
 
-class UserWebhook(BaseWebhook):
+class EntriesWebhook(BaseWebhook):
     def info(self, webhook_config: Any, context: dict) -> dict:
         last_log = self.session.execute(
             select(WebhookExecutionLogModel.executed_at)
@@ -23,22 +23,22 @@ class UserWebhook(BaseWebhook):
         since = last_log if last_log else datetime.now(UTC) - timedelta(hours=24)
         since_naive = since.replace(tzinfo=None) if since.tzinfo else since
 
-        total = self.session.execute(
-            select(func.count()).select_from(WorkspaceMembers).where(
-                WorkspaceMembers.group_id == self._group_id
-            )
-        ).scalar() or 0
-
-        new_count = self.session.execute(
-            select(func.count()).select_from(WorkspaceMembers).where(
-                WorkspaceMembers.group_id == self._group_id,
-                WorkspaceMembers.created_at >= since_naive,
-            )
-        ).scalar() or 0
+        def _count(*where):
+            return self.session.execute(
+                select(func.count()).select_from(Entries).where(
+                    Entries.group_id == self._group_id, *where
+                )
+            ).scalar() or 0
 
         data = {
-            "total_members": total,
-            "new_members_since_last_run": new_count,
+            "total_entries": _count(),
+            "published_entries": _count(Entries.status == "published"),
+            "draft_entries": _count(Entries.status == "draft"),
+            "new_entries_since_last_run": _count(Entries.created_at >= since_naive),
+            "published_since_last_run": _count(
+                Entries.status == "published",
+                Entries.published_at >= since_naive,
+            ),
         }
         custom = apply_substitutions(webhook_config.custom_payload or {}, self._group_id, context)
         return {**data, **custom}

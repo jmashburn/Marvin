@@ -230,18 +230,19 @@ class WebhookPublisher:
         self.logger = get_logger()
 
     def publish(
-        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, headers: dict[str, str] | None = None, **_: Any
+        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, headers: dict[str, str] | None = None, payload_override: dict | None = None, **_: Any
     ) -> None:
         """
         Publishes event data to a list of notification URLs using the specified HTTP method.
 
         Includes retry logic with exponential backoff and logs execution attempts to the database.
 
-        The full `event` object is JSON-encoded and sent as the request body for
-        POST and PUT requests. For GET and DELETE, no body is sent.
+        When ``payload_override`` is supplied it is sent instead of the serialized event object.
+        POST and PUT requests use a body; GET and DELETE do not.
 
         Args:
-            event (Event): The event object to publish. Its data will be serialized to JSON.
+            event (Event): The event object (used for metadata / fallback serialisation).
+            payload_override: If provided, sent as the POST/PUT body instead of the event.
             notification_urls (list[str]): A list of URLs to send the webhook request to.
             method (str, optional): The HTTP method to use (e.g., "POST", "GET", "PUT", "DELETE").
                                     Defaults to "POST".
@@ -258,13 +259,13 @@ class WebhookPublisher:
         if not notification_urls:
             return
 
-        # Prepare the event payload for methods that use a body (POST, PUT)
-        # exclude_none strips null fields so webhook consumers get a clean payload
-        event_payload = jsonable_encoder(event, exclude_none=True)
-        # Replace integer enum value with the human-readable name string
-        if "eventType" in event_payload and hasattr(event.event_type, "name"):
-            event_payload["eventType"] = event.event_type.name
-        http_method = method.upper()  # Ensure method is uppercase for comparison
+        if payload_override is not None:
+            event_payload = payload_override
+        else:
+            event_payload = jsonable_encoder(event, exclude_none=True)
+            if "eventType" in event_payload and hasattr(event.event_type, "name"):
+                event_payload["eventType"] = event.event_type.name
+        http_method = method.upper()
 
         for url in notification_urls:
             # Retry loop for each URL

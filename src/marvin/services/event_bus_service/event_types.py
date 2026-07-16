@@ -435,6 +435,15 @@ class EventDocumentType(EventDocumentTypeBase):
     """Indicates the event data pertains to a site deployment."""
 
 
+class WebhookMode(str, Enum):
+    """Determines when a webhook fires and what payload it sends."""
+
+    generic = "generic"
+    user = "user"
+    entries = "entries"
+    event_driven = "event_driven"
+
+
 class EventOperationBase(Enum):
     """
     Abstract base class for event operation types.
