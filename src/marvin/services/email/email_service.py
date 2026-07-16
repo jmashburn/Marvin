@@ -328,6 +328,15 @@ class EmailService(BaseService):
             # Determine rendering mode
             raw_custom = db_template.custom_html or ""
             if raw_custom.strip():
+                # Log any {{ slug }} in the template that aren't in variables
+                import re as _re
+                used_slugs = set(_re.findall(r'\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}', raw_custom))
+                unresolved = [s for s in used_slugs if s not in variables]
+                if unresolved:
+                    self.logger.warning(
+                        f"EmailEventListener: unresolved variables in template '{db_template.name}': "
+                        + ", ".join(f"{{{{{s}}}}}" for s in sorted(unresolved))
+                    )
                 # Render content through Jinja2 for variable substitution
                 body_html = Template(_r(raw_custom)).render(**variables)
                 # Wrap in default.html so the email has proper structure/styling

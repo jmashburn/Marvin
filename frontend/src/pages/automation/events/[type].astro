@@ -318,6 +318,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
           </div>
         </div>
       </div>
+      <div id="em-unresolved-vars" class="em-unresolved" style="display:none"></div>
       <div id="em-template-vars" class="em-vars"></div>
       <a id="em-full-editor-link" href="/workspace/settings/email" class="em-subtle-link" target="_blank">Open full editor ↗</a>
     </div>
@@ -533,7 +534,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     clearTimeout(mdDebounce);
     mdDebounce = setTimeout(() => {
       if (emMdPreview?.style.display !== 'none') emMdPreview.innerHTML = parseMarkdown(emMdBody.value);
-    }, 300);
+      const subj = document.getElementById('em-subject')?.value || '';
+      checkUnresolvedVars(subj + ' ' + emMdBody.value);
+    }, 400);
+  });
+  document.getElementById('em-subject')?.addEventListener('input', () => {
+    const subj = document.getElementById('em-subject')?.value || '';
+    checkUnresolvedVars(subj + ' ' + (emMdBody?.value || ''));
   });
 
   // Recipient radio show/hide
@@ -606,8 +613,26 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         const markdownSource = f('messageTop', 'message_top') || '';
         if (subj) subj.value = f('subject', 'subject');
         if (emMdBody) emMdBody.value = markdownSource;
+
+        // Check for variables in the template that won't resolve for this event
+        checkUnresolvedVars(f('subject', 'subject') + ' ' + markdownSource);
       }
     } catch {}
+  }
+
+  function checkUnresolvedVars(content) {
+    const el = document.getElementById('em-unresolved-vars');
+    if (!el) return;
+    const known = new Set((eventVariables || []).map(v => v.slug));
+    const used = [...content.matchAll(/\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/g)].map(m => m[1]);
+    const unknown = [...new Set(used.filter(s => !known.has(s)))];
+    if (unknown.length) {
+      el.innerHTML = '⚠ Won\'t resolve for this event: ' +
+        unknown.map(s => `<code>{{ ${s} }}</code>`).join(', ');
+      el.style.display = 'block';
+    } else {
+      el.style.display = 'none';
+    }
   }
 
   function closeEmailModal() {
@@ -618,6 +643,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     if (subj) subj.value = '';
     if (emMdBody) emMdBody.value = '';
     if (emMdPreview) emMdPreview.innerHTML = '<span class="em-md-empty">Nothing to preview</span>';
+    const unresolvedEl = document.getElementById('em-unresolved-vars');
+    if (unresolvedEl) unresolvedEl.style.display = 'none';
     // Reset to Write tab
     document.querySelectorAll('.em-md-tab').forEach(t => t.classList.toggle('active', t.dataset.emTab === 'write'));
     if (emMdBody) emMdBody.style.display = 'block';
@@ -1203,6 +1230,17 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   }
 
   .em-md-empty { color: var(--muted); font-style: italic; }
+
+  .em-unresolved {
+    font-size: 12px;
+    color: #b45309;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    margin-bottom: 8px;
+  }
+  .em-unresolved code { font-size: 11px; font-family: ui-monospace, monospace; }
 
   .em-md-preview h1, .em-md-preview h2, .em-md-preview h3 { font-weight: 600; margin: 12px 0 6px; }
   .em-md-preview p { margin: 6px 0; }
