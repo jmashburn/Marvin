@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
-    "@inneropen/marvin-sdk": "file:../../marvin-sdk",
+    "@inneropen/marvin-sdk": "develop",
     "0g": "^0.4.2",
     "astro": "^7.0.7",
     "marked": "^18.0.6",
