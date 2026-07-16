@@ -2,6 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
+import { getApiUrl } from "@/lib/api/config";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -39,7 +40,7 @@ if (appriseReady) {
 if (notifications.length && authToken) {
   await Promise.all(notifications.map(async (notif) => {
     try {
-      const resp = await fetch(`${Astro.url.origin}/api/group/notifications/${notif.id}/logs?limit=1`, {
+      const resp = await fetch(getApiUrl(`/group/notifications/${notif.id}/logs?limit=1`).toString(), {
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
       if (resp.ok) {
@@ -124,6 +125,7 @@ function formatDate(isoStr: string): string {
                 data-test-name={notif.name}
                 disabled={notif.enabled === false}
               >Test</button>
+              <a href={`/automation/notifications/${notif.id}#execution-history`} class="button secondary small">Activity Log</a>
               <a href={`/automation/notifications/${notif.id}`} class="button secondary small">Edit</a>
               <button type="button" class="button secondary small danger" data-delete-id={notif.id} data-delete-name={notif.name}>Delete</button>
             </div>

@@ -2,6 +2,7 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
+import { getApiUrl } from "@/lib/api/config";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -36,7 +37,7 @@ try {
 
 if (notification && authToken) {
   try {
-    const resp = await fetch(`${Astro.url.origin}/api/group/notifications/${id}/logs?limit=50`, {
+    const resp = await fetch(getApiUrl(`/group/notifications/${id}/logs?limit=50`).toString(), {
       headers: { 'Authorization': `Bearer ${authToken}` },
     });
     if (resp.ok) history = await resp.json();
@@ -163,7 +164,7 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
         </div>
       </form>
 
-      <div class="history-section">
+      <div class="history-section" id="execution-history">
         <h3>Execution History</h3>
         {history.length === 0 ? (
           <p class="no-history">No executions yet. Use the Test button to fire a test notification.</p>
