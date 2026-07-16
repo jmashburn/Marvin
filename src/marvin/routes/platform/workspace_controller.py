@@ -87,6 +87,14 @@ class WorkspaceController(BaseUserController):
                 "→resource) are cleared and rebuilt from the bundle."
             ),
         ),
+        target_workspace_id: str | None = Query(
+            None,
+            description=(
+                "SUPER_ADMIN only: ID of the workspace to import into. "
+                "When set, overrides the workspace block in the bundle. "
+                "If omitted, the workspace block in the bundle determines the target."
+            ),
+        ),
     ) -> dict:
         """Import a workspace from a zip bundle exported by /export/bundle.
 
@@ -136,10 +144,13 @@ class WorkspaceController(BaseUserController):
             from marvin.repos.all_repositories import get_repositories
 
             if is_super_admin:
-                # Admin path: JSON workspace block drives which workspace receives the import
                 instance_repos = get_repositories(self.repos.session, group_id=None)
                 loader = WorkspaceSeedLoader(instance_repos)
-                results = loader.load_seed_zip(zip_path, overwrite=overwrite)
+                results = loader.load_seed_zip(
+                    zip_path,
+                    overwrite=overwrite,
+                    target_group_id=target_workspace_id,  # None → JSON drives workspace
+                )
             else:
                 # Owner path: always import into caller's own workspace
                 instance_repos = get_repositories(self.repos.session, group_id=None)
