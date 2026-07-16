@@ -21,7 +21,7 @@ from .factory import get_secret_backend
 
 logger = get_logger(__name__)
 
-SLUG_RE = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
+SLUG_RE = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 
 UNRESOLVED_SENTINEL = "__MARVIN_UNRESOLVED__"
 
