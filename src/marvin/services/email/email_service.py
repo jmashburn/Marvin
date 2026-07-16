@@ -328,17 +328,9 @@ class EmailService(BaseService):
             # Determine rendering mode
             raw_custom = db_template.custom_html or ""
             if raw_custom.strip():
-                # Detect markdown-stored content
-                if raw_custom.lstrip().startswith("<!--markdown-->"):
-                    import markdown as _md
-                    md_source = raw_custom.lstrip().removeprefix("<!--markdown-->").lstrip("\n")
-                    resolved = _r(md_source)
-                    md_vars = Template(resolved).render(**variables)
-                    html_content = _md.markdown(md_vars, extensions=["extra", "nl2br"])
-                else:
-                    # Mode 1: Custom HTML - resolve slugs then render with Jinja2
-                    html_template = Template(_r(raw_custom))
-                    html_content = html_template.render(**variables)
+                # Custom HTML (including markdown rendered to HTML at save time)
+                html_template = Template(_r(raw_custom))
+                html_content = html_template.render(**variables)
             else:
                 # Mode 2: Structured - resolve slugs in each field then Jinja2
                 template_data = EmailTemplate(

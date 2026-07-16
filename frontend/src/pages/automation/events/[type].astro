@@ -630,9 +630,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
       const tplBody = {
         subject,
-        message_top: markdownBody,
-        // Store raw markdown with a marker — backend renders it before sending
-        custom_html: markdownBody ? '<!--markdown-->\n' + markdownBody : '',
+        message_top: markdownBody,           // source for re-editing
+        custom_html: markdownToHtml(markdownBody) || '',  // rendered HTML for sending
       };
       if (emIsSystemTemplate) {
         const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
