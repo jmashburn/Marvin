@@ -93,19 +93,6 @@ const filtered = categoryFilter === 'all'
               <p class="event-description">{event.description}</p>
             )}
 
-            {event.variables && event.variables.length > 0 && (
-              <div class="event-vars">
-                {event.variables.slice(0, 3).map((v: any) => (
-                  <span class="var-chip-sm" title={v.description + (v.example ? ' · e.g. ' + v.example : '')}>
-                    {'{{' + v.slug + '}}'}
-                  </span>
-                ))}
-                {event.variables.length > 3 && (
-                  <span class="var-more">+{event.variables.length - 3}</span>
-                )}
-              </div>
-            )}
-
             {(() => {
               const conn = getConnections(event.value);
               const total = conn.webhooks.length + conn.notifications.length;

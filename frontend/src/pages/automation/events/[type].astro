@@ -80,25 +80,6 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         <code class="event-type-code">{type}</code>
       </div>
 
-      {eventInfo.variables?.length > 0 && (
-        <div class="vars-panel">
-          <div class="vars-header">
-            <span class="vars-title">Available Variables</span>
-            <span class="vars-hint">These values are provided by this event and can be used in templates</span>
-          </div>
-          <div class="vars-list">
-            {eventInfo.variables.map((v: any) => (
-              <div class="var-chip" title={v.description}>
-                <span class="var-chip-inner">
-                  <code>{'{{' + v.slug + '}}'}</code>
-                  {v.description && <span class="var-value">{v.description}</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div class="subscriptions">
         <section class="sub-section">
           <div class="sub-header">

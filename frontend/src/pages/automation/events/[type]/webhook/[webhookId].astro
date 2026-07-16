@@ -84,12 +84,7 @@ const examplePayload = (eventInfo as any)?.payloadExample ?? (eventInfo ? buildE
 
         <div class="wh-body">
           <p class="wh-label">
-            Your endpoint will receive this JSON via POST when <strong>{eventInfo.label}</strong> fires
-            {eventInfo.variables?.length > 0 && (
-              <span> — variables: {eventInfo.variables.map((v: any) => (
-                <span class="var-tag" title={v.description}>{'{{' + v.slug + '}}'}</span>
-              ))}</span>
-            )}:
+            Your endpoint will receive this JSON via POST when <strong>{eventInfo.label}</strong> fires:
           </p>
           <pre class="wh-payload">{JSON.stringify(examplePayload, null, 2)}</pre>
         </div>
