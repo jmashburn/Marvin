@@ -29,9 +29,7 @@ try {
   const workspace = await getCurrentWorkspace(authToken!);
   const wsId = workspace?.id;
 
-  const emailSubsRes = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
-    headers: { 'Cookie': Astro.request.headers.get('cookie') || '' },
-  }).then(r => r.ok ? r.json() : []).catch(() => []);
+  const emailSubsRes = await fetchApi<any[]>('/api/groups/email-event-subscriptions', {}, authToken).catch(() => []);
   emailSubscriptions = Array.isArray(emailSubsRes) ? emailSubsRes : [];
 
   const [emailRes, webhookRes, notifRes] = await Promise.all([
