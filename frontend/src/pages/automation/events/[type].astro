@@ -310,7 +310,8 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
         ? current.filter(e => e !== type)
         : [...new Set([...current, type])];
       console.log('[webhook-connect] updated subscribed_events:', updated);
-      const body = { ...webhook, subscribed_events: updated };
+      // Use camelCase key to match Pydantic alias — snake_case gets overridden by the spread
+      const body = { ...webhook, subscribedEvents: updated, subscribed_events: updated };
       console.log('[webhook-connect] PUT body:', body);
       const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${activeWebhookId}`, {
         method: 'PUT',
@@ -320,7 +321,10 @@ const examplePayload = eventInfo ? buildExamplePayload(type!, eventInfo.variable
       });
       const putData = await putRes.json().catch(() => ({}));
       console.log('[webhook-connect] PUT response:', putRes.status, putData);
-      if (!putRes.ok) throw new Error(putData.detail || `PUT failed: ${putRes.status}`);
+      if (!putRes.ok) {
+        console.error('[webhook-connect] PUT failed:', putRes.status, putData);
+        throw new Error(putData.detail || `PUT failed: ${putRes.status}`);
+      }
       closeModal();
       window.location.reload();
     } catch (e) {
