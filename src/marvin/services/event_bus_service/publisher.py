@@ -263,6 +263,9 @@ class WebhookPublisher:
         # Prepare the event payload for methods that use a body (POST, PUT)
         # exclude_none strips null fields so webhook consumers get a clean payload
         event_payload = jsonable_encoder(event, exclude_none=True)
+        # Replace integer enum value with the human-readable name string
+        if "eventType" in event_payload and hasattr(event.event_type, "name"):
+            event_payload["eventType"] = event.event_type.name
         http_method = method.upper()  # Ensure method is uppercase for comparison
 
         for url in notification_urls:

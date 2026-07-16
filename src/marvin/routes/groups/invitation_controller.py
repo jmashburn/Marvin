@@ -185,6 +185,7 @@ class GroupInvitationsController(BaseUserController):
                         workspace_id=self.group_id,
                         inviter_id=self.user.id,
                         invitee_email=invite_data.email,
+                        invitation_url=registration_url,
                         uses_left=token.uses_left,
                     ),
                     message=f"Invitation sent to {invite_data.email}",

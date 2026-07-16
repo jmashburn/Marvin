@@ -699,6 +699,8 @@ class EventInvitationData(EventDocumentDataBase):
     """The user who created the invitation."""
     invitee_email: str | None = None
     """The email address of the invited user (if applicable)."""
+    invitation_url: str | None = None
+    """The URL the invitee clicks to accept the invitation."""
     uses_left: int | None = None
     """The number of remaining uses for the invitation."""
 
