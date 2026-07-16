@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken } from "@/lib/api/client";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
 import { listEmailTemplates } from "@/lib/api/emailTemplates";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
@@ -16,7 +16,7 @@ let notifications: any[] = [];
 let error: string | null = null;
 
 try {
-  const allTypes = await sdk.events.getOptions() as any[];
+  const allTypes = await fetchApi<any[]>('/api/event/types', { method: 'GET' }, authToken).catch(() => []);
   eventInfo = allTypes.find((e: any) => e.value === type) || null;
 
   if (!eventInfo) {

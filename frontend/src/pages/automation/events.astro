@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken } from "@/lib/api/client";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -13,7 +13,7 @@ let error: string | null = null;
 
 try {
   [eventTypes, webhooks] = await Promise.all([
-    sdk.events.getOptions() as Promise<any[]>,
+    fetchApi<any[]>('/api/event/types', { method: 'GET' }, authToken).catch(() => []),
     sdk.webhooks.list().catch(() => []),
   ]);
   const notifRes = await sdk.notifications.list().catch(() => ({ items: [] }));

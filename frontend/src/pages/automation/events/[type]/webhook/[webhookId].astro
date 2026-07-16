@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken } from "@/lib/api/client";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -36,7 +36,7 @@ function buildExamplePayload(eventType: string, variables: any[]): object {
 
 try {
   const [allTypes, webhookData] = await Promise.all([
-    sdk.events.getOptions() as Promise<any[]>,
+    fetchApi<any[]>('/api/event/types', { method: 'GET' }, authToken).catch(() => []),
     sdk.webhooks.get(webhookId!),
   ]);
 
