@@ -328,7 +328,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   </div>
 </div>
 
-<script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [] }}>
+<script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId }}>
   // Webhook modal
   const modal = document.getElementById('webhook-modal');
   const whTitle = document.getElementById('wh-title');
@@ -487,13 +487,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       document.body.style.overflow = 'hidden';
     }
 
-    // Edit mode: skip straight to template editor step
+    // Edit mode: show both recipient config and template editor together
     if (activeEmailIsEdit) {
       const config = collectRecipientConfig();
       if (config) {
-        // Delete old subscription will happen on final Save
         pendingConfig = { ...config, _editSubscriptionId: activeEmailSubscriptionId };
-        expandToTemplateEditor(config);
+        // Show template section below recipient section (don't hide recipient)
+        expandToTemplateEditor(config, { keepRecipientVisible: true });
       }
     }
   }
@@ -520,7 +520,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
   let pendingConfig = null;
 
-  async function expandToTemplateEditor(config) {
+  async function expandToTemplateEditor(config, opts = {}) {
     pendingConfig = config;
     // Fetch template content
     let tpl = null;
@@ -529,6 +529,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       if (res.ok) tpl = await res.json();
     } catch {}
     const f = (c, s) => tpl ? (tpl[c] ?? tpl[s] ?? '') : '';
+    // Store whether this is a system template so save uses the right endpoint
+    if (tpl) pendingConfig._isSystemTemplate = !(tpl.groupId || tpl.group_id);
 
     // Populate fields
     const subj = document.getElementById('em-subject');
@@ -563,11 +565,13 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       });
     }
 
-    // Show template section, update confirm button
-    document.getElementById('em-body-config').style.display = 'none';
+    // Show template section; optionally keep recipient section visible (edit mode)
+    if (!opts.keepRecipientVisible) {
+      document.getElementById('em-body-config').style.display = 'none';
+    }
     document.getElementById('em-template-section').style.display = 'block';
-    if (emConfirm) { emConfirm.textContent = 'Connect'; emConfirm.disabled = false; }
-    if (emTitle) emTitle.textContent = 'Connect: ' + (tpl?.name || 'Template');
+    if (emConfirm) { emConfirm.textContent = opts.keepRecipientVisible ? 'Save' : 'Connect'; emConfirm.disabled = false; }
+    if (emTitle) emTitle.textContent = (opts.keepRecipientVisible ? 'Edit: ' : 'Connect: ') + (tpl?.name || 'Template');
   }
 
   function collectRecipientConfig() {
@@ -603,16 +607,29 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       emConfirm.disabled = true;
       emConfirm.textContent = 'Saving…';
       try {
-        // Save template edits via PATCH
+        // Save template edits
         const subject = document.getElementById('em-subject')?.value?.trim();
         const messageTop = document.getElementById('em-message-top')?.value?.trim();
         if (subject || messageTop) {
-          await fetch(`${apiUrl}/api/platform/workspaces/${pendingConfig.template_id}/email-templates/${pendingConfig.template_id}`, {
-            method: 'PATCH',
+          const isSystem = pendingConfig._isSystemTemplate;
+          const tplUrl = isSystem
+            ? `${apiUrl}/api/platform/workspaces/${wsId}/email-templates`
+            : `${apiUrl}/api/platform/email/templates/${pendingConfig.template_id}`;
+          const tplMethod = isSystem ? 'POST' : 'PATCH';
+          const tplBody = isSystem
+            ? { template_type: 'custom', name: 'Custom template', subject: subject || '', message_top: messageTop || '', enabled: true }
+            : { subject, message_top: messageTop };
+          const tplRes = await fetch(tplUrl, {
+            method: tplMethod,
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ subject, message_top: messageTop }),
-          }).catch(() => {});
+            body: JSON.stringify(tplBody),
+          });
+          // If we created a new workspace override, use its ID for the subscription
+          if (isSystem && tplRes.ok) {
+            const newTpl = await tplRes.json().catch(() => null);
+            if (newTpl?.id) pendingConfig.template_id = newTpl.id;
+          }
         }
         // Delete old subscription if editing
         const oldSubId = pendingConfig._editSubscriptionId;
@@ -621,8 +638,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             method: 'DELETE', credentials: 'include',
           }).catch(() => {});
         }
-        // Create subscription
-        const { _editSubscriptionId, ...subPayload } = pendingConfig;
+        // Create subscription (strip internal tracking fields)
+        const { _editSubscriptionId, _isSystemTemplate, ...subPayload } = pendingConfig;
         const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
           body: JSON.stringify(subPayload),
