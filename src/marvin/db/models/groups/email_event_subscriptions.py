@@ -1,7 +1,7 @@
 """Database model for email event subscriptions."""
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
 from marvin.db.models._model_utils.guid import GUID
@@ -39,3 +39,6 @@ class EmailEventSubscriptionModel(SqlAlchemyBase, BaseMixins):
     recipient_email: Mapped[str | None] = mapped_column(sa.String, nullable=True)
 
     enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True)
+
+    def __init__(self, session: Session, **kwargs) -> None:
+        pass
