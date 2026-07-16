@@ -34,29 +34,25 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
         dry_run = config.get("dry_run", False)
-
-        if not task.group_id:
-            raise ValueError("Task has no workspace scope — cannot publish entries")
-
-        workspace_id = UUID(str(task.group_id))
+        workspace_id = UUID(str(task.group_id)) if task.group_id else None
 
         with session_context() as session:
             now = datetime.now(UTC)
 
-            scheduled_entries = (
-                session.query(Entries)
-                .filter(
-                    Entries.group_id == workspace_id,
-                    Entries.publish_at <= now,
-                    Entries.status != "published",
-                )
-                .all()
+            q = session.query(Entries).filter(
+                Entries.publish_at <= now,
+                Entries.status != "published",
             )
+            if workspace_id:
+                q = q.filter(Entries.group_id == workspace_id)
+
+            scheduled_entries = q.all()
 
             count = len(scheduled_entries)
+            scope_label = str(workspace_id) if workspace_id else "all workspaces"
             logger.info(
-                "Found %d entries to publish in workspace %s (dry_run=%s)",
-                count, workspace_id, dry_run,
+                "Found %d entries to publish in %s (dry_run=%s)",
+                count, scope_label, dry_run,
             )
 
             published_titles = []
@@ -68,7 +64,7 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
                     logger.info("Published entry '%s' (id=%s)", entry.title, entry.id)
                     event_bus.dispatch(
                         integration_id="scheduled_tasks",
-                        group_id=workspace_id,
+                        group_id=entry.group_id,
                         event_type=EventTypes.entry_published,
                         document_data=None,
                         message=f"Entry '{entry.title}' published via scheduled task",
@@ -108,24 +104,19 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         config = task.task_config
         dry_run = config.get("dry_run", False)
-
-        if not task.group_id:
-            raise ValueError("Task has no workspace scope — cannot unpublish entries")
-
-        workspace_id = UUID(str(task.group_id))
+        workspace_id = UUID(str(task.group_id)) if task.group_id else None
 
         with session_context() as session:
             now = datetime.now(UTC)
 
-            expired_entries = (
-                session.query(Entries)
-                .filter(
-                    Entries.group_id == workspace_id,
-                    Entries.expire_at <= now,
-                    Entries.status == "published",
-                )
-                .all()
+            q = session.query(Entries).filter(
+                Entries.expire_at <= now,
+                Entries.status == "published",
             )
+            if workspace_id:
+                q = q.filter(Entries.group_id == workspace_id)
+
+            expired_entries = q.all()
 
             count = len(expired_entries)
             logger.info(
@@ -141,7 +132,7 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
                     logger.info("Unpublished expired entry '%s' (id=%s)", entry.title, entry.id)
                     event_bus.dispatch(
                         integration_id="scheduled_tasks",
-                        group_id=workspace_id,
+                        group_id=entry.group_id,
                         event_type=EventTypes.entry_unpublished,
                         document_data=None,
                         message=f"Entry '{entry.title}' unpublished (expired)",
@@ -179,23 +170,30 @@ class RequestSiteRebuildHandler(ScheduledTaskHandler):
     description = "Dispatch a webhook_triggered event to kick off a static site rebuild"
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
+        from marvin.db.db_setup import session_context as _sc
+        from marvin.db.models.groups.groups import Groups
+
         config = task.task_config
         reason = config.get("reason", "scheduled")
 
-        if not task.group_id:
-            raise ValueError("Task has no workspace scope — cannot request site rebuild")
+        if task.group_id:
+            workspace_ids = [UUID(str(task.group_id))]
+        else:
+            # Admin system task — dispatch rebuild for every workspace
+            with _sc() as session:
+                workspace_ids = [row[0] for row in session.query(Groups.id).all()]
 
-        workspace_id = UUID(str(task.group_id))
+        for wid in workspace_ids:
+            event_bus.dispatch(
+                integration_id="scheduled_tasks",
+                group_id=wid,
+                event_type=EventTypes.webhook_triggered,
+                document_data=None,
+                message=f"Site rebuild requested: {reason}",
+            )
 
-        event_bus.dispatch(
-            integration_id="scheduled_tasks",
-            group_id=workspace_id,
-            event_type=EventTypes.webhook_triggered,
-            document_data=None,
-            message=f"Site rebuild requested: {reason}",
-        )
-
-        summary = f"Site rebuild event dispatched (workspace: {workspace_id}, reason: {reason})"
+        scope = "this workspace" if task.group_id else f"all {len(workspace_ids)} workspaces"
+        summary = f"Site rebuild event dispatched ({scope}, reason: {reason})"
         logger.info(summary)
         return summary
 

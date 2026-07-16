@@ -30,7 +30,10 @@ def _fmt_bytes(n: int) -> str:
 
 class CleanupTempFilesHandler(ScheduledTaskHandler):
     """
-    Remove old files from temporary upload storage.
+    Remove old files from the system temporary upload directory.
+
+    Admin-only: operates on the shared system temp dir, not workspace data.
+    Workspace-scoped tasks are rejected.
 
     Configuration (task_config):
     - age_hours: int (default: 24) - Files older than this are deleted
@@ -38,7 +41,8 @@ class CleanupTempFilesHandler(ScheduledTaskHandler):
     """
 
     name = "Cleanup Temporary Files"
-    description = "Remove old files from temporary upload storage"
+    description = "Remove old files from temporary upload storage (admin only)"
+    admin_only = True
     config_schema = {
         "type": "object",
         "properties": {
@@ -56,6 +60,9 @@ class CleanupTempFilesHandler(ScheduledTaskHandler):
     }
 
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
+        if task.group_id:
+            return "Skipped: cleanup_temp_files is admin-only and cannot run in a workspace context"
+
         config = task.task_config
         age_hours = config.get("age_hours", 24)
         dry_run = config.get("dry_run", False)
@@ -134,28 +141,23 @@ class PruneExpiredInvitationsHandler(ScheduledTaskHandler):
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         from marvin.db.models.groups.invite_tokens import GroupInviteToken
 
-        if not task.group_id:
-            return "Skipped: task has no workspace scope"
-
         config = task.task_config
         age_days = config.get("age_days", 30)
         cutoff = datetime.now(UTC) - timedelta(days=age_days)
 
         with session_context() as session:
-            expired = (
-                session.query(GroupInviteToken)
-                .filter(
-                    GroupInviteToken.group_id == task.group_id,
-                    GroupInviteToken.created_at <= cutoff,
-                )
-                .all()
-            )
+            q = session.query(GroupInviteToken).filter(GroupInviteToken.created_at <= cutoff)
+            if task.group_id:
+                q = q.filter(GroupInviteToken.group_id == task.group_id)
+
+            expired = q.all()
             count = len(expired)
             for inv in expired:
                 session.delete(inv)
             session.commit()
 
-        summary = f"{count} expired invitation{'s' if count != 1 else ''} deleted (older than {age_days} days)"
+        scope = "all workspaces" if not task.group_id else "this workspace"
+        summary = f"{count} expired invitation{'s' if count != 1 else ''} deleted (older than {age_days} days, scope: {scope})"
         logger.info("Invitation cleanup: %s", summary)
         return summary
 
@@ -191,34 +193,24 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
         from marvin.db.models.platform import Assets, EntryAssets
 
-        if not task.group_id:
-            return "Skipped: task has no workspace scope"
-
         config = task.task_config
         age_days = config.get("age_days", 30)
         auto_delete = config.get("auto_delete", False)
-        workspace_id = task.group_id
 
         cutoff = datetime.now(UTC) - timedelta(days=age_days)
 
         with session_context() as session:
-            all_assets = (
-                session.query(Assets)
-                .filter(
-                    Assets.group_id == workspace_id,
-                    Assets.created_at <= cutoff,
-                )
-                .all()
-            )
+            asset_q = session.query(Assets).filter(Assets.created_at <= cutoff)
+            if task.group_id:
+                asset_q = asset_q.filter(Assets.group_id == task.group_id)
 
-            # Only consider entry-asset links within this workspace
-            linked_ids = {
-                row[0]
-                for row in session.query(EntryAssets.asset_id)
-                .join(Assets, Assets.id == EntryAssets.asset_id)
-                .filter(Assets.group_id == workspace_id)
-                .all()
-            }
+            all_assets = asset_q.all()
+
+            # Scope linked-ids query to the same set of assets
+            link_q = session.query(EntryAssets.asset_id).join(Assets, Assets.id == EntryAssets.asset_id)
+            if task.group_id:
+                link_q = link_q.filter(Assets.group_id == task.group_id)
+            linked_ids = {row[0] for row in link_q.all()}
 
             orphans = [a for a in all_assets if a.id not in linked_ids]
             count = len(orphans)
@@ -231,9 +223,10 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
             else:
                 label = "found (auto_delete=false, not removed)"
 
+        scope = "this workspace" if task.group_id else "all workspaces"
         summary = (
             f"{count} orphaned asset{'s' if count != 1 else ''} {label} "
-            f"(older than {age_days} days)"
+            f"(older than {age_days} days, scope: {scope})"
         )
         logger.info("Orphaned asset scan: %s", summary)
         return summary

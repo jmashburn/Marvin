@@ -30,7 +30,7 @@ class ScheduledTasksController(BaseUserController):
     @router.get("/task-types")
     def list_task_types(self, detailed: bool = False):
         """
-        List all available task types that can be scheduled.
+        List task types available to workspace users (excludes admin-only types).
 
         Args:
             detailed: If True, return full metadata including config schemas
@@ -38,8 +38,8 @@ class ScheduledTasksController(BaseUserController):
         from marvin.services.scheduled_tasks import TaskHandlerRegistry
 
         if detailed:
-            return TaskHandlerRegistry.get_task_type_info()
-        return TaskHandlerRegistry.list_registered_types()
+            return [t for t in TaskHandlerRegistry.get_task_type_info() if not t.get("admin_only")]
+        return [t for t in TaskHandlerRegistry.list_registered_types(include_admin=False)]
 
     @router.get("", response_model=list[ScheduledTaskRead])
     def list_tasks(self):

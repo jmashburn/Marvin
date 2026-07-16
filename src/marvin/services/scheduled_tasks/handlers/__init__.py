@@ -27,6 +27,8 @@ class ScheduledTaskHandler(ABC):
     """Description of what this handler does."""
     config_schema: dict | None = None
     """JSON schema describing expected task_config fields."""
+    admin_only: bool = False
+    """If True, this handler can only be used by admin (system) tasks."""
 
     @abstractmethod
     def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
@@ -89,9 +91,12 @@ class TaskHandlerRegistry:
         return task_type in cls._handlers
 
     @classmethod
-    def list_registered_types(cls) -> list[str]:
+    def list_registered_types(cls, include_admin: bool = True) -> list[str]:
         """Get list of all registered task types."""
-        return list(cls._handlers.keys())
+        return [
+            k for k, h in cls._handlers.items()
+            if include_admin or not h().admin_only
+        ]
 
     @classmethod
     def get_task_type_info(cls) -> list[dict]:
@@ -110,6 +115,7 @@ class TaskHandlerRegistry:
                     "name": handler_instance.name or task_type.replace("_", " ").title(),
                     "description": handler_instance.description or handler_class.__doc__ or "",
                     "config_schema": handler_instance.config_schema,
+                    "admin_only": handler_instance.admin_only,
                 }
             )
         return info
