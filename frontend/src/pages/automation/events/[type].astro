@@ -108,16 +108,34 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                     </div>
                     <code class="sub-type">{tplType}</code>
                   </div>
-                  <button
-                    class:list={['button', 'small', isConnected ? 'secondary' : '', 'connect-email-btn']}
-                    data-template-id={t.id}
-                    data-template-name={t.name}
-                    data-event-type={type}
-                    data-subscription-id={sub?.id ?? ''}
-                    data-is-connected={isConnected ? 'true' : 'false'}
-                  >
-                    {isConnected ? 'Disconnect' : 'Connect'}
-                  </button>
+                  <div class="sub-option-actions">
+                    {isConnected ? (
+                      <>
+                        <button
+                          class="button small secondary danger connect-email-btn"
+                          data-template-id={t.id}
+                          data-template-name={t.name}
+                          data-event-type={type}
+                          data-subscription-id={sub?.id ?? ''}
+                          data-is-connected="true"
+                        >
+                          Disconnect
+                        </button>
+                        <a href="/workspace/settings/email" class="button small secondary">Edit</a>
+                      </>
+                    ) : (
+                      <button
+                        class="button small connect-email-btn"
+                        data-template-id={t.id}
+                        data-template-name={t.name}
+                        data-event-type={type}
+                        data-subscription-id=""
+                        data-is-connected="false"
+                      >
+                        Connect
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -245,7 +263,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       </div>
       <button type="button" id="em-close" class="wh-close">✕</button>
     </div>
-    <div class="wh-body">
+    <div class="wh-body" id="em-body-config">
       <p class="wh-label">Who should receive this email?</p>
       <div class="em-recipient-options">
         <label class="em-radio-label">
@@ -266,6 +284,10 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         </label>
         <input type="text" id="em-specific-email" class="em-email-input" placeholder="user@example.com, other@example.com" style="display:none" />
       </div>
+    </div>
+    <div class="wh-body em-body-success" id="em-body-success" style="display:none">
+      <p class="em-success-msg">&#10003; Template connected. To use event data in the email, add variables like <code>{{ invitee_email }}</code> to your template.</p>
+      <a id="em-edit-link" href="/workspace/settings/email" class="button secondary small" style="margin-top:12px;display:inline-block">Edit template →</a>
     </div>
     <div class="wh-footer">
       <span id="em-note" class="wh-note"></span>
@@ -404,6 +426,14 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     activeEmailTemplateId = btn.dataset.templateId;
     activeEmailSubscriptionId = btn.dataset.subscriptionId || '';
     activeEmailIsConnected = btn.dataset.isConnected === 'true';
+    // Reset modal state
+    const bodyConfig = document.getElementById('em-body-config');
+    const bodySuccess = document.getElementById('em-body-success');
+    if (bodyConfig) bodyConfig.style.display = 'block';
+    if (bodySuccess) bodySuccess.style.display = 'none';
+    if (emConfirm) emConfirm.style.display = 'inline-flex';
+    const emCancel = document.getElementById('em-cancel');
+    if (emCancel) { emCancel.textContent = 'Cancel'; emCancel.onclick = closeEmailModal; }
     const name = btn.dataset.templateName || 'Template';
     if (emTitle) emTitle.textContent = (activeEmailIsConnected ? 'Connected: ' : 'Connect: ') + name;
     if (emTemplateName) emTemplateName.textContent = name;
@@ -483,8 +513,19 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
           throw new Error(data.detail || `POST failed: ${res.status}`);
         }
       }
-      closeEmailModal();
-      window.location.reload();
+      if (activeEmailIsConnected) {
+        closeEmailModal();
+        window.location.reload();
+      } else {
+        const bodyConfig = document.getElementById('em-body-config');
+        const bodySuccess = document.getElementById('em-body-success');
+        if (bodyConfig) bodyConfig.style.display = 'none';
+        if (bodySuccess) bodySuccess.style.display = 'block';
+        if (emNote) emNote.textContent = '';
+        if (emConfirm) emConfirm.style.display = 'none';
+        const emCancel = document.getElementById('em-cancel');
+        if (emCancel) { emCancel.textContent = 'Done'; emCancel.onclick = () => { closeEmailModal(); window.location.reload(); }; }
+      }
     } catch (e) {
       alert('Error: ' + e.message);
       emConfirm.disabled = false;
