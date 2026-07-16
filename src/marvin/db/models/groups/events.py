@@ -137,78 +137,37 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
         # Import here to avoid circular dependencies at the module level
         from marvin.db.models.events.events import EventNotifierOptionsModel as GlobalEventNotifierOptionsModel
 
-        # Initialize self.options as an empty list before populating
         self.options = []
 
-        # 1. Populate with globally enabled system notifications by default
-        globally_enabled_options: list[GlobalEventNotifierOptionsModel] = (
-            session.execute(
-                select(GlobalEventNotifierOptionsModel).filter(GlobalEventNotifierOptionsModel.enabled == True)  # noqa: E712 - SQLAlchemy specific comparison
-            )
-            .scalars()
-            .all()
-        )
-        if globally_enabled_options:
-            for global_opt in globally_enabled_options:
-                # Create a GroupEventNotifierOptionsModel instance for each global option
-                # This assumes that by default, a new group notifier subscribes to all globally active events.
-                # The `enabled` flag on GroupEventNotifierOptionsModel itself isn't present in the model,
-                # so its existence in this list implies it's "on" for this notifier.
-                # If `GroupEventNotifierOptionsModel` had an `enabled` flag, it would be set here.
-                group_opt_instance = GroupEventNotifierOptionsModel(
-                    session=session,  # Pass session for its own auto_init if needed
-                    namespace=global_opt.namespace,
-                    slug=global_opt.slug,
-                    # group_event_notifiers_id would be set by relationship append if not handled by auto_init for child
+        if options is None:
+            # No explicit list — subscribe to all globally enabled events by default
+            globally_enabled = (
+                session.execute(
+                    select(GlobalEventNotifierOptionsModel).filter(GlobalEventNotifierOptionsModel.enabled == True)  # noqa: E712
                 )
-                self.options.append(group_opt_instance)
-
-        # 2. If specific `options` are provided by the user, adjust `self.options`.
-        # This part seems to intend to ADD specific options if they aren't already effectively enabled
-        # or perhaps ensure ONLY these are enabled. The current logic appends.
-        # A more robust approach might be to:
-        #   a) If `options` is not None, clear default options and only add specified ones.
-        #   OR
-        #   b) If `options` is not None, ensure these are present and enabled, potentially disabling others
-        #      if `GroupEventNotifierOptionsModel` had its own `enabled` field.
-        # Current logic: appends, potentially leading to duplicates if a global option is also in `options`.
-        # This needs careful review based on intended behavior.
-        # For now, documenting the current append behavior.
-        if options is not None:
-            # It might be better to build a set of existing (namespace, slug) pairs in self.options
-            # to avoid adding duplicates.
-            existing_option_keys = {(opt.namespace, opt.slug) for opt in self.options}
-
+                .scalars()
+                .all()
+            )
+            for global_opt in globally_enabled:
+                self.options.append(
+                    GroupEventNotifierOptionsModel(session=session, namespace=global_opt.namespace, slug=global_opt.slug)
+                )
+        else:
+            # Explicit list provided — use exactly those (empty list = no subscriptions)
             for option_str in options:
                 try:
                     namespace, slug = option_str.split(".", 1)
                 except ValueError:
-                    # Handle cases where option_str is not in "namespace.slug" format
-                    # Or log a warning/error
-                    # For now, assume valid format or let it raise implicitly later if split fails.
-                    # Adding explicit error handling for robustness:
                     raise ValueError(f"Invalid option format: '{option_str}'. Expected 'namespace.slug'.") from None
 
-                # Check if this specific option is already added from global defaults
-                if (namespace, slug) not in existing_option_keys:
-                    # Fetch the global option to ensure it's valid
-                    global_option_to_add: GlobalEventNotifierOptionsModel | None = (
-                        session.execute(select(GlobalEventNotifierOptionsModel).filter_by(namespace=namespace, slug=slug))
-                        .scalars()
-                        .one_or_none()  # Use one_or_none for safety
-                    )
+                global_opt = (
+                    session.execute(select(GlobalEventNotifierOptionsModel).filter_by(namespace=namespace, slug=slug))
+                    .scalars()
+                    .one_or_none()
+                )
+                if global_opt is None:
+                    raise ValueError(f"Notification option '{option_str}' does not exist.") from None
 
-                    if global_option_to_add is None:
-                        # This means a requested option string (e.g., "email.non_existent_event")
-                        # does not correspond to any defined system notification.
-                        raise ValueError(f"Notification option '{option_str}' does not exist in system-wide EventNotifierOptionsModel.") from None
-
-                    # Add this specific option to the notifier's list
-                    specific_group_opt = GroupEventNotifierOptionsModel(
-                        session=session,
-                        namespace=global_option_to_add.namespace,
-                        slug=global_option_to_add.slug,
-                    )
-                    self.options.append(specific_group_opt)
-                    existing_option_keys.add((namespace, slug))  # Add to set to track
-        # `auto_init` will handle other kwargs passed to this __init__
+                self.options.append(
+                    GroupEventNotifierOptionsModel(session=session, namespace=namespace, slug=slug)
+                )
