@@ -471,25 +471,26 @@ class WebhookEventListener(EventListenerBase):
         webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
         now_iso = datetime.now(UTC).isoformat()
 
-        for webhook_config in subscribers_webhooks:
-            # Fetch workspace name/slug for substitution context
-            workspace_name = ""
-            workspace_slug = ""
-            try:
-                with self.ensure_repos(self.group_id) as repos:
-                    group = repos.groups.get_one(self.group_id)
-                    if group:
-                        workspace_name = getattr(group, "name", "") or ""
-                        workspace_slug = getattr(group, "slug", "") or ""
-            except Exception:
-                pass
+        # Build substitution context once — used by all webhooks in this batch
+        workspace_name = ""
+        workspace_slug = ""
+        try:
+            with self.ensure_repos(self.group_id) as repos:
+                group = repos.groups.get_one(self.group_id)
+                if group:
+                    workspace_name = getattr(group, "name", "") or ""
+                    workspace_slug = getattr(group, "slug", "") or ""
+        except Exception:
+            pass
 
-            context = {
-                "timestamp": now_iso,
-                "workspace_name": workspace_name,
-                "workspace_slug": workspace_slug,
-                "trigger": "scheduled",
-            }
+        context = {
+            "timestamp": now_iso,
+            "workspace_name": workspace_name,
+            "workspace_slug": workspace_slug,
+            "trigger": "scheduled",
+        }
+
+        for webhook_config in subscribers_webhooks:
 
             handler_data: dict = {}
             webhook_type_name = webhook_config.webhook_type.value if webhook_config.webhook_type else "generic"
@@ -506,18 +507,12 @@ class WebhookEventListener(EventListenerBase):
                                 f"(type={webhook_type_name}): {e}"
                             )
 
-            # Merge custom_payload into data (alongside handler stats)
+            # Merge custom_payload into handler stats — send flat, no envelope
             if webhook_config.custom_payload:
                 custom = apply_substitutions(webhook_config.custom_payload, self.group_id, context)
                 handler_data.update(custom)
 
-            clean_payload: dict = {
-                "timestamp": now_iso,
-                "workspace_slug": workspace_slug,
-                "trigger": "scheduled",
-                "type": webhook_type_name,
-                "data": handler_data,
-            }
+            clean_payload: dict = handler_data
 
             resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
             self.publisher.publish(
