@@ -574,17 +574,9 @@ class EventWebhookData(EventDocumentDataBase):
     """
 
     document_type: EventDocumentTypeBase = EventDocumentType.generic
+    operation: EventOperationBase = EventOperation.info
     webhook_start_dt: datetime
-    """The start datetime for the window in which to find scheduled webhooks."""
     webhook_end_dt: datetime
-    """The end datetime for the window in which to find scheduled webhooks."""
-    webhook_body: Any = None  # Body to be sent by the webhook, can be dynamically generated.
-    """
-    The body/payload to be sent by the webhook. This can be populated dynamically
-    by the `WebhookEventListener` based on `webhook_type`. Defaults to None.
-    """
-    # document_type and operation would be set by the dispatcher of webhook_task events.
-    # e.g., document_type = EventDocumentType.generic, operation = EventOperation.info
 
 
 # =============================================================================
