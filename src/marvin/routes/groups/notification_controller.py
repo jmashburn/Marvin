@@ -163,6 +163,19 @@ class GroupEventsNotifierController(BaseUserController):
         # Use the mixin's create_one method for standardized creation and error handling
         return self.mixins.create_one(save_data)
 
+    @router.get("/log", response_model=list[NotificationExecutionLogRead], summary="Get All Notification Execution Logs")
+    def get_all_notification_logs(self, limit: int = 200) -> list[NotificationExecutionLogRead]:
+        """Returns the most recent notification execution logs across all notifiers in the group."""
+        self._check_apprise_available()
+        stmt = (
+            select(NotificationExecutionLogModel)
+            .where(NotificationExecutionLogModel.group_id == self.group_id)
+            .order_by(desc(NotificationExecutionLogModel.executed_at))
+            .limit(limit)
+        )
+        rows = self.repos.session.execute(stmt).scalars().all()
+        return [NotificationExecutionLogRead.model_validate(r) for r in rows]
+
     @router.get("/{item_id}", response_model=GroupEventNotifierRead, summary="Get a Specific Group Event Notifier")
     def get_one(self, item_id: UUID4) -> GroupEventNotifierRead:
         """
