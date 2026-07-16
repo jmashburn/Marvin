@@ -1015,9 +1015,122 @@ ${btnRow}${bottomRow}
       }
     });
   </script>
+
+  <script define:vars={{ apiUrl }}>
+    // Auto-open template editor when arriving from event connect flow
+    // URL params: ?template=<id>&connect_event=<type>&recipient_type=<type>&recipient_field=<field>&recipient_email=<emails>
+    const params = new URLSearchParams(window.location.search);
+    const connectTemplateId = params.get('template');
+    const connectEvent = params.get('connect_event');
+    const connectRecipientType = params.get('recipient_type');
+    const connectRecipientField = params.get('recipient_field');
+    const connectRecipientEmail = params.get('recipient_email');
+
+    if (connectTemplateId && connectEvent) {
+      // Inject a "Connect to event" button into the modal actions
+      const modalActions = document.querySelector('.modal-actions');
+      if (modalActions) {
+        const connectBtn = document.createElement('button');
+        connectBtn.type = 'button';
+        connectBtn.id = 'connect-event-btn';
+        connectBtn.className = 'button primary';
+        connectBtn.textContent = `Connect to "${connectEvent}"`;
+        connectBtn.style.marginRight = 'auto';
+        modalActions.prepend(connectBtn);
+
+        connectBtn.addEventListener('click', async () => {
+          connectBtn.disabled = true;
+          connectBtn.textContent = 'Connecting…';
+          try {
+            const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                template_id: connectTemplateId,
+                event_type: connectEvent,
+                recipient_type: connectRecipientType || 'admins',
+                recipient_field: connectRecipientField || null,
+                recipient_email: connectRecipientEmail || null,
+                enabled: true,
+              }),
+            });
+            if (!res.ok) {
+              const d = await res.json().catch(() => ({}));
+              throw new Error(d.detail || `Failed: ${res.status}`);
+            }
+            window.location.href = `/automation/events/${connectEvent}`;
+          } catch (e) {
+            alert('Error: ' + e.message);
+            connectBtn.disabled = false;
+            connectBtn.textContent = `Connect to "${connectEvent}"`;
+          }
+        });
+      }
+
+      // Add a banner at the top so the user knows they're in connect flow
+      const banner = document.createElement('div');
+      banner.className = 'connect-flow-banner';
+      banner.innerHTML = `Connecting to <strong>${connectEvent}</strong> event &mdash; edit the template below, then click <strong>Connect</strong> when ready.`;
+      document.querySelector('.toolbar')?.before(banner);
+
+      // Auto-open the template
+      (async () => {
+        try {
+          const response = await fetch(`${apiUrl}/api/platform/email/templates/${connectTemplateId}`, {
+            credentials: 'include',
+          });
+          if (!response.ok) throw new Error('Failed to fetch template');
+          const tpl = await response.json();
+          const f = (camel, snake) => tpl[camel] ?? tpl[snake] ?? '';
+
+          const isSystem = !(tpl.groupId || tpl.group_id);
+          document.getElementById('edit-is-system').value = isSystem ? 'true' : 'false';
+          document.getElementById('modal-title').textContent = isSystem
+            ? 'Customize Template for Event'
+            : 'Edit Template for Event';
+          document.getElementById('template-id').value = tpl.id;
+          const typeVal = f('templateType', 'template_type') || 'custom';
+          document.getElementById('template-type').value = typeVal;
+          document.getElementById('template-type-group').style.display = 'block';
+          document.getElementById('template-type').disabled = true;
+          document.getElementById('template-name').value = tpl.name || '';
+          document.getElementById('template-description').value = tpl.description || '';
+          document.getElementById('template-subject').value = tpl.subject || '';
+          document.getElementById('template-header').value = f('headerText', 'header_text');
+          document.getElementById('template-message-top').value = f('messageTop', 'message_top');
+          document.getElementById('template-message-bottom').value = f('messageBottom', 'message_bottom');
+          document.getElementById('template-button-text').value = f('buttonText', 'button_text');
+          document.getElementById('template-custom-html').value = f('customHtml', 'custom_html');
+          document.getElementById('template-enabled').checked = tpl.enabled !== false;
+          if (f('customHtml', 'custom_html')) {
+            document.querySelector('[data-mode="custom"]')?.click();
+          } else {
+            document.querySelector('[data-mode="structured"]')?.click();
+          }
+
+          // showModal is defined in the main script block — call it
+          document.getElementById('template-modal')?.classList.add('show');
+          document.body.style.overflow = 'hidden';
+        } catch (e) {
+          console.error('Auto-open template failed:', e);
+        }
+      })();
+    }
+  </script>
 </AppLayout>
 
 <style>
+  .connect-flow-banner {
+    padding: 12px 16px;
+    background: rgba(79, 156, 132, 0.08);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 14px;
+    color: var(--ink);
+  }
+
   .toolbar {
     display: flex;
     justify-content: space-between;
