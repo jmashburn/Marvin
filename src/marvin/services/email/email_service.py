@@ -78,7 +78,7 @@ class EmailService(BaseService):
     specific types of application emails like password resets and invitations.
     """
 
-    def __init__(self, sender: ABCEmailSender | None = None, locale: str | None = None) -> None:
+    def __init__(self, sender: ABCEmailSender | None = None, locale: str | None = None, group_id: str | None = None) -> None:
         """
         Initializes the EmailService.
 
@@ -101,6 +101,12 @@ class EmailService(BaseService):
         if Path(self.directories.TEMPLATE_DIR / self.settings._DEFAULT_EMAIL_TEMPLATE).is_file():
             self.templates_dir = self.directories.TEMPLATE_DIR
             self.default_template = self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE
+
+        # Workspace-level override — highest priority
+        if group_id:
+            workspace_template = self.directories.TEMPLATE_DIR / str(group_id) / self.settings._DEFAULT_EMAIL_TEMPLATE
+            if workspace_template.is_file():
+                self.default_template = workspace_template
 
         self.logger.debug(f"Loading {self.templates_dir} in {self.default_template}")
 

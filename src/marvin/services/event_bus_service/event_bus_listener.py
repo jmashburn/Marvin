@@ -829,7 +829,7 @@ class EmailEventListener(EventListenerBase):
         from marvin.services.events.event_variables import build_event_variables
 
         variables = build_event_variables(event)
-        email_service = EmailService()
+        email_service = EmailService(group_id=str(self.group_id))
 
         with self.ensure_session() as session:
             for sub in subscribers:
