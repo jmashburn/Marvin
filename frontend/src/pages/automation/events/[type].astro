@@ -431,7 +431,11 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   // ── Markdown rendering via marked (injected by sibling <script>) ─────────
   function parseMarkdown(md) {
     if (!md || !md.trim()) return '<span class="em-md-empty">Nothing to preview</span>';
-    return window.__marvinMarked ? window.__marvinMarked(md) : '<em>Loading…</em>';
+    if (window.__marvinMarked) return window.__marvinMarked(md);
+    // Fallback if marked hasn't initialised yet — good enough for a glance
+    return '<p>' + md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>') + '</p>';
   }
 
   function markdownToHtml(md) {
