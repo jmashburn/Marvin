@@ -9,10 +9,14 @@ const { id } = Astro.params;
 
 let webhook: any = null;
 let history: any[] = [];
+let eventOptions: any[] = [];
 let error: string | null = null;
 
 try {
-  webhook = await sdk.webhooks.get(id!);
+  [webhook, eventOptions] = await Promise.all([
+    sdk.webhooks.get(id!),
+    sdk.events.getOptions().then((r: any) => Array.isArray(r) ? r : (r?.items ?? [])).catch(() => []),
+  ]);
 } catch (e) {
   console.error('[webhooks/edit] Error:', e);
   error = e instanceof Error ? e.message : String(e);
@@ -156,6 +160,40 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
           <button type="button" id="add-header-btn" class="button secondary small">+ Add Header</button>
         </div>
 
+        {isEventDriven && (
+          <div class="form-section">
+            <div class="section-header">
+              <div>
+                <h3>Event Subscriptions</h3>
+                <p class="section-description">Select which events fire this webhook</p>
+              </div>
+              <div class="selection-actions">
+                <button type="button" id="ev-select-all" class="link-button">Select All</button>
+                <span class="separator">•</span>
+                <button type="button" id="ev-select-none" class="link-button">Clear All</button>
+              </div>
+            </div>
+            <div class="search-field">
+              <input type="text" id="ev-search" placeholder="Search events…" class="input" />
+            </div>
+            <div class="events-checklist" id="ev-checklist">
+              {eventOptions.map((event: any) => {
+                const isChecked = existingSubscribedEvents.includes(event.value);
+                return (
+                  <label class="event-checkbox" data-event-name={event.label?.toLowerCase() ?? ''} data-event-description={event.description?.toLowerCase() ?? ''}>
+                    <input type="checkbox" name="subscribed_events" value={event.value} checked={isChecked} />
+                    <div class="event-checkbox-content">
+                      <span class="event-checkbox-name">{event.label}</span>
+                      {event.description && <span class="event-checkbox-description">{event.description}</span>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            <div class="selection-summary"><span id="ev-count">Loading…</span></div>
+          </div>
+        )}
+
         <div class="form-actions">
           <button type="submit" class="button">Save Changes</button>
           <button type="button" id="test-btn" class="button secondary" disabled={!(webhook?.enabled ?? true)}>Test</button>
@@ -163,39 +201,6 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
           <a href="/automation/webhooks" class="button secondary">Cancel</a>
         </div>
       </form>
-
-      {isEventDriven && (
-        <div class="connected-events-section">
-          <div class="sub-header-row">
-            <h3>Connected Events</h3>
-            <p>Manage connections from the <a href="/automation/events">Events page</a></p>
-          </div>
-          <div class="sub-options">
-            {existingSubscribedEvents.length === 0 ? (
-              <div class="sub-option no-events-row">
-                <span>No events connected yet.</span>
-                <a href="/automation/events" class="button secondary small">Go to Events →</a>
-              </div>
-            ) : (
-              existingSubscribedEvents.map((ev: string) => (
-                <div class="sub-option sub-option-connected" data-event-slug={ev}>
-                  <div class="sub-option-info">
-                    <div class="sub-option-name-row">
-                      <span class="connected-check">&#10003;</span>
-                      <strong>{ev.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</strong>
-                    </div>
-                    <code class="sub-url">{ev}</code>
-                  </div>
-                  <div class="sub-option-actions">
-                    <a href={`/automation/events/${ev}`} class="button secondary small">Edit</a>
-                    <button type="button" class="button small secondary disconnect-event-btn" data-event={ev}>Disconnect</button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
 
       <div class="history-section">
         <h3>Execution History</h3>
@@ -305,6 +310,30 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
   typeSelect?.addEventListener('change', updateFieldVisibility);
   updateFieldVisibility();
 
+  // Event subscriptions checklist (event_driven only)
+  const evCheckboxes = document.querySelectorAll('input[name="subscribed_events"]') as NodeListOf<HTMLInputElement>;
+  const evCount = document.getElementById('ev-count');
+  const evSearch = document.getElementById('ev-search') as HTMLInputElement;
+
+  function updateEvCount() {
+    const n = Array.from(evCheckboxes).filter(cb => cb.checked).length;
+    if (evCount) evCount.textContent = `${n} event${n !== 1 ? 's' : ''} selected`;
+  }
+
+  evSearch?.addEventListener('input', () => {
+    const q = evSearch.value.toLowerCase();
+    document.querySelectorAll('#ev-checklist .event-checkbox').forEach(el => {
+      const name = el.getAttribute('data-event-name') || '';
+      const desc = el.getAttribute('data-event-description') || '';
+      (el as HTMLElement).style.display = (!q || name.includes(q) || desc.includes(q)) ? 'flex' : 'none';
+    });
+  });
+
+  document.getElementById('ev-select-all')?.addEventListener('click', () => { evCheckboxes.forEach(cb => cb.checked = true); updateEvCount(); });
+  document.getElementById('ev-select-none')?.addEventListener('click', () => { evCheckboxes.forEach(cb => cb.checked = false); updateEvCount(); });
+  evCheckboxes.forEach(cb => cb.addEventListener('change', updateEvCount));
+  updateEvCount();
+
   // Header builder
   const headersList = document.getElementById('headers-list')!;
   document.getElementById('add-header-btn')?.addEventListener('click', () => {
@@ -349,6 +378,7 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
     });
 
     const isEventDriven = typeSelect.value === 'event_driven';
+    const selectedEvents = Array.from(evCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
 
     const payload: Record<string, unknown> = {
       name: formData.get('name'),
@@ -360,7 +390,9 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
       custom_payload: customPayload,
     };
 
-    if (!isEventDriven) {
+    if (isEventDriven) {
+      payload.subscribed_events = selectedEvents.length ? selectedEvents : null;
+    } else {
       payload.scheduled_time = formData.get('scheduled_time');
     }
 
@@ -396,36 +428,7 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
     }
   });
 
-  // Disconnect event buttons in the Connected Events section
-  document.querySelectorAll('.disconnect-event-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const eventSlug = (btn as HTMLElement).dataset.event!;
-      if (!confirm(`Disconnect "${eventSlug}" from this webhook?`)) return;
-      (btn as HTMLButtonElement).disabled = true;
-      try {
-        const res = await fetch('/api/groups/webhooks/' + webhookId, { credentials: 'include' });
-        if (!res.ok) throw new Error(`GET failed: ${res.status}`);
-        const webhook = await res.json();
-        const current: string[] = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
-        const updated = current.filter((e: string) => e !== eventSlug);
-        const putRes = await fetch('/api/groups/webhooks/' + webhookId, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ ...webhook, subscribedEvents: updated, subscribed_events: updated }),
-        });
-        if (!putRes.ok) {
-          const d = await putRes.json().catch(() => ({}));
-          throw new Error(d.detail || `PUT failed: ${putRes.status}`);
-        }
-        const row = (btn as HTMLElement).closest('[data-event-slug]') as HTMLElement;
-        row?.remove();
-      } catch (e: any) {
-        alert('Error: ' + e.message);
-        (btn as HTMLButtonElement).disabled = false;
-      }
-    });
-  });
+
 </script>
 
 <style>
@@ -552,6 +555,41 @@ const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPa
   .button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
   .optional { font-size: 12px; font-weight: 400; color: var(--muted); }
+
+  .section-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .section-description { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+  .selection-actions { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .link-button { padding: 0; border: none; background: none; color: var(--accent); font-size: 13px; cursor: pointer; text-decoration: underline; }
+  .separator { color: var(--muted); }
+  .search-field { margin-top: 4px; }
+
+  .events-checklist {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: var(--radius);
+    display: grid;
+    gap: 6px;
+  }
+
+  .event-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .event-checkbox:hover { border-color: var(--accent); }
+  .event-checkbox input[type="checkbox"] { margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+  .event-checkbox-content { display: grid; gap: 2px; flex: 1; min-width: 0; }
+  .event-checkbox-name { font-size: 13px; font-weight: 500; }
+  .event-checkbox-description { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .selection-summary { padding: 6px 12px; text-align: center; font-size: 12px; color: var(--muted); }
   .section-hint { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
   .section-hint code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
   .section-hint a { color: var(--accent); }
