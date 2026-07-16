@@ -116,7 +116,7 @@ const defaultEvents = [
 
           <div class="events-checklist" id="events-checklist">
             {eventOptions.map((event) => {
-              const optionValue = event.value;
+              const optionValue = `core.${event.value}`;
               const isDefault = defaultEvents.includes(optionValue);
               return (
                 <label

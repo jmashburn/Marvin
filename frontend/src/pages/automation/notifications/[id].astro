@@ -106,7 +106,7 @@ const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url 
 
           <div class="events-checklist" id="events-checklist">
             {eventOptions.map((event: any) => {
-              const optionValue = event.value;
+              const optionValue = `core.${event.value}`;
               const isChecked = subscribedSet.has(optionValue);
               return (
                 <label
