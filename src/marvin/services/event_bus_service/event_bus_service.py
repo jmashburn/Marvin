@@ -235,15 +235,15 @@ class EventBusService(BaseService):
 
         if self.bg_tasks:
             if not is_internal:
-                self.logger.info(f"event dispatched: {event_name} [{integration_id}]")
+                self.logger.info(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
             else:
-                self.logger.debug(f"event dispatched: {event_name} [{integration_id}]")
+                self.logger.debug(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
             self.bg_tasks.add_task(self._publish_event, event=event_payload, group_id=group_id)
         else:
             if not is_internal:
-                self.logger.info(f"event dispatched: {event_name} [{integration_id}]")
+                self.logger.info(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
             else:
-                self.logger.debug(f"event dispatched: {event_name} [{integration_id}]")
+                self.logger.debug(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
             self._publish_event(event=event_payload, group_id=group_id)
 
     @classmethod
