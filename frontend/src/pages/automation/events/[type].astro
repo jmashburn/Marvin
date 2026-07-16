@@ -299,13 +299,27 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       </div>
 
       <div class="em-section-divider" style="margin-top:20px">Template</div>
-      <div class="form-group">
-        <label class="em-field-label">Subject</label>
-        <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
+      <!-- Structured fields — shown when template has no custom HTML -->
+      <div id="em-structured-fields">
+        <div class="form-group">
+          <label class="em-field-label">Subject</label>
+          <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
+        </div>
+        <div class="form-group">
+          <label class="em-field-label">Message</label>
+          <textarea id="em-message-top" rows="4" class="em-text-input" placeholder="Use {{ variable }} for event data"></textarea>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="em-field-label">Message</label>
-        <textarea id="em-message-top" rows="4" class="em-text-input" placeholder="Use {{ variable }} for event data"></textarea>
+      <!-- Custom HTML editor — shown when template has custom_html -->
+      <div id="em-custom-html-fields" style="display:none">
+        <div class="form-group">
+          <label class="em-field-label">Subject</label>
+          <input type="text" id="em-subject-html" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
+        </div>
+        <div class="form-group">
+          <label class="em-field-label">Custom HTML</label>
+          <textarea id="em-custom-html" rows="10" class="em-text-input em-code" placeholder="Full HTML template — use {{ variable }} for event data"></textarea>
+        </div>
       </div>
       <div id="em-template-vars" class="em-vars"></div>
       <a id="em-full-editor-link" href="/workspace/settings/email" class="em-subtle-link" target="_blank">Open full editor ↗</a>
@@ -491,16 +505,32 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
     // Fetch and pre-fill template content
     emIsSystemTemplate = false;
+    const structuredEl = document.getElementById('em-structured-fields');
+    const customHtmlEl = document.getElementById('em-custom-html-fields');
     try {
       const res = await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, { credentials: 'include' });
       if (res.ok) {
         const tpl = await res.json();
         emIsSystemTemplate = !(tpl.groupId || tpl.group_id);
         const f = (c, s) => tpl[c] ?? tpl[s] ?? '';
-        const subj = document.getElementById('em-subject');
-        const msg = document.getElementById('em-message-top');
-        if (subj) subj.value = f('subject', 'subject');
-        if (msg) msg.value = f('messageTop', 'message_top');
+        const customHtml = f('customHtml', 'custom_html');
+        if (customHtml) {
+          // Custom HTML mode
+          if (structuredEl) structuredEl.style.display = 'none';
+          if (customHtmlEl) customHtmlEl.style.display = 'block';
+          const subjHtml = document.getElementById('em-subject-html');
+          const htmlArea = document.getElementById('em-custom-html');
+          if (subjHtml) subjHtml.value = f('subject', 'subject');
+          if (htmlArea) htmlArea.value = customHtml;
+        } else {
+          // Structured mode
+          if (structuredEl) structuredEl.style.display = 'block';
+          if (customHtmlEl) customHtmlEl.style.display = 'none';
+          const subj = document.getElementById('em-subject');
+          const msg = document.getElementById('em-message-top');
+          if (subj) subj.value = f('subject', 'subject');
+          if (msg) msg.value = f('messageTop', 'message_top');
+        }
       }
     } catch {}
   }
@@ -509,10 +539,14 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     if (emailModal) emailModal.style.display = 'none';
     document.body.style.overflow = '';
     emTemplateId = null; emSubscriptionId = null;
-    const subj = document.getElementById('em-subject');
-    const msg = document.getElementById('em-message-top');
-    if (subj) subj.value = '';
-    if (msg) msg.value = '';
+    ['em-subject', 'em-message-top', 'em-subject-html', 'em-custom-html'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const structuredEl = document.getElementById('em-structured-fields');
+    const customHtmlEl = document.getElementById('em-custom-html-fields');
+    if (structuredEl) structuredEl.style.display = 'block';
+    if (customHtmlEl) customHtmlEl.style.display = 'none';
   }
 
   document.querySelectorAll('.connect-email-btn').forEach(btn => {
@@ -552,23 +586,30 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     emConfirm.textContent = 'Saving…';
 
     try {
-      // 1. Save template edits
-      const subject = document.getElementById('em-subject')?.value?.trim();
-      const messageTop = document.getElementById('em-message-top')?.value?.trim();
+      // 1. Save template edits — detect which mode is active
+      const isCustomMode = document.getElementById('em-custom-html-fields')?.style.display !== 'none';
+      const subject = isCustomMode
+        ? document.getElementById('em-subject-html')?.value?.trim()
+        : document.getElementById('em-subject')?.value?.trim();
+      const messageTop = isCustomMode ? null : document.getElementById('em-message-top')?.value?.trim();
+      const customHtml = isCustomMode ? document.getElementById('em-custom-html')?.value?.trim() : null;
       let finalTemplateId = emTemplateId;
 
-      if (subject || messageTop) {
+      const hasEdits = subject || messageTop || customHtml;
+      if (hasEdits) {
+        const tplBody = isCustomMode
+          ? { subject, custom_html: customHtml }
+          : { subject, message_top: messageTop };
         if (emIsSystemTemplate) {
-          // Create workspace override
           const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify({ template_type: 'custom', name: document.getElementById('em-template-name')?.textContent || 'Custom', subject: subject || '', message_top: messageTop || '', enabled: true }),
+            body: JSON.stringify({ template_type: 'custom', name: document.getElementById('em-template-name')?.textContent || 'Custom', enabled: true, ...tplBody }),
           });
           if (res.ok) { const t = await res.json().catch(() => null); if (t?.id) finalTemplateId = t.id; }
         } else {
           await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-            body: JSON.stringify({ subject, message_top: messageTop }),
+            body: JSON.stringify(tplBody),
           });
         }
       }
@@ -1036,6 +1077,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
   .form-group { margin-bottom: 12px; }
   .em-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+
+  .em-code { font-family: ui-monospace, monospace; font-size: 12px; }
 
   .em-text-input {
     width: 100%;
