@@ -328,9 +328,23 @@ class EmailService(BaseService):
             # Determine rendering mode
             raw_custom = db_template.custom_html or ""
             if raw_custom.strip():
-                # Custom HTML (including markdown rendered to HTML at save time)
-                html_template = Template(_r(raw_custom))
-                html_content = html_template.render(**variables)
+                # Render content through Jinja2 for variable substitution
+                body_html = Template(_r(raw_custom)).render(**variables)
+                # Wrap in default.html so the email has proper structure/styling
+                template_data = EmailTemplate(
+                    subject=subject,
+                    header_text=Template(_r(db_template.header_text or "")).render(**variables) or variables.get("message_title", ""),
+                    message_top=body_html,
+                    message_bottom=Template(_r(db_template.message_bottom or "")).render(**variables),
+                    button_link=(
+                        variables.get("invitation_url") or variables.get("reset_url")
+                        or variables.get("login_url") or variables.get("action_url")
+                        or variables.get("button_link", "")
+                    ),
+                    button_text=Template(_r(db_template.button_text or "")).render(**variables),
+                    workspace_name=variables.get("workspace_name", ""),
+                )
+                html_content = template_data.render_html(self.default_template)
             else:
                 # Mode 2: Structured - resolve slugs in each field then Jinja2
                 template_data = EmailTemplate(
