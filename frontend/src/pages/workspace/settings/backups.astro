@@ -57,7 +57,7 @@ const workspaceSlug = (workspace as any)?.slug ?? 'workspace';
         </div>
       </div>
       <div class="card-body">
-        <button type="button" id="export-bundle-btn" class="button" data-workspace-id={workspace?.id}>
+        <button type="button" id="export-bundle-btn" class="button" data-workspace-id={workspace?.id} data-slug={workspaceSlug}>
           Download Workspace Bundle
         </button>
         <p class="hint">ZIP archive · includes all asset binaries</p>
@@ -373,7 +373,7 @@ const workspaceSlug = (workspace as any)?.slug ?? 'workspace';
   }
 </style>
 
-<script define:vars={{ workspaceSlug }}>
+<script>
   // Export bundle
   const exportBtn = document.getElementById('export-bundle-btn') as HTMLButtonElement | null;
   if (exportBtn) {
@@ -388,7 +388,7 @@ const workspaceSlug = (workspace as any)?.slug ?? 'workspace';
         const a = document.createElement('a');
         a.href = url;
         const today = new Date().toISOString().split('T')[0];
-        a.download = `${workspaceSlug}-backup-${today}.zip`;
+        a.download = `${exportBtn.dataset.slug ?? 'workspace'}-backup-${today}.zip`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
