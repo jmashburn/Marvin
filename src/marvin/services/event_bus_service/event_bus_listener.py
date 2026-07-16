@@ -507,12 +507,14 @@ class WebhookEventListener(EventListenerBase):
                                 f"(type={webhook_type_name}): {e}"
                             )
 
-            # Merge custom_payload into handler stats — send flat, no envelope
+            clean_payload: dict = {
+                "type": webhook_type_name,
+                "data": handler_data,
+            }
             if webhook_config.custom_payload:
-                custom = apply_substitutions(webhook_config.custom_payload, self.group_id, context)
-                handler_data.update(custom)
-
-            clean_payload: dict = handler_data
+                clean_payload["meta"] = apply_substitutions(
+                    webhook_config.custom_payload, self.group_id, context
+                )
 
             resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
             self.publisher.publish(
