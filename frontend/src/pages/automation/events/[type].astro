@@ -1337,8 +1337,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   .em-vars-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
   .em-vars-hint { font-size: 11px; color: var(--muted); }
   .em-vars-hint code { font-size: 10px; background: var(--panel); border: 1px solid var(--line); padding: 1px 4px; border-radius: 3px; }
-  .em-vars-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-  .em-var-chip {
+  :global(.em-vars-chips) { display: flex; flex-wrap: wrap; gap: 4px; }
+  :global(.em-var-chip) {
     display: inline-flex;
     flex-direction: row;
     align-items: center;
@@ -1352,8 +1352,8 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     white-space: nowrap;
     transition: border-color 0.1s, color 0.1s;
   }
-  .em-var-chip:hover { border-color: var(--accent); color: var(--accent); }
-  .em-var-chip code { font-family: monospace; font-size: 11px; color: inherit; }
+  :global(.em-var-chip:hover) { border-color: var(--accent); color: var(--accent); }
+  :global(.em-var-chip code) { font-family: monospace; font-size: 11px; color: inherit; }
   .em-subtle-link { font-size: 12px; color: var(--muted); margin-top: 12px; display: inline-block; }
 
   .em-hint {
