@@ -4,18 +4,28 @@ import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
-const sdk = createSdkClient(authToken);
+const authed = !!authToken;
 
 const filter = Astro.url.searchParams.get('filter') || 'all';
 
 let executions: any[] = [];
 let error: string | null = null;
+let aiEnabled = true;
 
-try {
-  executions = await sdk.ai.executions.list({ limit: 200 });
-} catch (e) {
-  console.error('[ai-executions] Error:', e);
-  error = e instanceof Error ? e.message : String(e);
+// Read-only history still requires auth; also surface whether AI is currently enabled.
+if (authed) {
+  const sdk = createSdkClient(authToken);
+  try {
+    const [execs, settings] = await Promise.all([
+      sdk.ai.executions.list({ limit: 200 }),
+      sdk.ai.settings.get().catch(() => null),
+    ]);
+    executions = execs;
+    if (settings) aiEnabled = (settings as any).enabled !== false;
+  } catch (e) {
+    console.error('[ai-executions] Error:', e);
+    error = e instanceof Error ? e.message : String(e);
+  }
 }
 
 // Responses are camelCase (_MarvinModel alias_generator); read snake defensively.
@@ -69,6 +79,17 @@ function formatDuration(ms: number | null): string {
     <h2>AI Executions</h2>
     <p>History of every AI operation run in this workspace — tokens, cost, and output</p>
   </div>
+
+  {!authed ? (
+    <div class="alert alert-error"><strong>Authentication required.</strong> Sign in to view AI executions.</div>
+  ) : (
+  <>
+  {!aiEnabled && (
+    <div class="alert alert-info">
+      AI is currently disabled for this workspace — showing past executions.
+      <a href="/workspace/settings/ai-workflow">Review AI settings</a>
+    </div>
+  )}
 
   <div class="filters">
     <a href="?filter=all" class:list={['filter-btn', { active: filter === 'all' }]}>All ({executions.length})</a>
@@ -175,6 +196,8 @@ function formatDuration(ms: number | null): string {
       </table>
     </div>
   )}
+  </>
+  )}
 </AppLayout>
 
 <script>
@@ -237,6 +260,15 @@ function formatDuration(ms: number | null): string {
     color: var(--color-error);
     border: 1px solid var(--color-error);
   }
+
+  .alert-info {
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font-size: 14px;
+  }
+
+  .alert-info a { color: var(--accent); }
 
   .empty-state { padding: 80px 24px; text-align: center; }
   .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
