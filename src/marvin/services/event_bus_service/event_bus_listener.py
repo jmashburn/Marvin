@@ -875,23 +875,11 @@ class EmailEventListener(EventListenerBase):
 
             system_mapping = SYSTEM_TEMPLATE_EVENT_MAP[system_template_type]
 
-            # Check if any workspace subscription already covers a template of this type
-            has_workspace_override = False
-            for sub in workspace_subs:
-                template = repos.session.get(EmailTemplateModel, sub.template_id)
-                if (
-                    template is not None
-                    and template.template_type == system_template_type
-                    and template.group_id is not None
-                ):
-                    has_workspace_override = True
-                    break
+            # Find workspace templates of this type — avoids UUID format mismatch
+            # that breaks session.get() comparisons
+            def _norm(v) -> str:
+                return str(v).replace("-", "").lower()
 
-            if has_workspace_override:
-                return workspace_subs
-
-            # Also check for workspace templates of this type even without an explicit subscription
-            # (handles templates created before auto-create ran, or with a missing subscription row)
             ws_templates_of_type = (
                 repos.session.query(EmailTemplateModel)
                 .filter(
@@ -901,15 +889,31 @@ class EmailEventListener(EventListenerBase):
                 )
                 .all()
             )
+            ws_template_ids = {_norm(t.id) for t in ws_templates_of_type}
+
+            # Find subscriptions that explicitly connect a workspace template of this type
+            connected_subs = [
+                sub for sub in workspace_subs
+                if _norm(getattr(sub, "template_id", "")) in ws_template_ids
+            ]
+
+            if connected_subs:
+                # Explicit connection via Events page — respect it, ignore everything else
+                self.logger.info(
+                    f"EmailEventListener: {len(connected_subs)} explicitly connected "
+                    f"workspace template(s) for '{system_template_type}'"
+                )
+                return connected_subs
+
             if ws_templates_of_type:
-                # Use only the most recently created workspace template to avoid
-                # double-sends when multiple workspace templates of the same type exist
+                # Workspace template exists but not explicitly connected — use the most
+                # recently created one as a convenience fallback (single-template case)
                 ws_tmpl = ws_templates_of_type[-1]
                 self.logger.info(
-                    f"EmailEventListener: using workspace template '{ws_tmpl.name}' "
-                    f"of type '{system_template_type}' (no explicit subscription row)"
+                    f"EmailEventListener: fallback to workspace template '{ws_tmpl.name}' "
+                    f"(type={system_template_type}, no subscription row)"
                 )
-                return list(workspace_subs) + [
+                return [
                     VirtualEmailSubscription(
                         template_id=ws_tmpl.id,
                         event_type=event.event_type.name,
@@ -919,7 +923,7 @@ class EmailEventListener(EventListenerBase):
                     )
                 ]
 
-            # No workspace override — try the system template
+            # No workspace templates — use system template
             system_template = (
                 repos.session.query(EmailTemplateModel)
                 .filter(
@@ -930,14 +934,13 @@ class EmailEventListener(EventListenerBase):
             )
 
             if system_template and system_template.enabled:
-                virtual = VirtualEmailSubscription(
+                return [VirtualEmailSubscription(
                     template_id=system_template.id,
                     event_type=event.event_type.name,
                     recipient_type=system_mapping["recipient_type"],
                     recipient_field=system_mapping.get("recipient_field"),
                     recipient_email=system_mapping.get("recipient_email"),
-                )
-                return list(workspace_subs) + [virtual]
+                )]
 
             return workspace_subs
 
