@@ -23,6 +23,22 @@ if (!id) {
     console.error('[Asset] Failed to load:', error);
   }
 }
+
+// AI assist: only shown for image assets when AI is enabled for the workspace.
+let aiEnabled = false;
+if (asset && authToken) {
+  try {
+    const aiSdk = createSdkClient(authToken);
+    const aiSettings: any = await aiSdk.ai.settings.get();
+    aiEnabled = aiSettings?.enabled !== false;
+    const sources = aiSettings?.invocationSources ?? aiSettings?.invocation_sources;
+    if (sources && sources.assets === false) aiEnabled = false;
+  } catch {
+    aiEnabled = false; // fail closed — hide the panel if settings can't be read
+  }
+}
+const isImage = (asset as any)?.mimeType?.startsWith('image/') ?? false;
+const showAiPanel = aiEnabled && isImage;
 ---
 
 <AppLayout title={asset ? asset.name : "Edit Asset"}>
@@ -153,6 +169,17 @@ if (!id) {
               </a>
             )}
           </div>
+
+          {showAiPanel && (
+            <div class="sidebar-section ai-assist">
+              <h3>AI Assist</h3>
+              <p class="ai-help">Generate accessible alt text and a description for this image.</p>
+              <button type="button" id="ai-alt-text-btn" class="button" style="width:100%;">
+                ✨ Generate alt text
+              </button>
+              <p id="ai-status" class="ai-status" style="display:none;"></p>
+            </div>
+          )}
 
           <div class="sidebar-section">
             <h3>File Info</h3>
@@ -331,6 +358,22 @@ if (!id) {
     background: var(--panel-2);
   }
 
+  .ai-help {
+    margin: 0 0 0.75rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .ai-status {
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+  }
+
+  .ai-status.ok { color: var(--accent); background: rgba(79, 156, 132, 0.1); }
+  .ai-status.err { color: var(--color-error); background: var(--color-error-bg); }
+
   @media (max-width: 1024px) {
     .editor-layout {
       grid-template-columns: 1fr;
@@ -500,6 +543,49 @@ if (!id) {
     });
   } else {
     console.error('[Asset Edit] Cannot add submit handler - form not found');
+  }
+
+  // AI assist: generate alt text + description, then fill the fields as a suggestion.
+  const aiBtn = document.getElementById('ai-alt-text-btn') as HTMLButtonElement | null;
+  const aiStatus = document.getElementById('ai-status') as HTMLElement | null;
+  if (aiBtn) {
+    aiBtn.addEventListener('click', async () => {
+      const assetId = window.location.pathname.split('/').pop()!;
+      const original = aiBtn.textContent;
+      aiBtn.disabled = true;
+      aiBtn.textContent = 'Generating…';
+      if (aiStatus) { aiStatus.style.display = 'none'; aiStatus.className = 'ai-status'; }
+      try {
+        const exec: any = await sdk.ai.operations.execute('generate-alt-text', {
+          entityType: 'asset',
+          entityId: assetId,
+        });
+        const out = exec?.outputJson ?? exec?.output_json ?? {};
+        const altText = out.alt_text ?? out.altText;
+        const description = out.description;
+        const altField = document.getElementById('altText') as HTMLInputElement | null;
+        const descField = document.getElementById('description') as HTMLTextAreaElement | null;
+        if (altText && altField) altField.value = altText;
+        if (description && descField) descField.value = description;
+        if (aiStatus) {
+          const tokens = exec?.totalTokens ?? exec?.total_tokens;
+          aiStatus.textContent = altText
+            ? `Suggestion applied${tokens ? ` · ${tokens} tokens` : ''}. Review, then Save Changes to keep it.`
+            : 'No suggestion returned.';
+          aiStatus.classList.add(altText ? 'ok' : 'err');
+          aiStatus.style.display = 'block';
+        }
+      } catch (error: any) {
+        if (aiStatus) {
+          aiStatus.textContent = error?.message || error?.detail || 'AI request failed';
+          aiStatus.classList.add('err');
+          aiStatus.style.display = 'block';
+        }
+      } finally {
+        aiBtn.disabled = false;
+        aiBtn.textContent = original;
+      }
+    });
   }
 
   // Metadata preview update
