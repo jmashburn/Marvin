@@ -73,23 +73,25 @@ for (const s of mySubscriptions) {
     <div class="alert alert-error"><strong>Error:</strong> {error}</div>
   ) : template ? (
     <div class="edit-layout">
+      <form id="template-form">
+        <input type="hidden" id="template-id" value={template.id} />
+        <input type="hidden" id="ws-id" value={wsId} />
 
-      <!-- Template editor form (max-width 700px) -->
-      <section class="form-section">
-        <div class="section-header">
-          <h2>{isSystem ? template.name : 'Edit Template'}</h2>
-          {isSystem && <span class="badge badge-system">System Template</span>}
-          {!isSystem && <span class="badge badge-customized">Workspace Template</span>}
-        </div>
-        {isSystem && (
-          <p class="system-note">
-            System templates are read-only. <a href={`/workspace/settings/email?customize=${id}`}>Create a workspace override</a> to customize this template.
-          </p>
-        )}
+        <!-- Template fields section -->
+        <div class="form-section">
+          <div class="section-header">
+            <div>
+              <h3>{isSystem ? template.name : 'Edit Template'}</h3>
+            </div>
+            {isSystem && <span class="badge badge-system">System Template</span>}
+            {!isSystem && <span class="badge badge-customized">Workspace Template</span>}
+          </div>
 
-        <form id="template-form" class="template-form">
-          <input type="hidden" id="template-id" value={template.id} />
-          <input type="hidden" id="ws-id" value={wsId} />
+          {isSystem && (
+            <p class="system-note">
+              System templates are read-only. <a href={`/workspace/settings/email?customize=${id}`}>Create a workspace override</a> to customize this template.
+            </p>
+          )}
 
           <div class="form-group">
             <label for="tpl-name">Name</label>
@@ -131,6 +133,7 @@ for (const s of mySubscriptions) {
             <div class="body-tabs">
               <button type="button" class="body-tab active" data-body-mode="markdown">Markdown</button>
               <button type="button" class="body-tab" data-body-mode="html">Custom HTML</button>
+              <button type="button" class="body-tab" data-body-mode="preview">Preview</button>
             </div>
             <div id="body-markdown-field">
               <textarea
@@ -152,6 +155,13 @@ for (const s of mySubscriptions) {
               >{template.customHtml ?? template.custom_html ?? ''}</textarea>
               <small class="input-hint">Full Jinja2 HTML — bypasses the standard template entirely</small>
             </div>
+            <div id="body-preview-field" style="display:none">
+              <iframe
+                id="body-preview-iframe"
+                sandbox="allow-same-origin"
+                style="width:100%;height:400px;border:1px solid var(--line);border-radius:var(--radius);background:white;"
+              ></iframe>
+            </div>
           </div>
 
           <label class="checkbox-label">
@@ -163,102 +173,101 @@ for (const s of mySubscriptions) {
             />
             <span>Enabled</span>
           </label>
+        </div>
 
-          {!isSystem && (
-            <div class="form-actions">
-              <button type="submit" class="button primary">Save Changes</button>
-              <button
-                type="button"
-                id="test-send-btn"
-                class="button secondary"
-                data-template-id={template.id}
-              >
-                Test Send
-              </button>
-              <button
-                type="button"
-                id="delete-btn"
-                class="button danger"
-                data-template-id={template.id}
-              >
-                Delete Template
-              </button>
+        <!-- Event Subscriptions section -->
+        <div class="form-section">
+          <div class="section-header">
+            <div>
+              <h3>Event Subscriptions</h3>
+              <p class="section-description">
+                {isSystem
+                  ? "System templates fire automatically when their assigned event occurs."
+                  : "Select which events should trigger this email template."}
+              </p>
             </div>
-          )}
-        </form>
-      </section>
-
-      <!-- Event Subscriptions section -->
-      <section class="events-section">
-        <div class="section-header">
-          <div>
-            <h3>Event Subscriptions</h3>
-            <p class="section-desc">
-              {isSystem
-                ? "System templates fire automatically when their assigned event occurs."
-                : "Select which events should trigger this email template."}
-            </p>
+            {!isSystem && (
+              <div class="selection-actions">
+                <button type="button" id="select-all" class="link-button">Select All</button>
+                <span class="separator">·</span>
+                <button type="button" id="select-none" class="link-button">Clear All</button>
+              </div>
+            )}
           </div>
-          {!isSystem && (
-            <div class="selection-actions">
-              <button type="button" id="select-all" class="link-button">Select All</button>
-              <span class="sep">·</span>
-              <button type="button" id="select-none" class="link-button">Clear All</button>
+
+          {isSystem && systemHardcodedEvent ? (
+            <div class="system-event-row">
+              <div class="event-chip">
+                <span class="chip-icon">&#9679;</span>
+                <span class="chip-label">{systemHardcodedEvent}</span>
+                <span class="chip-badge">Always connected</span>
+              </div>
+              <p class="system-event-note">
+                This template fires whenever the <code>{systemHardcodedEvent}</code> event is dispatched.
+                This connection is managed by the system and cannot be changed here.
+              </p>
             </div>
+          ) : isSystem ? (
+            <p class="muted">No system event mapping for this template type.</p>
+          ) : (
+            <>
+              <div class="search-field">
+                <input type="text" id="event-search" placeholder="Search events…" class="input" />
+              </div>
+              <div class="events-checklist" id="events-checklist">
+                {eventOptions.map((evt: any) => {
+                  const isChecked = subscribedEvents.has(evt.value);
+                  return (
+                    <label
+                      class="event-checkbox"
+                      data-event-name={(evt.label ?? '').toLowerCase()}
+                      data-event-description={(evt.description ?? '').toLowerCase()}
+                    >
+                      <input
+                        type="checkbox"
+                        name="events"
+                        value={evt.value}
+                        checked={isChecked}
+                      />
+                      <div class="event-checkbox-content">
+                        <span class="event-checkbox-name">{evt.label}</span>
+                        {evt.description && (
+                          <span class="event-checkbox-description">{evt.description}</span>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              <div class="selection-summary" id="selection-summary">
+                {subscribedEvents.size} event{subscribedEvents.size !== 1 ? 's' : ''} selected
+              </div>
+            </>
           )}
         </div>
 
-        {isSystem && systemHardcodedEvent ? (
-          <div class="system-event-row">
-            <div class="event-chip">
-              <span class="chip-icon">&#9679;</span>
-              <span class="chip-label">{systemHardcodedEvent}</span>
-              <span class="chip-badge">Always connected</span>
-            </div>
-            <p class="system-event-note">
-              This template fires whenever the <code>{systemHardcodedEvent}</code> event is dispatched.
-              This connection is managed by the system and cannot be changed here.
-            </p>
+        {!isSystem && (
+          <div class="form-actions">
+            <button type="submit" class="button primary">Save Changes</button>
+            <button
+              type="button"
+              id="test-send-btn"
+              class="button secondary"
+              data-template-id={template.id}
+            >
+              Test Send
+            </button>
+            <button
+              type="button"
+              id="delete-btn"
+              class="button danger"
+              data-template-id={template.id}
+            >
+              Delete Template
+            </button>
           </div>
-        ) : isSystem ? (
-          <p class="muted">No system event mapping for this template type.</p>
-        ) : (
-          <>
-            <div class="search-field">
-              <input type="text" id="event-search" placeholder="Search events…" class="input" />
-            </div>
-            <div class="events-checklist" id="events-checklist">
-              {eventOptions.map((evt: any) => {
-                const isChecked = subscribedEvents.has(evt.value);
-                return (
-                  <label
-                    class="event-checkbox"
-                    data-event-name={(evt.label ?? '').toLowerCase()}
-                    data-event-description={(evt.description ?? '').toLowerCase()}
-                  >
-                    <input
-                      type="checkbox"
-                      name="events"
-                      value={evt.value}
-                      checked={isChecked}
-                    />
-                    <div class="event-checkbox-content">
-                      <span class="event-checkbox-name">{evt.label}</span>
-                      {evt.description && (
-                        <span class="event-checkbox-desc">{evt.description}</span>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-            <div class="events-save-row">
-              <button type="button" id="save-subscriptions-btn" class="button">Save Subscriptions</button>
-            </div>
-          </>
         )}
-      </section>
-
+      </form>
     </div>
   ) : null}
 
@@ -283,31 +292,63 @@ for (const s of mySubscriptions) {
     </div>
   </div>
 
-  <script define:vars={{ wsId, id, isSystem, systemHardcodedEvent, subIdMap: JSON.stringify(subIdMap), apiUrl }}>
+  <script define:vars={{ wsId, id, isSystem, systemHardcodedEvent, subIdMap, apiUrl }}>
     const GROUP_ID = wsId;
     const TEMPLATE_ID = id;
-    const SUB_ID_MAP = JSON.parse(subIdMap);
+    const SUB_ID_MAP = subIdMap;
 
     // ── Body mode tabs ────────────────────────────────────────────────────────
+    // Track which non-preview mode is active so preview knows what to render
+    let activeBodyMode = 'markdown';
+
     const isHtmlMode = !!(document.getElementById('tpl-custom-html').value.trim());
-    if (isHtmlMode) document.querySelector('[data-body-mode="html"]')?.click();
+    if (isHtmlMode) {
+      activeBodyMode = 'html';
+      document.querySelector('[data-body-mode="html"]')?.click();
+    }
 
     document.querySelectorAll('[data-body-mode]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-body-mode]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const mode = btn.dataset.bodyMode;
+
+        // Keep track of last non-preview mode for preview rendering
+        if (mode !== 'preview') activeBodyMode = mode;
+
         document.getElementById('body-markdown-field').style.display = mode === 'markdown' ? 'block' : 'none';
         document.getElementById('body-html-field').style.display = mode === 'html' ? 'block' : 'none';
+        document.getElementById('body-preview-field').style.display = mode === 'preview' ? 'block' : 'none';
+
+        if (mode === 'preview') {
+          const iframe = document.getElementById('body-preview-iframe');
+          if (activeBodyMode === 'html') {
+            iframe.srcdoc = document.getElementById('tpl-custom-html').value;
+          } else {
+            iframe.srcdoc = renderMarkdownToHtml(document.getElementById('tpl-body-markdown').value);
+          }
+        }
       });
     });
 
-    // ── Form save ─────────────────────────────────────────────────────────────
+    function renderMarkdownToHtml(md) {
+      let html = md
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
+      const paragraphs = html
+        .split(/\n\n+/)
+        .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+        .join('\n');
+      return `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px;max-width:600px;margin:0 auto;color:#333;">${paragraphs}</body></html>`;
+    }
+
+    // ── Form save (template + subscriptions) ──────────────────────────────────
     document.getElementById('template-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (isSystem) return;
 
-      const usingHtml = document.querySelector('[data-body-mode="html"]')?.classList.contains('active');
+      const usingHtml = activeBodyMode === 'html';
       const data = {
         name: document.getElementById('tpl-name').value,
         description: document.getElementById('tpl-description').value || null,
@@ -318,6 +359,7 @@ for (const s of mySubscriptions) {
       };
 
       try {
+        // Save template fields
         const res = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${TEMPLATE_ID}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -328,9 +370,47 @@ for (const s of mySubscriptions) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.detail || `Save failed (${res.status})`);
         }
-        showToast('Template saved');
+
+        // Diff and apply subscription changes
+        const checked = new Set(
+          [...document.querySelectorAll('#events-checklist input[type=checkbox]:checked')]
+            .map(cb => cb.value)
+        );
+        const existing = new Set(Object.keys(SUB_ID_MAP));
+        const toAdd = [...checked].filter(ev => !existing.has(ev));
+        const toRemove = [...existing].filter(ev => !checked.has(ev));
+
+        await Promise.all(toRemove.map(eventType => {
+          const subId = SUB_ID_MAP[eventType];
+          return subId
+            ? fetch(`${apiUrl}/api/groups/email-event-subscriptions/${subId}`, {
+                method: 'DELETE',
+                credentials: 'include',
+              })
+            : Promise.resolve();
+        }));
+
+        await Promise.all(toAdd.map(eventType =>
+          fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              template_id: TEMPLATE_ID,
+              event_type: eventType,
+              recipient_type: 'admins',
+              enabled: true,
+            }),
+          })
+        ));
+
+        showToast('Changes saved');
+        // Reload to update SUB_ID_MAP state when subscriptions changed
+        if (toAdd.length || toRemove.length) {
+          window.location.reload();
+        }
       } catch (e) {
-        alert('Error saving template: ' + e.message);
+        alert('Error saving: ' + e.message);
       }
     });
 
@@ -389,6 +469,17 @@ for (const s of mySubscriptions) {
 
     // ── Event subscription checklist ──────────────────────────────────────────
     if (!isSystem) {
+      function updateSummary() {
+        const count = document.querySelectorAll('#events-checklist input[type=checkbox]:checked').length;
+        const el = document.getElementById('selection-summary');
+        if (el) el.textContent = count + ' event' + (count !== 1 ? 's' : '') + ' selected';
+      }
+
+      // Wire change events for live count updates
+      document.querySelectorAll('#events-checklist input[type=checkbox]').forEach(cb => {
+        cb.addEventListener('change', updateSummary);
+      });
+
       // Search filter
       document.getElementById('event-search')?.addEventListener('input', (e) => {
         const q = e.target.value.toLowerCase();
@@ -402,62 +493,11 @@ for (const s of mySubscriptions) {
       // Select all / clear all
       document.getElementById('select-all')?.addEventListener('click', () => {
         document.querySelectorAll('#events-checklist input[type=checkbox]').forEach(cb => cb.checked = true);
+        updateSummary();
       });
       document.getElementById('select-none')?.addEventListener('click', () => {
         document.querySelectorAll('#events-checklist input[type=checkbox]').forEach(cb => cb.checked = false);
-      });
-
-      // Save subscriptions
-      document.getElementById('save-subscriptions-btn')?.addEventListener('click', async () => {
-        const btn = document.getElementById('save-subscriptions-btn');
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
-
-        const checked = new Set(
-          [...document.querySelectorAll('#events-checklist input[type=checkbox]:checked')]
-            .map(cb => cb.value)
-        );
-
-        // Determine adds and removes
-        const existing = new Set(Object.keys(SUB_ID_MAP));
-        const toAdd = [...checked].filter(e => !existing.has(e));
-        const toRemove = [...existing].filter(e => !checked.has(e));
-
-        try {
-          // Delete removed subscriptions
-          await Promise.all(toRemove.map(eventType => {
-            const subId = SUB_ID_MAP[eventType];
-            return subId
-              ? fetch(`${apiUrl}/api/groups/email-event-subscriptions/${subId}`, {
-                  method: 'DELETE',
-                  credentials: 'include',
-                })
-              : Promise.resolve();
-          }));
-
-          // Create new subscriptions
-          await Promise.all(toAdd.map(eventType =>
-            fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                template_id: TEMPLATE_ID,
-                event_type: eventType,
-                recipient_type: 'admins',
-                enabled: true,
-              }),
-            })
-          ));
-
-          showToast('Subscriptions saved');
-          // Refresh to update SUB_ID_MAP state
-          window.location.reload();
-        } catch (e) {
-          alert('Error saving subscriptions: ' + e.message);
-          btn.disabled = false;
-          btn.textContent = 'Save Subscriptions';
-        }
+        updateSummary();
       });
     }
 
@@ -478,46 +518,133 @@ for (const s of mySubscriptions) {
 
 <style>
   .edit-layout {
-    display: grid;
-    gap: 32px;
     max-width: 900px;
   }
 
-  .form-section, .events-section {
+  #template-form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 24px;
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
   }
 
   .section-header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: flex-start;
     gap: 16px;
-    margin-bottom: 20px;
   }
 
-  .section-header h2, .section-header h3 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-  }
-
-  .section-header h3 {
-    font-size: 16px;
-  }
-
-  .section-desc {
+  .section-description {
     margin: 4px 0 0;
     font-size: 13px;
     color: var(--muted);
   }
 
+  .selection-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .link-button {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .separator {
+    color: var(--muted);
+  }
+
+  .search-field {
+    margin-top: 4px;
+  }
+
+  .events-checklist {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--panel-2, var(--bg));
+    border-radius: var(--radius);
+    display: grid;
+    gap: 8px;
+  }
+
+  .event-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .event-checkbox:hover {
+    border-color: var(--accent);
+  }
+
+  .event-checkbox input[type="checkbox"] {
+    margin-top: 2px;
+    cursor: pointer;
+  }
+
+  .event-checkbox-content {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+  }
+
+  .event-checkbox-name {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .event-checkbox-description {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .selection-summary {
+    padding: 8px 12px;
+    background: var(--panel-2, var(--bg));
+    border-radius: var(--radius);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+
   .system-note {
     font-size: 13px;
     color: var(--muted);
-    margin: -8px 0 20px;
+    margin: 0;
     padding: 12px 16px;
     background: rgba(100,100,100,0.05);
     border-radius: var(--radius);
@@ -544,11 +671,6 @@ for (const s of mySubscriptions) {
     color: var(--accent);
   }
 
-  .template-form {
-    display: grid;
-    gap: 16px;
-  }
-
   .form-group {
     display: grid;
     gap: 6px;
@@ -560,12 +682,6 @@ for (const s of mySubscriptions) {
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-
-  .inline-hint {
-    font-size: 12px;
-    font-weight: 400;
-    color: var(--muted);
   }
 
   .body-tabs {
@@ -637,90 +753,7 @@ for (const s of mySubscriptions) {
     cursor: pointer;
   }
 
-  .form-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding-top: 8px;
-  }
-
-  .selection-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-  }
-
-  .link-button {
-    background: none;
-    border: none;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0;
-    text-decoration: underline;
-  }
-
-  .sep {
-    color: var(--muted);
-  }
-
-  .search-field {
-    margin-bottom: 12px;
-  }
-
-  .events-checklist {
-    display: grid;
-    gap: 4px;
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-
-  .event-checkbox {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px 10px;
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-size: 14px;
-    border: 1px solid transparent;
-  }
-
-  .event-checkbox:hover {
-    background: var(--bg);
-    border-color: var(--line);
-  }
-
-  .event-checkbox input[type=checkbox] {
-    margin-top: 2px;
-    flex-shrink: 0;
-  }
-
-  .event-checkbox-content {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .event-checkbox-name {
-    font-weight: 500;
-    color: var(--ink);
-  }
-
-  .event-checkbox-desc {
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .events-save-row {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
-  }
-
-  /* System event row */
+  /* System event chip */
   .system-event-row {
     display: flex;
     flex-direction: column;

@@ -310,15 +310,9 @@ function isSuperseded(template: any): boolean {
         <div class="form-section">
           <h4 class="section-label">Template Content</h4>
 
-          <div class="template-mode-tabs">
-            <button type="button" class="mode-tab active" data-mode="markdown">
-              <span>Markdown</span>
-              <small>Rendered via email template</small>
-            </button>
-            <button type="button" class="mode-tab" data-mode="html">
-              <span>Custom HTML</span>
-              <small>Full control over design</small>
-            </button>
+          <div class="body-tabs">
+            <button type="button" class="body-tab active" data-mode="markdown">Markdown</button>
+            <button type="button" class="body-tab" data-mode="html">Custom HTML</button>
           </div>
 
           <div id="markdown-field" class="template-mode-content">
@@ -535,10 +529,10 @@ function isSuperseded(template: any): boolean {
     }
 
     // Template mode tabs
-    document.querySelectorAll('.mode-tab').forEach(tab => {
+    document.querySelectorAll('#template-modal .body-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const mode = tab.dataset.mode;
-        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('#template-modal .body-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         document.getElementById('markdown-field').style.display = mode === 'markdown' ? 'block' : 'none';
         document.getElementById('custom-html-field').style.display = mode === 'html' ? 'block' : 'none';
@@ -1467,62 +1461,30 @@ function isSuperseded(template: any): boolean {
     cursor: pointer;
   }
 
-  .template-mode-tabs {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-
-  .mode-tab {
+  .body-tabs {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    background: var(--bg);
-    border: 2px solid var(--line);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text);
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: left;
+    gap: 2px;
+    margin-bottom: 8px;
   }
 
-  .mode-tab:hover {
-    border-color: var(--primary);
-    background: var(--panel);
-  }
-
-  .mode-tab.active {
-    border-color: var(--primary);
-    background: var(--primary);
-    color: white;
-  }
-
-  .mode-tab span {
-    display: block;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .mode-tab small {
-    display: block;
+  .body-tab {
+    padding: 5px 14px;
     font-size: 12px;
-    opacity: 0.8;
-    font-weight: 400;
+    font-weight: 500;
+    border: 1px solid var(--line);
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
   }
 
-  .template-mode-content {
-    animation: fadeIn 0.2s ease-in-out;
+  .body-tab.active {
+    background: var(--panel);
+    color: var(--ink);
+    border-bottom-color: var(--panel);
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  .template-mode-content { }
 
   .modal-actions {
     display: flex;

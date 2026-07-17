@@ -91,11 +91,4 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
         doc="Whether this template is active",
     )
 
-    # Unique constraint: one template per type per workspace
-    __table_args__ = (
-        sa.UniqueConstraint(
-            "template_type",
-            "group_id",
-            name="uq_email_template_type_group",
-        ),
-    )
+    __table_args__ = ()
