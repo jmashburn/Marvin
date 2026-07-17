@@ -23,11 +23,7 @@ class SystemTemplateDefinition:
     name: str
     description: str
     subject: str
-    header_text: str
-    message_top: str
-    message_bottom: str
-    button_text: str
-    button_placeholder: str  # shown in UI as the expected button_link variable
+    body_markdown: str
     required_vars: list[str]
     optional_vars: list[str] = field(default_factory=list)
 
@@ -38,18 +34,13 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
         name="Workspace Invitation",
         description="Sent when a user is invited to join a workspace.",
         subject="You've been invited to join {{workspace_name}}",
-        header_text="You're Invited!",
-        message_top=(
-            "{{inviter_name}} has invited you to join {{workspace_name}}.\n\n"
-            "Click the button below to accept the invitation and get started.\n\n"
-            "Or copy this link: {{invitation_url}}"
-        ),
-        message_bottom=(
+        body_markdown=(
+            "{{inviter_name}} has invited you to join **{{workspace_name}}**.\n\n"
+            "Click the link below to accept the invitation and get started:\n\n"
+            "{{invitation_url}}\n\n"
             "If you weren't expecting this invitation, you can safely ignore this email. "
             "The link will expire in 7 days."
         ),
-        button_text="Accept Invitation",
-        button_placeholder="{{invitation_url}}",
         required_vars=["invitation_url", "workspace_name"],
         optional_vars=["inviter_name"],
     ),
@@ -58,18 +49,13 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
         name="Password Reset",
         description="Sent when a user requests a password reset.",
         subject="Reset your Marvin password",
-        header_text="Password Reset Request",
-        message_top=(
+        body_markdown=(
             "We received a request to reset the password for your account ({{username}}).\n\n"
-            "Click the button below to choose a new password. This link expires in {{expiry_hours}} hours.\n\n"
-            "Or copy this link: {{reset_url}}"
-        ),
-        message_bottom=(
+            "Click the link below to choose a new password. This link expires in {{expiry_hours}} hours:\n\n"
+            "{{reset_url}}\n\n"
             "If you didn't request a password reset, you can safely ignore this email. "
             "Your password will not be changed."
         ),
-        button_text="Reset Password",
-        button_placeholder="{{reset_url}}",
         required_vars=["reset_url"],
         optional_vars=["username", "expiry_hours"],
     ),
@@ -78,27 +64,26 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
         name="Welcome",
         description="Sent when a new user joins a workspace.",
         subject="Welcome to {{workspace_name}}!",
-        header_text="Welcome, {{first_name}}!",
-        message_top=(
-            "Your account has been created. You're now a member of {{workspace_name}}.\n\n"
-            "Click below to log in: {{login_url}}"
+        body_markdown=(
+            "Welcome, **{{first_name}}**!\n\n"
+            "Your account has been created and you're now a member of **{{workspace_name}}**.\n\n"
+            "Click the link below to log in:\n\n"
+            "{{login_url}}\n\n"
+            "Need help? Reach out to your workspace administrator."
         ),
-        message_bottom="Need help? Reach out to your workspace administrator.",
-        button_text="Log In",
-        button_placeholder="{{login_url}}",
         required_vars=["login_url"],
         optional_vars=["first_name", "username", "workspace_name"],
     ),
     SystemTemplateDefinition(
-        template_type="notification",
-        name="General Notification",
-        description="General-purpose notification email.",
+        template_type="custom",
+        name="Custom Notification",
+        description="General-purpose custom notification email.",
         subject="{{title}}",
-        header_text="{{title}}",
-        message_top="{{message}}\n\n{{action_url}}",
-        message_bottom="",
-        button_text="View",
-        button_placeholder="{{action_url}}",
+        body_markdown=(
+            "**{{title}}**\n\n"
+            "{{message}}\n\n"
+            "{{action_url}}"
+        ),
         required_vars=["title", "message"],
         optional_vars=["action_url"],
     ),
@@ -150,11 +135,8 @@ def seed_system_templates(session) -> int:
 
         if existing:
             # Update content in case seeded templates have changed
-            existing.message_top = defn.message_top
-            existing.message_bottom = defn.message_bottom
+            existing.body_markdown = defn.body_markdown
             existing.subject = defn.subject
-            existing.header_text = defn.header_text
-            existing.button_text = defn.button_text
             existing.available_variables = {
                 "required": defn.required_vars,
                 "optional": defn.optional_vars,
@@ -166,10 +148,7 @@ def seed_system_templates(session) -> int:
         template.name = defn.name
         template.description = defn.description
         template.subject = defn.subject
-        template.header_text = defn.header_text
-        template.message_top = defn.message_top
-        template.message_bottom = defn.message_bottom
-        template.button_text = defn.button_text
+        template.body_markdown = defn.body_markdown
         template.group_id = None
         template.enabled = True
         template.available_variables = {

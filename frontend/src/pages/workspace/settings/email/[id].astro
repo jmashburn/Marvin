@@ -127,17 +127,31 @@ for (const s of mySubscriptions) {
           </div>
 
           <div class="form-group">
-            <label for="tpl-custom-html">
-              Email Body (HTML)
-              <small class="inline-hint">Jinja2 templates supported — use &#123;&#123; variable &#125;&#125;</small>
-            </label>
-            <textarea
-              id="tpl-custom-html"
-              rows="16"
-              disabled={isSystem}
-              class="input textarea"
-              placeholder="<!DOCTYPE html>&#10;<html>&#10;<body>&#10;  <!-- your email HTML here -->&#10;</body>&#10;</html>"
-            >{template.customHtml ?? template.custom_html ?? ''}</textarea>
+            <label>Body</label>
+            <div class="body-tabs">
+              <button type="button" class="body-tab active" data-body-mode="markdown">Markdown</button>
+              <button type="button" class="body-tab" data-body-mode="html">Custom HTML</button>
+            </div>
+            <div id="body-markdown-field">
+              <textarea
+                id="tpl-body-markdown"
+                rows="14"
+                disabled={isSystem}
+                class="input textarea"
+                placeholder="Write in Markdown — use &#123;&#123; variable &#125;&#125; for dynamic values"
+              >{template.bodyMarkdown ?? template.body_markdown ?? ''}</textarea>
+              <small class="input-hint">Rendered to HTML and wrapped in the standard email template</small>
+            </div>
+            <div id="body-html-field" style="display:none">
+              <textarea
+                id="tpl-custom-html"
+                rows="14"
+                disabled={isSystem}
+                class="input textarea"
+                placeholder="<!DOCTYPE html>&#10;<html>&#10;<body>&#10;  <!-- full HTML here -->&#10;</body>&#10;</html>"
+              >{template.customHtml ?? template.custom_html ?? ''}</textarea>
+              <small class="input-hint">Full Jinja2 HTML — bypasses the standard template entirely</small>
+            </div>
           </div>
 
           <label class="checkbox-label">
@@ -274,16 +288,32 @@ for (const s of mySubscriptions) {
     const TEMPLATE_ID = id;
     const SUB_ID_MAP = JSON.parse(subIdMap);
 
+    // ── Body mode tabs ────────────────────────────────────────────────────────
+    const isHtmlMode = !!(document.getElementById('tpl-custom-html').value.trim());
+    if (isHtmlMode) document.querySelector('[data-body-mode="html"]')?.click();
+
+    document.querySelectorAll('[data-body-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-body-mode]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.bodyMode;
+        document.getElementById('body-markdown-field').style.display = mode === 'markdown' ? 'block' : 'none';
+        document.getElementById('body-html-field').style.display = mode === 'html' ? 'block' : 'none';
+      });
+    });
+
     // ── Form save ─────────────────────────────────────────────────────────────
     document.getElementById('template-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (isSystem) return;
 
+      const usingHtml = document.querySelector('[data-body-mode="html"]')?.classList.contains('active');
       const data = {
         name: document.getElementById('tpl-name').value,
         description: document.getElementById('tpl-description').value || null,
         subject: document.getElementById('tpl-subject').value,
-        custom_html: document.getElementById('tpl-custom-html').value || null,
+        body_markdown: usingHtml ? null : (document.getElementById('tpl-body-markdown').value || null),
+        custom_html: usingHtml ? (document.getElementById('tpl-custom-html').value || null) : null,
         enabled: document.getElementById('tpl-enabled').checked,
       };
 
@@ -535,6 +565,36 @@ for (const s of mySubscriptions) {
   .inline-hint {
     font-size: 12px;
     font-weight: 400;
+    color: var(--muted);
+  }
+
+  .body-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .body-tab {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--line);
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .body-tab.active {
+    background: var(--panel);
+    color: var(--ink);
+    border-bottom-color: var(--panel);
+  }
+
+  .input-hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
     color: var(--muted);
   }
 

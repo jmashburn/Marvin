@@ -286,12 +286,44 @@ class EmailService(BaseService):
             self.logger.warning(f"Failed to load database template '{template_type}': {e}")
             return None
 
+    @staticmethod
+    def _markdown_to_html(text: str) -> str:
+        """Convert markdown text to HTML using a simple inline approach.
+
+        Handles paragraphs (double newline), bold (**text**), italic (*text*),
+        and bare URLs. No external library required.
+        """
+        import re
+
+        # Escape HTML special characters first
+        text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        # Bold and italic
+        text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+        text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
+
+        # Bare URLs → clickable links (not already inside HTML tags)
+        text = re.sub(
+            r"(?<![\"'=])(https?://[^\s<>\"']+)",
+            r'<a href="\1">\1</a>',
+            text,
+        )
+
+        # Split on double newline → paragraphs; single newline → <br>
+        paragraphs = re.split(r"\n{2,}", text.strip())
+        html_parts = []
+        for para in paragraphs:
+            inner = para.strip().replace("\n", "<br>")
+            html_parts.append(f"<p>{inner}</p>")
+
+        return "\n".join(html_parts)
+
     def _send_db_template(self, recipient_address: str, db_template, variables: dict) -> bool:
         """Send email using database template.
 
-        Supports two modes:
-        1. Structured: Uses header_text, message_top, etc. with default.html template
-        2. Custom HTML: Uses custom_html field with Jinja2 rendering
+        Supports two modes (custom_html takes priority):
+        1. custom_html: Full HTML rendered with Jinja2 and injected into default.html
+        2. body_markdown: Markdown converted to HTML and injected into default.html
 
         {{SLUG}} workspace secrets/variables are resolved before Jinja2 rendering.
 
@@ -305,14 +337,11 @@ class EmailService(BaseService):
         """
         # Validate required variables BEFORE the rendering try-block so ValueError propagates
         from marvin.services.email.system_templates import validate_template_content
-        # Only validate structured-field required vars when not using custom HTML or markdown-rendered HTML
         has_custom_html = bool(db_template.custom_html and db_template.custom_html.strip())
         if not has_custom_html:
             content_fields = {
                 "subject": db_template.subject or "",
-                "header_text": db_template.header_text or "",
-                "message_top": db_template.message_top or "",
-                "message_bottom": db_template.message_bottom or "",
+                "body_markdown": db_template.body_markdown or "",
             }
             missing = validate_template_content(db_template.template_type or "", content_fields)
             if missing:
@@ -331,10 +360,17 @@ class EmailService(BaseService):
             subject_template = Template(_r(db_template.subject))
             subject = subject_template.render(**variables)
 
+            # Shared button_link derivation
+            button_link = (
+                variables.get("invitation_url") or variables.get("reset_url")
+                or variables.get("login_url") or variables.get("action_url")
+                or variables.get("button_link", "")
+            )
+
             # Determine rendering mode
             raw_custom = db_template.custom_html or ""
             if raw_custom.strip():
-                # Log any {{ slug }} in the template that aren't in variables
+                # Mode 1: custom_html — render with Jinja2, inject into default.html
                 import re as _re
                 used_slugs = set(_re.findall(r'\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}', raw_custom))
                 unresolved = [s for s in used_slugs if s not in variables]
@@ -343,42 +379,31 @@ class EmailService(BaseService):
                         f"EmailEventListener: unresolved variables in template '{db_template.name}': "
                         + ", ".join(f"{{{{{s}}}}}" for s in sorted(unresolved))
                     )
-                # Render content through Jinja2 for variable substitution
                 body_html = Template(_r(raw_custom)).render(**variables)
-                # Wrap in default.html so the email has proper structure/styling
                 template_data = EmailTemplate(
                     subject=subject,
-                    header_text=Template(_r(db_template.header_text or "")).render(**variables) or variables.get("message_title", ""),
+                    header_text=variables.get("message_title", ""),
                     message_top=body_html,
-                    message_bottom=Template(_r(db_template.message_bottom or "")).render(**variables),
-                    button_link=(
-                        variables.get("invitation_url") or variables.get("reset_url")
-                        or variables.get("login_url") or variables.get("action_url")
-                        or variables.get("button_link", "")
-                    ),
-                    button_text=Template(_r(db_template.button_text or "")).render(**variables),
+                    message_bottom="",
+                    button_link=button_link,
+                    button_text="",
                     workspace_name=variables.get("workspace_name", ""),
                 )
                 html_content = template_data.render_html(self.default_template)
             else:
-                # Mode 2: Structured - resolve slugs in each field then Jinja2
+                # Mode 2: body_markdown — render Jinja2 variables, convert to HTML, inject into default.html
+                raw_markdown = db_template.body_markdown or ""
+                rendered_markdown = Template(_r(raw_markdown)).render(**variables)
+                body_html = self._markdown_to_html(rendered_markdown)
                 template_data = EmailTemplate(
                     subject=subject,
-                    header_text=Template(_r(db_template.header_text)).render(**variables),
-                    message_top=Template(_r(db_template.message_top)).render(**variables),
-                    message_bottom=Template(_r(db_template.message_bottom)).render(**variables),
-                    # Derive button_link from type-specific URL variables if present
-                    button_link=(
-                        variables.get("invitation_url")
-                        or variables.get("reset_url")
-                        or variables.get("login_url")
-                        or variables.get("action_url")
-                        or variables.get("button_link", "")
-                    ),
-                    button_text=Template(_r(db_template.button_text)).render(**variables),
+                    header_text=variables.get("message_title", ""),
+                    message_top=body_html,
+                    message_bottom="",
+                    button_link=button_link,
+                    button_text="",
                     workspace_name=variables.get("workspace_name", ""),
                 )
-                # Render with default.html template
                 html_content = template_data.render_html(self.default_template)
 
             # Send via configured sender

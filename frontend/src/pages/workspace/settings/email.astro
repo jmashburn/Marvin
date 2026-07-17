@@ -270,8 +270,7 @@ function isSuperseded(template: any): boolean {
               <option value="invitation">Workspace Invitation — invitation</option>
               <option value="password_reset">Password Reset — password_reset</option>
               <option value="welcome">New User Welcome — welcome</option>
-              <option value="notification">General Notification — notification</option>
-              <option value="custom">Custom / Manual — custom</option>
+              <option value="custom">Custom — custom</option>
             </select>
             <small class="type-note" id="template-type-note"></small>
           </div>
@@ -312,82 +311,38 @@ function isSuperseded(template: any): boolean {
           <h4 class="section-label">Template Content</h4>
 
           <div class="template-mode-tabs">
-            <button type="button" class="mode-tab active" data-mode="structured">
-              <span>📝 Structured</span>
-              <small>Default email layout</small>
+            <button type="button" class="mode-tab active" data-mode="markdown">
+              <span>Markdown</span>
+              <small>Rendered via email template</small>
             </button>
-            <button type="button" class="mode-tab" data-mode="custom">
-              <span>💻 Custom HTML</span>
+            <button type="button" class="mode-tab" data-mode="html">
+              <span>Custom HTML</span>
               <small>Full control over design</small>
-            </button>
-            <button type="button" class="mode-tab" data-mode="preview">
-              <span>👁 Preview</span>
-              <small>See rendered output</small>
             </button>
           </div>
 
-          <div id="structured-fields" class="template-mode-content">
+          <div id="markdown-field" class="template-mode-content">
             <div class="form-group">
-              <label for="template-header">Header Text</label>
-              <input
-                type="text"
-                id="template-header"
-                placeholder="e.g., You're Invited!"
-              />
-              <small>Large heading at the top of the email</small>
-            </div>
-
-            <div class="form-group">
-              <label for="template-message-top">Message Top</label>
+              <label for="template-body-markdown">Body</label>
               <textarea
-                id="template-message-top"
-                rows="4"
-                placeholder="Main message content (supports {{ variables }})"
+                id="template-body-markdown"
+                rows="12"
+                placeholder="Write in Markdown — use {{ variable }} for dynamic values"
               ></textarea>
-              <small>Primary message shown above the button</small>
-            </div>
-
-            <div class="form-group">
-              <label for="template-button-text">Button Text</label>
-              <input
-                type="text"
-                id="template-button-text"
-                placeholder="e.g., Accept Invitation"
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="template-message-bottom">Message Bottom</label>
-              <textarea
-                id="template-message-bottom"
-                rows="3"
-                placeholder="Additional message content"
-              ></textarea>
-              <small>Secondary message shown below the button</small>
+              <small>Rendered to HTML and wrapped in the standard email template</small>
             </div>
           </div>
 
           <div id="custom-html-field" class="template-mode-content" style="display: none;">
             <div class="form-group">
-              <label for="template-custom-html">Custom HTML Template</label>
+              <label for="template-custom-html">Custom HTML</label>
               <textarea
                 id="template-custom-html"
                 rows="16"
-                placeholder="<!DOCTYPE html>
-<html>
-<body>
-  <h1>{{ workspace_name }}</h1>
-  <p>Your custom email content here...</p>
-</body>
-</html>"
+                placeholder="<!DOCTYPE html>&#10;<html>&#10;<body>&#10;  <p>{{ workspace_name }}</p>&#10;</body>&#10;</html>"
               ></textarea>
-              <small>Full Jinja2 HTML template with complete control over styling and structure</small>
+              <small>Full Jinja2 HTML — bypasses the standard template entirely</small>
             </div>
-          </div>
-
-          <div id="preview-panel" style="display:none">
-            <div class="preview-hint">Live preview — variables shown as placeholders</div>
-            <iframe id="preview-iframe" class="preview-iframe" sandbox="allow-same-origin"></iframe>
           </div>
         </div>
 
@@ -579,130 +534,14 @@ function isSuperseded(template: any): boolean {
       document.body.style.overflow = '';
     }
 
-    // Preview tab
-    const previewPanel = document.getElementById('preview-panel');
-    const previewIframe = document.getElementById('preview-iframe');
-    let lastEditMode = 'structured'; // track last editing mode before switching to preview
-
-    function updatePreview() {
-      if (!previewPanel || previewPanel.style.display === 'none') return;
-
-      // Check actual DOM visibility as source of truth, not just lastEditMode
-      const customFieldVisible = document.getElementById('custom-html-field')?.style.display !== 'none';
-      const isCustom = lastEditMode === 'custom' || customFieldVisible;
-      let html = '';
-
-      if (isCustom) {
-        html = document.getElementById('template-custom-html').value;
-      } else {
-        // Build structured preview matching default.html layout
-        const header = document.getElementById('template-header').value || 'Email Header';
-        const msgTop = document.getElementById('template-message-top').value || '';
-        const msgBottom = document.getElementById('template-message-bottom').value || '';
-        const btnText = document.getElementById('template-button-text').value || '';
-        const btnRow = btnText ? `<tr><td style="padding:20px 40px;"><a href="#" style="background:#4f9c84;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;">${btnText}</a></td></tr>` : '';
-        const bottomRow = msgBottom ? `<tr><td style="padding:0 40px 28px;font-size:13px;color:#888;line-height:1.6;">${msgBottom}</td></tr>` : '';
-        html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f6f4;font-family:-apple-system,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px;">
-<table width="540" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
-<tr><td style="height:4px;background:#4f9c84;"></td></tr>
-<tr><td style="padding:28px 40px 20px;border-bottom:1px solid #f0f0f0;font-size:18px;font-weight:700;color:#1a1a1a;">${header}</td></tr>
-<tr><td style="padding:24px 40px 8px;font-size:15px;line-height:1.7;color:#444;">${msgTop.replace(/\n/g,'<br>')}</td></tr>
-${btnRow}${bottomRow}
-<tr><td style="padding:16px 40px;border-top:1px solid #f0f0f0;background:#fafafa;font-size:12px;color:#aaa;">Sent by Marvin CMS</td></tr>
-</table></td></tr></table></body></html>`;
-      }
-
-      if (previewIframe) {
-        const doc = previewIframe.contentDocument || previewIframe.contentWindow?.document;
-        if (doc) {
-          doc.open();
-          doc.write(html);
-          doc.close();
-        }
-      }
-    }
-
     // Template mode tabs
     document.querySelectorAll('.mode-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const mode = tab.dataset.mode;
         document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-
-        if (mode === 'preview') {
-          document.getElementById('structured-fields').style.display = 'none';
-          document.getElementById('custom-html-field').style.display = 'none';
-          previewPanel.style.display = 'block';
-          updatePreview();
-          return;
-        }
-
-        if (previewPanel) previewPanel.style.display = 'none';
-
-        if (mode === 'structured') {
-          lastEditMode = 'structured';
-          document.getElementById('structured-fields').style.display = 'block';
-          document.getElementById('custom-html-field').style.display = 'none';
-        } else {
-          lastEditMode = 'custom';
-          document.getElementById('structured-fields').style.display = 'none';
-          document.getElementById('custom-html-field').style.display = 'block';
-
-          // Generate starter HTML from structured fields if custom textarea is empty
-          const customTextarea = document.getElementById('template-custom-html');
-          if (!customTextarea.value.trim()) {
-            const subject = document.getElementById('template-subject').value || 'Email Subject';
-            const header = document.getElementById('template-header').value || subject;
-            const msgTop = document.getElementById('template-message-top').value || '';
-            const msgBottom = document.getElementById('template-message-bottom').value || '';
-            const btnText = document.getElementById('template-button-text').value || '';
-
-            const btnRow = btnText
-              ? `\n        <p style="margin:24px 0;"><a href="{{button_link}}" style="background:#4f9c84;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;">${btnText}</a></p>`
-              : '';
-            const bottomRow = msgBottom
-              ? `\n        <p style="color:#888;font-size:13px;line-height:1.6;">${msgBottom}</p>`
-              : '';
-
-            customTextarea.value = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr><td align="center" style="padding:40px 16px;">
-      <table width="560" cellpadding="0" cellspacing="0" border="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
-        <tr><td style="height:4px;background:#4f9c84;"></td></tr>
-        <tr>
-          <td style="padding:28px 40px 20px;border-bottom:1px solid #f0f0f0;">
-            <table width="100%"><tr>
-              <td style="font-size:18px;font-weight:700;color:#1a1a1a;">${header}</td>
-              <td align="right" style="font-size:12px;font-weight:600;color:#4f9c84;text-transform:uppercase;">Marvin</td>
-            </tr></table>
-          </td>
-        </tr>
-        <tr><td style="padding:24px 40px 8px;font-size:15px;line-height:1.7;color:#444;">${msgTop}</td></tr>${btnRow}${bottomRow}
-        <tr>
-          <td style="padding:20px 40px;border-top:1px solid #f0f0f0;background:#fafafa;font-size:12px;color:#aaa;">
-            Sent by <a href="{{button_link}}" style="color:#4f9c84;text-decoration:none;">Marvin CMS</a>{% if workspace_name %} &middot; {{workspace_name}}{% endif %}
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-          }
-        }
-      });
-    });
-
-    // Update preview when fields change (debounced)
-    let previewTimer = null;
-    ['template-header', 'template-message-top', 'template-message-bottom', 'template-button-text', 'template-custom-html'].forEach(id => {
-      document.getElementById(id)?.addEventListener('input', () => {
-        clearTimeout(previewTimer);
-        previewTimer = setTimeout(updatePreview, 400);
+        document.getElementById('markdown-field').style.display = mode === 'markdown' ? 'block' : 'none';
+        document.getElementById('custom-html-field').style.display = mode === 'html' ? 'block' : 'none';
       });
     });
 
@@ -757,18 +596,14 @@ ${btnRow}${bottomRow}
           document.getElementById('template-name').value = tpl.name || '';
           document.getElementById('template-description').value = tpl.description || '';
           document.getElementById('template-subject').value = tpl.subject || '';
-          document.getElementById('template-header').value = f('headerText', 'header_text');
-          document.getElementById('template-message-top').value = f('messageTop', 'message_top');
-          document.getElementById('template-message-bottom').value = f('messageBottom', 'message_bottom');
-          document.getElementById('template-button-text').value = f('buttonText', 'button_text');
+          document.getElementById('template-body-markdown').value = f('bodyMarkdown', 'body_markdown');
           document.getElementById('template-custom-html').value = f('customHtml', 'custom_html');
           document.getElementById('template-enabled').checked = tpl.enabled !== false;
 
-          const customHtml = f('customHtml', 'custom_html');
-          if (customHtml) {
-            document.querySelector('[data-mode="custom"]').click();
+          if (f('customHtml', 'custom_html')) {
+            document.querySelector('[data-mode="html"]').click();
           } else {
-            document.querySelector('[data-mode="structured"]').click();
+            document.querySelector('[data-mode="markdown"]').click();
           }
 
           showModal(templateModal);
@@ -785,25 +620,17 @@ ${btnRow}${bottomRow}
 
       const templateId = document.getElementById('template-id').value;
       const isNew = !templateId;
-      const isCustomMode = document.querySelector('[data-mode="custom"]').classList.contains('active');
+      const isHtmlMode = document.querySelector('[data-mode="html"]').classList.contains('active');
 
       const data = {
-        // New templates are always 'custom' — type is set by Customize flow for overrides
         template_type: isNew ? 'custom' : document.getElementById('template-type').value,
         name: document.getElementById('template-name').value,
         description: document.getElementById('template-description').value,
         subject: document.getElementById('template-subject').value,
         enabled: document.getElementById('template-enabled').checked,
+        body_markdown: isHtmlMode ? null : (document.getElementById('template-body-markdown').value || null),
+        custom_html: isHtmlMode ? (document.getElementById('template-custom-html').value || null) : null,
       };
-
-      if (isCustomMode) {
-        data.custom_html = document.getElementById('template-custom-html').value;
-      } else {
-        data.header_text = document.getElementById('template-header').value;
-        data.message_top = document.getElementById('template-message-top').value;
-        data.message_bottom = document.getElementById('template-message-bottom').value;
-        data.button_text = document.getElementById('template-button-text').value;
-      }
 
       try {
         // Editing system template → create workspace override (POST to workspace endpoint)
@@ -893,10 +720,8 @@ ${btnRow}${bottomRow}
           let slugs = [];
           if (tpl) {
             const content = [
-              tpl.subject, tpl.headerText ?? tpl.header_text,
-              tpl.messageTop ?? tpl.message_top,
-              tpl.messageBottom ?? tpl.message_bottom,
-              tpl.buttonText ?? tpl.button_text,
+              tpl.subject,
+              tpl.bodyMarkdown ?? tpl.body_markdown,
               tpl.customHtml ?? tpl.custom_html,
             ].filter(Boolean).join(' ');
             slugs = extractSlugs(content);
@@ -1129,16 +954,13 @@ ${btnRow}${bottomRow}
           document.getElementById('template-name').value = tpl.name || '';
           document.getElementById('template-description').value = tpl.description || '';
           document.getElementById('template-subject').value = tpl.subject || '';
-          document.getElementById('template-header').value = f('headerText', 'header_text');
-          document.getElementById('template-message-top').value = f('messageTop', 'message_top');
-          document.getElementById('template-message-bottom').value = f('messageBottom', 'message_bottom');
-          document.getElementById('template-button-text').value = f('buttonText', 'button_text');
+          document.getElementById('template-body-markdown').value = f('bodyMarkdown', 'body_markdown');
           document.getElementById('template-custom-html').value = f('customHtml', 'custom_html');
           document.getElementById('template-enabled').checked = tpl.enabled !== false;
           if (f('customHtml', 'custom_html')) {
-            document.querySelector('[data-mode="custom"]')?.click();
+            document.querySelector('[data-mode="html"]')?.click();
           } else {
-            document.querySelector('[data-mode="structured"]')?.click();
+            document.querySelector('[data-mode="markdown"]')?.click();
           }
 
           // showModal is defined in the main script block — call it

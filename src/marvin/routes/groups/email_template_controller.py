@@ -209,10 +209,7 @@ class EmailTemplateController(BaseUserController):
         template.name = data.name
         template.subject = data.subject
         template.description = data.description
-        template.header_text = data.header_text
-        template.message_top = data.message_top
-        template.message_bottom = data.message_bottom
-        template.button_text = data.button_text
+        template.body_markdown = data.body_markdown
         template.custom_html = data.custom_html
         template.available_variables = data.available_variables
         template.enabled = data.enabled if data.enabled is not None else True
