@@ -757,18 +757,6 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${emSubscriptionId}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
       }
 
-      // Disconnect any existing subscriptions for this event type that point to workspace
-      // email templates — only one custom template should be active per system event
-      const existingSubs = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : []).catch(() => []);
-      const conflicting = existingSubs.filter(s =>
-        (s.event_type ?? s.eventType) === type &&
-        (s.template_id ?? s.templateId) !== finalTemplateId
-      );
-      await Promise.all(conflicting.map(s =>
-        fetch(`${apiUrl}/api/groups/email-event-subscriptions/${s.id}`, { method: 'DELETE', credentials: 'include' }).catch(() => {})
-      ));
-
       // 3. Create new subscription
       const rawEmails = recipientType === 'specific' ? emSpecificEmail?.value?.trim() : null;
       const emails = rawEmails ? rawEmails.split(/[,\n]+/).map(s => s.trim()).filter(Boolean) : null;

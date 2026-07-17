@@ -230,6 +230,37 @@ class EmailTemplateController(BaseUserController):
         self.repos.session.commit()
         self.repos.session.refresh(template)
 
+        # Auto-connect only if no workspace template of this type is already connected
+        from marvin.services.email.system_email_events import SYSTEM_TEMPLATE_EVENT_MAP
+        from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
+        from marvin.db.models.groups.email_templates import EmailTemplateModel as _ETM
+        from sqlalchemy import and_
+
+        sys_mapping = SYSTEM_TEMPLATE_EVENT_MAP.get(template.template_type)
+        if sys_mapping:
+            already_connected = (
+                self.repos.session.query(EmailEventSubscriptionModel)
+                .join(_ETM, EmailEventSubscriptionModel.template_id == _ETM.id)
+                .filter(
+                    EmailEventSubscriptionModel.group_id == group_id,
+                    EmailEventSubscriptionModel.event_type == sys_mapping["event_type"],
+                    _ETM.template_type == template.template_type,
+                    _ETM.group_id == group_id,
+                )
+                .first()
+            )
+            if not already_connected:
+                sub = EmailEventSubscriptionModel(session=self.repos.session)
+                sub.group_id = group_id
+                sub.template_id = template.id
+                sub.event_type = sys_mapping["event_type"]
+                sub.recipient_type = sys_mapping["recipient_type"]
+                sub.recipient_field = sys_mapping.get("recipient_field")
+                sub.recipient_email = sys_mapping.get("recipient_email")
+                sub.enabled = True
+                self.repos.session.add(sub)
+                self.repos.session.commit()
+
         # Dispatch event
         self.event_bus.dispatch(
             integration_id="email_template_management",
