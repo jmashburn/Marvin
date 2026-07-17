@@ -1019,10 +1019,12 @@ The MCP server calls the same `/api/ai/operations/{slug}/execute` endpoint using
 - [x] Publishing API remains AI-free (AI lives on session-authed `PlatformClient`, not the publish `Workspace`)
 
 ### Phase 5 — Frontend Integration
-- [ ] Editor toolbar AI buttons (respect `invocation_sources.editor`)
-- [ ] Asset detail AI panel
-- [ ] Form submission AI review panel
-- [ ] Execution history UI
+- [x] Editor toolbar AI buttons (respect `invocation_sources.editor`) — "Generate summary" on the entry editor
+- [x] Asset detail AI panel — "Generate alt text" on image assets
+- [ ] Form submission AI review panel — **blocked: no forms/submissions UI exists yet (greenfield)**
+- [x] Execution history UI — `/workspace/settings/ai-executions`
+
+All shipped surfaces gate on workspace AI enabled + auth (+ `invocationSources` where relevant).
 
 ### Phase 6 — Asset + Resource Operations
 - [ ] Vision operations (requires provider capability check)
