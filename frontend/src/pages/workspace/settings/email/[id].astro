@@ -520,6 +520,12 @@ for (const evtType of connectedEventTypes) {
         }
 
         // Diff and apply subscription changes
+        // Skip for system-typed templates — their connections are managed from the Events page
+        if (systemHardcodedEvent) {
+          showBanner('Changes saved');
+          return;
+        }
+
         const checked = new Set(
           [...document.querySelectorAll('#events-checklist input[type=checkbox]:checked')]
             .map(cb => cb.value)
