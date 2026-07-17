@@ -155,8 +155,7 @@ function isSuperseded(template: any): boolean {
                       const evts = eventsByTemplateId[template.id] ?? [];
                       if (!evts.length) return null;
                       const tplType = (template as any).templateType ?? (template as any).template_type ?? '';
-                      const isWorkspace = !!((template as any).groupId ?? (template as any).group_id);
-                      const autoEvent = isWorkspace ? SYSTEM_EVENT_MAP[tplType] : null;
+                      const autoEvent = SYSTEM_EVENT_MAP[tplType] ?? null;
                       return (
                         <div class="connected-events-list">
                           {evts.map((e: string) => {
