@@ -43,6 +43,21 @@ dependencies = [
     "uvicorn>=0.34.2",
 ]
 
+[project.optional-dependencies]
+# AI provider SDKs — install only the providers you use, e.g. `uv sync --extra openai`
+# or `pip install 'marvin[openai]'`. Providers lazy-import these, so an undeclared SDK only
+# fails when that provider is actually selected. See docs/AI-ARCHITECTURE-PLAN.md §6.
+openai = ["openai>=1.50.0"]          # also powers the Azure OpenAI provider
+anthropic = ["anthropic>=0.40.0"]
+google = ["google-generativeai>=0.8.0"]
+ollama = ["httpx>=0.27.0"]
+all-ai = [
+    "openai>=1.50.0",
+    "anthropic>=0.40.0",
+    "google-generativeai>=0.8.0",
+    "httpx>=0.27.0",
+]
+
 [project.scripts]
 marvin-server = "marvin.app:main"
 #healthz = "marvin.scripts.healthcheck"

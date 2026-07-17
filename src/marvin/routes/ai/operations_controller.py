@@ -74,6 +74,9 @@ class AIOperationsController(BaseUserController):
         if not model:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No model configured. Set a default model on the provider.")
 
+        # Validate the selected model can satisfy the operation's capability requirements (§7)
+        self._validate_model_capabilities(operation, model)
+
         # Build context via ContextBuilder
         from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
         builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
@@ -212,6 +215,28 @@ class AIOperationsController(BaseUserController):
             ).scalar() or 0.0
             if spent >= max_cost:
                 raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly cost limit (${max_cost:.2f}) reached.")
+
+    def _validate_model_capabilities(self, operation, model: str) -> None:
+        """Reject the call up front if the operation needs a capability the model lacks (§7).
+
+        ``ai_models`` rows are the capability source of truth. When no row exists for the
+        model (platform credential mode or an ad-hoc override) we cannot assert incompatibility,
+        so the call is allowed through. Extend with further capability flags (e.g. tools) as
+        operations declare them.
+        """
+        if not getattr(operation, "requires_vision", False):
+            return
+        from marvin.db.models.groups.ai_providers import AIModelModel
+        row = (
+            self.session.query(AIModelModel)
+            .filter_by(group_id=self.group_id, model_id=model)
+            .first()
+        )
+        if row and not row.supports_vision:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Operation '{operation.slug}' requires a vision-capable model; '{model}' does not support vision.",
+            )
 
     def _default_model(self) -> str | None:
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()

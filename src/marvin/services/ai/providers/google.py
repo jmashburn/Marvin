@@ -16,7 +16,7 @@ class GoogleProvider(AIProvider):
         try:
             import google.generativeai as genai
         except ImportError:
-            raise ImportError("Install the google-generativeai package: uv add google-generativeai")
+            raise ImportError("Google Generative AI SDK not installed. Run: uv sync --extra google (or pip install 'marvin[google]')")
         genai.configure(api_key=self._api_key)
         return genai
 

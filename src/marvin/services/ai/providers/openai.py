@@ -17,7 +17,7 @@ class OpenAIProvider(AIProvider):
         try:
             from openai import OpenAI
         except ImportError:
-            raise ImportError("Install the openai package: uv add openai")
+            raise ImportError("OpenAI SDK not installed. Run: uv sync --extra openai (or pip install 'marvin[openai]')")
         return OpenAI(api_key=self._api_key, base_url=self._base_url)
 
     def complete(self, messages: list[Message], model: str, options: CompletionOptions | None = None) -> CompletionResult:

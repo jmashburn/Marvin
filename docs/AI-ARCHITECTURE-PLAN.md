@@ -380,8 +380,11 @@ provider one (`gpt-4o` has vision, `o1-mini` does not — both are `openai`). Th
 class declares only `supports_structured_output` (whether native structured output exists
 at all). Operations declare requirements (`requires_vision`, etc.); before calling, the
 executor validates `required ⊆ available` against the selected model row and returns a clear
-422 on mismatch. **(This pre-call check is specified here but not yet implemented — build it
-before Phase 6 vision operations.)**
+422 on mismatch. **(Implemented in `routes/ai/operations_controller.py` via
+`_validate_model_capabilities()`; currently gates `requires_vision`, extend to further
+capability flags as operations declare them. When no `ai_models` row exists for the model —
+platform mode or an ad-hoc override — the check cannot assert incompatibility and allows the
+call through.)**
 
 Well-known model slugs (display only, not validated server-side):
 `gpt-4o`, `gpt-4.1`, `claude-sonnet-5`, `claude-opus-4-8`, `gemini-1.5-pro`, `llama3.2`, `mistral-large`
@@ -970,12 +973,13 @@ The MCP server calls the same `/api/ai/operations/{slug}/execute` endpoint using
 
 ## 19. Migration Strategy
 
-### Phase 1 — Foundation (next)
-- [ ] `ai_providers` + `ai_models` tables + migrations
-- [ ] Provider abstraction service (`services/ai/providers/`)
-- [ ] Provider factory (resolves from `workspace_ai_settings`)
-- [ ] `ai_providers` API routes (`/api/ai/providers/*`)
-- [ ] Migrate `/api/groups/ai-settings` → keep alive, plan move to `/api/ai/settings`
+### Phase 1 — Foundation (done)
+- [x] `ai_providers` + `ai_models` tables + migrations
+- [x] Provider abstraction service (`services/ai/providers/`)
+- [x] Provider factory (resolves from `workspace_ai_settings`)
+- [x] `ai_providers` API routes (`/api/ai/providers/*`) — full CRUD + `/test` + nested models
+- [x] Migrate `/api/groups/ai-settings` → kept alive, move to `/api/ai/settings` deferred
+- [x] Provider SDKs declared as optional extras (`marvin[openai|anthropic|google|ollama|all-ai]`)
 
 ### Phase 2 — Operations + Execution
 - [ ] Operation registry (`services/ai/operations/`)

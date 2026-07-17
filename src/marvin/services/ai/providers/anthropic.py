@@ -16,7 +16,7 @@ class AnthropicProvider(AIProvider):
         try:
             import anthropic
         except ImportError:
-            raise ImportError("Install the anthropic package: uv add anthropic")
+            raise ImportError("Anthropic SDK not installed. Run: uv sync --extra anthropic (or pip install 'marvin[anthropic]')")
         return anthropic.Anthropic(api_key=self._api_key)
 
     def _split_messages(self, messages: list[Message]):
