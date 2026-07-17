@@ -597,7 +597,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         <span class="em-vars-hint">Click to insert at cursor</span>
       </div>
       <div class="em-vars-chips">
-        ${chips.map(v => `<button type="button" class="em-var-chip" data-slug="{{${v.slug}}}" title="${(v.description||v.slug) + ' — click to insert'}">{{${v.slug}}}</button>`).join('')}
+        ${chips.map(v => `<button type="button" class="em-var-chip" data-slug="{{${v.slug}}}" title="${(v.description||v.slug) + ' — click to insert'}"><code>{{${v.slug}}}</code></button>`).join('')}
       </div>`;
     // Track last focused editable field in the modal
     let emLastFocused = document.getElementById('em-md-body');
@@ -1342,18 +1342,18 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     display: inline-flex;
     flex-direction: row;
     align-items: center;
+    gap: 4px;
     padding: 2px 7px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 3px;
     cursor: pointer;
-    font-family: monospace;
-    font-size: 11px;
     color: var(--muted);
     white-space: nowrap;
     transition: border-color 0.1s, color 0.1s;
   }
   .em-var-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .em-var-chip code { font-family: monospace; font-size: 11px; color: inherit; }
   .em-subtle-link { font-size: 12px; color: var(--muted); margin-top: 12px; display: inline-block; }
 
   .em-hint {
