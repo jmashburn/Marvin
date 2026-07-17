@@ -323,11 +323,19 @@ class AIOperationsController(BaseUserController):
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         if settings and settings.model:
             return settings.model
+        # Workspace mode: default model from the default provider's models.
         from marvin.db.models.groups.ai_providers import AIModelModel, AIProviderModel
         provider = self.session.query(AIProviderModel).filter_by(group_id=self.group_id, is_default=True, enabled=True).first()
         if provider:
             model = self.session.query(AIModelModel).filter_by(provider_id=provider.id, is_default=True, enabled=True).first()
             if model:
                 return model.model_id
+        # Platform mode: fall back to the admin-configured AppSettings model (e.g. OPENAI_MODEL),
+        # so platform credentials work with env vars alone — no per-workspace model needed.
+        if settings and settings.credential_mode == "platform":
+            from marvin.core.config import get_app_settings
+            app = get_app_settings()
+            provider_type = settings.provider or getattr(app, "AI_DEFAULT_PROVIDER", "openai")
+            return getattr(app, f"{provider_type.upper()}_MODEL", None)
         return None
 
