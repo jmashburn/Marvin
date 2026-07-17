@@ -132,20 +132,32 @@ class EmailTemplateController(BaseUserController):
                     .first()
                 )
 
+            import uuid as _uuid
+
+            def _fmt(raw) -> str | None:
+                """Return UUID with dashes to match Pydantic UUID4 serialisation."""
+                if raw is None:
+                    return None
+                s = str(raw).replace("-", "")
+                try:
+                    return str(_uuid.UUID(s))
+                except ValueError:
+                    return str(raw)
+
             result.append({
                 "template_type": template_type,
                 "event_type": mapping["event_type"],
                 "recipient_type": mapping["recipient_type"],
                 "recipient_field": mapping.get("recipient_field"),
                 "system_template": (
-                    {"id": str(system_tmpl.id), "name": system_tmpl.name}
+                    {"id": _fmt(system_tmpl.id), "name": system_tmpl.name}
                     if system_tmpl else None
                 ),
                 "workspace_template": (
-                    {"id": str(workspace_tmpl.id), "name": workspace_tmpl.name}
+                    {"id": _fmt(workspace_tmpl.id), "name": workspace_tmpl.name}
                     if workspace_tmpl else None
                 ),
-                "subscription_id": str(subscription.id) if subscription else None,
+                "subscription_id": _fmt(subscription.id) if subscription else None,
                 "has_workspace_override": workspace_tmpl is not None,
             })
 
