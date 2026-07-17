@@ -435,7 +435,9 @@ class AuditLogPublisher:
 
                 log_entry = EventLogModel(
                     event_id=event.event_id,
-                    event_type=event.event_type.value,
+                    # Store the stable, human-readable name (e.g. "entry_published"), not the
+                    # enum's ordinal — matches the schema/API contract and survives enum reordering.
+                    event_type=event.event_type.name,
                     occurred_at=event.timestamp,
                     workspace_id=event.workspace_id,
                     user_id=event.user_id,

@@ -1,0 +1,373 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const authed = !!authToken;
+
+let events: any[] = [];
+let error: string | null = null;
+
+if (authed) {
+  try {
+    events = await fetchApi<any[]>('/api/platform/events?limit=100', {}, authToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[events] Failed to load:', error);
+  }
+}
+
+function fld(row: any, camel: string, snake: string) {
+  return row[camel] ?? row[snake];
+}
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
+// Legacy rows stored the enum ordinal; new rows store the name. Prettify both.
+function prettyType(t: any): string {
+  const s = String(t ?? '');
+  if (/^\d+$/.test(s)) return `event #${s}`;
+  return s.replace(/[._]/g, ' ');
+}
+
+// Distinct entity types present, for the filter chips.
+const entityTypes = Array.from(
+  new Set(events.map((e) => fld(e, 'entityType', 'entity_type')).filter(Boolean))
+).sort();
+---
+
+<AppLayout title="Event Log" eyebrow="Automation">
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/workspace/settings?tab=automation">Automation</a>
+      <span>›</span>
+      <span>Event Log</span>
+    </div>
+    <h2>Event Log</h2>
+    <p>The workspace audit trail — every event: publishes, uploads, AI runs, embeddings, and more</p>
+  </div>
+
+  {!authed ? (
+    <div class="alert alert-error"><strong>Authentication required.</strong> Sign in to view the event log.</div>
+  ) : error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : events.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">🗂️</div>
+      <p class="empty-title">No events yet</p>
+      <p class="empty-desc">Workspace activity will appear here as it happens</p>
+    </div>
+  ) : (
+    <>
+      <div class="controls">
+        <input id="event-search" class="search" type="search" placeholder="Filter by message or type…" />
+        <div class="chips" id="entity-chips">
+          <button class="chip active" data-entity="">All</button>
+          {entityTypes.map((t) => <button class="chip" data-entity={t}>{t}</button>)}
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>When</th>
+              <th>Event</th>
+              <th>Entity</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((ev: any, i: number) => {
+              const eventId = fld(ev, 'eventId', 'event_id');
+              const eventType = fld(ev, 'eventType', 'event_type');
+              const occurredAt = fld(ev, 'occurredAt', 'occurred_at');
+              const entityType = fld(ev, 'entityType', 'entity_type');
+              const entityId = fld(ev, 'entityId', 'entity_id');
+              const title = fld(ev, 'messageTitle', 'message_title');
+              const body = fld(ev, 'messageBody', 'message_body');
+              const search = `${title ?? ''} ${prettyType(eventType)} ${entityType ?? ''}`.toLowerCase();
+              return (
+                <>
+                  <tr class="log-row" data-search={search} data-entity={entityType ?? ''}>
+                    <td class="expand-cell">
+                      <button class="expand-btn" data-target={`detail-${i}`} data-event-id={eventId}>▶</button>
+                    </td>
+                    <td class="nowrap muted">{formatDate(occurredAt)}</td>
+                    <td><code class="ev-badge">{prettyType(eventType)}</code></td>
+                    <td class="nowrap">
+                      {entityType ? (
+                        <span class="entity-cell">
+                          <span class="entity-type">{entityType}</span>
+                          {entityId && <span class="entity-id">{String(entityId).slice(0, 8)}</span>}
+                        </span>
+                      ) : <span class="muted">—</span>}
+                    </td>
+                    <td>{title}</td>
+                  </tr>
+                  <tr class="detail-row" id={`detail-${i}`} style="display:none">
+                    <td colspan="5">
+                      <div class="detail-body">
+                        {body && (
+                          <div class="detail-section">
+                            <div class="detail-label">Message</div>
+                            <div class="detail-message">{body}</div>
+                          </div>
+                        )}
+                        <div class="detail-section">
+                          <div class="detail-label">Payload</div>
+                          <pre class="payload-json" data-payload-for={eventId}>Loading…</pre>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p class="count-note" id="count-note">{events.length} most recent event{events.length === 1 ? '' : 's'}</p>
+    </>
+  )}
+</AppLayout>
+
+<script>
+  import { fetchApi } from '@/lib/api/client';
+
+  const loaded = new Set<string>();
+
+  // Expand / collapse + lazy-load full payload
+  document.querySelectorAll('.expand-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const el = btn as HTMLElement;
+      const row = document.getElementById(el.dataset.target!);
+      if (!row) return;
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      el.textContent = open ? '▶' : '▼';
+
+      const eventId = el.dataset.eventId!;
+      if (open || loaded.has(eventId)) return;
+      loaded.add(eventId);
+      const pre = document.querySelector<HTMLElement>(`[data-payload-for="${eventId}"]`);
+      if (!pre) return;
+      try {
+        const full = await fetchApi<any>(`/api/platform/events/${eventId}`);
+        const payload = full?.eventData ?? full?.event_data ?? full;
+        pre.textContent = JSON.stringify(payload, null, 2);
+      } catch (e: any) {
+        pre.textContent = `Failed to load payload: ${e.message}`;
+      }
+    });
+  });
+
+  // Text + entity-type filtering (client-side over the loaded page)
+  const search = document.getElementById('event-search') as HTMLInputElement | null;
+  const chips = Array.from(document.querySelectorAll<HTMLElement>('#entity-chips .chip'));
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('tr.log-row'));
+  const countNote = document.getElementById('count-note');
+  let activeEntity = '';
+
+  function applyFilters() {
+    const q = (search?.value || '').trim().toLowerCase();
+    let shown = 0;
+    rows.forEach((row) => {
+      const matchText = !q || (row.dataset.search || '').includes(q);
+      const matchEntity = !activeEntity || row.dataset.entity === activeEntity;
+      const visible = matchText && matchEntity;
+      row.style.display = visible ? '' : 'none';
+      // Collapse any open detail row when its parent is hidden
+      const detail = row.nextElementSibling as HTMLElement | null;
+      if (detail?.classList.contains('detail-row') && !visible) detail.style.display = 'none';
+      if (visible) shown++;
+    });
+    if (countNote) countNote.textContent = `${shown} event${shown === 1 ? '' : 's'} shown`;
+  }
+
+  search?.addEventListener('input', applyFilters);
+  chips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      chips.forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      activeEntity = chip.dataset.entity || '';
+      applyFilters();
+    });
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .page-header h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state { padding: 80px 24px; text-align: center; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-desc { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .search {
+    flex: 1;
+    min-width: 220px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .search:focus { border-color: var(--accent); outline: none; }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: capitalize;
+    cursor: pointer;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    transition: all 0.15s;
+  }
+
+  .chip:hover { color: var(--ink); border-color: var(--ink); }
+  .chip.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .table-wrap { overflow-x: auto; }
+
+  .log-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+  .log-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .log-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .log-row:hover td { background: var(--panel); }
+
+  .expand-cell { width: 32px; padding: 10px 6px 10px 12px; }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .expand-btn:hover { background: var(--line); color: var(--ink); }
+
+  .detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
+
+  .detail-body {
+    padding: 16px 16px 16px 52px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .detail-section { display: flex; flex-direction: column; gap: 4px; }
+
+  .detail-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .detail-message { font-size: 13px; color: var(--ink); }
+
+  .payload-json {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 0;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre;
+    color: var(--ink);
+  }
+
+  .nowrap { white-space: nowrap; }
+  .muted { color: var(--muted); }
+
+  .ev-badge {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .entity-cell { display: flex; flex-direction: column; gap: 1px; }
+  .entity-type { font-size: 13px; color: var(--ink); text-transform: capitalize; }
+  .entity-id { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
+
+  .count-note { margin: 14px 2px 0; font-size: 12px; color: var(--muted); }
+</style>
