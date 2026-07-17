@@ -60,6 +60,24 @@ for (const s of mySubscriptions) {
   const et = s.event_type ?? s.eventType;
   if (et) subIdMap[et] = s.id;
 }
+
+// Collect event variables from connected events
+const connectedEventTypes = [
+  ...(systemHardcodedEvent ? [systemHardcodedEvent] : []),
+  ...[...subscribedEvents].filter(e => e !== systemHardcodedEvent),
+];
+
+interface EventVar { slug: string; description: string; example?: string; fromEvent: string }
+const eventVarMap = new Map<string, EventVar>();
+for (const evtType of connectedEventTypes) {
+  const evtInfo = eventOptions.find((e: any) => e.value === evtType);
+  for (const v of (evtInfo?.variables ?? [])) {
+    if (!eventVarMap.has(v.slug)) {
+      eventVarMap.set(v.slug, { slug: v.slug, description: v.description ?? '', example: v.example, fromEvent: evtType });
+    }
+  }
+}
+const eventVars: EventVar[] = [...eventVarMap.values()];
 ---
 
 <AppLayout title={template?.name ?? 'Edit Template'} eyebrow="Workspace Settings">
@@ -163,6 +181,32 @@ for (const s of mySubscriptions) {
               ></iframe>
             </div>
           </div>
+
+          {eventVars.length > 0 && (
+            <div class="vars-panel">
+              <div class="vars-header">
+                <span class="vars-title">Event Variables</span>
+                <span class="vars-hint">Click to copy · <code>&#123;&#123;slug&#125;&#125;</code></span>
+              </div>
+              <div class="vars-chips" id="vars-chips">
+                {eventVars.map(v => (
+                  <button
+                    type="button"
+                    class="var-chip"
+                    data-slug={`{{${v.slug}}}`}
+                    title={v.description + (v.example ? ` — e.g. ${v.example}` : '')}
+                  >
+                    <code>{`{{${v.slug}}}`}</code>
+                    {v.description && <span class="var-desc">{v.description}</span>}
+                  </button>
+                ))}
+              </div>
+              <div class="vars-ws-row">
+                <span class="vars-hint">Workspace variables (UPPER_CASE): </span>
+                <span id="ws-vars-inline" class="vars-hint">loading…</span>
+              </div>
+            </div>
+          )}
 
           <label class="checkbox-label">
             <input
@@ -296,6 +340,38 @@ for (const s of mySubscriptions) {
     const GROUP_ID = wsId;
     const TEMPLATE_ID = id;
     const SUB_ID_MAP = subIdMap;
+
+    // ── Variable chips — click to copy ────────────────────────────────────────
+    document.querySelectorAll('.var-chip').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const slug = btn.dataset.slug;
+        if (!slug) return;
+        try { await navigator.clipboard.writeText(slug); } catch {}
+        const code = btn.querySelector('code');
+        if (code) { const orig = code.textContent; code.textContent = '✓ copied'; setTimeout(() => { code.textContent = orig; }, 1200); }
+      });
+    });
+
+    // Load workspace variables (UPPER_CASE) inline
+    (async () => {
+      const el = document.getElementById('ws-vars-inline');
+      if (!el) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/groups/variables`, { credentials: 'include' });
+        const vars = res.ok ? await res.json() : [];
+        if (!vars.length) { el.textContent = 'none configured'; return; }
+        el.innerHTML = vars.map((v: any) =>
+          `<code class="ws-var-chip" title="${v.slug}" style="cursor:pointer;background:rgba(79,156,132,0.08);padding:1px 5px;border-radius:3px;font-size:11px;margin:0 2px">{{${v.slug}}}</code>`
+        ).join('');
+        el.querySelectorAll('.ws-var-chip').forEach(c => {
+          c.addEventListener('click', async () => {
+            const t = c.title ? `{{${c.title}}}` : c.textContent ?? '';
+            try { await navigator.clipboard.writeText(t); } catch {}
+            const orig = c.textContent; c.textContent = '✓'; setTimeout(() => { c.textContent = orig; }, 1000);
+          });
+        });
+      } catch { el.textContent = '—'; }
+    })();
 
     // ── Body mode tabs ────────────────────────────────────────────────────────
     // Track which non-preview mode is active so preview knows what to render
@@ -734,6 +810,79 @@ for (const s of mySubscriptions) {
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .vars-panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    background: var(--panel-2, var(--bg));
+    display: grid;
+    gap: 8px;
+  }
+
+  .vars-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .vars-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+  }
+
+  .vars-hint {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .vars-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .var-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .var-chip:hover { border-color: var(--accent); }
+
+  .var-chip code {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  .var-desc {
+    font-size: 11px;
+    color: var(--muted);
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .vars-ws-row {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
   }
 
   .body-tabs {
