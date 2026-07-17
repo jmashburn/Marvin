@@ -606,48 +606,61 @@ class OperationContext:
 
 ## 11. SDK Design
 
-Following the established workspace-first pattern (`workspace.entries`, `workspace.assets`):
+> **Shipped as `platform.ai.*` (Phase 4).** The plan originally named this `workspace.ai.*`,
+> but AI endpoints are session/role-authed and reachable only through the session-authed
+> `PlatformClient` — not the site-token publish `Workspace`. So the module lives on
+> `PlatformClient` alongside `platform.secrets` / `platform/admin`. Naming reconciled below.
 
 ```ts
-// workspace.ai.*
+// platform.ai.*
 
-const workspace = await client.getWorkspace();
+const platform = createPlatformClient();  // session-authed (user token / cookies)
 
 // ── Settings ──────────────────────────────────────────────────────────
-workspace.ai.settings.get()                    // GET /api/ai/settings
-workspace.ai.settings.update(patch)            // PATCH /api/ai/settings
+platform.ai.settings.get()                     // GET /api/groups/ai-settings  (see note)
+platform.ai.settings.update(patch)             // PATCH /api/groups/ai-settings
 
 // ── Providers ─────────────────────────────────────────────────────────
-workspace.ai.providers.list()                  // GET /api/ai/providers
-workspace.ai.providers.get(id)                 // GET /api/ai/providers/{id}
-workspace.ai.providers.create(data)            // POST /api/ai/providers
-workspace.ai.providers.update(id, patch)       // PATCH /api/ai/providers/{id}
-workspace.ai.providers.delete(id)              // DELETE /api/ai/providers/{id}
-workspace.ai.providers.test(id)                // POST /api/ai/providers/{id}/test
+platform.ai.providers.list()                   // GET /api/ai/providers
+platform.ai.providers.get(id)                  // GET /api/ai/providers/{id}
+platform.ai.providers.create(data)             // POST /api/ai/providers
+platform.ai.providers.update(id, patch)        // PATCH /api/ai/providers/{id}
+platform.ai.providers.delete(id)               // DELETE /api/ai/providers/{id}
+platform.ai.providers.test(id)                 // POST /api/ai/providers/{id}/test
 
-// ── Models ────────────────────────────────────────────────────────────
-workspace.ai.providers.models.list(providerId)
-workspace.ai.providers.models.create(providerId, data)
-workspace.ai.providers.models.update(providerId, modelId, patch)
-workspace.ai.providers.models.delete(providerId, modelId)
+// ── Models (nested under a provider) ──────────────────────────────────
+platform.ai.providers.models.list(providerId)
+platform.ai.providers.models.create(providerId, data)
+platform.ai.providers.models.update(providerId, modelId, patch)
+platform.ai.providers.models.delete(providerId, modelId)
 
 // ── Operations ────────────────────────────────────────────────────────
-workspace.ai.operations.list()                 // GET /api/ai/operations
-workspace.ai.operations.get(slug)              // GET /api/ai/operations/{slug}
-workspace.ai.operations.execute(slug, {        // POST /api/ai/operations/{slug}/execute
+platform.ai.operations.list()                  // GET /api/ai/operations
+platform.ai.operations.get(slug)               // GET /api/ai/operations/{slug}
+platform.ai.operations.execute(slug, {         // POST /api/ai/operations/{slug}/execute
   entityType: 'entry',
   entityId: '...',
   input: { ... },
-  options: { model: 'gpt-4o' }  // optional override
-})
+  modelOverride: 'gpt-4o',  // optional; NOT options.model
+})  // → returns a COMPLETED AIExecution (runs synchronously)
 
 // ── Executions ────────────────────────────────────────────────────────
-workspace.ai.executions.list(params?)          // GET /api/ai/executions
-workspace.ai.executions.get(id)                // GET /api/ai/executions/{id}
-workspace.ai.executions.delete(id)             // DELETE /api/ai/executions/{id}
+platform.ai.executions.list(params?)           // GET /api/ai/executions
+platform.ai.executions.get(id)                 // GET /api/ai/executions/{id}
+platform.ai.executions.delete(id)              // DELETE /api/ai/executions/{id}
 ```
 
-Type definitions follow existing SDK conventions — all response types are camelCase, input types accept snake_case OR camelCase (`populate_by_name=True` on backend).
+**Deviations from the original plan, reconciled to the shipped backend:**
+- **Settings** target `/api/groups/ai-settings` — the `/api/ai/settings` path (§12) is not built.
+- **No `ai.usage` module** — `GET /api/ai/usage` (§12/§16) is not implemented.
+- **Execute** takes a flat `modelOverride` (not a nested `options.model`) and returns a
+  *completed* execution, not a `pending` one — the call runs synchronously.
+- **`operations.list/get`** return raw **snake_case** dicts (`input_schema`, `min_role`,
+  `requires_vision`, …); every other AI response is camelCase.
+
+Type definitions follow existing SDK conventions — response types are camelCase (backend
+`_MarvinModel` uses `alias_generator=camelize` + `populate_by_name=True`), and `executions.list`
+query params are snake_case (query params bypass the alias generator).
 
 ---
 
@@ -1000,10 +1013,10 @@ The MCP server calls the same `/api/ai/operations/{slug}/execute` endpoint using
 - [ ] Entry type `capabilities_json.ai_operations` declaration
 - [ ] Cost estimation and budget enforcement
 
-### Phase 4 — SDK
-- [ ] `workspace.ai.*` SDK module
-- [ ] Typed request/response types
-- [ ] Publishing API remains AI-free (separate surface)
+### Phase 4 — SDK (done)
+- [x] `platform.ai.*` SDK module (settings, providers+models, operations, executions) — shipped in MarvinSDK `src/platform/ai/`
+- [x] Typed request/response types (hand-written camelCase in `src/platform/ai/types.ts`)
+- [x] Publishing API remains AI-free (AI lives on session-authed `PlatformClient`, not the publish `Workspace`)
 
 ### Phase 5 — Frontend Integration
 - [ ] Editor toolbar AI buttons (respect `invocation_sources.editor`)
