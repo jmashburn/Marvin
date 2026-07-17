@@ -902,19 +902,21 @@ class EmailEventListener(EventListenerBase):
                 .all()
             )
             if ws_templates_of_type:
+                # Use only the most recently created workspace template to avoid
+                # double-sends when multiple workspace templates of the same type exist
+                ws_tmpl = ws_templates_of_type[-1]
                 self.logger.info(
-                    f"EmailEventListener: using {len(ws_templates_of_type)} workspace template(s) "
+                    f"EmailEventListener: using workspace template '{ws_tmpl.name}' "
                     f"of type '{system_template_type}' (no explicit subscription row)"
                 )
                 return list(workspace_subs) + [
                     VirtualEmailSubscription(
-                        template_id=t.id,
+                        template_id=ws_tmpl.id,
                         event_type=event.event_type.name,
                         recipient_type=system_mapping["recipient_type"],
                         recipient_field=system_mapping.get("recipient_field"),
                         recipient_email=system_mapping.get("recipient_email"),
                     )
-                    for t in ws_templates_of_type
                 ]
 
             # No workspace override — try the system template

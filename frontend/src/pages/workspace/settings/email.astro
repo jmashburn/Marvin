@@ -154,13 +154,7 @@ function isSuperseded(template: any): boolean {
                     {(() => {
                       const tplType = (template as any).templateType ?? (template as any).template_type ?? '';
                       const autoEvent = SYSTEM_EVENT_MAP[tplType] ?? null;
-
-                      // For system-typed workspace templates, always show the auto chip
-                      // even if the subscription isn't in the lookup map yet
-                      const evtsFromMap = eventsByTemplateId[template.id] ?? [];
-                      const evts = (autoEvent && !evtsFromMap.includes(autoEvent))
-                        ? [autoEvent, ...evtsFromMap]
-                        : evtsFromMap;
+                      const evts = eventsByTemplateId[template.id] ?? [];
 
                       if (!evts.length) return null;
                       return (

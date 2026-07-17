@@ -230,23 +230,6 @@ class EmailTemplateController(BaseUserController):
         self.repos.session.commit()
         self.repos.session.refresh(template)
 
-        # Auto-create email event subscription if this template_type maps to a system event
-        from marvin.services.email.system_email_events import SYSTEM_TEMPLATE_EVENT_MAP
-        from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
-
-        sys_mapping = SYSTEM_TEMPLATE_EVENT_MAP.get(template.template_type)
-        if sys_mapping:
-            sub = EmailEventSubscriptionModel(session=self.repos.session)
-            sub.group_id = group_id
-            sub.template_id = template.id
-            sub.event_type = sys_mapping["event_type"]
-            sub.recipient_type = sys_mapping["recipient_type"]
-            sub.recipient_field = sys_mapping.get("recipient_field")
-            sub.recipient_email = sys_mapping.get("recipient_email")
-            sub.enabled = True
-            self.repos.session.add(sub)
-            self.repos.session.commit()
-
         # Dispatch event
         self.event_bus.dispatch(
             integration_id="email_template_management",
