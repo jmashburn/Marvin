@@ -1,6 +1,6 @@
 """Google Gemini provider implementation."""
 
-from ..base import AIProvider, CompletionOptions, CompletionResult, Message
+from ..base import AIProvider, CompletionOptions, CompletionResult, ImagePart, Message
 
 
 class GoogleProvider(AIProvider):
@@ -20,12 +20,26 @@ class GoogleProvider(AIProvider):
         genai.configure(api_key=self._api_key)
         return genai
 
+    def _to_parts(self, messages: list[Message]) -> list:
+        """Flatten messages into Gemini content parts (text strings + inline image blobs)."""
+        import base64
+        parts: list = []
+        for msg in messages:
+            if isinstance(msg.content, str):
+                parts.append(f"{msg.role}: {msg.content}")
+                continue
+            for p in msg.content:
+                if isinstance(p, ImagePart):
+                    parts.append({"mime_type": p.mime_type, "data": base64.b64decode(p.data)})
+                else:
+                    parts.append(str(p))
+        return parts
+
     def complete(self, messages: list[Message], model: str, options: CompletionOptions | None = None) -> CompletionResult:
         opts = options or CompletionOptions()
         genai = self._client()
         m = genai.GenerativeModel(model)
-        prompt = "\n".join(f"{msg.role}: {msg.content}" for msg in messages if isinstance(msg.content, str))
-        resp = m.generate_content(prompt, generation_config={"max_output_tokens": opts.max_tokens, "temperature": opts.temperature})
+        resp = m.generate_content(self._to_parts(messages), generation_config={"max_output_tokens": opts.max_tokens, "temperature": opts.temperature})
         usage = resp.usage_metadata
         return CompletionResult(
             content=resp.text,
@@ -40,9 +54,9 @@ class GoogleProvider(AIProvider):
         opts = options or CompletionOptions()
         genai = self._client()
         m = genai.GenerativeModel(model)
-        prompt = "\n".join(f"{msg.role}: {msg.content}" for msg in messages if isinstance(msg.content, str))
-        prompt += f"\n\nReturn valid JSON matching this schema: {json.dumps(output_schema)}"
-        resp = m.generate_content(prompt, generation_config={"response_mime_type": "application/json", "max_output_tokens": opts.max_tokens})
+        parts = self._to_parts(messages)
+        parts.append(f"Return valid JSON matching this schema: {json.dumps(output_schema)}")
+        resp = m.generate_content(parts, generation_config={"response_mime_type": "application/json", "max_output_tokens": opts.max_tokens})
         return json.loads(resp.text)
 
     def list_models(self) -> list[str]:

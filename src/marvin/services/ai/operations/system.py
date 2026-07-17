@@ -1,6 +1,6 @@
 """System-defined AI operations — available to all workspaces."""
 
-from ..base import Message
+from ..base import ImagePart, Message
 from .base import ROLE_AUTHOR, ROLE_EDITOR, AIOperation, OperationContext, register_operation
 
 
@@ -150,13 +150,19 @@ class GenerateAltTextOperation(AIOperation):
         context_clause = f"Context: {usage_context}." if usage_context else ""
         asset = ctx.assets[0] if ctx.assets else {}
         filename = asset.get("name", "this image")
+        instruction = (
+            f"Write alt text for the image '{filename}'. {context_clause} "
+            f"Alt text should be under 125 characters and describe what is shown.\n\n"
+            f"Return JSON: {{\"alt_text\": \"...\", \"description\": \"longer description\"}}"
+        )
+        image_data = asset.get("image_data")
+        user_content = (
+            [instruction, ImagePart(data=image_data, mime_type=asset.get("mime_type") or "image/png")]
+            if image_data else instruction
+        )
         return [
-            Message(role="system", content="You are an accessibility assistant. Write concise, descriptive alt text."),
-            Message(role="user", content=(
-                f"Write alt text for the image '{filename}'. {context_clause} "
-                f"Alt text should be under 125 characters and describe what is shown.\n\n"
-                f"Return JSON: {{\"alt_text\": \"...\", \"description\": \"longer description\"}}"
-            )),
+            Message(role="system", content="You are an accessibility assistant. Write concise, descriptive alt text based on what you see in the image."),
+            Message(role="user", content=user_content),
         ]
 
 
@@ -202,5 +208,79 @@ class ClassifyFormSubmissionOperation(AIOperation):
                 f"Classify this form submission.\n\nSubmission data:\n{data}\n\n"
                 f"Available categories: {', '.join(categories)}.\n\n"
                 f"Return JSON matching the output schema."
+            )),
+        ]
+
+
+@register_operation
+class DescribeImageOperation(AIOperation):
+    slug = "describe-image"
+    name = "Describe Image"
+    description = "Produce a detailed description of an image asset, with detected objects and colors."
+    entity_types = ["asset"]
+    requires_vision = True
+    min_role = ROLE_AUTHOR
+    input_schema = {"type": "object", "properties": {}}
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "description": {"type": "string"},
+            "detected_objects": {"type": "array", "items": {"type": "string"}},
+            "colors": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["description"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        asset = ctx.assets[0] if ctx.assets else {}
+        filename = asset.get("name", "this image")
+        instruction = (
+            f"Describe the image '{filename}' in detail. List the main objects you see and the "
+            f"dominant colours.\n\n"
+            f"Return JSON: {{\"description\": \"...\", \"detected_objects\": [\"...\"], \"colors\": [\"...\"]}}"
+        )
+        image_data = asset.get("image_data")
+        user_content = (
+            [instruction, ImagePart(data=image_data, mime_type=asset.get("mime_type") or "image/png")]
+            if image_data else instruction
+        )
+        return [
+            Message(role="system", content="You are a vision assistant. Describe images accurately based on what you see."),
+            Message(role="user", content=user_content),
+        ]
+
+
+@register_operation
+class EnrichResourceMetadataOperation(AIOperation):
+    slug = "enrich-resource-metadata"
+    name = "Enrich Resource Metadata"
+    description = "Suggest a description, tags, and category for a resource from its name and URL."
+    entity_types = ["resource"]
+    min_role = ROLE_AUTHOR
+    input_schema = {"type": "object", "properties": {}}
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "description": {"type": "string"},
+            "tags": {"type": "array", "items": {"type": "string"}},
+            "category": {"type": "string"},
+        },
+        "required": ["description"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        resource = ctx.resources[0] if ctx.resources else {}
+        name = resource.get("name", "")
+        rtype = resource.get("type", "")
+        url = resource.get("url", "")
+        existing = resource.get("description", "")
+        return [
+            Message(role="system", content=(
+                f"You are a metadata assistant for {ctx.workspace_name or 'this workspace'}."
+            )),
+            Message(role="user", content=(
+                f"Enrich metadata for this resource.\n\n"
+                f"Name: {name}\nType: {rtype}\nURL: {url}\nExisting description: {existing or '(none)'}\n\n"
+                f"Return JSON: {{\"description\": \"...\", \"tags\": [\"...\"], \"category\": \"...\"}}"
             )),
         ]

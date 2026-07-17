@@ -1,6 +1,6 @@
 """Anthropic provider implementation."""
 
-from ..base import AIProvider, CompletionOptions, CompletionResult, Message
+from ..base import AIProvider, CompletionOptions, CompletionResult, ImagePart, Message
 
 
 class AnthropicProvider(AIProvider):
@@ -19,9 +19,21 @@ class AnthropicProvider(AIProvider):
             raise ImportError("Anthropic SDK not installed. Run: uv sync --extra anthropic (or pip install 'marvin[anthropic]')")
         return anthropic.Anthropic(api_key=self._api_key)
 
+    def _render_content(self, content):
+        """Translate agnostic content into Anthropic's content format (str or content blocks)."""
+        if isinstance(content, str):
+            return content
+        blocks = []
+        for p in content:
+            if isinstance(p, ImagePart):
+                blocks.append({"type": "image", "source": {"type": "base64", "media_type": p.mime_type, "data": p.data}})
+            else:
+                blocks.append({"type": "text", "text": str(p)})
+        return blocks
+
     def _split_messages(self, messages: list[Message]):
         system = " ".join(m.content for m in messages if m.role == "system" and isinstance(m.content, str))
-        chat = [{"role": m.role, "content": m.content} for m in messages if m.role != "system"]
+        chat = [{"role": m.role, "content": self._render_content(m.content)} for m in messages if m.role != "system"]
         return system or None, chat
 
     def complete(self, messages: list[Message], model: str, options: CompletionOptions | None = None) -> CompletionResult:

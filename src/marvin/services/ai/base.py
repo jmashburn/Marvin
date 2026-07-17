@@ -5,9 +5,22 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class ImagePart:
+    """
+    Provider-agnostic inline image for multimodal messages.
+
+    `data` is base64-encoded image bytes; `mime_type` is e.g. "image/png".
+    A multimodal Message carries content = list mixing str (text) and ImagePart;
+    each provider translates ImagePart into its own SDK format.
+    """
+    data: str
+    mime_type: str
+
+
+@dataclass
 class Message:
     role: str  # "system" | "user" | "assistant"
-    content: str | list  # list for multimodal (text + image parts)
+    content: str | list  # str, or list mixing str (text) and ImagePart (image) for multimodal
 
 
 @dataclass

@@ -83,9 +83,14 @@ class AIOperationsController(BaseUserController):
         if body.entity_type == "entry" and body.entity_id:
             builder.with_entry(body.entity_id).with_assets(body.entity_id).with_resources(body.entity_id)
         elif body.entity_type == "asset" and body.entity_id:
-            builder.with_assets(body.entity_id)
+            builder.with_asset(body.entity_id)
+        elif body.entity_type == "resource" and body.entity_id:
+            builder.with_resource(body.entity_id)
         elif body.entity_type == "form_submission" and body.entity_id:
             builder.with_form_submission(body.entity_id)
+        # Vision operations need the raw image bytes loaded into context.
+        if operation.requires_vision:
+            builder.with_asset_images()
         ctx = builder.build()
 
         # Create execution record (pending)

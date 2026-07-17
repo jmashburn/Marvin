@@ -1,6 +1,6 @@
 """Azure OpenAI provider implementation."""
 
-from ..base import AIProvider, CompletionOptions, CompletionResult, Message
+from ..base import AIProvider, CompletionOptions, CompletionResult, ImagePart, Message
 
 
 class AzureOpenAIProvider(AIProvider):
@@ -21,11 +21,26 @@ class AzureOpenAIProvider(AIProvider):
             raise ImportError("OpenAI SDK not installed. Run: uv sync --extra openai (or pip install 'marvin[openai]')")
         return AzureOpenAI(api_key=self._api_key, azure_endpoint=self._base_url, api_version=self._api_version)
 
+    def _render_content(self, content):
+        """Translate agnostic content into Azure OpenAI's chat format (str or multimodal parts)."""
+        if isinstance(content, str):
+            return content
+        parts = []
+        for p in content:
+            if isinstance(p, ImagePart):
+                parts.append({"type": "image_url", "image_url": {"url": f"data:{p.mime_type};base64,{p.data}"}})
+            else:
+                parts.append({"type": "text", "text": str(p)})
+        return parts
+
+    def _to_api_messages(self, messages: list[Message]):
+        return [{"role": m.role, "content": self._render_content(m.content)} for m in messages]
+
     def complete(self, messages: list[Message], model: str, options: CompletionOptions | None = None) -> CompletionResult:
         opts = options or CompletionOptions()
         resp = self._client().chat.completions.create(
             model=model,
-            messages=[{"role": m.role, "content": m.content} for m in messages],
+            messages=self._to_api_messages(messages),
             max_tokens=opts.max_tokens,
             temperature=opts.temperature,
         )
@@ -44,7 +59,7 @@ class AzureOpenAIProvider(AIProvider):
         opts = options or CompletionOptions()
         resp = self._client().chat.completions.create(
             model=model,
-            messages=[{"role": m.role, "content": m.content} for m in messages],
+            messages=self._to_api_messages(messages),
             response_format={"type": "json_schema", "json_schema": {"name": "output", "schema": output_schema}},
             max_tokens=opts.max_tokens,
         )
