@@ -16,6 +16,8 @@ node_modules
 frontend/.astro/
 frontend/dist/
 
+# Docker config
+docker/config/
 
 # local env files
 .env.local
