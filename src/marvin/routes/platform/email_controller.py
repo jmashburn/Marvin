@@ -102,8 +102,7 @@ class PlatformEmailController(BaseUserController):
             if not template:
                 raise HTTPException(status_code=404, detail="Template not found or not editable.")
 
-            allowed = {'name', 'description', 'subject', 'header_text', 'message_top',
-                      'message_bottom', 'button_text', 'custom_html', 'enabled', 'template_type'}
+            allowed = {'name', 'description', 'subject', 'body_markdown', 'custom_html', 'enabled', 'template_type'}
             for key, val in data.items():
                 if key in allowed:
                     # Treat empty string same as None so callers can clear fields
