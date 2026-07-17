@@ -58,6 +58,27 @@ class OpenAIProvider(AIProvider):
         models = client.models.list()
         return sorted(m.id for m in models.data if "gpt" in m.id or "o1" in m.id or "o3" in m.id)
 
+    def execute_operation(self, messages, model, output_schema, options=None):
+        import json
+        opts = options or CompletionOptions()
+        client = self._client()
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": m.role, "content": m.content} for m in messages],
+            response_format={"type": "json_schema", "json_schema": {"name": "output", "schema": output_schema, "strict": True}},
+            max_tokens=opts.max_tokens,
+            temperature=opts.temperature,
+        )
+        parsed = json.loads(resp.choices[0].message.content or "{}")
+        result = CompletionResult(
+            content=resp.choices[0].message.content or "",
+            prompt_tokens=resp.usage.prompt_tokens,
+            completion_tokens=resp.usage.completion_tokens,
+            total_tokens=resp.usage.total_tokens,
+            model=resp.model,
+        )
+        return parsed, result
+
     def test_connection(self) -> tuple[bool, str]:
         try:
             models = self.list_models()

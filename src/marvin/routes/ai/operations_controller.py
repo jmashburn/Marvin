@@ -74,8 +74,16 @@ class AIOperationsController(BaseUserController):
         if not model:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No model configured. Set a default model on the provider.")
 
-        # Build context
-        ctx = self._build_context(body)
+        # Build context via ContextBuilder
+        from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
+        builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
+        if body.entity_type == "entry" and body.entity_id:
+            builder.with_entry(body.entity_id).with_assets(body.entity_id).with_resources(body.entity_id)
+        elif body.entity_type == "asset" and body.entity_id:
+            builder.with_assets(body.entity_id)
+        elif body.entity_type == "form_submission" and body.entity_id:
+            builder.with_form_submission(body.entity_id)
+        ctx = builder.build()
 
         # Create execution record (pending)
         execution = AIExecutionModel(
@@ -100,14 +108,26 @@ class AIOperationsController(BaseUserController):
             execution.started_at = datetime.now(UTC)
             self.session.commit()
 
+            # Build prompt then resolve {{SLUG}} references
             messages = operation.build_prompt(body.input, ctx)
-            result = provider.complete_structured(messages, model, operation.output_schema)
+            messages = resolve_prompt_messages(messages, self.group_id, ctx.variables)
 
+            # execute_operation returns (parsed_dict, CompletionResult with token counts)
+            parsed, completion = provider.execute_operation(messages, model, operation.output_schema)
+
+            from marvin.services.ai.pricing import estimate_cost
             elapsed_ms = int((time.monotonic() - start) * 1000)
             execution.status = "completed"
             execution.completed_at = datetime.now(UTC)
             execution.duration_ms = elapsed_ms
-            execution.output_json = result
+            execution.output_json = parsed
+            execution.prompt_tokens = completion.prompt_tokens
+            execution.completion_tokens = completion.completion_tokens
+            execution.total_tokens = completion.total_tokens
+            execution.estimated_cost_usd = estimate_cost(
+                provider.provider_type, model,
+                completion.prompt_tokens, completion.completion_tokens,
+            )
             self.session.commit()
 
         except Exception as e:
@@ -166,20 +186,32 @@ class AIOperationsController(BaseUserController):
     # ── Helpers ────────────────────────────────────────────────────────
 
     def _check_budget(self) -> None:
+        from sqlalchemy import func
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         if not settings or not settings.budget_config:
             return
         budget = settings.budget_config
+
         max_per_day = budget.get("max_requests_per_day")
         if max_per_day:
-            from sqlalchemy import func
             today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             count = self.session.query(func.count(AIExecutionModel.id)).filter(
                 AIExecutionModel.group_id == self.group_id,
                 AIExecutionModel.created_at >= today_start,
             ).scalar() or 0
             if count >= max_per_day:
-                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Daily AI request limit ({max_per_day}) reached.")
+                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Daily request limit ({max_per_day}) reached.")
+
+        max_cost = budget.get("max_cost_per_month_usd")
+        if max_cost:
+            month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            spent = self.session.query(func.sum(AIExecutionModel.estimated_cost_usd)).filter(
+                AIExecutionModel.group_id == self.group_id,
+                AIExecutionModel.created_at >= month_start,
+                AIExecutionModel.status == "completed",
+            ).scalar() or 0.0
+            if spent >= max_cost:
+                raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly cost limit (${max_cost:.2f}) reached.")
 
     def _default_model(self) -> str | None:
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
@@ -193,31 +225,3 @@ class AIOperationsController(BaseUserController):
                 return model.model_id
         return None
 
-    def _build_context(self, body: AIOperationExecuteRequest):
-        from marvin.db.models.groups.preferences import GroupPreferencesModel
-        from marvin.services.ai.operations.base import OperationContext
-
-        prefs = self.session.query(GroupPreferencesModel).filter_by(group_id=self.group_id).first()
-        ai_cfg = (prefs.site_metadata_json or {}).get("ai", {}) if prefs else {}
-
-        ctx = OperationContext(
-            workspace_name=self.group.name if hasattr(self, "_group") else "",
-            site_title=prefs.site_title or "" if prefs else "",
-            site_locale=prefs.site_locale or "en-US" if prefs else "en-US",
-            current_date=datetime.now(UTC).strftime("%Y-%m-%d"),
-            variables={k: v for k, v in ai_cfg.items()},
-        )
-
-        if body.entity_type == "entry" and body.entity_id:
-            from marvin.db.models.platform.entries import EntryModel
-            entry = self.session.get(EntryModel, body.entity_id)
-            if entry:
-                ctx.entry = {"title": entry.title, "content": str(entry.data_json or ""), "status": entry.status}
-
-        if body.entity_type == "form_submission" and body.entity_id:
-            from marvin.db.models.platform.form_submissions import FormSubmissionModel
-            sub = self.session.get(FormSubmissionModel, body.entity_id)
-            if sub:
-                ctx.form_submission = {"data": sub.data_json or {}}
-
-        return ctx

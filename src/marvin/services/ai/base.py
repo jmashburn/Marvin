@@ -74,3 +74,29 @@ class AIProvider(ABC):
         Returns (success, message).
         """
         ...
+
+    def execute_operation(
+        self,
+        messages: list[Message],
+        model: str,
+        output_schema: dict,
+        options: CompletionOptions | None = None,
+    ) -> tuple[dict, CompletionResult]:
+        """
+        Execute a structured-output operation and return (parsed_dict, result_with_usage).
+
+        Default implementation: call complete() then parse JSON from content.
+        Providers with native structured output (OpenAI, Anthropic) override this
+        to use their native mechanisms while still returning token usage.
+        """
+        import json
+        import re
+
+        result = self.complete(messages, model, options)
+        # Strip markdown code fences if the model wrapped JSON in ```json ... ```
+        content = re.sub(r"^```(?:json)?\s*|\s*```$", "", result.content.strip())
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            parsed = {"raw": result.content}
+        return parsed, result

@@ -57,6 +57,29 @@ class AnthropicProvider(AIProvider):
                 return block.input
         return json.loads(resp.content[0].text if resp.content else "{}")
 
+    def execute_operation(self, messages, model, output_schema, options=None):
+        opts = options or CompletionOptions()
+        system, chat = self._split_messages(messages)
+        client = self._client()
+        tool = {"name": "structured_output", "description": "Return structured output", "input_schema": output_schema}
+        kwargs = dict(model=model, messages=chat, max_tokens=opts.max_tokens or 4096, tools=[tool], tool_choice={"type": "tool", "name": "structured_output"})
+        if system:
+            kwargs["system"] = system
+        resp = client.messages.create(**kwargs)
+        parsed = {}
+        for block in resp.content:
+            if hasattr(block, "input"):
+                parsed = block.input
+                break
+        result = CompletionResult(
+            content=str(parsed),
+            prompt_tokens=resp.usage.input_tokens,
+            completion_tokens=resp.usage.output_tokens,
+            total_tokens=resp.usage.input_tokens + resp.usage.output_tokens,
+            model=resp.model,
+        )
+        return parsed, result
+
     def list_models(self) -> list[str]:
         return ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001"]
 
