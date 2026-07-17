@@ -67,6 +67,7 @@ const tabs = [
   { id: 'email', label: 'Email', icon: '📧' },
   { id: 'publishing', label: 'Publishing', icon: '🌐' },
   { id: 'automation', label: 'Automation', icon: '⚡' },
+  { id: 'ai', label: 'AI', icon: '✨' },
   { id: 'integrations', label: 'Integrations', icon: '🔌' },
   { id: 'statistics', label: 'Statistics', icon: '📊' },
 ];
@@ -233,6 +234,20 @@ const tabs = [
               <strong>Scheduler</strong>
               <p>Automate recurring workspace operations</p>
             </a>
+            <a href="/workspace/events" class="link-card">
+              <strong>Event Log</strong>
+              <p>The full workspace audit trail — every event, with payloads</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'ai' && (
+        <div class="content-section">
+          <h2>AI</h2>
+          <p class="section-description">AI capabilities, credentials, and activity for this workspace</p>
+
+          <div class="quick-links">
             <a href="/workspace/settings/ai-workflow" class="link-card">
               <strong>AI Workflows</strong>
               <p>Control credentials, approval mode, and per-subsystem AI access</p>
@@ -244,10 +259,6 @@ const tabs = [
             <a href="/workspace/settings/ai-executions" class="link-card">
               <strong>AI Executions</strong>
               <p>History of AI operations: tokens, cost, and output</p>
-            </a>
-            <a href="/workspace/events" class="link-card">
-              <strong>Event Log</strong>
-              <p>The full workspace audit trail — every event, with payloads</p>
             </a>
           </div>
         </div>
