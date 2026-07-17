@@ -52,6 +52,7 @@ const groupedByCategory = categories.map(cat => {
       <h2>Events</h2>
       <p>Events fire when things happen in your workspace. Subscribe to trigger webhooks, notifications, and emails.</p>
     </div>
+    <a href="/workspace/events" class="button secondary">View Event Log →</a>
   </div>
 
   {error ? (
@@ -220,10 +221,15 @@ const groupedByCategory = categories.map(cat => {
 
 <style>
   .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
     margin-bottom: 24px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--line);
   }
+  .toolbar > a { flex-shrink: 0; white-space: nowrap; }
   .toolbar h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
   .toolbar p { margin: 0; color: var(--muted); font-size: 13px; max-width: 520px; }
 
