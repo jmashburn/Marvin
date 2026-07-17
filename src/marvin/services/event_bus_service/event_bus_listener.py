@@ -875,11 +875,7 @@ class EmailEventListener(EventListenerBase):
 
             system_mapping = SYSTEM_TEMPLATE_EVENT_MAP[system_template_type]
 
-            # Find workspace templates of this type — avoids UUID format mismatch
-            # that breaks session.get() comparisons
-            def _norm(v) -> str:
-                return str(v).replace("-", "").lower()
-
+            # Find workspace templates of this type
             ws_templates_of_type = (
                 repos.session.query(EmailTemplateModel)
                 .filter(
@@ -889,12 +885,12 @@ class EmailEventListener(EventListenerBase):
                 )
                 .all()
             )
-            ws_template_ids = {_norm(t.id) for t in ws_templates_of_type}
+            ws_template_ids = {t.id for t in ws_templates_of_type}
 
             # Find subscriptions that explicitly connect a workspace template of this type
             connected_subs = [
                 sub for sub in workspace_subs
-                if _norm(getattr(sub, "template_id", "")) in ws_template_ids
+                if sub.template_id in ws_template_ids
             ]
 
             if connected_subs:
