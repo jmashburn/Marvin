@@ -362,8 +362,10 @@ class EmailService(BaseService):
                 return resolve(text or "", group_id, allow_secrets=False, context=variables)
 
             # Render subject with Jinja2
-            subject_template = Template(_r(db_template.subject))
-            subject = subject_template.render(**variables)
+            try:
+                subject = Template(_r(db_template.subject)).render(**variables)
+            except Exception:
+                subject = db_template.subject or "(no subject)"
 
             # Shared button_link derivation
             button_link = (
@@ -372,16 +374,23 @@ class EmailService(BaseService):
                 or variables.get("button_link", "")
             )
 
+            def _render_safe(text: str) -> str:
+                """Render Jinja2 template, falling back to raw text on syntax/render errors."""
+                try:
+                    return Template(_r(text)).render(**variables)
+                except Exception as exc:
+                    self.logger.warning(f"Template render error (sending raw): {exc}")
+                    return text
+
             # Determine rendering mode
             raw_custom = db_template.custom_html or ""
             if raw_custom.strip():
                 # Mode 1: custom_html — render Jinja2 variables and send as-is (no chrome wrapper)
-                body_html = Template(_r(raw_custom)).render(**variables)
-                html_content = body_html
+                html_content = _render_safe(raw_custom)
             else:
                 # Mode 2: body_markdown — render Jinja2 variables, convert to HTML, inject into default.html chrome
                 raw_markdown = db_template.body_markdown or ""
-                rendered_markdown = Template(_r(raw_markdown)).render(**variables)
+                rendered_markdown = _render_safe(raw_markdown)
                 body_html = self._markdown_to_html(rendered_markdown)
                 template_data = EmailTemplate(
                     subject=subject,
