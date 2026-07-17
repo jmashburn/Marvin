@@ -20,20 +20,21 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
-const s = settings ?? {
-  enabled: true,
-  credential_mode: "platform",
-  provider: null,
-  model: null,
-  secret_ref: null,
-  approval_mode: "suggest-only",
-  invocation_sources: null,
-  budget_config: null,
-  logging_config: null,
-  moderation_config: null,
+// API returns camelCase (_MarvinModel alias_generator=camelize)
+const s = {
+  enabled: settings?.enabled ?? true,
+  credentialMode: settings?.credentialMode ?? "platform",
+  provider: settings?.provider ?? null,
+  model: settings?.model ?? null,
+  secretRef: settings?.secretRef ?? null,
+  approvalMode: settings?.approvalMode ?? "suggest-only",
+  invocationSources: settings?.invocationSources ?? null,
+  budgetConfig: settings?.budgetConfig ?? null,
+  loggingConfig: settings?.loggingConfig ?? null,
+  moderationConfig: settings?.moderationConfig ?? null,
 };
 
-const invSrc = s.invocation_sources ?? {
+const invSrc = s.invocationSources ?? {
   editor: true,
   forms: true,
   actions: true,
@@ -41,9 +42,9 @@ const invSrc = s.invocation_sources ?? {
   scheduledJobs: false,
 };
 
-const budgetCfg = s.budget_config ?? {};
-const logCfg = s.logging_config ?? {};
-const modCfg = s.moderation_config ?? {};
+const budgetCfg = s.budgetConfig ?? {};
+const logCfg = s.loggingConfig ?? {};
+const modCfg = s.moderationConfig ?? {};
 ---
 
 <AppLayout title="AI Workflow Settings" eyebrow="Settings">
@@ -82,15 +83,15 @@ const modCfg = s.moderation_config ?? {};
         <p>Which AI credentials this workspace uses.</p>
       </legend>
       <div class="radio-group">
-        <label class:list={["radio-card", { selected: s.credential_mode === "platform" }]}>
-          <input type="radio" name="credential_mode" value="platform" checked={s.credential_mode === "platform"} />
+        <label class:list={["radio-card", { selected: s.credentialMode === "platform" }]}>
+          <input type="radio" name="credential_mode" value="platform" checked={s.credentialMode === "platform"} />
           <div class="radio-content">
             <strong>Platform</strong>
             <span>Credentials configured by your platform administrator.</span>
           </div>
         </label>
-        <label class:list={["radio-card", { selected: s.credential_mode === "workspace" }]}>
-          <input type="radio" name="credential_mode" value="workspace" checked={s.credential_mode === "workspace"} />
+        <label class:list={["radio-card", { selected: s.credentialMode === "workspace" }]}>
+          <input type="radio" name="credential_mode" value="workspace" checked={s.credentialMode === "workspace"} />
           <div class="radio-content">
             <strong>Workspace</strong>
             <span>Use a specific key stored in this workspace's secrets.</span>
@@ -122,9 +123,9 @@ const modCfg = s.moderation_config ?? {};
         <label class="form-field">
           <span class="label">Secret Reference</span>
           <select name="secret_ref" class="input">
-            <option value="" selected={!s.secret_ref}>— none —</option>
+            <option value="" selected={!s.secretRef}>— none —</option>
             {secrets.map((sec: any) => (
-              <option value={sec.slug} selected={s.secret_ref === sec.slug}>{sec.name} ({sec.slug})</option>
+              <option value={sec.slug} selected={s.secretRef === sec.slug}>{sec.name} ({sec.slug})</option>
             ))}
           </select>
           <small class="hint">Select a workspace secret containing the API key. Keys are never stored directly.</small>
@@ -140,22 +141,22 @@ const modCfg = s.moderation_config ?? {};
         <p>How much autonomy AI has to apply changes without human review.</p>
       </legend>
       <div class="radio-group">
-        <label class:list={["radio-card", { selected: s.approval_mode === "suggest-only" }]}>
-          <input type="radio" name="approval_mode" value="suggest-only" checked={s.approval_mode === "suggest-only"} />
+        <label class:list={["radio-card", { selected: s.approvalMode === "suggest-only" }]}>
+          <input type="radio" name="approval_mode" value="suggest-only" checked={s.approvalMode === "suggest-only"} />
           <div class="radio-content">
             <strong>Suggest only</strong>
             <span>AI outputs are shown as suggestions. Users must accept manually.</span>
           </div>
         </label>
-        <label class:list={["radio-card", { selected: s.approval_mode === "allow-draft-update" }]}>
-          <input type="radio" name="approval_mode" value="allow-draft-update" checked={s.approval_mode === "allow-draft-update"} />
+        <label class:list={["radio-card", { selected: s.approvalMode === "allow-draft-update" }]}>
+          <input type="radio" name="approval_mode" value="allow-draft-update" checked={s.approvalMode === "allow-draft-update"} />
           <div class="radio-content">
             <strong>Allow draft update</strong>
             <span>AI can update draft entries automatically. Published entries still require review.</span>
           </div>
         </label>
-        <label class:list={["radio-card", { selected: s.approval_mode === "allow-automatic-update" }]}>
-          <input type="radio" name="approval_mode" value="allow-automatic-update" checked={s.approval_mode === "allow-automatic-update"} />
+        <label class:list={["radio-card", { selected: s.approvalMode === "allow-automatic-update" }]}>
+          <input type="radio" name="approval_mode" value="allow-automatic-update" checked={s.approvalMode === "allow-automatic-update"} />
           <div class="radio-content">
             <strong>Allow automatic update</strong>
             <span>AI can apply changes to any entry without additional approval.</span>
@@ -366,7 +367,7 @@ const modCfg = s.moderation_config ?? {};
 
       saveStatus.textContent = 'Saved';
       saveStatus.className = 'save-status success';
-      setTimeout(() => { saveStatus.textContent = ''; saveStatus.className = 'save-status'; }, 3000);
+      setTimeout(() => window.location.reload(), 800);
     } catch (err) {
       saveStatus.textContent = `Error: ${err.message}`;
       saveStatus.className = 'save-status error';
