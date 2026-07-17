@@ -26,18 +26,32 @@ class AISettingsController(BaseUserController):
                 return
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN or OWNER role required.")
 
+    def _allow_workspace_credentials(self) -> bool:
+        from marvin.core.config import get_app_settings
+        return bool(getattr(get_app_settings(), "AI_ALLOW_WORKSPACE_CREDENTIALS", True))
+
     @router.get("", response_model=WorkspaceAISettingsRead, summary="Get AI Workflow Settings")
     def get_ai_settings(self) -> WorkspaceAISettingsRead:
         """Return current settings; returns defaults when no row exists yet."""
+        allow_ws = self._allow_workspace_credentials()
         row = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         if not row:
-            return WorkspaceAISettingsRead(group_id=self.group_id)
-        return WorkspaceAISettingsRead.model_validate(row)
+            return WorkspaceAISettingsRead(group_id=self.group_id, allow_workspace_credentials=allow_ws)
+        result = WorkspaceAISettingsRead.model_validate(row)
+        result.allow_workspace_credentials = allow_ws
+        return result
 
     @router.patch("", response_model=WorkspaceAISettingsRead, summary="Update AI Workflow Settings")
     def update_ai_settings(self, data: WorkspaceAISettingsUpdate) -> WorkspaceAISettingsRead:
         """Upsert AI workflow settings. Creates the row on first write."""
         self._require_admin()
+
+        # Platform policy: workspaces may be barred from using their own AI credentials.
+        if data.credential_mode == "workspace" and not self._allow_workspace_credentials():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Workspace-provided AI credentials are disabled by the platform administrator.",
+            )
 
         warnings = []
         if data.credential_mode == "workspace" and data.secret_ref:

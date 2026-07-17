@@ -693,6 +693,10 @@ class AppSettings(BaseSettings):
 
     AI_DEFAULT_PROVIDER: str = "openai"
     """Provider used by workspaces in platform credential mode (openai | anthropic | google)."""
+    AI_ALLOW_WORKSPACE_CREDENTIALS: bool = True
+    """Whether workspaces may use their own AI credentials (credential_mode='workspace').
+    When false, only platform-provided credentials are allowed and the workspace option is
+    rejected + hidden in the UI."""
     ANTHROPIC_API_KEY: MaskedNoneString = None
     """Anthropic API key for platform credential mode (masked)."""
     ANTHROPIC_MODEL: str = "claude-sonnet-5"

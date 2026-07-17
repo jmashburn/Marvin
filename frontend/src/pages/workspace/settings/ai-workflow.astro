@@ -32,6 +32,7 @@ const s = {
   budgetConfig: settings?.budgetConfig ?? null,
   loggingConfig: settings?.loggingConfig ?? null,
   moderationConfig: settings?.moderationConfig ?? null,
+  allowWorkspaceCredentials: settings?.allowWorkspaceCredentials ?? true,
 };
 
 const invSrc = s.invocationSources ?? {
@@ -90,11 +91,13 @@ const modCfg = s.moderationConfig ?? {};
             <span>Credentials configured by your platform administrator.</span>
           </div>
         </label>
-        <label class:list={["radio-card", { selected: s.credentialMode === "workspace" }]}>
-          <input type="radio" name="credential_mode" value="workspace" checked={s.credentialMode === "workspace"} />
+        <label class:list={["radio-card", { selected: s.credentialMode === "workspace", disabled: !s.allowWorkspaceCredentials }]}>
+          <input type="radio" name="credential_mode" value="workspace" checked={s.credentialMode === "workspace"} disabled={!s.allowWorkspaceCredentials} />
           <div class="radio-content">
             <strong>Workspace</strong>
-            <span>Use a specific key stored in this workspace's secrets.</span>
+            <span>{s.allowWorkspaceCredentials
+              ? "Use a specific key stored in this workspace's secrets."
+              : "Disabled by the platform administrator — only platform credentials are allowed."}</span>
           </div>
         </label>
       </div>
@@ -494,6 +497,8 @@ const modCfg = s.moderationConfig ?? {};
 
   .radio-card:hover { border-color: var(--accent); }
   .radio-card.selected { border-color: var(--accent); background: rgba(79,156,132,0.06); }
+  .radio-card.disabled { opacity: 0.5; cursor: not-allowed; }
+  .radio-card.disabled:hover { border-color: var(--line); }
 
   .radio-card input[type="radio"] { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
 

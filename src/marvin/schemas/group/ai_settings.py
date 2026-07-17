@@ -42,5 +42,8 @@ class WorkspaceAISettingsUpdate(_MarvinModel):
 class WorkspaceAISettingsRead(WorkspaceAISettingsCreate):
     id: UUID4 | None = None
     group_id: UUID4 | None = None
+    # Read-only platform policy (from AppSettings), surfaced so the UI can gate the
+    # "workspace" credential option. Not persisted on the workspace row.
+    allow_workspace_credentials: bool = True
 
     model_config = ConfigDict(from_attributes=True)
