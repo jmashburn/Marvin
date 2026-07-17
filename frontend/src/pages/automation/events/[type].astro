@@ -645,7 +645,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         const subj = document.getElementById('em-subject');
         // Use message_top as the markdown source (saved there on previous edits),
         // fall back to stripping tags from custom_html for first-open of HTML templates
-        const markdownSource = f('messageTop', 'message_top') || '';
+        const markdownSource = f('bodyMarkdown', 'body_markdown') || f('customHtml', 'custom_html') || '';
         if (subj) subj.value = f('subject', 'subject');
         if (emMdBody) emMdBody.value = markdownSource;
 
@@ -730,9 +730,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
       const tplBody = {
         subject,
-        message_top: markdownBody,
-        message_bottom: '',   // clear — markdown body is self-contained
-        custom_html: markdownToHtml(markdownBody) || '',
+        body_markdown: markdownBody || null,
       };
       // Safety: system templates must never be PATCHed directly — this path
       // should no longer be reachable since we only show workspace templates,
@@ -758,6 +756,18 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       if (emIsEdit && emSubscriptionId) {
         await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${emSubscriptionId}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
       }
+
+      // Disconnect any existing subscriptions for this event type that point to workspace
+      // email templates — only one custom template should be active per system event
+      const existingSubs = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : []).catch(() => []);
+      const conflicting = existingSubs.filter(s =>
+        (s.event_type ?? s.eventType) === type &&
+        (s.template_id ?? s.templateId) !== finalTemplateId
+      );
+      await Promise.all(conflicting.map(s =>
+        fetch(`${apiUrl}/api/groups/email-event-subscriptions/${s.id}`, { method: 'DELETE', credentials: 'include' }).catch(() => {})
+      ));
 
       // 3. Create new subscription
       const rawEmails = recipientType === 'specific' ? emSpecificEmail?.value?.trim() : null;
