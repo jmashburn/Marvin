@@ -1,0 +1,206 @@
+"""System-defined AI operations — available to all workspaces."""
+
+from ..base import Message
+from .base import ROLE_AUTHOR, ROLE_EDITOR, AIOperation, OperationContext, register_operation
+
+
+@register_operation
+class GenerateSummaryOperation(AIOperation):
+    slug = "generate-summary"
+    name = "Generate Summary"
+    description = "Summarise entry or resource content into a concise paragraph."
+    entity_types = ["entry", "resource"]
+    min_role = ROLE_AUTHOR
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "max_words": {"type": "integer", "default": 80},
+            "focus": {"type": "string", "description": "Optional topic to focus the summary on"},
+        },
+    }
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string"},
+            "word_count": {"type": "integer"},
+        },
+        "required": ["summary", "word_count"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        max_words = input.get("max_words", 80)
+        focus = input.get("focus", "")
+        content = ctx.entry.get("content", "") if ctx.entry else ""
+        title = ctx.entry.get("title", "") if ctx.entry else ""
+        focus_clause = f" Focus on: {focus}." if focus else ""
+        return [
+            Message(role="system", content=(
+                f"You are a content assistant for {ctx.workspace_name or 'this workspace'}. "
+                f"Locale: {ctx.site_locale}."
+            )),
+            Message(role="user", content=(
+                f"Summarise the following content in no more than {max_words} words.{focus_clause}\n\n"
+                f"Title: {title}\n\nContent:\n{content}\n\n"
+                f"Return JSON: {{\"summary\": \"...\", \"word_count\": <int>}}"
+            )),
+        ]
+
+
+@register_operation
+class GenerateTagsOperation(AIOperation):
+    slug = "generate-tags"
+    name = "Generate Tags"
+    description = "Suggest relevant tags or keywords for an entry, asset, or resource."
+    entity_types = ["entry", "resource", "asset"]
+    min_role = ROLE_AUTHOR
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "max_tags": {"type": "integer", "default": 8},
+            "existing_tags": {"type": "array", "items": {"type": "string"}},
+        },
+    }
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "tags": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["tags"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        max_tags = input.get("max_tags", 8)
+        existing = input.get("existing_tags", [])
+        content = ctx.entry.get("content", "") if ctx.entry else ""
+        title = ctx.entry.get("title", "") if ctx.entry else ""
+        existing_clause = f"Existing tags (do not repeat): {', '.join(existing)}." if existing else ""
+        return [
+            Message(role="system", content=f"You are a tagging assistant for {ctx.workspace_name or 'this workspace'}."),
+            Message(role="user", content=(
+                f"Suggest up to {max_tags} relevant tags for this content. {existing_clause}\n\n"
+                f"Title: {title}\nContent:\n{content}\n\n"
+                f"Return JSON: {{\"tags\": [\"tag1\", \"tag2\"]}}"
+            )),
+        ]
+
+
+@register_operation
+class ImproveWritingOperation(AIOperation):
+    slug = "improve-writing"
+    name = "Improve Writing"
+    description = "Improve clarity, grammar, and style of entry content."
+    entity_types = ["entry"]
+    min_role = ROLE_AUTHOR
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "tone": {"type": "string", "description": "Desired tone override (e.g. formal, casual)"},
+        },
+    }
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "improved": {"type": "string"},
+            "changes": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["improved", "changes"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        tone = input.get("tone") or ctx.variables.get("AI_TONE", "professional")
+        content = ctx.entry.get("content", "") if ctx.entry else ""
+        return [
+            Message(role="system", content=(
+                f"You are a writing assistant for {ctx.workspace_name or 'this workspace'}. "
+                f"Tone: {tone}. Locale: {ctx.site_locale}."
+            )),
+            Message(role="user", content=(
+                f"Improve the following content for clarity, grammar, and style. "
+                f"Preserve meaning and structure.\n\nContent:\n{content}\n\n"
+                f"Return JSON: {{\"improved\": \"...\", \"changes\": [\"description of change\"]}}"
+            )),
+        ]
+
+
+@register_operation
+class GenerateAltTextOperation(AIOperation):
+    slug = "generate-alt-text"
+    name = "Generate Alt Text"
+    description = "Generate accessible alt text for an image asset."
+    entity_types = ["asset"]
+    requires_vision = True
+    min_role = ROLE_AUTHOR
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "context": {"type": "string", "description": "Optional context about where the image is used"},
+        },
+    }
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "alt_text": {"type": "string"},
+            "description": {"type": "string"},
+        },
+        "required": ["alt_text"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        usage_context = input.get("context", "")
+        context_clause = f"Context: {usage_context}." if usage_context else ""
+        asset = ctx.assets[0] if ctx.assets else {}
+        filename = asset.get("name", "this image")
+        return [
+            Message(role="system", content="You are an accessibility assistant. Write concise, descriptive alt text."),
+            Message(role="user", content=(
+                f"Write alt text for the image '{filename}'. {context_clause} "
+                f"Alt text should be under 125 characters and describe what is shown.\n\n"
+                f"Return JSON: {{\"alt_text\": \"...\", \"description\": \"longer description\"}}"
+            )),
+        ]
+
+
+@register_operation
+class ClassifyFormSubmissionOperation(AIOperation):
+    slug = "classify-form-submission"
+    name = "Classify Form Submission"
+    description = "Classify a form submission by category, detect spam, and extract sentiment."
+    entity_types = ["form_submission"]
+    min_role = ROLE_EDITOR
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "categories": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Possible categories to classify into",
+            },
+        },
+    }
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "category": {"type": "string"},
+            "confidence": {"type": "number"},
+            "is_spam": {"type": "boolean"},
+            "sentiment": {"type": "string", "enum": ["positive", "neutral", "negative"]},
+            "tags": {"type": "array", "items": {"type": "string"}},
+            "action_required": {"type": "boolean"},
+        },
+        "required": ["category", "confidence", "is_spam", "sentiment", "action_required"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        categories = input.get("categories", ["inquiry", "support", "feedback", "other"])
+        submission = ctx.form_submission or {}
+        data = submission.get("data", {})
+        return [
+            Message(role="system", content=(
+                f"You are a form submission classifier for {ctx.workspace_name or 'this workspace'}."
+            )),
+            Message(role="user", content=(
+                f"Classify this form submission.\n\nSubmission data:\n{data}\n\n"
+                f"Available categories: {', '.join(categories)}.\n\n"
+                f"Return JSON matching the output schema."
+            )),
+        ]
