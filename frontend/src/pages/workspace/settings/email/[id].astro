@@ -342,13 +342,34 @@ const eventVars: EventVar[] = [...eventVarMap.values()];
     const SUB_ID_MAP = subIdMap;
 
     // ── Variable chips — click to copy ────────────────────────────────────────
+    function copyText(text) {
+      if (navigator.clipboard?.writeText) {
+        return navigator.clipboard.writeText(text).catch(() => copyFallback(text));
+      }
+      return copyFallback(text);
+    }
+
+    function copyFallback(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:-999px;left:-999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+
     document.querySelectorAll('.var-chip').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', () => {
         const slug = btn.dataset.slug;
         if (!slug) return;
-        try { await navigator.clipboard.writeText(slug); } catch {}
+        copyText(slug);
         const code = btn.querySelector('code');
-        if (code) { const orig = code.textContent; code.textContent = '✓ copied'; setTimeout(() => { code.textContent = orig; }, 1200); }
+        if (code) {
+          const orig = code.textContent;
+          code.textContent = '✓';
+          setTimeout(() => { code.textContent = orig; }, 1200);
+        }
       });
     });
 
