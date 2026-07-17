@@ -93,18 +93,18 @@ class EmailService(BaseService):
         self.templates_dir: Path = CWD / "templates"  # Path to the email templates directory
         self.default_template: Path = self.templates_dir / "default.html"  # Path to the default email template
 
-        if Path(self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE).is_file():
+        if Path(self.templates_dir / self.settings.EMAIL_TEMPLATE).is_file():
             self.default_template: Path = (
-                self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE
+                self.templates_dir / self.settings.EMAIL_TEMPLATE
             )  # Path to the default email template per settings
 
-        if Path(self.directories.TEMPLATE_DIR / self.settings._DEFAULT_EMAIL_TEMPLATE).is_file():
+        if Path(self.directories.TEMPLATE_DIR / self.settings.EMAIL_TEMPLATE).is_file():
             self.templates_dir = self.directories.TEMPLATE_DIR
-            self.default_template = self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE
+            self.default_template = self.templates_dir / self.settings.EMAIL_TEMPLATE
 
         # Workspace-level override — highest priority
         if group_id:
-            workspace_template = self.directories.TEMPLATE_DIR / str(group_id) / self.settings._DEFAULT_EMAIL_TEMPLATE
+            workspace_template = self.directories.TEMPLATE_DIR / str(group_id) / self.settings.EMAIL_TEMPLATE
             if workspace_template.is_file():
                 self.default_template = workspace_template
 
