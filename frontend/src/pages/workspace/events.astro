@@ -79,8 +79,8 @@ const entityTypes = Array.from(
               <th></th>
               <th>When</th>
               <th>Event</th>
+              <th>Details</th>
               <th>Entity</th>
-              <th>Message</th>
             </tr>
           </thead>
           <tbody>
@@ -92,7 +92,8 @@ const entityTypes = Array.from(
               const entityId = fld(ev, 'entityId', 'entity_id');
               const title = fld(ev, 'messageTitle', 'message_title');
               const body = fld(ev, 'messageBody', 'message_body');
-              const search = `${title ?? ''} ${prettyType(eventType)} ${entityType ?? ''}`.toLowerCase();
+              const isLegacyType = /^\d+$/.test(String(eventType ?? ''));
+              const search = `${title ?? ''} ${body ?? ''} ${isLegacyType ? '' : prettyType(eventType)} ${entityType ?? ''}`.toLowerCase();
               return (
                 <>
                   <tr class="log-row" data-search={search} data-entity={entityType ?? ''}>
@@ -100,7 +101,13 @@ const entityTypes = Array.from(
                       <button class="expand-btn" data-target={`detail-${i}`} data-event-id={eventId}>▶</button>
                     </td>
                     <td class="nowrap muted">{formatDate(occurredAt)}</td>
-                    <td><code class="ev-badge">{prettyType(eventType)}</code></td>
+                    <td>
+                      <span class="event-cell">
+                        <span class="event-title">{title}</span>
+                        {!isLegacyType && <code class="ev-badge">{prettyType(eventType)}</code>}
+                      </span>
+                    </td>
+                    <td class="detail-col">{body || '—'}</td>
                     <td class="nowrap">
                       {entityType ? (
                         <span class="entity-cell">
@@ -109,17 +116,10 @@ const entityTypes = Array.from(
                         </span>
                       ) : <span class="muted">—</span>}
                     </td>
-                    <td>{title}</td>
                   </tr>
                   <tr class="detail-row" id={`detail-${i}`} style="display:none">
                     <td colspan="5">
                       <div class="detail-body">
-                        {body && (
-                          <div class="detail-section">
-                            <div class="detail-label">Message</div>
-                            <div class="detail-message">{body}</div>
-                          </div>
-                        )}
                         <div class="detail-section">
                           <div class="detail-label">Payload</div>
                           <pre class="payload-json" data-payload-for={eventId}>Loading…</pre>
@@ -364,6 +364,10 @@ const entityTypes = Array.from(
     color: var(--ink);
     white-space: nowrap;
   }
+
+  .event-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .event-title { font-size: 14px; color: var(--ink); font-weight: 500; }
+  .detail-col { color: var(--muted); font-size: 13px; max-width: 520px; }
 
   .entity-cell { display: flex; flex-direction: column; gap: 1px; }
   .entity-type { font-size: 13px; color: var(--ink); text-transform: capitalize; }
