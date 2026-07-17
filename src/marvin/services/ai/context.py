@@ -13,7 +13,8 @@ Usage:
     )
 """
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 
@@ -61,12 +62,12 @@ class ContextBuilder:
 
     def with_entry(self, entry_id: UUID4) -> "ContextBuilder":
         """Load a single entry as the primary context object."""
-        from marvin.db.models.platform.entries import EntryModel
-        from marvin.db.models.platform.entry_types import EntryTypeModel
-        entry = self._session.get(EntryModel, entry_id)
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.entry_types import EntryTypes
+        entry = self._session.get(Entries, entry_id)
         if not entry:
             return self
-        entry_type = self._session.get(EntryTypeModel, entry.entry_type_id) if entry.entry_type_id else None
+        entry_type = self._session.get(EntryTypes, entry.entry_type_id) if entry.entry_type_id else None
         self._ctx.entry = {
             "id": str(entry.id),
             "title": entry.title or "",
@@ -83,24 +84,26 @@ class ContextBuilder:
 
     def with_related_entries(self, entry_id: UUID4, limit: int = 5) -> "ContextBuilder":
         """Load entries that share a collection with the given entry."""
-        from marvin.db.models.platform.entries import EntryModel, entry_collections
-        from sqlalchemy import select, and_
+        from sqlalchemy import and_, select
+
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.entry_collections import EntryCollections
 
         collection_ids = self._session.execute(
-            select(entry_collections.c.collection_id).where(entry_collections.c.entry_id == entry_id)
+            select(EntryCollections.collection_id).where(EntryCollections.entry_id == entry_id)
         ).scalars().all()
 
         if not collection_ids:
             return self
 
         related = self._session.execute(
-            select(EntryModel)
-            .join(entry_collections, EntryModel.id == entry_collections.c.entry_id)
+            select(Entries)
+            .join(EntryCollections, Entries.id == EntryCollections.entry_id)
             .where(
                 and_(
-                    entry_collections.c.collection_id.in_(collection_ids),
-                    EntryModel.id != entry_id,
-                    EntryModel.group_id == self._group_id,
+                    EntryCollections.collection_id.in_(collection_ids),
+                    Entries.id != entry_id,
+                    Entries.group_id == self._group_id,
                 )
             )
             .limit(limit)
@@ -109,36 +112,77 @@ class ContextBuilder:
         self._ctx.variables["related_entries"] = "; ".join(e.title or "" for e in related)
         return self
 
+    def _asset_dict(self, a) -> dict:
+        return {
+            "id": str(a.id),
+            "name": a.name,
+            "mime_type": a.mime_type,
+            "storage_key": a.storage_key,
+            "storage_provider": a.storage_provider,
+            "width": a.width,
+            "height": a.height,
+        }
+
+    def with_asset(self, asset_id: UUID4) -> "ContextBuilder":
+        """Load a single asset directly as the primary asset (e.g. for vision operations)."""
+        from marvin.db.models.platform.assets import Assets
+        a = self._session.get(Assets, asset_id)
+        if a and a.group_id == self._group_id:
+            self._ctx.assets = [self._asset_dict(a)]
+        return self
+
     def with_assets(self, entry_id: UUID4 | None = None) -> "ContextBuilder":
-        """Load assets — either entry-linked or all workspace assets."""
-        from marvin.db.models.platform.assets import AssetModel
+        """Load assets — entry-linked, or all workspace assets when entry_id is None."""
+        from marvin.db.models.platform.assets import Assets
         if entry_id:
-            from marvin.db.models.platform.entries import entry_assets
             from sqlalchemy import select
+
+            from marvin.db.models.platform.entry_assets import EntryAssets
             asset_ids = self._session.execute(
-                select(entry_assets.c.asset_id).where(entry_assets.c.entry_id == entry_id)
+                select(EntryAssets.asset_id).where(EntryAssets.entry_id == entry_id)
             ).scalars().all()
-            assets = [self._session.get(AssetModel, aid) for aid in asset_ids]
+            assets = [self._session.get(Assets, aid) for aid in asset_ids]
             assets = [a for a in assets if a]
         else:
-            assets = self._session.query(AssetModel).filter_by(group_id=self._group_id).limit(10).all()
+            assets = self._session.query(Assets).filter_by(group_id=self._group_id).limit(10).all()
 
-        self._ctx.assets = [{"id": str(a.id), "name": a.name, "mime_type": a.mime_type} for a in assets]
+        self._ctx.assets = [self._asset_dict(a) for a in assets]
+        return self
+
+    def with_asset_images(self, limit: int = 4) -> "ContextBuilder":
+        """Base64-encode raw bytes for image assets already in context (for vision ops)."""
+        import base64
+
+        from marvin.services.storage.provider_factory import get_storage_provider
+        loaded = 0
+        for asset in self._ctx.assets:
+            if loaded >= limit:
+                break
+            mime = asset.get("mime_type") or ""
+            if not mime.startswith("image/") or not asset.get("storage_key"):
+                continue
+            try:
+                fh = get_storage_provider().get(asset["storage_key"])
+                asset["image_data"] = base64.b64encode(fh.read()).decode("ascii")
+                loaded += 1
+            except Exception:
+                continue  # skip unreadable assets rather than failing the whole operation
         return self
 
     def with_resources(self, entry_id: UUID4 | None = None) -> "ContextBuilder":
         """Load resources linked to an entry, or all workspace resources."""
-        from marvin.db.models.platform.resources import ResourceModel
+        from marvin.db.models.platform.resources import Resources
         if entry_id:
-            from marvin.db.models.platform.entries import entry_resources
             from sqlalchemy import select
+
+            from marvin.db.models.platform.entry_resources import EntryResources
             resource_ids = self._session.execute(
-                select(entry_resources.c.resource_id).where(entry_resources.c.entry_id == entry_id)
+                select(EntryResources.resource_id).where(EntryResources.entry_id == entry_id)
             ).scalars().all()
-            resources = [self._session.get(ResourceModel, rid) for rid in resource_ids]
+            resources = [self._session.get(Resources, rid) for rid in resource_ids]
             resources = [r for r in resources if r]
         else:
-            resources = self._session.query(ResourceModel).filter_by(group_id=self._group_id).limit(10).all()
+            resources = self._session.query(Resources).filter_by(group_id=self._group_id).limit(10).all()
 
         self._ctx.resources = [
             {"id": str(r.id), "name": r.name, "type": r.resource_type, "description": r.description or ""}
@@ -146,9 +190,24 @@ class ContextBuilder:
         ]
         return self
 
+    def with_resource(self, resource_id: UUID4) -> "ContextBuilder":
+        """Load a single resource directly as the primary resource (e.g. for enrichment)."""
+        from marvin.db.models.platform.resources import Resources
+        r = self._session.get(Resources, resource_id)
+        if r and r.group_id == self._group_id:
+            self._ctx.resources = [{
+                "id": str(r.id),
+                "name": r.name,
+                "type": r.resource_type,
+                "description": r.description or "",
+                "url": r.url or "",
+                "metadata": r.metadata_json or {},
+            }]
+        return self
+
     def with_form_submission(self, submission_id: UUID4) -> "ContextBuilder":
-        from marvin.db.models.platform.form_submissions import FormSubmissionModel
-        sub = self._session.get(FormSubmissionModel, submission_id)
+        from marvin.db.models.platform.form_submissions import FormSubmissions
+        sub = self._session.get(FormSubmissions, submission_id)
         if sub:
             self._ctx.form_submission = {
                 "id": str(sub.id),
