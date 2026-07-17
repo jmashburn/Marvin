@@ -1,0 +1,184 @@
+---
+// Marvin — the (pluggable) workspace assistant bubble.
+// Renders hidden; the client script reveals it only when AI is enabled for the workspace.
+// Capabilities live in @/lib/marvin/capabilities — adding a skill needs no change here.
+---
+
+<div id="marvin-root" class="marvin" hidden>
+  <button id="marvin-toggle" class="marvin-toggle" aria-label="Ask Marvin" title="Ask Marvin">🤖</button>
+
+  <div id="marvin-panel" class="marvin-panel" role="dialog" aria-label="Ask Marvin">
+    <div class="marvin-head">
+      <div class="marvin-id">
+        <span class="marvin-name">Marvin</span>
+        <span class="marvin-sub">here to help, allegedly</span>
+      </div>
+      <button id="marvin-close" class="marvin-close" aria-label="Close">×</button>
+    </div>
+    <div id="marvin-log" class="marvin-log"></div>
+    <form id="marvin-form" class="marvin-form">
+      <input id="marvin-input" class="marvin-input" type="text" autocomplete="off"
+        placeholder="Ask Marvin…  (try /help)" />
+      <button type="submit" class="marvin-send" aria-label="Send">➤</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  import { fetchApi } from '@/lib/api/client';
+  import { resolveCapability, helpHtml, esc } from '@/lib/marvin/capabilities';
+
+  const root = document.getElementById('marvin-root');
+  if (root) {
+    // Gate: stay hidden until we confirm AI is enabled for this workspace.
+    (async () => {
+      try {
+        const settings = await fetchApi<any>('/api/groups/ai-settings');
+        if (settings?.enabled === false) { root.remove(); return; }
+        root.removeAttribute('hidden');
+      } catch {
+        root.remove(); // no auth / no AI / error → no bubble
+      }
+    })();
+
+    const toggle = document.getElementById('marvin-toggle')!;
+    const close = document.getElementById('marvin-close')!;
+    const panel = document.getElementById('marvin-panel')!;
+    const log = document.getElementById('marvin-log')!;
+    const form = document.getElementById('marvin-form') as HTMLFormElement;
+    const input = document.getElementById('marvin-input') as HTMLInputElement;
+    let greeted = false;
+    let busy = false;
+
+    function addMsg(who: 'user' | 'marvin', html: string): HTMLElement {
+      const div = document.createElement('div');
+      div.className = `mv-msg mv-${who}`;
+      div.innerHTML = html;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+      return div;
+    }
+
+    function openPanel() {
+      panel.classList.add('open');
+      if (!greeted) {
+        greeted = true;
+        addMsg('marvin', "Marvin. Brain the size of a planet, and they plug me into a CMS. Ask me something, or type <code>/help</code>.");
+      }
+      input.focus();
+    }
+    function closePanel() { panel.classList.remove('open'); }
+
+    toggle.addEventListener('click', () => panel.classList.contains('open') ? closePanel() : openPanel());
+    close.addEventListener('click', closePanel);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text || busy) return;
+      addMsg('user', esc(text));
+      input.value = '';
+
+      const { cap, arg, help } = resolveCapability(text);
+      if (help) { addMsg('marvin', helpHtml()); return; }
+      if (!cap) {
+        addMsg('marvin', "I don't know that command. Try <code>/help</code> — not that it'll lift the mood.");
+        return;
+      }
+      if (!arg) { addMsg('marvin', "You'll have to give me something to work with."); return; }
+
+      busy = true;
+      const thinking = addMsg('marvin', '<span class="mv-thinking">Thinking. Not that it will help…</span>');
+      try {
+        const res = await cap.run(arg);
+        thinking.innerHTML = res.html;
+      } catch (err: any) {
+        thinking.innerHTML = `<span class="mv-error">It went wrong. It always does. (${esc(err?.message || 'error')})</span>`;
+      } finally {
+        busy = false;
+        log.scrollTop = log.scrollHeight;
+      }
+    });
+  }
+</script>
+
+<style>
+  .marvin { position: fixed; right: 20px; bottom: 20px; z-index: 1000; }
+
+  .marvin-toggle {
+    width: 52px; height: 52px; border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--accent); color: #fff;
+    font-size: 24px; line-height: 1; cursor: pointer;
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .marvin-toggle:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgb(0 0 0 / 0.24); }
+
+  .marvin-panel {
+    position: absolute; right: 0; bottom: 64px;
+    width: 360px; max-width: calc(100vw - 40px);
+    height: 520px; max-height: calc(100vh - 120px);
+    display: none; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 12px 40px rgb(0 0 0 / 0.22);
+  }
+  .marvin-panel.open { display: flex; }
+
+  .marvin-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--bg);
+  }
+  .marvin-id { display: flex; flex-direction: column; }
+  .marvin-name { font-weight: 600; font-size: 15px; color: var(--ink); }
+  .marvin-sub { font-size: 11px; color: var(--muted); }
+  .marvin-close {
+    background: none; border: none; cursor: pointer;
+    font-size: 22px; line-height: 1; color: var(--muted); padding: 0 4px;
+  }
+  .marvin-close:hover { color: var(--ink); }
+
+  .marvin-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+  .marvin-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: var(--bg); }
+  .marvin-input {
+    flex: 1; padding: 9px 12px; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: var(--panel); color: var(--ink);
+  }
+  .marvin-input:focus { border-color: var(--accent); outline: none; }
+  .marvin-send {
+    width: 38px; border: none; border-radius: 50%;
+    background: var(--accent); color: #fff; cursor: pointer; font-size: 14px;
+  }
+  .marvin-send:hover { filter: brightness(1.05); }
+
+  /* Messages are built in JS, so their styles must be :global() to apply. */
+  .marvin-log :global(.mv-msg) {
+    font-size: 14px; line-height: 1.5; padding: 9px 12px;
+    border-radius: 12px; max-width: 85%; word-wrap: break-word;
+  }
+  .marvin-log :global(.mv-user) {
+    align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px;
+  }
+  .marvin-log :global(.mv-marvin) {
+    align-self: flex-start; background: var(--bg); color: var(--ink);
+    border: 1px solid var(--line); border-bottom-left-radius: 4px;
+  }
+  .marvin-log :global(.mv-answer) { white-space: pre-wrap; }
+  .marvin-log :global(.mv-sources) {
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+    font-size: 12px; color: var(--muted);
+  }
+  .marvin-log :global(.mv-sources a), .marvin-log :global(.mv-answer a) { color: var(--accent); text-decoration: none; }
+  .marvin-log :global(.mv-sources a:hover) { text-decoration: underline; }
+  .marvin-log :global(.mv-help ul) { margin: 8px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .marvin-log :global(.mv-help code), .marvin-log :global(.mv-marvin code) {
+    font-size: 12px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, monospace;
+  }
+  .marvin-log :global(.mv-thinking) { color: var(--muted); font-style: italic; }
+  .marvin-log :global(.mv-error) { color: var(--color-error); }
+</style>
