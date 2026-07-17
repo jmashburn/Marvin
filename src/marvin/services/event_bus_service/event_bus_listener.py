@@ -890,6 +890,33 @@ class EmailEventListener(EventListenerBase):
             if has_workspace_override:
                 return workspace_subs
 
+            # Also check for workspace templates of this type even without an explicit subscription
+            # (handles templates created before auto-create ran, or with a missing subscription row)
+            ws_templates_of_type = (
+                repos.session.query(EmailTemplateModel)
+                .filter(
+                    EmailTemplateModel.template_type == system_template_type,
+                    EmailTemplateModel.group_id == self.group_id,
+                    EmailTemplateModel.enabled == True,  # noqa: E712
+                )
+                .all()
+            )
+            if ws_templates_of_type:
+                self.logger.info(
+                    f"EmailEventListener: using {len(ws_templates_of_type)} workspace template(s) "
+                    f"of type '{system_template_type}' (no explicit subscription row)"
+                )
+                return list(workspace_subs) + [
+                    VirtualEmailSubscription(
+                        template_id=t.id,
+                        event_type=event.event_type.name,
+                        recipient_type=system_mapping["recipient_type"],
+                        recipient_field=system_mapping.get("recipient_field"),
+                        recipient_email=system_mapping.get("recipient_email"),
+                    )
+                    for t in ws_templates_of_type
+                ]
+
             # No workspace override — try the system template
             system_template = (
                 repos.session.query(EmailTemplateModel)
