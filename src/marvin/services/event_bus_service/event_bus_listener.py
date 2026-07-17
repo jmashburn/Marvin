@@ -894,32 +894,14 @@ class EmailEventListener(EventListenerBase):
             ]
 
             if connected_subs:
-                # Explicit connection via Events page — respect it, ignore everything else
+                # Explicit connection via Events page — use only those
                 self.logger.info(
                     f"EmailEventListener: {len(connected_subs)} explicitly connected "
                     f"workspace template(s) for '{system_template_type}'"
                 )
                 return connected_subs
 
-            if ws_templates_of_type:
-                # Workspace template exists but not explicitly connected — use the most
-                # recently created one as a convenience fallback (single-template case)
-                ws_tmpl = ws_templates_of_type[-1]
-                self.logger.info(
-                    f"EmailEventListener: fallback to workspace template '{ws_tmpl.name}' "
-                    f"(type={system_template_type}, no subscription row)"
-                )
-                return [
-                    VirtualEmailSubscription(
-                        template_id=ws_tmpl.id,
-                        event_type=event.event_type.name,
-                        recipient_type=system_mapping["recipient_type"],
-                        recipient_field=system_mapping.get("recipient_field"),
-                        recipient_email=system_mapping.get("recipient_email"),
-                    )
-                ]
-
-            # No workspace templates — use system template
+            # No explicit connection — fall through to system template
             system_template = (
                 repos.session.query(EmailTemplateModel)
                 .filter(
