@@ -97,7 +97,12 @@ OLLAMA_TOKEN          → (empty for local)
 
 The `secret_ref` value stored in `ai_providers.secret_ref` is just the slug string `"OPENAI_API_KEY"`. The actual key is resolved at inference time and **never logged, never cached in the execution record**.
 
-**Platform-level fallback** (for workspaces using `credential_mode = "platform"`): `AppSettings.OPENAI_API_KEY`, `AppSettings.ANTHROPIC_API_KEY`, etc. The provider factory checks `workspace_ai_settings.credential_mode` first.
+**Platform-level fallback** (for workspaces using `credential_mode = "platform"`): the factory
+reads `AppSettings.{PROVIDER}_API_KEY` / `{PROVIDER}_BASE_URL` by convention. **Today only
+`OPENAI_*` fields exist in `AppSettings`, so platform mode is effectively OpenAI-only** —
+other providers (Anthropic, Google, Azure, Ollama) require `credential_mode = "workspace"`
+until their `AppSettings` fields are added. The provider factory checks
+`workspace_ai_settings.credential_mode` first.
 
 ---
 

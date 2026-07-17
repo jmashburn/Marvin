@@ -51,6 +51,7 @@ class AIProvidersController(BaseUserController):
 
     @router.get("", response_model=list[AIProviderRead], summary="List AI Providers")
     def list_providers(self) -> list[AIProviderRead]:
+        _require_admin(self.user, self.group_id)  # provider config is admin-managed (§14)
         rows = self.session.query(AIProviderModel).filter_by(group_id=self.group_id).order_by(AIProviderModel.name).all()
         return [AIProviderRead.model_validate(r) for r in rows]
 
@@ -74,6 +75,7 @@ class AIProvidersController(BaseUserController):
 
     @router.get("/{provider_id}", response_model=AIProviderRead, summary="Get AI Provider")
     def get_provider(self, provider_id: UUID4) -> AIProviderRead:
+        _require_admin(self.user, self.group_id)  # provider config is admin-managed (§14)
         row = _get_provider_or_404(self.session, provider_id, self.group_id)
         return AIProviderRead.model_validate(row)
 
@@ -120,6 +122,7 @@ class AIProvidersController(BaseUserController):
 
     @router.get("/{provider_id}/models", response_model=list[AIModelRead], summary="List Models")
     def list_models(self, provider_id: UUID4) -> list[AIModelRead]:
+        _require_admin(self.user, self.group_id)  # model config is admin-managed (§14)
         provider = _get_provider_or_404(self.session, provider_id, self.group_id)
         rows = self.session.query(AIModelModel).filter_by(provider_id=provider.id).order_by(AIModelModel.name).all()
         return [AIModelRead.model_validate(r) for r in rows]
