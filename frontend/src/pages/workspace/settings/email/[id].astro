@@ -44,7 +44,7 @@ const templateType: string = template?.templateType ?? template?.template_type ?
 const mySubscriptions = (subscriptions ?? []).filter((s: any) =>
   (s.template_id ?? s.templateId) === id
 );
-const subscribedEvents = new Set<string>(mySubscriptions.map((s: any) => s.event_type ?? s.eventType));
+const subscribedEvents = new Set(mySubscriptions.map((s: any) => s.event_type ?? s.eventType));
 
 // System template event mapping (mirrors backend SYSTEM_TEMPLATE_EVENT_MAP)
 const SYSTEM_EVENT_MAP: Record<string, string> = {
@@ -67,7 +67,7 @@ const connectedEventTypes = [
   ...[...subscribedEvents].filter(e => e !== systemHardcodedEvent),
 ];
 
-const eventVarSeen = new Set<string>();
+const eventVarSeen = new Set();
 const eventVars: Array<{ slug: string; description: string; example: string; fromEvent: string }> = [];
 for (const evtType of connectedEventTypes) {
   const evtInfo = eventOptions.find((e: any) => e.value === evtType);

@@ -37,41 +37,28 @@ const groupId = (workspace as any)?.id ?? (workspace as any)?.groupId;
 const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
 // Build template_id → [event_type, ...] from both sources
-const eventsByTemplateId = new Map<string, string[]>();
+const eventsByTemplateId: Record<string, string[]> = {};
 
-// System event connections
+function _addEvent(id: string, et: string) {
+  if (!id || !et) return;
+  if (!eventsByTemplateId[id]) eventsByTemplateId[id] = [];
+  if (!eventsByTemplateId[id].includes(et)) eventsByTemplateId[id].push(et);
+}
+
 for (const conn of eventConnections) {
-  const addTo = (id: string) => {
-    if (!id) return;
-    if (!eventsByTemplateId.has(id)) eventsByTemplateId.set(id, []);
-    if (!eventsByTemplateId.get(id)!.includes(conn.event_type))
-      eventsByTemplateId.get(id)!.push(conn.event_type);
-  };
-  if (conn.system_template?.id) addTo(conn.system_template.id);
-  if (conn.workspace_template?.id && conn.subscription_id) addTo(conn.workspace_template.id);
+  if (conn.system_template?.id) _addEvent(conn.system_template.id, conn.event_type);
+  if (conn.workspace_template?.id && conn.subscription_id) _addEvent(conn.workspace_template.id, conn.event_type);
 }
-
-// Workspace subscriptions
 for (const sub of allSubscriptions) {
-  const tid = sub.template_id ?? sub.templateId;
-  const et = sub.event_type ?? sub.eventType;
-  if (!tid || !et) continue;
-  if (!eventsByTemplateId.has(tid)) eventsByTemplateId.set(tid, []);
-  if (!eventsByTemplateId.get(tid)!.includes(et))
-    eventsByTemplateId.get(tid)!.push(et);
+  _addEvent(sub.template_id ?? sub.templateId, sub.event_type ?? sub.eventType);
 }
-
-// Keep old single-event map for backward compat
-const systemEventByTemplateId = new Map<string, string>(
-  [...eventsByTemplateId.entries()].map(([id, evts]) => [id, evts[0]])
-);
 
 // Group templates by type to compute effective state
-const templatesByType = new Map<string, any[]>();
+const templatesByType: Record<string, any[]> = {};
 for (const t of emailTemplates) {
   const type = (t as any).templateType ?? (t as any).template_type ?? 'custom';
-  if (!templatesByType.has(type)) templatesByType.set(type, []);
-  templatesByType.get(type)!.push(t);
+  if (!templatesByType[type]) templatesByType[type] = [];
+  templatesByType[type].push(t);
 }
 
 // A system template is "superseded" when any workspace template of the same type is enabled
@@ -79,7 +66,7 @@ function isSuperseded(template: any): boolean {
   const isSystem = !((template as any).groupId ?? (template as any).group_id);
   if (!isSystem) return false;
   const type = (template as any).templateType ?? (template as any).template_type;
-  const siblings = templatesByType.get(type) || [];
+  const siblings = templatesByType[type] || [];
   return siblings.some(t => {
     const tIsWorkspace = !!((t as any).groupId ?? (t as any).group_id);
     return tIsWorkspace && t.enabled;
@@ -128,7 +115,7 @@ function isSuperseded(template: any): boolean {
             const customTemplates = emailTemplates.filter((t: any) => !!(t.groupId ?? t.group_id));
             const renderCard = (template: any) => {
               const isSystemTpl = !(template.groupId ?? template.group_id);
-              const connectedEvent = systemEventByTemplateId.get(template.id) ?? null;
+              const connectedEvent = (eventsByTemplateId[template.id]?.[0]) ?? null;
               return (
                 <div class:list={['template-card', { 'is-superseded': isSuperseded(template) }]} data-template-id={template.id}>
                   <div class="template-info">
@@ -152,7 +139,7 @@ function isSuperseded(template: any): boolean {
                     </div>
                     <p>{template.description || 'No description'}</p>
                     {(() => {
-                      const evts = eventsByTemplateId.get(template.id) ?? [];
+                      const evts = eventsByTemplateId[template.id] ?? [];
                       if (!evts.length) return null;
                       const show = evts.slice(0, 2);
                       const rest = evts.length - show.length;
