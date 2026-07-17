@@ -19,17 +19,16 @@ export interface AIWorkflowSettings {
 
 export type AIWorkflowSettingsUpdate = Partial<Omit<AIWorkflowSettings, "id" | "group_id">>;
 
-export async function getAIWorkflowSettings(groupId: string, authToken?: string): Promise<AIWorkflowSettings> {
-  return fetchApi<AIWorkflowSettings>(`/api/groups/${groupId}/ai-settings`, {}, authToken);
+export async function getAIWorkflowSettings(authToken?: string): Promise<AIWorkflowSettings> {
+  return fetchApi<AIWorkflowSettings>(`/api/groups/ai-settings`, {}, authToken);
 }
 
 export async function updateAIWorkflowSettings(
-  groupId: string,
   patch: AIWorkflowSettingsUpdate,
   authToken?: string,
 ): Promise<AIWorkflowSettings> {
   return fetchApi<AIWorkflowSettings>(
-    `/api/groups/${groupId}/ai-settings`,
+    `/api/groups/ai-settings`,
     { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) },
     authToken,
   );

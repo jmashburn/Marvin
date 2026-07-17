@@ -1,33 +1,23 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { getAIWorkflowSettings } from "@/lib/api/aiWorkflowSettings";
 import { fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 
-let workspace: any = null;
 let settings: any = null;
 let secrets: any[] = [];
 let error: string | null = null;
 
 try {
-  workspace = await getCurrentWorkspace(authToken!);
+  [settings, secrets] = await Promise.all([
+    getAIWorkflowSettings(authToken),
+    fetchApi<any[]>(`/api/groups/secrets`, {}, authToken),
+  ]);
 } catch (e) {
-  console.error('[ai-workflow] Error loading workspace:', e);
-}
-
-if (workspace?.id) {
-  try {
-    [settings, secrets] = await Promise.all([
-      getAIWorkflowSettings(workspace.id, authToken),
-      fetchApi<any[]>(`/api/groups/secrets`, {}, authToken),
-    ]);
-  } catch (e) {
-    console.error('[ai-workflow] Error loading settings:', e);
-    error = e instanceof Error ? e.message : String(e);
-  }
+  console.error('[ai-workflow] Error loading settings:', e);
+  error = e instanceof Error ? e.message : String(e);
 }
 
 const s = settings ?? {
@@ -286,7 +276,7 @@ const modCfg = s.moderation_config ?? {};
   </form>
 </AppLayout>
 
-<script define:vars={{ workspaceId: workspace?.id }}>
+<script>
   const form = document.getElementById('ai-settings-form');
   const enabledToggle = document.getElementById('ai-enabled');
   const enabledText = document.getElementById('ai-enabled-text');
@@ -333,8 +323,6 @@ const modCfg = s.moderation_config ?? {};
   // Save handler
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!workspaceId) { alert('No workspace ID'); return; }
-
     const fd = new FormData(form);
 
     const invSrc = {};
@@ -380,7 +368,7 @@ const modCfg = s.moderation_config ?? {};
     saveStatus.className = 'save-status';
 
     try {
-      const res = await fetch(`/api/groups/${workspaceId}/ai-settings`, {
+      const res = await fetch(`/api/groups/ai-settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
