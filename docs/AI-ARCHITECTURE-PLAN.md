@@ -12,7 +12,9 @@ Consciously parked items, most-actionable first. Details live in the linked sect
 
 | Item | Why deferred | Revisit when | Section |
 |---|---|---|---|
-| **Auto-embed-on-publish** | Reindex is manual today; event-bus trigger not wired | RAG answers go stale between manual reindexes | §17, Phase 7 |
+| **AI event types + emission** | §15 describes `ai_operation_executed` / `ai_operation_failed` events, but the execute path emits none — needs `EventTypes` enum values + DB seed rows + emit calls | Wiring webhooks / subscriptions / notifications to AI activity | §15 |
+| **Scheduled RAG reindex** | Embeddings refresh only via manual `POST /api/ai/embeddings/reindex`; no scheduled-task handler yet | Automating embedding freshness on a cron | §17, Phase 7 |
+| **Auto-embed-on-publish** | Event-bus trigger not wired (depends on AI event emission above) | RAG answers go stale between reindexes | §17, Phase 7 |
 | **Phase 8 — Agents** | Largest/most speculative; not started | A multi-step workflow need appears | §18, Phase 8 |
 | **pgvector on Postgres** | JSON + numpy cosine works on both DBs; pgvector adds a dialect fork | A workspace hits ~tens of thousands of embedded chunks and the numpy full-scan slows | §17, Phase 7 |
 | **Form-submission AI review** | No submissions UI, and forms may fold into `entry_types` | The forms-vs-`entry_types` direction settles | Phase 5 |
