@@ -52,6 +52,8 @@ if (currentTab === 'statistics' && workspace?.id) {
       webhooks_count: platformStats?.webhooks ?? 0,
       ai_executions_count: platformStats?.aiExecutions ?? platformStats?.ai_executions ?? 0,
       ai_embeddings_count: platformStats?.aiEmbeddings ?? platformStats?.ai_embeddings ?? 0,
+      ai_tokens_count: platformStats?.aiTokens ?? platformStats?.ai_tokens ?? 0,
+      ai_cost_usd: platformStats?.aiCostUsd ?? platformStats?.ai_cost_usd ?? 0,
     };
   } catch (e) {
     console.error('[workspace/settings] Error loading statistics:', e);
@@ -296,6 +298,14 @@ const tabs = [
             <div class="stat-card">
               <div class="stat-label">RAG Embeddings</div>
               <div class="stat-value">{stats?.ai_embeddings_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI Tokens (This Month)</div>
+              <div class="stat-value">{stats?.ai_tokens_count ? Number(stats.ai_tokens_count).toLocaleString() : '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI Cost (This Month)</div>
+              <div class="stat-value">{stats?.ai_cost_usd ? `$${Number(stats.ai_cost_usd).toFixed(Number(stats.ai_cost_usd) < 1 ? 4 : 2)}` : '—'}</div>
             </div>
           </div>
         </div>

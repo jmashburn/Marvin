@@ -142,6 +142,7 @@ if (authed) {
         } else {
           li.textContent = s.title || key;
         }
+        li.appendChild(document.createTextNode(' '));
         const badge = document.createElement('span');
         badge.className = 'source-type';
         badge.textContent = s.entity_type;
@@ -315,12 +316,14 @@ if (authed) {
     margin-bottom: 10px;
   }
 
+  /* The <li>/<a>/badge nodes are created in JS, so they lack Astro's scope
+     attribute — their styles must be :global() to apply. */
   .sources-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
-  .sources-list li { font-size: 14px; }
-  .sources-list a { color: var(--accent); text-decoration: none; }
-  .sources-list a:hover { text-decoration: underline; }
+  .sources-list :global(li) { font-size: 14px; }
+  .sources-list :global(a) { color: var(--accent); text-decoration: none; }
+  .sources-list :global(a:hover) { text-decoration: underline; }
 
-  .source-type {
+  .sources-list :global(.source-type) {
     display: inline-block;
     margin-left: 8px;
     padding: 1px 6px;

@@ -1,5 +1,7 @@
 """Platform stats endpoint — returns workspace-scoped resource counts."""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter
 from pydantic import UUID4
 from sqlalchemy import func, select
@@ -28,6 +30,8 @@ class WorkspaceStats(_MarvinModel):
     members: int = 0
     ai_executions: int = 0
     ai_embeddings: int = 0
+    ai_tokens: int = 0
+    ai_cost_usd: float = 0.0
 
 
 def _count(session, model, group_id: UUID4) -> int:
@@ -43,6 +47,17 @@ def _count(session, model, group_id: UUID4) -> int:
         return 0
 
 
+def _sum(session, model, column, group_id: UUID4, since: datetime | None = None):
+    """Return a group-scoped SUM of `column`, optionally since `since`, defaulting to 0 on error."""
+    try:
+        stmt = select(func.coalesce(func.sum(column), 0)).where(model.group_id == group_id)
+        if since is not None:
+            stmt = stmt.where(model.created_at >= since)
+        return session.execute(stmt).scalar() or 0
+    except Exception:
+        return 0
+
+
 @controller(router)
 class StatsController(BaseUserController):
     """Returns resource counts for the current workspace."""
@@ -51,6 +66,7 @@ class StatsController(BaseUserController):
     def get_stats(self) -> WorkspaceStats:
         workspace_id: UUID4 = self.group_id
         session = self.repos.session
+        month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         try:
             members = self.repos.workspace_members.get_members_by_workspace(workspace_id)
@@ -69,4 +85,7 @@ class StatsController(BaseUserController):
             members=members_count,
             ai_executions=_count(session, AIExecutionModel, workspace_id),
             ai_embeddings=_count(session, AIEmbeddingModel, workspace_id),
+            # Tokens + cost are month-to-date usage flows, aligned with the monthly budget limit.
+            ai_tokens=int(_sum(session, AIExecutionModel, AIExecutionModel.total_tokens, workspace_id, since=month_start)),
+            ai_cost_usd=float(_sum(session, AIExecutionModel, AIExecutionModel.estimated_cost_usd, workspace_id, since=month_start)),
         )
