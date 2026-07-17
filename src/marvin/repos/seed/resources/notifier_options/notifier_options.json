@@ -463,5 +463,20 @@
         "name": "Digest Sent",
         "description": "Notification when a digest email is sent",
         "enabled": false
+    },
+    {
+        "name": "AI Operation Executed",
+        "description": "An AI operation completed successfully",
+        "enabled": false
+    },
+    {
+        "name": "AI Operation Failed",
+        "description": "An AI operation failed to complete",
+        "enabled": true
+    },
+    {
+        "name": "AI Embeddings Reindexed",
+        "description": "Workspace embeddings were (re)indexed for semantic search / RAG",
+        "enabled": false
     }
 ]

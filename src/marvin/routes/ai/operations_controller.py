@@ -151,9 +151,11 @@ class AIOperationsController(BaseUserController):
             execution.duration_ms = int((time.monotonic() - start) * 1000)
             execution.error_message = str(e)
             self.session.commit()
+            self._emit_ai_event(execution, "failed", str(e))
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI call failed: {e}")
 
         self.session.refresh(execution)
+        self._emit_ai_event(execution, "completed", None)
         return AIExecutionRead.model_validate(execution)
 
     # ── Execution history ──────────────────────────────────────────────
@@ -239,6 +241,7 @@ class AIOperationsController(BaseUserController):
                 entities += 1
             except Exception as e:
                 self.logger.warning("reindex failed for %s %s: %s", entity_type, entity_id, e)
+        self._emit_reindex_event(model, entities, chunks)
         return {"model": model, "entities_indexed": entities, "chunks_indexed": chunks}
 
     # ── Helpers ────────────────────────────────────────────────────────
@@ -338,4 +341,57 @@ class AIOperationsController(BaseUserController):
             provider_type = settings.provider or getattr(app, "AI_DEFAULT_PROVIDER", "openai")
             return getattr(app, f"{provider_type.upper()}_MODEL", None)
         return None
+
+    # ── Event emission ─────────────────────────────────────────────────
+
+    def _emit_ai_event(self, execution, status: str, error_message: str | None) -> None:
+        """Dispatch ai_operation_executed / ai_operation_failed to the event bus."""
+        from marvin.services.event_bus_service.event_types import EventAIOperationData, EventTypes
+        try:
+            self.event_bus.dispatch(
+                integration_id="ai_operations",
+                group_id=self.group_id,
+                event_type=EventTypes.ai_operation_executed if status == "completed" else EventTypes.ai_operation_failed,
+                document_data=EventAIOperationData(
+                    operation_slug=execution.operation_slug,
+                    provider_type=execution.provider_type,
+                    model_id=execution.model_id,
+                    status=status,
+                    execution_id=execution.id,
+                    entity_type=execution.entity_type,
+                    entity_id=execution.entity_id,
+                    total_tokens=execution.total_tokens,
+                    estimated_cost_usd=execution.estimated_cost_usd,
+                    error_message=error_message,
+                    workspace_id=self.group_id,
+                    workspace_name=self.group.name if self.group else None,
+                ),
+                message=f"AI operation '{execution.operation_slug}' {status}",
+                user_id=self.user.id if self.user else None,
+                entity_id=execution.entity_id,
+                entity_type=execution.entity_type,
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch ai operation event: {e}", exc_info=True)
+
+    def _emit_reindex_event(self, model: str, entities: int, chunks: int) -> None:
+        """Dispatch ai_embeddings_reindexed to the event bus."""
+        from marvin.services.event_bus_service.event_types import EventAIEmbeddingsData, EventTypes
+        try:
+            self.event_bus.dispatch(
+                integration_id="ai_operations",
+                group_id=self.group_id,
+                event_type=EventTypes.ai_embeddings_reindexed,
+                document_data=EventAIEmbeddingsData(
+                    model_id=model,
+                    entities_indexed=entities,
+                    chunks_indexed=chunks,
+                    workspace_id=self.group_id,
+                    workspace_name=self.group.name if self.group else None,
+                ),
+                message=f"Reindexed {entities} entities ({chunks} chunks)",
+                user_id=self.user.id if self.user else None,
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch ai_embeddings_reindexed event: {e}", exc_info=True)
 

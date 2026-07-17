@@ -385,6 +385,16 @@ class EventTypes(EventTypeBase):
     digest_sent = auto()
     """Event dispatched when a digest email is sent."""
 
+    # ==========================================================================
+    # AI Events
+    # ==========================================================================
+    ai_operation_executed = auto()
+    """Event dispatched when an AI operation completes successfully."""
+    ai_operation_failed = auto()
+    """Event dispatched when an AI operation fails."""
+    ai_embeddings_reindexed = auto()
+    """Event dispatched when workspace embeddings are (re)indexed for semantic search / RAG."""
+
 
 class EventDocumentTypeBase(Enum):
     """
@@ -433,6 +443,8 @@ class EventDocumentType(EventDocumentTypeBase):
     """Indicates the event data pertains to a resource."""
     deployment = "deployment"
     """Indicates the event data pertains to a site deployment."""
+    ai = "ai"
+    """Indicates the event data pertains to an AI operation or execution."""
 
 
 class WebhookMode(str, Enum):
@@ -925,6 +937,54 @@ class EventScheduledTaskData(EventDocumentDataBase):
             next_run_at=task.next_run_at,
             last_status=task.last_status,
         )
+
+
+class EventAIOperationData(EventDocumentDataBase):
+    """Data payload for AI operation execution events (executed / failed)."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.ai
+    operation: EventOperationBase = EventOperation.info
+    operation_slug: str
+    """The AI operation that ran (e.g. 'generate-summary')."""
+    provider_type: str
+    """The provider used (openai, anthropic, google, ...)."""
+    model_id: str
+    """The model used."""
+    status: str
+    """Execution status (completed | failed)."""
+    execution_id: UUID4 | None = None
+    """The ai_executions row id."""
+    entity_type: str | None = None
+    """The target entity type (entry, asset, resource, ...)."""
+    entity_id: UUID4 | None = None
+    """The target entity id."""
+    total_tokens: int | None = None
+    """Total tokens used."""
+    estimated_cost_usd: float | None = None
+    """Estimated cost in USD."""
+    error_message: str | None = None
+    """Error detail when status is failed."""
+    workspace_id: UUID4
+    """The workspace the operation ran in."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
+
+
+class EventAIEmbeddingsData(EventDocumentDataBase):
+    """Data payload for AI embedding reindex events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.ai
+    operation: EventOperationBase = EventOperation.info
+    model_id: str
+    """The embedding model used."""
+    entities_indexed: int
+    """Number of entities embedded."""
+    chunks_indexed: int
+    """Number of chunks embedded."""
+    workspace_id: UUID4
+    """The workspace reindexed."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
 
 
 class EventBusMessage(_MarvinModel):

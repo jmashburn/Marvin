@@ -987,6 +987,42 @@ CATALOG: list[CatalogEntry] = [
             EventVariable("error_message", "What went wrong", "Disk full", type="error"),
         ],
     ),
+
+    # ── AI ──────────────────────────────────────────────────────────────────
+    CatalogEntry(
+        event_type="ai_operation_executed",
+        name="AI Operation Executed",
+        description="An AI operation completed successfully.",
+        category="AI",
+        variables=COMMON_VARS + [
+            EventVariable("operation_slug", "The operation that ran", "generate-summary"),
+            EventVariable("model_id", "Model used", "gpt-4o-mini"),
+            EventVariable("total_tokens", "Total tokens used", "1223", type="number"),
+            EventVariable("estimated_cost_usd", "Estimated cost (USD)", "0.0002", type="number"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="ai_operation_failed",
+        name="AI Operation Failed",
+        description="An AI operation failed to complete.",
+        category="AI",
+        variables=COMMON_VARS + [
+            EventVariable("operation_slug", "The operation that ran", "generate-summary"),
+            EventVariable("model_id", "Model attempted", "gpt-4o-mini"),
+            EventVariable("error_message", "What went wrong", "insufficient_quota", type="error"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="ai_embeddings_reindexed",
+        name="AI Embeddings Reindexed",
+        description="Workspace embeddings were (re)indexed for semantic search / RAG.",
+        category="AI",
+        variables=COMMON_VARS + [
+            EventVariable("model_id", "Embedding model", "text-embedding-3-small"),
+            EventVariable("entities_indexed", "Entities embedded", "70", type="number"),
+            EventVariable("chunks_indexed", "Chunks embedded", "70", type="number"),
+        ],
+    ),
 ]
 
 # Quick lookup
@@ -995,7 +1031,7 @@ CATALOG_BY_TYPE: dict[str, CatalogEntry] = {e.event_type: e for e in CATALOG}
 # Categories in display order
 CATEGORIES = [
     "Members", "Authentication", "Workspaces", "Content", "Assets",
-    "Forms", "Publishing", "Connect", "Automation", "Collaboration",
+    "Forms", "Publishing", "Connect", "Automation", "AI", "Collaboration",
     "Workflow", "Security", "System",
 ]
 
