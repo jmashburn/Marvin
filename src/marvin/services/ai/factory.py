@@ -82,19 +82,30 @@ def get_workspace_ai_provider(session: Session, group_id: UUID4) -> AIProvider:
         return get_ai_provider(provider_type, api_key, base_url)
 
     if settings.credential_mode == "workspace":
+        # Preferred: a full Providers row (supports base_url, api_version, multiple providers).
         provider_row = (
             session.query(AIProviderModel)
             .filter_by(group_id=group_id, is_default=True, enabled=True)
             .first()
         )
-        if not provider_row:
-            raise AIConfigError("No default provider configured for this workspace")
-        api_key = resolve_secret(provider_row.secret_ref, group_id) if provider_row.secret_ref else None
-        return get_ai_provider(
-            provider_row.provider_type,
-            api_key,
-            provider_row.base_url,
-            provider_row.metadata_json,
-        )
+        if provider_row:
+            api_key = resolve_secret(provider_row.secret_ref, group_id) if provider_row.secret_ref else None
+            return get_ai_provider(
+                provider_row.provider_type,
+                api_key,
+                provider_row.base_url,
+                provider_row.metadata_json,
+            )
+
+        # Fallback: build from the simple AI Settings fields when no Providers row exists.
+        # Covers key-only providers (OpenAI/Anthropic/Google); Ollama/Azure still need a
+        # Providers row for base_url / api_version.
+        if not settings.provider:
+            raise AIConfigError(
+                "No AI provider configured for this workspace. Set a provider and API-key "
+                "secret in AI Settings, or add a provider under the Providers config."
+            )
+        api_key = resolve_secret(settings.secret_ref, group_id) if settings.secret_ref else None
+        return get_ai_provider(settings.provider, api_key)
 
     raise AIDisabledError("No valid credential mode configured")

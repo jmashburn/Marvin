@@ -77,11 +77,11 @@ const modCfg = s.moderationConfig ?? {};
     </div>
 
     <!-- 2. Credential Mode -->
-    <fieldset class="section-card ai-dependent" id="credential-section">
-      <legend class="section-title">
+    <div class="section-card ai-dependent" id="credential-section">
+      <div class="section-title">
         <h3>Credential Mode</h3>
         <p>Which AI credentials this workspace uses.</p>
-      </legend>
+      </div>
       <div class="radio-group">
         <label class:list={["radio-card", { selected: s.credentialMode === "platform" }]}>
           <input type="radio" name="credential_mode" value="platform" checked={s.credentialMode === "platform"} />
@@ -99,11 +99,18 @@ const modCfg = s.moderationConfig ?? {};
         </label>
       </div>
 
-      <div id="platform-info" class="info-banner" style={s.credential_mode !== "platform" ? "display:none" : ""}>
+      <div id="platform-info" class="info-banner" style={s.credentialMode !== "platform" ? "display:none" : ""}>
         Credentials are provided by the platform administrator. No further configuration needed.
       </div>
 
-      <div id="workspace-creds" style={s.credential_mode !== "workspace" ? "display:none" : ""}>
+      <div id="workspace-creds" style={s.credentialMode !== "workspace" ? "display:none" : ""}>
+        <div class="info-banner" style="margin-bottom:16px;">
+          <strong>Bring your own AI.</strong> You need one thing: your provider's API key.
+          Add it under <a href="/workspace/settings/environment">Environment → Secrets</a>, then
+          pick a provider + model and reference that secret below.
+          <br />
+          <small style="color:var(--muted);">Ollama needs no key (just a Base URL); Ollama &amp; Azure use the Providers config for their endpoint.</small>
+        </div>
         <div class="form-row">
           <label class="form-field">
             <span class="label">Provider</span>
@@ -128,18 +135,18 @@ const modCfg = s.moderationConfig ?? {};
               <option value={sec.slug} selected={s.secretRef === sec.slug}>{sec.name} ({sec.slug})</option>
             ))}
           </select>
-          <small class="hint">Select a workspace secret containing the API key. Keys are never stored directly.</small>
+          <small class="hint">Pick the workspace secret holding your provider's API key. The key lives in Secrets — never stored here.</small>
         </label>
       </div>
 
-    </fieldset>
+    </div>
 
     <!-- 3. Approval Mode -->
-    <fieldset class="section-card ai-dependent" id="approval-section">
-      <legend class="section-title">
+    <div class="section-card ai-dependent" id="approval-section">
+      <div class="section-title">
         <h3>Approval Mode</h3>
         <p>How much autonomy AI has to apply changes without human review.</p>
-      </legend>
+      </div>
       <div class="radio-group">
         <label class:list={["radio-card", { selected: s.approvalMode === "suggest-only" }]}>
           <input type="radio" name="approval_mode" value="suggest-only" checked={s.approvalMode === "suggest-only"} />
@@ -163,7 +170,7 @@ const modCfg = s.moderationConfig ?? {};
           </div>
         </label>
       </div>
-    </fieldset>
+    </div>
 
     <!-- 4. Invocation Sources -->
     <div class="section-card ai-dependent">
