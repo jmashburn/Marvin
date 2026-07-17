@@ -12,16 +12,20 @@ let emailTemplates = [];
 let eventConnections: any[] = [];
 let error: string | null = null;
 
+let allSubscriptions: any[] = [];
+
 try {
   workspace = await getCurrentWorkspace(authToken);
   const wsId = (workspace as any)?.id ?? (workspace as any)?.groupId;
+  const base = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+  const hdrs = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
   if (wsId) {
-    [emailTemplates, eventConnections] = await Promise.all([
+    [emailTemplates, eventConnections, allSubscriptions] = await Promise.all([
       listEmailTemplates(wsId, authToken),
-      fetch(`${import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080'}/api/platform/workspaces/${wsId}/email-templates/event-connections`, {
-        headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
-        credentials: 'include',
-      }).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${base}/api/platform/workspaces/${wsId}/email-templates/event-connections`, { headers: hdrs, credentials: 'include' })
+        .then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${base}/api/groups/email-event-subscriptions`, { headers: hdrs, credentials: 'include' })
+        .then(r => r.ok ? r.json() : []).catch(() => []),
     ]);
   }
 } catch (e) {
@@ -32,16 +36,35 @@ try {
 const groupId = (workspace as any)?.id ?? (workspace as any)?.groupId;
 const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
-// Build a map from system template id → event_type for quick lookups
-const systemEventByTemplateId = new Map<string, string>();
+// Build template_id → [event_type, ...] from both sources
+const eventsByTemplateId = new Map<string, string[]>();
+
+// System event connections
 for (const conn of eventConnections) {
-  if (conn.system_template?.id) {
-    systemEventByTemplateId.set(conn.system_template.id, conn.event_type);
-  }
-  if (conn.workspace_template?.id && conn.subscription_id) {
-    systemEventByTemplateId.set(conn.workspace_template.id, conn.event_type);
-  }
+  const addTo = (id: string) => {
+    if (!id) return;
+    if (!eventsByTemplateId.has(id)) eventsByTemplateId.set(id, []);
+    if (!eventsByTemplateId.get(id)!.includes(conn.event_type))
+      eventsByTemplateId.get(id)!.push(conn.event_type);
+  };
+  if (conn.system_template?.id) addTo(conn.system_template.id);
+  if (conn.workspace_template?.id && conn.subscription_id) addTo(conn.workspace_template.id);
 }
+
+// Workspace subscriptions
+for (const sub of allSubscriptions) {
+  const tid = sub.template_id ?? sub.templateId;
+  const et = sub.event_type ?? sub.eventType;
+  if (!tid || !et) continue;
+  if (!eventsByTemplateId.has(tid)) eventsByTemplateId.set(tid, []);
+  if (!eventsByTemplateId.get(tid)!.includes(et))
+    eventsByTemplateId.get(tid)!.push(et);
+}
+
+// Keep old single-event map for backward compat
+const systemEventByTemplateId = new Map<string, string>(
+  [...eventsByTemplateId.entries()].map(([id, evts]) => [id, evts[0]])
+);
 
 // Group templates by type to compute effective state
 const templatesByType = new Map<string, any[]>();
@@ -128,12 +151,19 @@ function isSuperseded(template: any): boolean {
                       )}
                     </div>
                     <p>{template.description || 'No description'}</p>
-                    {connectedEvent && (
-                      <p class="connected-event-line">
-                        <span class="connected-dot">&#9679;</span>
-                        Connected to <code>{connectedEvent}</code>
-                      </p>
-                    )}
+                    {(() => {
+                      const evts = eventsByTemplateId.get(template.id) ?? [];
+                      if (!evts.length) return null;
+                      const show = evts.slice(0, 2);
+                      const rest = evts.length - show.length;
+                      return (
+                        <p class="connected-event-line">
+                          <span class="connected-dot">&#9679;</span>
+                          {show.map((e, i) => <><code key={i}>{e}</code>{i < show.length - 1 ? ', ' : ''}</>)}
+                          {rest > 0 && <span class="connected-more">+{rest} more</span>}
+                        </p>
+                      );
+                    })()}
                     {isSuperseded(template) && (
                       <small class="superseded-note">A workspace customization is currently active — this template won't be used.</small>
                     )}
@@ -1145,6 +1175,12 @@ function isSuperseded(template: any): boolean {
     background: rgba(79,156,132,0.1);
     padding: 1px 5px;
     border-radius: 3px;
+  }
+
+  .connected-more {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 4px;
   }
 
   .template-actions {
