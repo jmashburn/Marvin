@@ -1028,9 +1028,13 @@ The MCP server calls the same `/api/ai/operations/{slug}/execute` endpoint using
 
 All shipped surfaces gate on workspace AI enabled + auth (+ `invocationSources` where relevant).
 
-### Phase 6 — Asset + Resource Operations
-- [ ] Vision operations (requires provider capability check)
-- [ ] Resource enrichment operations
+### Phase 6 — Asset + Resource Operations (done)
+- [x] Vision operations — `ImagePart` multimodal content; every provider translates it to its
+      SDK shape; `generate-alt-text` (now truly multimodal) + `describe-image`. Gated by the §7
+      capability check; image bytes loaded from storage via `ContextBuilder.with_asset_images()`.
+- [x] Resource enrichment operations — `enrich-resource-metadata` (+ `with_resource` loader)
+- [x] Fixed a latent Phase 3 bug: `ContextBuilder` referenced non-existent model classes and
+      queried association tables incorrectly — the entire execute path was broken until now.
 
 ### Phase 7 — RAG (future)
 - [ ] pgvector on PostgreSQL
