@@ -1023,6 +1023,38 @@ CATALOG: list[CatalogEntry] = [
             EventVariable("chunks_indexed", "Chunks embedded", "70", type="number"),
         ],
     ),
+    CatalogEntry(
+        event_type="ai_budget_threshold_reached",
+        name="AI Budget Threshold Reached",
+        description="Workspace AI spend crossed a budget warning threshold (~80% of the monthly cost limit).",
+        category="AI",
+        variables=COMMON_VARS + [
+            EventVariable("current_value", "Current monthly spend (USD)", "40.00", type="number"),
+            EventVariable("limit_value", "Monthly cost limit (USD)", "50.00", type="number"),
+            EventVariable("percent", "Percent of limit reached", "80", type="number"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="ai_budget_exceeded",
+        name="AI Budget Exceeded",
+        description="The workspace monthly AI cost limit was reached.",
+        category="AI",
+        variables=COMMON_VARS + [
+            EventVariable("current_value", "Current monthly spend (USD)", "50.00", type="number"),
+            EventVariable("limit_value", "Monthly cost limit (USD)", "50.00", type="number"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="ai_provider_quota_exceeded",
+        name="AI Provider Quota Exceeded",
+        description="The AI provider rejected a call for lack of quota/credits (no tokens available).",
+        category="AI",
+        variables=COMMON_VARS + [
+            EventVariable("provider_type", "Provider", "openai"),
+            EventVariable("operation_slug", "Operation attempted", "generate-summary"),
+            EventVariable("detail", "Provider error detail", "insufficient_quota", type="error"),
+        ],
+    ),
 ]
 
 # Quick lookup

@@ -152,10 +152,12 @@ class AIOperationsController(BaseUserController):
             execution.error_message = str(e)
             self.session.commit()
             self._emit_ai_event(execution, "failed", str(e))
+            self._maybe_emit_quota(execution, str(e))
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI call failed: {e}")
 
         self.session.refresh(execution)
         self._emit_ai_event(execution, "completed", None)
+        self._emit_budget_thresholds(execution)
         return AIExecutionRead.model_validate(execution)
 
     # ── Execution history ──────────────────────────────────────────────
@@ -394,4 +396,69 @@ class AIOperationsController(BaseUserController):
             )
         except Exception as e:
             self.logger.error(f"Failed to dispatch ai_embeddings_reindexed event: {e}", exc_info=True)
+
+    def _emit_budget_thresholds(self, execution) -> None:
+        """Emit budget threshold/exceeded events on the call that crosses the line (once)."""
+        from sqlalchemy import func
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        budget = (settings.budget_config if settings else None) or {}
+        max_cost = budget.get("max_cost_per_month_usd")
+        if not max_cost:
+            return
+        month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        spent = self.session.query(func.sum(AIExecutionModel.estimated_cost_usd)).filter(
+            AIExecutionModel.group_id == self.group_id,
+            AIExecutionModel.created_at >= month_start,
+            AIExecutionModel.status == "completed",
+        ).scalar() or 0.0
+        prev = spent - (execution.estimated_cost_usd or 0.0)
+        from marvin.core.config import get_app_settings
+        from marvin.services.event_bus_service.event_types import EventTypes
+        warn_frac = getattr(get_app_settings(), "AI_BUDGET_WARNING_PERCENT", 80.0) / 100.0
+        if prev < max_cost <= spent:
+            self._emit_budget_event(
+                EventTypes.ai_budget_exceeded, "monthly_cost", spent, max_cost, 100.0,
+                f"Monthly AI cost limit of ${max_cost:.2f} reached (spent ${spent:.2f})",
+            )
+        elif warn_frac > 0 and prev < warn_frac * max_cost <= spent:
+            self._emit_budget_event(
+                EventTypes.ai_budget_threshold_reached, "monthly_cost", spent, max_cost,
+                round(spent / max_cost * 100, 1),
+                f"AI spend reached {round(spent / max_cost * 100)}% of the ${max_cost:.2f} monthly limit",
+            )
+
+    def _maybe_emit_quota(self, execution, error: str) -> None:
+        """Emit ai_provider_quota_exceeded when a provider rejects the call for lack of quota/credits."""
+        low = error.lower()
+        if "insufficient_quota" in low or "quota" in low or "insufficient" in low or "429" in low:
+            from marvin.services.event_bus_service.event_types import EventTypes
+            self._emit_budget_event(
+                EventTypes.ai_provider_quota_exceeded, "provider_quota", None, None, None,
+                error[:300], provider_type=execution.provider_type, operation_slug=execution.operation_slug,
+            )
+
+    def _emit_budget_event(self, event_type, reason: str, current, limit, percent, detail: str,
+                           provider_type: str | None = None, operation_slug: str | None = None) -> None:
+        from marvin.services.event_bus_service.event_types import EventAIBudgetData
+        try:
+            self.event_bus.dispatch(
+                integration_id="ai_operations",
+                group_id=self.group_id,
+                event_type=event_type,
+                document_data=EventAIBudgetData(
+                    reason=reason,
+                    current_value=current,
+                    limit_value=limit,
+                    percent=percent,
+                    provider_type=provider_type,
+                    operation_slug=operation_slug,
+                    detail=detail,
+                    workspace_id=self.group_id,
+                    workspace_name=self.group.name if self.group else None,
+                ),
+                message=detail or f"AI {reason} event",
+                user_id=self.user.id if self.user else None,
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch AI budget event: {e}", exc_info=True)
 

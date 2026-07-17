@@ -478,5 +478,20 @@
         "name": "AI Embeddings Reindexed",
         "description": "Workspace embeddings were (re)indexed for semantic search / RAG",
         "enabled": false
+    },
+    {
+        "name": "AI Budget Threshold Reached",
+        "description": "Workspace AI spend crossed a budget warning threshold (~80% of the monthly limit)",
+        "enabled": true
+    },
+    {
+        "name": "AI Budget Exceeded",
+        "description": "The workspace monthly AI cost limit was reached",
+        "enabled": true
+    },
+    {
+        "name": "AI Provider Quota Exceeded",
+        "description": "The AI provider rejected a call for lack of quota/credits (no tokens available)",
+        "enabled": true
     }
 ]

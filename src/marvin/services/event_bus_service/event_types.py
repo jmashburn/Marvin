@@ -394,6 +394,12 @@ class EventTypes(EventTypeBase):
     """Event dispatched when an AI operation fails."""
     ai_embeddings_reindexed = auto()
     """Event dispatched when workspace embeddings are (re)indexed for semantic search / RAG."""
+    ai_budget_threshold_reached = auto()
+    """Event dispatched when workspace AI spend crosses a budget warning threshold (~80%)."""
+    ai_budget_exceeded = auto()
+    """Event dispatched when the workspace monthly AI cost limit is reached."""
+    ai_provider_quota_exceeded = auto()
+    """Event dispatched when the AI provider rejects a call for lack of quota/credits (no tokens available)."""
 
 
 class EventDocumentTypeBase(Enum):
@@ -983,6 +989,31 @@ class EventAIEmbeddingsData(EventDocumentDataBase):
     """Number of chunks embedded."""
     workspace_id: UUID4
     """The workspace reindexed."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
+
+
+class EventAIBudgetData(EventDocumentDataBase):
+    """Data payload for AI budget / quota events (threshold, exceeded, provider quota)."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.ai
+    operation: EventOperationBase = EventOperation.info
+    reason: str
+    """What triggered it: 'monthly_cost' | 'provider_quota'."""
+    current_value: float | None = None
+    """Current spend (USD) for cost events."""
+    limit_value: float | None = None
+    """The configured limit (USD) for cost events."""
+    percent: float | None = None
+    """Percent of the limit reached."""
+    provider_type: str | None = None
+    """The provider involved (for provider_quota)."""
+    operation_slug: str | None = None
+    """The operation that triggered it (for provider_quota)."""
+    detail: str | None = None
+    """Human-readable detail / provider error text."""
+    workspace_id: UUID4
+    """The workspace this pertains to."""
     workspace_name: str | None = None
     """The human-readable name of the workspace."""
 

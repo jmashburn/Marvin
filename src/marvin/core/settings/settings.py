@@ -698,6 +698,10 @@ class AppSettings(BaseSettings):
     GOOGLE_MODEL: str = "gemini-2.0-flash"
     """Default Google model for platform credential mode."""
 
+    AI_BUDGET_WARNING_PERCENT: float = 80.0
+    """Percent (0-100) of a workspace's monthly AI cost limit at which to fire the
+    `ai_budget_threshold_reached` event. Set to 0 to disable the early warning."""
+
     # ===============================================
     # Apprise Configuration
 
