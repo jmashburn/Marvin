@@ -1,258 +1,115 @@
-# Bug Fix Batch — 2026-07-15
-
-## Issues (12 total)
-
-### 1. Statistics — add more counts
-- No backend stats endpoint exists (`/api/workspace/stats` is commented out)
-- Add counts: secrets, variables, webhooks, scheduled tasks, entries, assets, members
-- Wire up frontend to show them on the workspace dashboard
-
-### 2. Events page — `eventOptions.filter is not a function`
-- `/api/event/options` endpoint doesn't exist → SDK throws 404 → `eventOptions` stays `[]` but `.filter()` is called outside try-catch
-- Fix: create the endpoint OR guard all `.filter()` calls with Array.isArray check
-
-### 3. Webhooks — headers not saving
-- Schema field is `headers`, ORM column is `headers_json`
-- `auto_init` sees no `headers` attribute on the model → silently skips
-- Fix: map `headers` → `headers_json` in the create/update controller (same pattern as `model_validate` bridge on read)
-
-### 4. Webhook test — `webhookId` out of scope
-- `webhookId` declared inside form submit handler, referenced in test-btn handler → ReferenceError
-- Fix: declare `webhookId` at module scope from hidden input
-
-### 5. Webhook test fires when disabled
-- `test_one` endpoint doesn't check `webhook_config.enabled`
-- Fix: add enabled guard, return 400 if disabled
-
-### 6. Webhook test — POST webhooks silently skipped
-- `current_webhook_payload_body = {}` is falsy → condition `if current_webhook_payload_body or method == GET` skips POST test
-- Fix: treat test/manual triggers differently — always send even with empty body
-
-### 7. Scheduler — camelCase field mismatch in edit form
-- API returns `taskType`, `scheduleType`, `scheduleConfig`, `nextRunAt`, `lastRunAt` etc (camelCase)
-- Edit form reads `task.task_type`, `task.schedule_type` etc (snake_case) → all undefined → form shows wrong/empty values, selects wrong options
-- Fix: use camelCase accessors with snake_case fallback throughout `[id].astro`
-
-### 8. Scheduler — delete task fails
-- Investigate: likely `EventScheduledTaskData.from_model(task)` where `task` is a Pydantic schema after delete returns
-- Fix after confirming root cause
-
-### 9. Delete secret — double-delete bug
-- `delete_secret` calls `backend.delete()` (opens own session, deletes row) then `self.session.delete(secret)` → StaleDataError
-- Fix: same guard as create/update — skip `backend.delete()` for database backend
-
-### 10. Environment page — Variable/Secret Name+Slug layout crowded
-- Name and slug stacked in a narrow first column
-- Fix: show name prominently, slug on its own line with better visual treatment, more column width
-
-### 11. Environment page — add created_at / updated_at
-- Show creation date and last-updated date so rotation is visible
-- `WorkspaceSecretRead` and `WorkspaceVariableRead` need `created_at`/`update_at` fields
-- Display in the table (tooltip or column)
-
-### 12. Execution history — needs breathing room
-- History tables in edit pages are cramped
-- Fix: more padding, better row height, cleaner spacing
-
-## Implementation Order
-1, 9 (quick backend fixes) → 3, 4, 5, 6 (webhook fixes) → 7, 8 (scheduler fixes) → 10, 11, 12 (UI polish)
-
----
-
-# Workspace Secrets — Implementation Plan
-
-## Context
-Webhooks and integrations need API keys/tokens stored securely and referenced by slug
-(e.g. `{{CLOUDFLARE_TOKEN}}` in webhook headers). Pattern mirrors the existing
-`STORAGE_PROVIDER` pluggable backend design. HashiCorp Vault is available in dev
-for live testing. Bitwarden Secrets Manager is also a target backend.
-
----
-
-## Backends
-
-| Backend | How it works | Best for |
-|---|---|---|
-| `database` | Fernet-encrypted in `workspace_secrets` table | Default, self-hosted |
-| `disk` | Encrypted JSON per workspace in `{DATA_DIR}/secrets/` | Air-gapped installs |
-| `env` | `os.environ.get(slug)` — read-only, no storage | Docker/K8s secrets injection |
-| `vault` | HashiCorp Vault KV v2 API | Enterprise, compliance |
-| `bitwarden` | Bitwarden Secrets Manager API | Teams already using Bitwarden |
-
-## Phase 1 — Backend Abstraction + Settings
-- [ ] `src/marvin/services/secrets/base.py` — abstract `SecretBackend(get, set, delete, list_slugs)`
-- [ ] `src/marvin/services/secrets/factory.py` — `get_secret_backend()` factory
-- [ ] Add to `AppSettings`: `SECRET_BACKEND`, `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_MOUNT`, `VAULT_PATH_PREFIX`, `BITWARDEN_ACCESS_TOKEN`, `BITWARDEN_PROJECT_ID`, `SECRETS_DIR`
-
-## Phase 2 — Backend Implementations
-- [ ] `backends/env.py` — reads from `os.environ`, list_slugs via `MARVIN_SECRET_*` prefix, set/delete raise NotImplementedError
-- [ ] `backends/database.py` — Fernet encrypt/decrypt using key derived from `settings.SECRET`; add `cryptography` to deps
-- [ ] `backends/disk.py` — per-workspace Fernet-encrypted JSON file
-- [ ] `backends/vault.py` — `hvac` client; KV v2 at `{VAULT_MOUNT}/data/{VAULT_PATH_PREFIX}/{group_id}/{slug}`; add `hvac` to deps
-- [ ] `backends/bitwarden.py` — Bitwarden Secrets Manager SDK (`bitwarden-sdk`); project-scoped secrets; `BITWARDEN_ACCESS_TOKEN` + `BITWARDEN_PROJECT_ID`
-
-## Phase 3 — Database Model + Schema (used by `database` backend)
-- [ ] `src/marvin/db/models/groups/secrets.py` — `WorkspaceSecret` model (id, group_id, name, slug, description, encrypted_value)
-- [ ] Alembic migration: `workspace_secrets` table with `UniqueConstraint(group_id, slug)`
-- [ ] `src/marvin/schemas/group/secret.py` — Create/Update/Read (no value in Read) / WithValue schemas
-- [ ] `AllRepositories.workspace_secrets` repo property
-
-## Phase 4 — API Endpoints
-- [ ] `src/marvin/routes/groups/secrets_controller.py` under `/groups/secrets`
-  - `GET /` list (no values)
-  - `POST /` create
-  - `PATCH /{id}` update
-  - `DELETE /{id}` delete
-  - `GET /slugs` slugs only (for autocomplete)
-  - `POST /{id}/reveal` admin-only, audit-logged
-
-## Phase 5 — Webhook Header Support + Resolver
-- [ ] Add `headers_json: JSON | None` to `GroupWebhooksModel` + migration
-- [ ] Expose as `headers: dict[str, str] | None` in `WebhookCreate`/`WebhookRead`
-- [ ] `src/marvin/services/secrets/resolver.py` — `resolve(value, group_id)` using `{{SLUG}}` regex
-- [ ] Wire resolver into `WebhookEventListener` before `publisher.publish()`
-- [ ] Thread `headers` param through `WebhookPublisher.publish()` into all `requests.*` calls
-
-## Phase 6 — SDK
-- [ ] `marvin-sdk/src/platform/secrets.ts` — `list()`, `create()`, `update()`, `delete()`, `slugs()`
-
-## Phase 7 — Frontend
-- [ ] `/workspace/settings/secrets.astro` — list/create/delete secrets (no values shown)
-- [ ] Add "Secrets" card to workspace settings Automation tab
-- [ ] Webhook header builder in new/edit webhook forms with `{{SLUG}}` autocomplete
-- [ ] Show backend badge ("vault", "bitwarden", etc.) when not using database backend
-
-## Phase 8 — Vault + Bitwarden Live Testing
-- [ ] `SECRET_BACKEND=vault` with local Vault instance → create secret → verify in Vault KV
-- [ ] Reference in webhook header → fire test → confirm resolved value in payload log
-- [ ] Rotate value in Vault directly → re-test → confirm new value picked up
-- [ ] Bitwarden backend when SDK available
-
-## Dependencies to add
-- `cryptography` — Fernet for database + disk backends
-- `hvac` — HashiCorp Vault client (optional import)
-- `bitwarden-sdk` — Bitwarden Secrets Manager (optional import)
-
-## Implementation Order
-Start Phase 1 → Phase 2 env backend (zero deps, proves abstraction) → Phase 2 database
-backend → Phase 3 → Phase 4 → Phase 5 → Phase 2 vault backend (live test) →
-Phase 2 bitwarden → Phase 6/7/8
-
----
-
-# Task: Address 6 HIGH Priority Backend Issues from Code Review
+# Task: AI Workflow Settings Area
 
 ## Goal
-Fix 6 HIGH priority issues identified in the Marvin backend code review, improving architecture consistency, performance, code quality, and removing technical debt. All fixes should be tested and verified to ensure production readiness.
+Build the AI Workflow settings section inside Workspace Settings → Automation tab. This governs
+whether AI is enabled per workspace, which credential mode to use (platform-owned, workspace-owned
+via Secrets, or disabled), what subsystems may invoke AI, approval behavior, and per-operation
+overrides. No new credential storage — raw keys must live in the existing Workspace Secrets system.
+
+---
+
+## Architecture Map
+
+### What exists already (no changes needed)
+| Concern | Lives in | Notes |
+|---|---|---|
+| Raw API credentials | `workspace_secrets` (Fernet-encrypted) | `secretRef` must point here |
+| Variable interpolation | `workspace_variables` + `resolver.py` | `{{VAR_SLUG}}` already works in prompt templates |
+| Platform-level AI config | `AppSettings` env vars (`OPENAI_*`) | Fallback when credential_mode = "platform" |
+| Secret resolution engine | `services/secrets/resolver.py` | Already handles `{{SLUG}}` → value |
+
+### Resolution precedence (read-only policy, not stored)
+```
+Operation override → Workspace AI Workflow setting → Platform AI default (AppSettings)
+```
+
+### New items to build
+| Item | Location | Notes |
+|---|---|---|
+| DB model | `db/models/groups/ai_settings.py` | New one-to-one table with groups |
+| Alembic migration | `alembic/versions/` | `workspace_ai_settings` table |
+| Pydantic schemas | `schemas/group/ai_settings.py` | Create / Update / Read |
+| Repo accessor | `db/repos/all_repositories.py` | `workspace_ai_settings` property |
+| API routes | `routes/groups/ai_settings_controller.py` | GET + PATCH under `/api/groups/ai-settings` |
+| Frontend page | `frontend/src/pages/workspace/settings/ai-workflow.astro` | Full settings UI |
+| Frontend API helper | `frontend/src/lib/api/aiWorkflowSettings.ts` | Typed fetch helpers |
+| Settings hub card | `frontend/src/pages/workspace/settings/index.astro` | Enable the disabled card |
+| SDK types | (marvin-sdk repo, separate step) | `WorkspaceAISettings` interface |
+
+### Fields that belong in secrets (not in ai_settings table)
+- Raw provider API key → stored as a `WorkspaceSecret`, referenced by slug only
+
+### Fields that belong in platform settings (AppSettings)
+- `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` — platform fallback when mode = "platform"
+- These are NOT duplicated in workspace config
+
+### Fields that belong in variables (not in ai_settings table)
+- Brand tone, default language, site context → stored as `WorkspaceVariable`, referenced via `{{SLUG}}`
+
+---
+
+## DB Schema Design
+
+```python
+# workspace_ai_settings table (one-to-one with groups)
+enabled: bool = True
+credential_mode: str = "platform"    # "platform" | "workspace" | "disabled"
+provider: str | None = None          # "openai" | "anthropic" | ...
+model: str | None = None             # e.g. "gpt-4o", "claude-sonnet-5"
+secret_ref: str | None = None        # slug of a WorkspaceSecret (workspace mode only)
+approval_mode: str = "suggest-only"  # "suggest-only" | "allow-draft-update" | "allow-automatic-update"
+invocation_sources: dict | None = None   # JSON: {editor, forms, actions, mcp, scheduledJobs}
+operation_overrides: dict | None = None  # JSON: per-operation model/approval overrides
+budget_config: dict | None = None        # JSON: token limits, cost limits
+logging_config: dict | None = None       # JSON: log_inputs, log_outputs, redact_patterns, retention_days
+moderation_config: dict | None = None    # JSON: enabled, block_on_flag
+```
+
+---
 
 ## Plan
-- [ ] Issue 1: Wire core exceptions to FastAPI globally
-  - [ ] Locate FastAPI app initialization (main.py or app.py)
-  - [ ] Add global exception handlers for all core exceptions (PermissionDenied, NoEntryFound, SlugError, RateLimitError, UserLockedOut)
-  - [ ] Add documentation comments explaining when to use each exception
-  - [ ] Verify exception handlers work with a quick test
+- [ ] **Phase 1: DB + Schema**
+  - [ ] Create `src/marvin/db/models/groups/ai_settings.py` — `WorkspaceAISettingsModel` (one-to-one with groups, `@auto_init()`)
+  - [ ] Add `ai_settings` relationship to `Groups` model in `db/models/groups/groups.py`
+  - [ ] Create Alembic migration: `alembic revision --autogenerate -m "add_workspace_ai_settings_table"`
+  - [ ] Create `src/marvin/schemas/group/ai_settings.py` — `WorkspaceAISettingsCreate`, `WorkspaceAISettingsUpdate`, `WorkspaceAISettingsRead` schemas
+  - [ ] Add `workspace_ai_settings` property to `AllRepositories`
 
-- [ ] Issue 2: Fix remaining N+1 queries
-  - [ ] Fix collection entry count N+1 in publishing controller
-  - [ ] Use subquery/join to get counts in single query
-  - [ ] Profile other endpoints for similar patterns (admin/platform controllers)
-  - [ ] Verify performance improvement
+- [ ] **Phase 2: API Routes**
+  - [ ] Create `src/marvin/routes/groups/ai_settings_controller.py` with:
+    - `GET /api/groups/ai-settings` — returns current settings (or defaults if not yet configured)
+    - `PATCH /api/groups/ai-settings` — upsert (create on first write, update thereafter)
+  - [ ] Register router in `src/marvin/routes/groups/__init__.py`
+  - [ ] Validate `secret_ref` slug exists in workspace secrets on write (soft warning, not hard block)
 
-- [ ] Issue 3: Add basic test coverage
-  - [ ] Create test structure (conftest.py, test_auth.py, test_publishing.py, test_validation.py, test_security.py)
-  - [ ] Add critical path tests (10-15 tests covering CRITICAL fixes)
-  - [ ] Add authentication tests
-  - [ ] Add validation tests for password confirmation
-  - [ ] Add security tests for path validation
-  - [ ] Run tests and verify they pass: `pytest tests/`
+- [ ] **Phase 3: Frontend API Helper**
+  - [ ] Create `frontend/src/lib/api/aiWorkflowSettings.ts` — typed `getAIWorkflowSettings()`, `updateAIWorkflowSettings()` helpers matching the pattern used by secrets/variables
 
-- [ ] Issue 4: Migrate inconsistent logger calls
-  - [ ] Replace `logging.getLogger(__name__)` with `get_logger(__name__)` in 9 files:
-    - [ ] repos/platform/entry_types.py:15
-    - [ ] routes/platform/entry_types_controller.py:11
-    - [ ] services/scheduled_tasks/handlers/maintenance.py:20
-    - [ ] services/scheduled_tasks/handlers/publishing.py:18
-    - [ ] services/scheduler/tasks/post_webhooks.py:22
-    - [ ] repos/seed/workspace_data_seeder.py:61
-    - [ ] repos/seed/workspace_seed_loader.py:32
-    - [ ] repos/seed/workspace_exporter.py:26
-    - [ ] repos/seed/workspace_exporter.py:26 (if there's another instance)
-  - [ ] Verify no logging functionality breaks
+- [ ] **Phase 4: Frontend Settings Page**
+  - [ ] Create `frontend/src/pages/workspace/settings/ai-workflow.astro`
+  - [ ] Sections: Enable/Disable toggle → Credential Mode → Provider & Model → Secret Reference → Invocation Sources → Approval Mode → Advanced (budget, logging, moderation)
+  - [ ] Credential mode "workspace" shows secret slug picker (fetches existing secrets list)
+  - [ ] Credential mode "platform" shows informational note (configured by platform admin)
+  - [ ] Credential mode "disabled" greys out all AI features
+  - [ ] All saves via PATCH; show save confirmation
 
-- [ ] Issue 5: Consolidate algorithm constant
-  - [ ] Find all occurrences of `ALGORITHM = "HS256"`
-  - [ ] Create single definition in core/security/security.py or config
-  - [ ] Update all files to import from single location
-  - [ ] Verify JWT functionality still works
+- [ ] **Phase 5: Enable the Settings Hub Card**
+  - [ ] In `frontend/src/pages/workspace/settings/index.astro`, replace the disabled "AI Workflows" card with a live link to `/workspace/settings/ai-workflow`
 
-- [ ] Issue 6: Fix or document OpenAI debug controller
-  - [ ] Review /Volumes/Code/Marvin/src/marvin/routes/admin/debug_controller.py
-  - [ ] Decide: remove endpoint, fix import, or document as experimental
-  - [ ] Implement chosen solution
-  - [ ] Document decision
-
-- [ ] Final verification
-  - [ ] Run full test suite: `pytest tests/`
-  - [ ] Check for any broken imports or functionality
-  - [ ] Review all modified files
-  - [ ] Prepare summary of changes
+- [ ] **Phase 6: Verify End-to-End**
+  - [ ] Run dev server, navigate to Workspace Settings → Automation → AI Workflows
+  - [ ] Verify GET returns defaults for a workspace with no AI settings yet
+  - [ ] Save settings, verify PATCH persists and GET returns updated values
+  - [ ] Verify secret_ref picker shows existing workspace secrets
+  - [ ] Verify credential_mode="disabled" is stored and readable
 
 ## Questions / Dependencies
-- Does the project have existing CI/CD that runs tests? (Check for GitHub Actions, GitLab CI, etc.)
-- Are there existing test fixtures or test database setup we should reuse?
-- What's the preferred location for JWT_ALGORITHM constant? (settings vs security module)
+- Should `secret_ref` validation on write be a hard error (400) or a soft warning? Recommend: soft warning, since the secret can be created after AI settings are saved.
+- Operation-level overrides: for now, store as freeform JSON with a code-editor UI field; structured per-operation UI is a future phase.
+- Platform admin override (disable AI workspace-wide regardless of workspace setting): not in scope unless raised.
 
 ## Results
-
-### Completed Successfully ✅
-
-All 6 HIGH priority issues have been addressed and tested:
-
-**1. Wire Core Exceptions to FastAPI Globally** ✅
-- Added `register_core_exception_handlers()` function in `routes/handlers.py`
-- Registered 8 exception handlers with appropriate HTTP status codes
-- Updated both `app.py` and `main.py` to call registration function
-- Verified in logs: "Registered global core exception handlers"
-
-**2. Fix Remaining N+1 Queries** ✅
-- Fixed collection entry count N+1 in `routes/publish/publishing_controller.py`
-- Changed from N separate COUNT queries to single GROUP BY query
-- Uses dictionary mapping for O(1) lookup
-
-**3. Add Basic Test Coverage** ✅
-- Created 4 test files with 22 total tests
-- **18 tests passing** (4 require database fixtures)
-- Tests verify: password validation, path security, publishing auth, exception handlers
-- Test suite runs successfully with `uv run pytest tests/`
-
-**4. Migrate Inconsistent Logger Calls** ✅
-- Migrated 9 files from `logging.getLogger()` to `get_logger()`
-- All logging now uses centralized configuration
-
-**5. Consolidate JWT Algorithm Constant** ✅
-- Created single source: `JWT_ALGORITHM = "HS256"` in `core/security/security.py`
-- Updated 3 files to import from central location
-- Added backward compatibility alias
-
-**6. Fix OpenAI Debug Controller** ✅
-- Removed broken OpenAI debug endpoint (150+ lines)
-- Added comment explaining removal
-- Controller cleaned up
-
-### Files Modified: 22 total
-
-### Test Results
-```
-18 passed, 4 failed (DB fixtures needed), 3 warnings
-- test_validation.py: 2/2 passing ✅
-- test_security.py: 4/4 passing ✅  
-- test_publishing.py: 9/9 passing ✅
-- test_auth.py: 3/7 passing (4 need DB) ⚠️
-```
+(fill in when done)
 
 ## Lessons
-
-1. **Test discovery pattern**: Project uses `python_classes = 'Test*'` not `'*Tests'` - had to fix pyproject.toml
-2. **Schema field names**: Pydantic schemas use camelCase (passwordConfirm) not snake_case - tests needed adjustment
-3. **Validate assumptions**: Always check function signatures before writing tests (validate_file_path uses `allowed_base` not `base_dir`)
-4. **Tests are documentation**: Even basic tests caught issues and verified fixes work correctly
+(fill in if anything unexpected happens)

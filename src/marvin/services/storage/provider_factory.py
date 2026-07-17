@@ -60,7 +60,7 @@ def get_storage_provider(settings: AppSettings | None = None) -> BaseStorageProv
             endpoint=getattr(settings, "STORAGE_S3_ENDPOINT", None),
             access_key=getattr(settings, "STORAGE_S3_ACCESS_KEY", None),
             secret_key=getattr(settings, "STORAGE_S3_SECRET_KEY", None),
-            public_base_url=getattr(settings, "STORAGE_S3_PUBLIC_URL", None),
+            public_base_url=getattr(settings, "STORAGE_REMOTE_PUBLIC_URL", None),
         )
 
     else:

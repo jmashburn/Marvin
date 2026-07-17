@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from marvin.core.config import get_app_settings
+from marvin.services.storage.provider_factory import get_storage_provider
 from marvin.core.dependencies import get_publishing_context
 from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
@@ -108,7 +109,7 @@ def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAss
         height=ea.asset.height,
         alt_text=ea.asset.alt_text,
         description=ea.asset.description,
-        public_url=ea.asset.public_url or f"/api/publish/{workspace_slug}/assets/{ea.asset.slug}/file",
+        public_url=get_storage_provider().get_public_url(ea.asset.storage_key),
         metadata=ea.asset.metadata_json,
     )
 
@@ -785,6 +786,7 @@ async def list_published_assets(
     assets = query.order_by(Assets.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
+    provider = get_storage_provider()
     data = []
     for asset in assets:
         # Get published entry slugs that use this asset
@@ -801,7 +803,7 @@ async def list_published_assets(
                 height=asset.height,
                 alt_text=asset.alt_text,
                 description=asset.description,
-                public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+                public_url=provider.get_public_url(asset.storage_key),
                 metadata=asset.metadata_json,
                 entries=entry_slugs,
             )
@@ -876,7 +878,7 @@ async def get_published_asset(
         height=asset.height,
         alt_text=asset.alt_text,
         description=asset.description,
-        public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
+        public_url=get_storage_provider().get_public_url(asset.storage_key),
         metadata=asset.metadata_json,
         entries=entry_slugs,
     )
@@ -925,16 +927,7 @@ async def serve_asset_file(
     if not asset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
-    # For local storage, redirect to the static file URL
-    if asset.storage_provider == "local":
-        return RedirectResponse(url=f"/assets/{asset.storage_key}")
-
-    # For S3 or other providers, use the public_url if available
-    if asset.public_url:
-        return RedirectResponse(url=asset.public_url)
-
-    # Fallback error
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asset file URL not available")
+    return RedirectResponse(url=get_storage_provider().get_public_url(asset.storage_key))
 
 
 @router.get(

@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_serializer, field_validator
+from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_serializer, field_validator, model_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -156,6 +156,18 @@ class AssetRead(AssetSummary):
     def serialize_metadata(self, value: dict | None, _info) -> dict | None:
         """Ensure metadata is serialized as dict."""
         return value if isinstance(value, dict) else None
+
+    @model_validator(mode="after")
+    def compute_public_url(self) -> "AssetRead":
+        if not self.storage_key:
+            return self
+        try:
+            from marvin.services.storage.provider_factory import get_storage_provider
+
+            self.public_url = get_storage_provider().get_public_url(self.storage_key)
+        except Exception:
+            pass  # retain DB value as degraded fallback if provider config is broken
+        return self
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
