@@ -20,6 +20,12 @@ that lived here is shipped — replaced with the live backlog.)
 - [ ] Ops: actually create a `prune_event_logs` scheduled task (daily) — handler exists.
 
 ## 🌳 Medium / Features
+- [ ] **Compose-entry-from-brief** ⭐ (the flagship demo). An AI op that takes an
+      `entry_type` + image(s) + a short brief, uses the **entry_type's field schema as the
+      LLM output schema**, and creates a **draft** entry (image attached, not generated).
+      Human/Marvin reviews → set publish → existing `entry_published` → rebuild pipeline →
+      live. Draft-first = `approval_mode` in practice. Front doors: Marvin skill + API
+      endpoint + MCP tool (MarvinMCP already does the publish half via the SDK).
 - [ ] **Write-back step → make `approval_mode` real.** After an op returns output_json:
       field-mapping per op (summary→entry.summary, tags→entry.tags, …), apply gated by
       approval_mode × entity status (draft vs published), emit an event (re-triggers
