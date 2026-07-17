@@ -11,7 +11,12 @@ from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
 from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
-from marvin.schemas.group.ai_execution import AIExecutionRead, AIOperationExecuteRequest, AIReindexRequest
+from marvin.schemas.group.ai_execution import (
+    AIComposeEntryRequest,
+    AIExecutionRead,
+    AIOperationExecuteRequest,
+    AIReindexRequest,
+)
 
 router = APIRouter(prefix="/ai", route_class=MarvinCrudRoute)
 
@@ -259,6 +264,187 @@ class AIOperationsController(BaseUserController):
                 self.logger.warning("reindex failed for %s %s: %s", entity_type, entity_id, e)
         self._emit_reindex_event(model, entities, chunks)
         return {"model": model, "entities_indexed": entities, "chunks_indexed": chunks}
+
+    # ── Compose (schema-driven draft generation) ───────────────────────
+
+    @router.post("/compose-entry", summary="Compose a draft entry from a brief")
+    def compose_entry(self, body: AIComposeEntryRequest) -> dict:
+        """Generate a DRAFT entry of `entry_type` from a brief (+ optional images).
+
+        The entry type's field schema IS the LLM output schema, so the model returns exactly
+        the fields a valid entry needs. The result lands as status='inbox' for review — the
+        caller (Marvin / MCP / UI) decides whether to publish, which fires the usual pipeline.
+        """
+        import time
+        import uuid
+        from datetime import UTC, datetime
+
+        from marvin.core.config import get_app_settings
+        from marvin.db.models.platform.entry_types import EntryTypes
+        from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
+        from marvin.services.ai.base import CompletionOptions, ImagePart, Message
+        from marvin.services.ai.compose import entry_type_to_output_schema
+        from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
+        from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+        from marvin.services.ai.operations.base import ROLE_AUTHOR
+        from marvin.services.ai.pricing import estimate_cost
+
+        # AUTHOR or higher — composing creates content.
+        if not self.user.admin:
+            role = 0
+            for m in self.user.workspace_memberships:
+                if m.group_id == self.group_id:
+                    role = m.workspace_role.value
+                    break
+            if role < ROLE_AUTHOR:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
+
+        self._check_budget()
+
+        try:
+            provider = get_workspace_ai_provider(self.session, self.group_id)
+        except AIDisabledError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}")
+
+        model = body.model_override or self._default_model()
+        if not model:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No model configured.")
+
+        # Resolve entry type by slug (workspace or system), then by id.
+        entry_type = (
+            self.session.query(EntryTypes)
+            .filter(EntryTypes.slug == body.entry_type)
+            .filter((EntryTypes.group_id == self.group_id) | (EntryTypes.group_id.is_(None)))
+            .first()
+        )
+        if not entry_type:
+            try:
+                et = self.session.get(EntryTypes, uuid.UUID(str(body.entry_type)))
+                if et and et.group_id in (None, self.group_id):
+                    entry_type = et
+            except (ValueError, TypeError):
+                entry_type = None
+        if not entry_type:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Entry type '{body.entry_type}' not found.")
+
+        schema_def = EntryTypeSchemaDefinition.model_validate(entry_type.schema_json or {})
+        output_schema = entry_type_to_output_schema(schema_def, entry_type.name)
+
+        # Context + vision images.
+        builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
+        for aid in body.asset_ids or []:
+            builder.with_asset(aid)
+        if body.asset_ids:
+            builder.with_asset_images()
+        ctx = builder.build()
+
+        instruction = (
+            f"Compose a new '{entry_type.name}' for {ctx.workspace_name or 'this workspace'} from the brief below. "
+            f"Fill every field you reasonably can"
+            + (", using the attached image(s) as the subject." if body.asset_ids else ".")
+            + f"\n\nBrief:\n{body.brief}"
+        )
+        parts: list = [instruction]
+        for a in ctx.assets or []:
+            img = a.get("image_data")
+            if img:
+                parts.append(ImagePart(data=img, mime_type=a.get("mime_type") or "image/png"))
+        messages = [
+            Message(role="system", content=(
+                f"You are a content author. Produce a complete, publish-ready '{entry_type.name}'. "
+                f"Return ONLY the requested fields and write in the workspace's voice."
+            )),
+            Message(role="user", content=parts if len(parts) > 1 else instruction),
+        ]
+        messages = resolve_prompt_messages(messages, self.group_id, ctx.variables)
+
+        execution = AIExecutionModel(
+            session=self.session, group_id=self.group_id, operation_slug="compose-entry",
+            provider_type=provider.provider_type, model_id=model, status="pending",
+            triggered_by=self.user.id, trigger_type="api", entity_type="entry_type", entity_id=entry_type.id,
+        )
+        self.session.add(execution)
+        self.session.commit()
+
+        start = time.monotonic()
+        try:
+            execution.status = "running"
+            execution.started_at = datetime.now(UTC)
+            self.session.commit()
+
+            _app = get_app_settings()
+            opts = CompletionOptions(
+                temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
+                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+            )
+            parsed, completion = provider.execute_operation(messages, model, output_schema, opts)
+
+            fields = dict(parsed or {})
+            title = fields.pop("title", None) or f"Untitled {entry_type.name}"
+            summary = fields.pop("summary", None)
+            allowed = schema_def.get_field_keys()
+            data_json = {k: v for k, v in fields.items() if k in allowed}
+
+            entry = self.repos.entries.create({
+                "title": title,
+                "summary": summary,
+                "entry_type_id": entry_type.id,
+                "status": "inbox",  # draft — review before publishing
+                "data_json": data_json,
+                "asset_ids": [str(a) for a in (body.asset_ids or [])] or None,
+                "created_by": self.user.id,
+            })
+            self.session.commit()
+
+            elapsed_ms = int((time.monotonic() - start) * 1000)
+            execution.status = "completed"
+            execution.completed_at = datetime.now(UTC)
+            execution.duration_ms = elapsed_ms
+            execution.entity_type = "entry"
+            execution.entity_id = entry.id
+            execution.output_json = {"entry_id": str(entry.id), "title": title, "status": entry.status, "fields": data_json}
+            execution.prompt_tokens = completion.prompt_tokens
+            execution.completion_tokens = completion.completion_tokens
+            execution.total_tokens = completion.total_tokens
+            execution.estimated_cost_usd = estimate_cost(
+                provider.provider_type, model, completion.prompt_tokens, completion.completion_tokens,
+            )
+            self.session.commit()
+
+        except HTTPException as he:
+            # e.g. the repo rejecting AI output that fails schema validation.
+            execution.status = "failed"
+            execution.completed_at = datetime.now(UTC)
+            execution.duration_ms = int((time.monotonic() - start) * 1000)
+            execution.error_message = str(he.detail)
+            self.session.commit()
+            self._emit_ai_event(execution, "failed", str(he.detail))
+            raise
+        except Exception as e:
+            execution.status = "failed"
+            execution.completed_at = datetime.now(UTC)
+            execution.duration_ms = int((time.monotonic() - start) * 1000)
+            execution.error_message = str(e)
+            self.session.commit()
+            self._emit_ai_event(execution, "failed", str(e))
+            self._maybe_emit_quota(execution, str(e))
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Compose failed: {e}")
+
+        self.session.refresh(execution)
+        self._emit_ai_event(execution, "completed", None)
+        self._emit_budget_thresholds(execution)
+        return {
+            "entryId": str(entry.id),
+            "status": entry.status,
+            "title": title,
+            "editUrl": f"/workspace/entries/{entry.id}",
+            "executionId": str(execution.id),
+            "totalTokens": execution.total_tokens,
+            "estimatedCostUsd": execution.estimated_cost_usd,
+            "generated": data_json,
+        }
 
     # ── Helpers ────────────────────────────────────────────────────────
 

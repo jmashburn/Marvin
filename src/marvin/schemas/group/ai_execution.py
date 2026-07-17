@@ -48,3 +48,13 @@ class AIReindexRequest(_MarvinModel):
     scope: str | None = None         # "workspace" → reindex all entries + resources
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AIComposeEntryRequest(_MarvinModel):
+    """Compose a draft entry of `entry_type` from a short brief (+ optional image assets)."""
+    entry_type: str                          # entry type slug or id
+    brief: str                               # what the entry should be about
+    asset_ids: list[UUID4] | None = None     # image assets to see (vision) + attach
+    model_override: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
