@@ -35,10 +35,28 @@ function prettyType(t: any): string {
   return s.replace(/[._]/g, ' ');
 }
 
+// Derive a coarse outcome status from the event type + title. Uses message_title too, so it
+// still works for legacy numeric-coded rows. Order matters: check failed, then removed (so
+// "unpublished" isn't caught by "publish"), then success.
+function statusOf(eventType: any, title: any): string {
+  const s = `${eventType ?? ''} ${title ?? ''}`.toLowerCase();
+  if (/fail|error|denied|reject|quota|exceed/.test(s)) return 'failed';
+  if (/delet|remov|revok|unpublish|archiv|cancel|expir/.test(s)) return 'removed';
+  if (/complet|success|execut|publish|reindex|creat|upload|added|accept|activ|sent|restor|approv/.test(s)) return 'success';
+  return 'info';
+}
+const STATUS_ORDER = ['failed', 'success', 'removed', 'info'];
+const STATUS_LABEL: Record<string, string> = { failed: 'Failed', success: 'Success', removed: 'Removed', info: 'Info' };
+
 // Distinct entity types present, for the filter chips.
 const entityTypes = Array.from(
   new Set(events.map((e) => fld(e, 'entityType', 'entity_type')).filter(Boolean))
 ).sort();
+
+// Statuses actually present (fixed order), for the status filter chips.
+const presentStatuses = STATUS_ORDER.filter((st) =>
+  events.some((e) => statusOf(fld(e, 'eventType', 'event_type'), fld(e, 'messageTitle', 'message_title')) === st)
+);
 ---
 
 <AppLayout title="Event Log" eyebrow="Automation">
@@ -66,6 +84,12 @@ const entityTypes = Array.from(
     <>
       <div class="controls">
         <input id="event-search" class="search" type="search" placeholder="Filter by message or type…" />
+        <div class="chips" id="status-chips">
+          <button class="chip active" data-status="">All</button>
+          {presentStatuses.map((st) => (
+            <button class="chip" data-status={st}><span class={`status-dot s-${st}`}></span>{STATUS_LABEL[st]}</button>
+          ))}
+        </div>
         <div class="chips" id="entity-chips">
           <button class="chip active" data-entity="">All</button>
           {entityTypes.map((t) => <button class="chip" data-entity={t}>{t}</button>)}
@@ -93,17 +117,21 @@ const entityTypes = Array.from(
               const title = fld(ev, 'messageTitle', 'message_title');
               const body = fld(ev, 'messageBody', 'message_body');
               const isLegacyType = /^\d+$/.test(String(eventType ?? ''));
+              const status = statusOf(eventType, title);
               const search = `${title ?? ''} ${body ?? ''} ${isLegacyType ? '' : prettyType(eventType)} ${entityType ?? ''}`.toLowerCase();
               return (
                 <>
-                  <tr class="log-row" data-search={search} data-entity={entityType ?? ''}>
+                  <tr class="log-row" data-search={search} data-entity={entityType ?? ''} data-status={status}>
                     <td class="expand-cell">
                       <button class="expand-btn" data-target={`detail-${i}`} data-event-id={eventId}>▶</button>
                     </td>
                     <td class="nowrap muted">{formatDate(occurredAt)}</td>
                     <td>
                       <span class="event-cell">
-                        <span class="event-title">{title}</span>
+                        <span class="event-head">
+                          <span class={`status-dot s-${status}`} title={STATUS_LABEL[status]}></span>
+                          <span class="event-title">{title}</span>
+                        </span>
                         {!isLegacyType && <code class="ev-badge">{prettyType(eventType)}</code>}
                       </span>
                     </td>
@@ -170,10 +198,12 @@ const entityTypes = Array.from(
 
   // Text + entity-type filtering (client-side over the loaded page)
   const search = document.getElementById('event-search') as HTMLInputElement | null;
-  const chips = Array.from(document.querySelectorAll<HTMLElement>('#entity-chips .chip'));
+  const entityChips = Array.from(document.querySelectorAll<HTMLElement>('#entity-chips .chip'));
+  const statusChips = Array.from(document.querySelectorAll<HTMLElement>('#status-chips .chip'));
   const rows = Array.from(document.querySelectorAll<HTMLElement>('tr.log-row'));
   const countNote = document.getElementById('count-note');
   let activeEntity = '';
+  let activeStatus = '';
 
   function applyFilters() {
     const q = (search?.value || '').trim().toLowerCase();
@@ -181,7 +211,8 @@ const entityTypes = Array.from(
     rows.forEach((row) => {
       const matchText = !q || (row.dataset.search || '').includes(q);
       const matchEntity = !activeEntity || row.dataset.entity === activeEntity;
-      const visible = matchText && matchEntity;
+      const matchStatus = !activeStatus || row.dataset.status === activeStatus;
+      const visible = matchText && matchEntity && matchStatus;
       row.style.display = visible ? '' : 'none';
       // Collapse any open detail row when its parent is hidden
       const detail = row.nextElementSibling as HTMLElement | null;
@@ -191,15 +222,20 @@ const entityTypes = Array.from(
     if (countNote) countNote.textContent = `${shown} event${shown === 1 ? '' : 's'} shown`;
   }
 
-  search?.addEventListener('input', applyFilters);
-  chips.forEach((chip) => {
-    chip.addEventListener('click', () => {
-      chips.forEach((c) => c.classList.remove('active'));
-      chip.classList.add('active');
-      activeEntity = chip.dataset.entity || '';
-      applyFilters();
+  function wireChips(chips: HTMLElement[], onPick: (v: string) => void) {
+    chips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        chips.forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        onPick(chip.dataset.status ?? chip.dataset.entity ?? '');
+        applyFilters();
+      });
     });
-  });
+  }
+
+  search?.addEventListener('input', applyFilters);
+  wireChips(statusChips, (v) => { activeStatus = v; });
+  wireChips(entityChips, (v) => { activeEntity = v; });
 </script>
 
 <style>
@@ -366,8 +402,17 @@ const entityTypes = Array.from(
   }
 
   .event-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .event-head { display: flex; align-items: center; gap: 8px; }
   .event-title { font-size: 14px; color: var(--ink); font-weight: 500; }
   .detail-col { color: var(--muted); font-size: 13px; max-width: 520px; }
+
+  /* Outcome status dot (also used inside the status filter chips) */
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+  .chip .status-dot { margin-right: 6px; vertical-align: middle; }
+  .s-failed  { background: #ef4444; }
+  .s-success { background: var(--accent); }
+  .s-removed { background: #d97706; }
+  .s-info    { background: #9ca3af; }
 
   .entity-cell { display: flex; flex-direction: column; gap: 1px; }
   .entity-type { font-size: 13px; color: var(--ink); text-transform: capitalize; }
