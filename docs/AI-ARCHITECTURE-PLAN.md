@@ -1,7 +1,23 @@
 # Marvin AI Platform — Architecture Plan
 
-> **Status:** Design only. No implementation until reviewed and approved.
+> **Status:** Phases 1–7 implemented and verified against a live model (text, vision, and RAG
+> operations all confirmed end-to-end). Phase 8 (agents) not started.
 > **Scope:** Provider-agnostic AI as a first-class Marvin subsystem.
+
+---
+
+## Backlog / Deferred
+
+Consciously parked items, most-actionable first. Details live in the linked sections.
+
+| Item | Why deferred | Revisit when | Section |
+|---|---|---|---|
+| **Auto-embed-on-publish** | Reindex is manual today; event-bus trigger not wired | RAG answers go stale between manual reindexes | §17, Phase 7 |
+| **Phase 8 — Agents** | Largest/most speculative; not started | A multi-step workflow need appears | §18, Phase 8 |
+| **pgvector on Postgres** | JSON + numpy cosine works on both DBs; pgvector adds a dialect fork | A workspace hits ~tens of thousands of embedded chunks and the numpy full-scan slows | §17, Phase 7 |
+| **Form-submission AI review** | No submissions UI, and forms may fold into `entry_types` | The forms-vs-`entry_types` direction settles | Phase 5 |
+| **`/api/ai/settings` route move** | Legacy `/api/groups/ai-settings` still in use | SDK/UI fully migrated | §12 |
+| **Capability check beyond vision** | Only `requires_vision` gated so far | Operations declare further capability needs (e.g. tools) | §7 |
 
 ---
 
