@@ -186,7 +186,7 @@ const eventVars: EventVar[] = [...eventVarMap.values()];
             <div class="vars-panel">
               <div class="vars-header">
                 <span class="vars-title">Event Variables</span>
-                <span class="vars-hint">Click to copy · <code>&#123;&#123;slug&#125;&#125;</code></span>
+                <span class="vars-hint">Click to insert at cursor</span>
               </div>
               <div class="vars-chips" id="vars-chips">
                 {eventVars.map(v => (
@@ -194,10 +194,9 @@ const eventVars: EventVar[] = [...eventVarMap.values()];
                     type="button"
                     class="var-chip"
                     data-slug={`{{${v.slug}}}`}
-                    title={v.description + (v.example ? ` — e.g. ${v.example}` : '')}
+                    title={(v.description ? v.description + ' — ' : '') + 'click to insert'}
                   >
                     <code>{`{{${v.slug}}}`}</code>
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1z"/></svg>
                   </button>
                 ))}
               </div>
@@ -342,33 +341,30 @@ const eventVars: EventVar[] = [...eventVarMap.values()];
     const SUB_ID_MAP = subIdMap;
 
     // ── Variable chips — click to copy ────────────────────────────────────────
-    function copyText(text) {
-      if (navigator.clipboard?.writeText) {
-        return navigator.clipboard.writeText(text).catch(() => copyFallback(text));
-      }
-      return copyFallback(text);
-    }
-
-    function copyFallback(text) {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.cssText = 'position:fixed;top:-999px;left:-999px;opacity:0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
+    function insertAtCursor(text) {
+      // Insert into whichever body textarea is currently active
+      const ta = activeBodyMode === 'html'
+        ? document.getElementById('tpl-custom-html')
+        : document.getElementById('tpl-body-markdown');
+      if (!ta) return;
+      const start = ta.selectionStart ?? ta.value.length;
+      const end = ta.selectionEnd ?? start;
+      ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+      const pos = start + text.length;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
     }
 
     document.querySelectorAll('.var-chip').forEach(btn => {
       btn.addEventListener('click', () => {
         const slug = btn.dataset.slug;
         if (!slug) return;
-        copyText(slug);
+        insertAtCursor(slug);
         const code = btn.querySelector('code');
         if (code) {
           const orig = code.textContent;
           code.textContent = '✓';
-          setTimeout(() => { code.textContent = orig; }, 1200);
+          setTimeout(() => { code.textContent = orig; }, 900);
         }
       });
     });
