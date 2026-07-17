@@ -223,12 +223,12 @@ for (const evtType of connectedEventTypes) {
             <div>
               <h3>Event Subscriptions</h3>
               <p class="section-description">
-                {isSystem
-                  ? "System templates fire automatically when their assigned event occurs."
+                {isSystem || systemHardcodedEvent
+                  ? "This template is connected to its event automatically."
                   : "Select which events should trigger this email template."}
               </p>
             </div>
-            {!isSystem && (
+            {!isSystem && !systemHardcodedEvent && (
               <div class="selection-actions">
                 <button type="button" id="select-all" class="link-button">Select All</button>
                 <span class="separator">·</span>
@@ -237,16 +237,19 @@ for (const evtType of connectedEventTypes) {
             )}
           </div>
 
-          {isSystem && systemHardcodedEvent ? (
+          {(isSystem || systemHardcodedEvent) && systemHardcodedEvent ? (
             <div class="system-event-row">
               <div class="event-chip">
                 <span class="chip-icon">&#9679;</span>
                 <span class="chip-label">{systemHardcodedEvent}</span>
-                <span class="chip-badge">Always connected</span>
+                <span class="chip-badge">{isSystem ? 'Always connected' : 'Auto-connected'}</span>
               </div>
               <p class="system-event-note">
-                This template fires whenever the <code>{systemHardcodedEvent}</code> event is dispatched.
-                This connection is managed by the system and cannot be changed here.
+                Connected to <code>{systemHardcodedEvent}</code>.
+                {isSystem
+                  ? ' Managed by the system — cannot be changed here.'
+                  : <> To disconnect, visit the <a href={`/automation/events/${systemHardcodedEvent}`}>Events page</a>.</>
+                }
               </p>
             </div>
           ) : isSystem ? (
