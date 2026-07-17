@@ -128,6 +128,17 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         if not data_dict.get("slug") and data_dict.get("title"):
             data_dict["slug"] = slugify(data_dict["title"])
 
+        # Ensure slug uniqueness within the group (append -2, -3, … on collision) so
+        # two entries with the same title don't violate the (group_id, slug) constraint.
+        base_slug = data_dict.get("slug")
+        if base_slug:
+            slug, n = base_slug, 2
+            while self.session.query(self.model.id).filter_by(
+                group_id=data_dict.get("group_id"), slug=slug
+            ).first():
+                slug, n = f"{base_slug}-{n}", n + 1
+            data_dict["slug"] = slug
+
         # Validate entry type exists
         if not self._entry_type_exists(data_dict["entry_type_id"]):
             raise HTTPException(

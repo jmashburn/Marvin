@@ -415,19 +415,11 @@ class AIOperationsController(BaseUserController):
 
         except HTTPException as he:
             # e.g. the repo rejecting AI output that fails schema validation.
-            execution.status = "failed"
-            execution.completed_at = datetime.now(UTC)
-            execution.duration_ms = int((time.monotonic() - start) * 1000)
-            execution.error_message = str(he.detail)
-            self.session.commit()
+            self._fail_execution(execution, str(he.detail), start)
             self._emit_ai_event(execution, "failed", str(he.detail))
             raise
         except Exception as e:
-            execution.status = "failed"
-            execution.completed_at = datetime.now(UTC)
-            execution.duration_ms = int((time.monotonic() - start) * 1000)
-            execution.error_message = str(e)
-            self.session.commit()
+            self._fail_execution(execution, str(e), start)
             self._emit_ai_event(execution, "failed", str(e))
             self._maybe_emit_quota(execution, str(e))
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Compose failed: {e}")
@@ -447,6 +439,20 @@ class AIOperationsController(BaseUserController):
         }
 
     # ── Helpers ────────────────────────────────────────────────────────
+
+    def _fail_execution(self, execution, error: str, start: float) -> None:
+        """Mark an execution failed. Rolls back first so a poisoned transaction (e.g. an
+        IntegrityError during create) can't block writing the failure record."""
+        import time
+        from datetime import UTC, datetime
+
+        self.session.rollback()
+        row = self.session.get(AIExecutionModel, execution.id) or execution
+        row.status = "failed"
+        row.completed_at = datetime.now(UTC)
+        row.duration_ms = int((time.monotonic() - start) * 1000)
+        row.error_message = (error or "")[:2000]
+        self.session.commit()
 
     def _resolve_retrieved_sources(self, retrieved: list[dict]) -> list[dict]:
         """Map retrieved chunks (in citation order) to their entity + resolved title.
