@@ -1036,11 +1036,14 @@ All shipped surfaces gate on workspace AI enabled + auth (+ `invocationSources` 
 - [x] Fixed a latent Phase 3 bug: `ContextBuilder` referenced non-existent model classes and
       queried association tables incorrectly — the entire execute path was broken until now.
 
-### Phase 7 — RAG (future)
-- [ ] pgvector on PostgreSQL
-- [ ] Embedding pipeline
-- [ ] Semantic search context source
-- [ ] `answer-workspace-question` as RAG operation
+### Phase 7 — RAG (done, SQLite-compatible)
+- [~] pgvector on PostgreSQL — **deferred**; embeddings stored as `sa.JSON()` float arrays with
+      cosine in Python (numpy). Works on SQLite + Postgres; migrate to pgvector only if scale demands.
+- [x] Embedding pipeline — provider `embed()` (OpenAI/Azure/Google/Ollama), `index_entity`
+      (chunk→embed→upsert into `ai_embeddings`), `POST /api/ai/embeddings/reindex` (EDITOR+)
+- [x] Semantic search context source — `ContextBuilder.with_semantic_search` (cosine top-k → `OperationContext.retrieved`)
+- [x] `answer-workspace-question` as RAG operation — `requires_retrieval`; answers from retrieved chunks with [n] citations
+- [ ] Auto-embed-on-publish (event-bus trigger) — not yet wired; reindex is manual/explicit for now
 
 ### Phase 8 — Agents (future)
 - [ ] Agent definition model
