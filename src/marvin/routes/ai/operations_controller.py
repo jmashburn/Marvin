@@ -93,11 +93,13 @@ class AIOperationsController(BaseUserController):
             builder.with_asset_images()
         # RAG operations retrieve semantically-similar workspace chunks for the question.
         if getattr(operation, "requires_retrieval", False):
+            from marvin.core.config import get_app_settings
             from marvin.services.ai.embeddings import default_embedding_model
             emb_model = default_embedding_model(provider.provider_type)
             query = body.input.get("question") or body.input.get("query") or ""
             if emb_model:
-                builder.with_semantic_search(query, provider, emb_model, limit=5, entity_types=["entry", "resource"])
+                top_k = getattr(get_app_settings(), "AI_RAG_TOP_K", 5)
+                builder.with_semantic_search(query, provider, emb_model, limit=top_k, entity_types=["entry", "resource"])
         ctx = builder.build()
 
         # Create execution record (pending)
@@ -128,7 +130,14 @@ class AIOperationsController(BaseUserController):
             messages = resolve_prompt_messages(messages, self.group_id, ctx.variables)
 
             # execute_operation returns (parsed_dict, CompletionResult with token counts)
-            parsed, completion = provider.execute_operation(messages, model, operation.output_schema)
+            from marvin.core.config import get_app_settings
+            from marvin.services.ai.base import CompletionOptions
+            _app = get_app_settings()
+            opts = CompletionOptions(
+                temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
+                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+            )
+            parsed, completion = provider.execute_operation(messages, model, operation.output_schema, opts)
 
             from marvin.services.ai.pricing import estimate_cost
             elapsed_ms = int((time.monotonic() - start) * 1000)

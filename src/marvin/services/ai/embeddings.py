@@ -18,7 +18,22 @@ DEFAULT_EMBEDDING_MODELS: dict[str, str] = {
 }
 
 
+_EMBEDDING_SETTING_KEYS: dict[str, str] = {
+    "openai": "OPENAI_EMBEDDING_MODEL",
+    "azure": "OPENAI_EMBEDDING_MODEL",
+    "google": "GOOGLE_EMBEDDING_MODEL",
+    "ollama": "OLLAMA_EMBEDDING_MODEL",
+}
+
+
 def default_embedding_model(provider_type: str) -> str | None:
+    """Resolve the embedding model — AppSettings override first, then the built-in default."""
+    from marvin.core.config import get_app_settings
+    key = _EMBEDDING_SETTING_KEYS.get(provider_type)
+    if key:
+        configured = getattr(get_app_settings(), key, None)
+        if configured:
+            return configured
     return DEFAULT_EMBEDDING_MODELS.get(provider_type)
 
 
@@ -48,9 +63,15 @@ def index_entity(
     model: str,
 ) -> int:
     """Chunk + embed `text` and (re)store the chunks for this entity+model. Returns chunk count."""
+    from marvin.core.config import get_app_settings
     from marvin.db.models.groups.ai_embeddings import AIEmbeddingModel
 
-    chunks = chunk_text(text)
+    app = get_app_settings()
+    chunks = chunk_text(
+        text,
+        max_chars=getattr(app, "AI_EMBED_CHUNK_SIZE", 1500),
+        overlap=getattr(app, "AI_EMBED_CHUNK_OVERLAP", 150),
+    )
     if not chunks:
         # No content — clear any stale embeddings for this entity+model.
         session.query(AIEmbeddingModel).filter_by(

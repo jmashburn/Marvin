@@ -702,6 +702,26 @@ class AppSettings(BaseSettings):
     """Percent (0-100) of a workspace's monthly AI cost limit at which to fire the
     `ai_budget_threshold_reached` event. Set to 0 to disable the early warning."""
 
+    # ── Embeddings / RAG ──
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    """Embedding model for the OpenAI (and Azure) providers."""
+    GOOGLE_EMBEDDING_MODEL: str = "models/text-embedding-004"
+    """Embedding model for the Google provider."""
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    """Embedding model for the Ollama provider."""
+    AI_RAG_TOP_K: int = 5
+    """Number of similar chunks retrieved per RAG question."""
+    AI_EMBED_CHUNK_SIZE: int = 1500
+    """Max characters per embedded text chunk."""
+    AI_EMBED_CHUNK_OVERLAP: int = 150
+    """Character overlap between consecutive embedded chunks."""
+
+    # ── Generation defaults ──
+    AI_DEFAULT_TEMPERATURE: float = 0.7
+    """Default sampling temperature for AI operations."""
+    AI_DEFAULT_MAX_TOKENS: int | None = None
+    """Default max output tokens for AI operations (None = provider default)."""
+
     # ===============================================
     # Apprise Configuration
 
