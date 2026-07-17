@@ -39,3 +39,12 @@ class AIOperationExecuteRequest(_MarvinModel):
     model_override: str | None = None  # override the workspace default model
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AIReindexRequest(_MarvinModel):
+    """Reindex embeddings for a single entity, or the whole workspace when scope='workspace'."""
+    entity_type: str | None = None   # entry | resource
+    entity_id: UUID4 | None = None
+    scope: str | None = None         # "workspace" → reindex all entries + resources
+
+    model_config = ConfigDict(from_attributes=True)

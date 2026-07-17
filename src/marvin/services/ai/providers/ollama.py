@@ -12,6 +12,7 @@ class OllamaProvider(AIProvider):
     display_name = "Ollama"
     supports_vision = False
     supports_structured_output = True
+    supports_embeddings = True
 
     def __init__(self, base_url: str = "http://localhost:11434", api_key: str | None = None) -> None:
         self._base_url = base_url.rstrip("/")
@@ -61,6 +62,14 @@ class OllamaProvider(AIProvider):
         data = self._chat(model, self._to_api_messages(messages), opts, fmt=output_schema)
         content = data.get("message", {}).get("content", "{}")
         return json.loads(content)
+
+    def embed(self, texts: list[str], model: str) -> list[list[float]]:
+        out: list[list[float]] = []
+        for t in texts:
+            resp = httpx.post(f"{self._base_url}/api/embeddings", json={"model": model, "prompt": t}, timeout=60)
+            resp.raise_for_status()
+            out.append(resp.json()["embedding"])
+        return out
 
     def list_models(self) -> list[str]:
         resp = httpx.get(f"{self._base_url}/api/tags", timeout=10)

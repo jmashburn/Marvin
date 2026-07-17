@@ -53,6 +53,11 @@ class AIProvider(ABC):
     display_name: str
     supports_vision: bool = False
     supports_structured_output: bool = False
+    supports_embeddings: bool = False
+
+    def embed(self, texts: list[str], model: str) -> list[list[float]]:
+        """Return one embedding vector per input text. Providers with embeddings override."""
+        raise NotImplementedError(f"{self.provider_type} does not support embeddings")
 
     @abstractmethod
     def complete(

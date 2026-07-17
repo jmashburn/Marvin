@@ -8,6 +8,7 @@ class AzureOpenAIProvider(AIProvider):
     display_name = "Azure OpenAI"
     supports_vision = True
     supports_structured_output = True
+    supports_embeddings = True
 
     def __init__(self, api_key: str, base_url: str, api_version: str = "2024-02-01") -> None:
         self._api_key = api_key
@@ -71,6 +72,10 @@ class AzureOpenAIProvider(AIProvider):
             return [m.id for m in models.data]
         except Exception:
             return []
+
+    def embed(self, texts: list[str], model: str) -> list[list[float]]:
+        resp = self._client().embeddings.create(model=model, input=texts)
+        return [d.embedding for d in resp.data]
 
     def test_connection(self) -> tuple[bool, str]:
         try:

@@ -1,7 +1,7 @@
 """Routes for AI operations — list, execute, and execution history."""
 
 import time
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
@@ -11,7 +11,7 @@ from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
 from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
-from marvin.schemas.group.ai_execution import AIExecutionRead, AIOperationExecuteRequest
+from marvin.schemas.group.ai_execution import AIExecutionRead, AIOperationExecuteRequest, AIReindexRequest
 
 router = APIRouter(prefix="/ai", route_class=MarvinCrudRoute)
 
@@ -91,6 +91,13 @@ class AIOperationsController(BaseUserController):
         # Vision operations need the raw image bytes loaded into context.
         if operation.requires_vision:
             builder.with_asset_images()
+        # RAG operations retrieve semantically-similar workspace chunks for the question.
+        if getattr(operation, "requires_retrieval", False):
+            from marvin.services.ai.embeddings import default_embedding_model
+            emb_model = default_embedding_model(provider.provider_type)
+            query = body.input.get("question") or body.input.get("query") or ""
+            if emb_model:
+                builder.with_semantic_search(query, provider, emb_model, limit=5, entity_types=["entry", "resource"])
         ctx = builder.build()
 
         # Create execution record (pending)
@@ -191,7 +198,76 @@ class AIOperationsController(BaseUserController):
         self.session.delete(row)
         self.session.commit()
 
+    # ── Embeddings (RAG) ───────────────────────────────────────────────
+
+    @router.post("/embeddings/reindex", summary="Reindex embeddings for semantic search / RAG")
+    def reindex_embeddings(self, body: AIReindexRequest) -> dict:
+        from marvin.services.ai.embeddings import default_embedding_model, index_entity
+        from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+        from marvin.services.ai.operations.base import ROLE_EDITOR
+
+        # Workspace maintenance — require EDITOR or higher.
+        if not self.user.admin:
+            role = 0
+            for m in self.user.workspace_memberships:
+                if m.group_id == self.group_id:
+                    role = m.workspace_role.value
+                    break
+            if role < ROLE_EDITOR:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="EDITOR role or higher required.")
+
+        try:
+            provider = get_workspace_ai_provider(self.session, self.group_id)
+        except AIDisabledError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        if not getattr(provider, "supports_embeddings", False):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Provider '{provider.provider_type}' does not support embeddings.",
+            )
+        model = default_embedding_model(provider.provider_type)
+        if not model:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="No default embedding model for this provider.",
+            )
+
+        entities = chunks = 0
+        for entity_type, entity_id, text in self._reindex_targets(body):
+            try:
+                chunks += index_entity(self.session, self.group_id, entity_type, entity_id, text, provider, model)
+                entities += 1
+            except Exception as e:
+                self.logger.warning("reindex failed for %s %s: %s", entity_type, entity_id, e)
+        return {"model": model, "entities_indexed": entities, "chunks_indexed": chunks}
+
     # ── Helpers ────────────────────────────────────────────────────────
+
+    def _reindex_targets(self, body: AIReindexRequest) -> list[tuple[str, object, str]]:
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.resources import Resources
+
+        def entry_text(e) -> str:
+            return "\n".join(filter(None, [e.title, e.summary, e.description, str(e.data_json or "")]))
+
+        def resource_text(r) -> str:
+            return "\n".join(filter(None, [r.name, r.description, r.url]))
+
+        targets: list[tuple[str, object, str]] = []
+        if body.scope == "workspace":
+            for e in self.session.query(Entries).filter_by(group_id=self.group_id).all():
+                targets.append(("entry", e.id, entry_text(e)))
+            for r in self.session.query(Resources).filter_by(group_id=self.group_id).all():
+                targets.append(("resource", r.id, resource_text(r)))
+        elif body.entity_type == "entry" and body.entity_id:
+            e = self.session.get(Entries, body.entity_id)
+            if e and e.group_id == self.group_id:
+                targets.append(("entry", e.id, entry_text(e)))
+        elif body.entity_type == "resource" and body.entity_id:
+            r = self.session.get(Resources, body.entity_id)
+            if r and r.group_id == self.group_id:
+                targets.append(("resource", r.id, resource_text(r)))
+        return targets
 
     def _check_budget(self) -> None:
         from sqlalchemy import func

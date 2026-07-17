@@ -8,6 +8,7 @@ class GoogleProvider(AIProvider):
     display_name = "Google Gemini"
     supports_vision = True
     supports_structured_output = True
+    supports_embeddings = True
 
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
@@ -58,6 +59,14 @@ class GoogleProvider(AIProvider):
         parts.append(f"Return valid JSON matching this schema: {json.dumps(output_schema)}")
         resp = m.generate_content(parts, generation_config={"response_mime_type": "application/json", "max_output_tokens": opts.max_tokens})
         return json.loads(resp.text)
+
+    def embed(self, texts: list[str], model: str) -> list[list[float]]:
+        genai = self._client()
+        out: list[list[float]] = []
+        for t in texts:
+            r = genai.embed_content(model=model, content=t)
+            out.append(r["embedding"])
+        return out
 
     def list_models(self) -> list[str]:
         return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"]

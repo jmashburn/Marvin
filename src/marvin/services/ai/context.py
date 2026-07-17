@@ -217,6 +217,20 @@ class ContextBuilder:
             }
         return self
 
+    def with_semantic_search(
+        self, query: str, provider, model: str, limit: int = 5, entity_types: list[str] | None = None
+    ) -> "ContextBuilder":
+        """Embed `query` via `provider` and load the top-`limit` similar workspace chunks (RAG)."""
+        if not query or not model:
+            return self
+        from marvin.services.ai.embeddings import search_embeddings
+        try:
+            qvec = provider.embed([query], model)[0]
+        except Exception:
+            return self  # embedding unavailable — proceed without retrieval
+        self._ctx.retrieved = search_embeddings(self._session, self._group_id, qvec, limit, entity_types)
+        return self
+
     def inject(self, key: str, value: str) -> "ContextBuilder":
         """Inject a runtime variable (e.g. current_date) for {{SLUG}} resolution."""
         self._runtime[key] = value

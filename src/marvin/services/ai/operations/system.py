@@ -284,3 +284,45 @@ class EnrichResourceMetadataOperation(AIOperation):
                 f"Return JSON: {{\"description\": \"...\", \"tags\": [\"...\"], \"category\": \"...\"}}"
             )),
         ]
+
+
+@register_operation
+class AnswerWorkspaceQuestionOperation(AIOperation):
+    slug = "answer-workspace-question"
+    name = "Answer Workspace Question"
+    description = "Answer a question using semantically-retrieved workspace content, with citations."
+    entity_types = []
+    requires_retrieval = True
+    min_role = ROLE_AUTHOR
+    input_schema = {
+        "type": "object",
+        "properties": {"question": {"type": "string"}},
+        "required": ["question"],
+    }
+    output_schema = {
+        "type": "object",
+        "properties": {
+            "answer": {"type": "string"},
+            "sources": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["answer"],
+    }
+
+    def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
+        question = input.get("question", "")
+        chunks = ctx.retrieved or []
+        context_block = "\n\n".join(
+            f"[{i + 1}] ({c['entity_type']} {c['entity_id']}): {c['text']}"
+            for i, c in enumerate(chunks)
+        ) or "(no relevant workspace content found)"
+        return [
+            Message(role="system", content=(
+                f"You are a knowledge assistant for {ctx.workspace_name or 'this workspace'}. "
+                f"Answer the question using ONLY the provided context. Cite sources by their [n] "
+                f"index. If the context does not contain the answer, say you don't know."
+            )),
+            Message(role="user", content=(
+                f"Question: {question}\n\nContext:\n{context_block}\n\n"
+                f"Return JSON: {{\"answer\": \"...\", \"sources\": [\"[1]\"]}}"
+            )),
+        ]

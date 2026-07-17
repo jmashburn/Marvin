@@ -43,6 +43,7 @@ class OperationContext:
     assets: list[dict] = field(default_factory=list)
     resources: list[dict] = field(default_factory=list)
     form_submission: dict | None = None
+    retrieved: list[dict] = field(default_factory=list)  # semantic-search chunks (RAG)
 
 
 class AIOperation(ABC):
@@ -61,6 +62,7 @@ class AIOperation(ABC):
     min_role: int = ROLE_AUTHOR
     entity_types: list[str] = []   # which entity types this operation supports
     requires_vision: bool = False
+    requires_retrieval: bool = False  # RAG: retrieve workspace chunks before prompting
 
     @abstractmethod
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:

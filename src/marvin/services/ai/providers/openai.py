@@ -8,6 +8,7 @@ class OpenAIProvider(AIProvider):
     display_name = "OpenAI"
     supports_vision = True
     supports_structured_output = True
+    supports_embeddings = True
 
     def __init__(self, api_key: str, base_url: str | None = None) -> None:
         self._api_key = api_key
@@ -93,6 +94,10 @@ class OpenAIProvider(AIProvider):
             model=resp.model,
         )
         return parsed, result
+
+    def embed(self, texts: list[str], model: str) -> list[list[float]]:
+        resp = self._client().embeddings.create(model=model, input=texts)
+        return [d.embedding for d in resp.data]
 
     def test_connection(self) -> tuple[bool, str]:
         try:
