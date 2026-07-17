@@ -63,6 +63,14 @@ try {
           <div class="stat-value">{stats ? (stats.members ?? 0) : '—'}</div>
           <div class="stat-label">Members</div>
         </a>
+        <a href="/workspace/settings/ai-executions" class="stat-card">
+          <div class="stat-value">{stats ? (stats.aiExecutions ?? stats.ai_executions ?? 0) : '—'}</div>
+          <div class="stat-label">AI Executions</div>
+        </a>
+        <a href="/workspace/settings/ai-ask" class="stat-card">
+          <div class="stat-value">{stats ? (stats.aiEmbeddings ?? stats.ai_embeddings ?? 0) : '—'}</div>
+          <div class="stat-label">RAG Embeddings</div>
+        </a>
       </div>
 
       <div class="quick-links">

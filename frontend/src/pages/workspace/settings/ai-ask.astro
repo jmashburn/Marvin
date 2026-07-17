@@ -1,0 +1,355 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getAIWorkflowSettings } from "@/lib/api/aiWorkflowSettings";
+
+const authToken = getAuthToken(Astro.cookies);
+const authed = !!authToken;
+
+let aiEnabled = false;
+let settingsError: string | null = null;
+
+// Gate the surface on AI being enabled AND valid auth (see ai-frontend-gating).
+if (authed) {
+  try {
+    const settings = await getAIWorkflowSettings(authToken);
+    aiEnabled = (settings as any)?.enabled !== false;
+  } catch (e) {
+    settingsError = e instanceof Error ? e.message : String(e);
+    console.error('[ai-ask] Error loading AI settings:', e);
+  }
+}
+---
+
+<AppLayout title="Ask Workspace" eyebrow="Settings">
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/workspace/settings?tab=automation">Automation</a>
+      <span>›</span>
+      <span>Ask Workspace</span>
+    </div>
+    <h2>Ask Workspace</h2>
+    <p>Ask a question and get an answer grounded in your workspace content, with citations</p>
+  </div>
+
+  {!authed ? (
+    <div class="alert alert-error"><strong>Authentication required.</strong> Sign in to use workspace Q&A.</div>
+  ) : !aiEnabled ? (
+    <div class="alert alert-info">
+      AI is currently disabled for this workspace.
+      <a href="/workspace/settings/ai-workflow">Enable it in AI Workflow settings</a> to ask questions.
+      {settingsError && <span class="muted"> ({settingsError})</span>}
+    </div>
+  ) : (
+  <>
+    <div class="ask-card">
+      <label class="field-label" for="question">Your question</label>
+      <textarea id="question" class="question-input" rows="3"
+        placeholder="e.g. What suppliers do we use for packaging?"></textarea>
+      <div class="ask-actions">
+        <button id="ask-btn" class="button">Ask</button>
+        <span id="ask-status" class="status"></span>
+      </div>
+    </div>
+
+    <div id="answer-panel" class="answer-panel" style="display:none">
+      <div class="answer-head">
+        <span class="answer-eyebrow">Answer</span>
+        <span id="answer-meta" class="answer-meta"></span>
+      </div>
+      <div id="answer-body" class="answer-body"></div>
+      <div id="sources-block" class="sources-block" style="display:none">
+        <div class="sources-label">Sources</div>
+        <ol id="sources-list" class="sources-list"></ol>
+      </div>
+    </div>
+
+    <div class="reindex-card">
+      <div class="reindex-info">
+        <strong>Search index</strong>
+        <span>Rebuild embeddings so answers reflect the latest entries and resources. Runs on demand; a scheduled task can keep it fresh automatically.</span>
+      </div>
+      <div class="reindex-action">
+        <button id="reindex-btn" class="button secondary">Reindex now</button>
+        <span id="reindex-status" class="status"></span>
+      </div>
+    </div>
+  </>
+  )}
+</AppLayout>
+
+<script>
+  import { fetchApi } from '@/lib/api/client';
+
+  const questionEl = document.getElementById('question') as HTMLTextAreaElement | null;
+  const askBtn = document.getElementById('ask-btn') as HTMLButtonElement | null;
+  const askStatus = document.getElementById('ask-status');
+  const answerPanel = document.getElementById('answer-panel');
+  const answerBody = document.getElementById('answer-body');
+  const answerMeta = document.getElementById('answer-meta');
+  const sourcesBlock = document.getElementById('sources-block');
+  const sourcesList = document.getElementById('sources-list');
+  const reindexBtn = document.getElementById('reindex-btn') as HTMLButtonElement | null;
+  const reindexStatus = document.getElementById('reindex-status');
+
+  function entityHref(type: string, id: string): string | null {
+    if (type === 'entry') return `/workspace/entries/${id}`;
+    if (type === 'resource') return `/workspace/resources/${id}`;
+    return null;
+  }
+
+  async function ask() {
+    const question = questionEl?.value.trim();
+    if (!question) {
+      askStatus!.textContent = 'Enter a question first.';
+      askStatus!.className = 'status error';
+      return;
+    }
+    askBtn!.disabled = true;
+    askStatus!.textContent = 'Thinking…';
+    askStatus!.className = 'status';
+
+    try {
+      const exec = await fetchApi<any>('/api/ai/operations/answer-workspace-question/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { question } }),
+      });
+
+      const out = exec?.outputJson ?? exec?.output_json ?? {};
+      const answer = out.answer ?? '(no answer returned)';
+      const retrieved = out.retrieved_sources ?? [];
+
+      answerBody!.textContent = answer;
+
+      const tokens = exec?.totalTokens ?? exec?.total_tokens;
+      answerMeta!.textContent = tokens ? `${tokens.toLocaleString()} tokens` : '';
+
+      // Render unique cited sources as links (dedupe by entity, keep first index).
+      sourcesList!.innerHTML = '';
+      const seen = new Set<string>();
+      for (const s of retrieved) {
+        const key = `${s.entity_type}:${s.entity_id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const li = document.createElement('li');
+        const href = entityHref(s.entity_type, s.entity_id);
+        if (href) {
+          const a = document.createElement('a');
+          a.href = href;
+          a.textContent = s.title || key;
+          li.appendChild(a);
+        } else {
+          li.textContent = s.title || key;
+        }
+        const badge = document.createElement('span');
+        badge.className = 'source-type';
+        badge.textContent = s.entity_type;
+        li.appendChild(badge);
+        sourcesList!.appendChild(li);
+      }
+      sourcesBlock!.style.display = seen.size ? '' : 'none';
+      answerPanel!.style.display = '';
+      askStatus!.textContent = '';
+    } catch (err: any) {
+      askStatus!.textContent = `Error: ${err.message}`;
+      askStatus!.className = 'status error';
+    } finally {
+      askBtn!.disabled = false;
+    }
+  }
+
+  askBtn?.addEventListener('click', ask);
+  questionEl?.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') ask();
+  });
+
+  reindexBtn?.addEventListener('click', async () => {
+    reindexBtn.disabled = true;
+    reindexStatus!.textContent = 'Reindexing…';
+    reindexStatus!.className = 'status';
+    try {
+      const res = await fetchApi<any>('/api/ai/embeddings/reindex', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'workspace' }),
+      });
+      const entities = res?.entities_indexed ?? 0;
+      const chunks = res?.chunks_indexed ?? 0;
+      reindexStatus!.textContent = `Indexed ${entities} items (${chunks} chunks).`;
+      reindexStatus!.className = 'status success';
+    } catch (err: any) {
+      reindexStatus!.textContent = `Error: ${err.message}`;
+      reindexStatus!.className = 'status error';
+    } finally {
+      reindexBtn.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .page-header h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .alert-info {
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font-size: 14px;
+  }
+
+  .alert-info a { color: var(--accent); }
+
+  .ask-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .question-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-family: inherit;
+    background: var(--bg);
+    color: var(--ink);
+    box-sizing: border-box;
+    resize: vertical;
+  }
+
+  .question-input:focus { border-color: var(--accent); outline: none; }
+
+  .ask-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+  }
+
+  .status { font-size: 13px; color: var(--muted); }
+  .status.success { color: var(--accent); }
+  .status.error { color: var(--color-error); }
+
+  .answer-panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .answer-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .answer-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .answer-meta { font-size: 12px; color: var(--muted); }
+
+  .answer-body {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink);
+    white-space: pre-wrap;
+  }
+
+  .sources-block {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .sources-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .sources-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .sources-list li { font-size: 14px; }
+  .sources-list a { color: var(--accent); text-decoration: none; }
+  .sources-list a:hover { text-decoration: underline; }
+
+  .source-type {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--line);
+  }
+
+  .reindex-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .reindex-info { display: flex; flex-direction: column; gap: 4px; }
+  .reindex-info strong { font-size: 14px; font-weight: 600; }
+  .reindex-info span { font-size: 13px; color: var(--muted); max-width: 60ch; }
+
+  .reindex-action { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+  .muted { color: var(--muted); }
+</style>

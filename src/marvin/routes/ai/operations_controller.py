@@ -139,6 +139,11 @@ class AIOperationsController(BaseUserController):
             )
             parsed, completion = provider.execute_operation(messages, model, operation.output_schema, opts)
 
+            # For retrieval ops, attach the actual sources (index → entity + title) so the UI can
+            # render clickable citations. IDs come from context, not the model, so they're authoritative.
+            if getattr(operation, "requires_retrieval", False) and ctx.retrieved:
+                parsed = {**(parsed or {}), "retrieved_sources": self._resolve_retrieved_sources(ctx.retrieved)}
+
             from marvin.services.ai.pricing import estimate_cost
             elapsed_ms = int((time.monotonic() - start) * 1000)
             execution.status = "completed"
@@ -256,6 +261,38 @@ class AIOperationsController(BaseUserController):
         return {"model": model, "entities_indexed": entities, "chunks_indexed": chunks}
 
     # ── Helpers ────────────────────────────────────────────────────────
+
+    def _resolve_retrieved_sources(self, retrieved: list[dict]) -> list[dict]:
+        """Map retrieved chunks (in citation order) to their entity + resolved title.
+
+        The LLM cites sources by their 1-based [n] index, which aligns with this ordered list,
+        so the UI can turn each citation into a link. Titles are looked up in bulk per type.
+        """
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.resources import Resources
+
+        entry_ids = {c["entity_id"] for c in retrieved if c.get("entity_type") == "entry"}
+        resource_ids = {c["entity_id"] for c in retrieved if c.get("entity_type") == "resource"}
+        titles: dict[tuple[str, str], str] = {}
+        if entry_ids:
+            for e in self.session.query(Entries).filter(Entries.id.in_(entry_ids)).all():
+                titles[("entry", str(e.id))] = e.title or "Untitled entry"
+        if resource_ids:
+            for r in self.session.query(Resources).filter(Resources.id.in_(resource_ids)).all():
+                titles[("resource", str(r.id))] = r.name or "Untitled resource"
+
+        sources: list[dict] = []
+        for i, c in enumerate(retrieved):
+            et = c.get("entity_type")
+            eid = str(c.get("entity_id"))
+            sources.append({
+                "index": i + 1,
+                "entity_type": et,
+                "entity_id": eid,
+                "title": titles.get((et, eid), f"{et} {eid[:8]}"),
+                "score": c.get("score"),
+            })
+        return sources
 
     def _reindex_targets(self, body: AIReindexRequest) -> list[tuple[str, object, str]]:
         from marvin.db.models.platform.entries import Entries

@@ -5,6 +5,8 @@ from pydantic import UUID4
 from sqlalchemy import func, select
 
 from marvin.db.models.groups import GroupWebhooksModel
+from marvin.db.models.groups.ai_embeddings import AIEmbeddingModel
+from marvin.db.models.groups.ai_executions import AIExecutionModel
 from marvin.db.models.groups.secrets import WorkspaceSecret
 from marvin.db.models.groups.variables import WorkspaceVariable
 from marvin.db.models.platform import Assets, Collections, Entries
@@ -24,6 +26,8 @@ class WorkspaceStats(_MarvinModel):
     secrets: int = 0
     variables: int = 0
     members: int = 0
+    ai_executions: int = 0
+    ai_embeddings: int = 0
 
 
 def _count(session, model, group_id: UUID4) -> int:
@@ -63,4 +67,6 @@ class StatsController(BaseUserController):
             secrets=_count(session, WorkspaceSecret, workspace_id),
             variables=_count(session, WorkspaceVariable, workspace_id),
             members=members_count,
+            ai_executions=_count(session, AIExecutionModel, workspace_id),
+            ai_embeddings=_count(session, AIEmbeddingModel, workspace_id),
         )

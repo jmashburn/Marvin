@@ -1,6 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken } from "@/lib/api/client";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from '@/lib/sdk';
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
@@ -35,11 +35,12 @@ try {
 let stats: any = null;
 if (currentTab === 'statistics' && workspace?.id) {
   try {
-    const [members, entries, assets, apiClients] = await Promise.all([
+    const [members, entries, assets, apiClients, platformStats] = await Promise.all([
       listWorkspaceMembers(workspace.id, authToken),
       listEntries(authToken),
       getAssets(authToken),
       getSiteClients(authToken),
+      fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch(() => null),
     ]);
 
     stats = {
@@ -48,7 +49,9 @@ if (currentTab === 'statistics' && workspace?.id) {
       entries_count: entries.length,
       assets_count: assets.length,
       api_tokens_count: apiClients.length,
-      webhooks_count: 0, // TODO: Add when webhooks API is available
+      webhooks_count: platformStats?.webhooks ?? 0,
+      ai_executions_count: platformStats?.aiExecutions ?? platformStats?.ai_executions ?? 0,
+      ai_embeddings_count: platformStats?.aiEmbeddings ?? platformStats?.ai_embeddings ?? 0,
     };
   } catch (e) {
     console.error('[workspace/settings] Error loading statistics:', e);
@@ -232,6 +235,10 @@ const tabs = [
               <strong>AI Workflows</strong>
               <p>Control credentials, approval mode, and per-subsystem AI access</p>
             </a>
+            <a href="/workspace/settings/ai-ask" class="link-card">
+              <strong>Ask Workspace</strong>
+              <p>Ask questions answered from your content, with citations (RAG)</p>
+            </a>
             <a href="/workspace/settings/ai-executions" class="link-card">
               <strong>AI Executions</strong>
               <p>History of AI operations: tokens, cost, and output</p>
@@ -281,6 +288,14 @@ const tabs = [
             <div class="stat-card">
               <div class="stat-label">Webhooks</div>
               <div class="stat-value">{stats?.webhooks_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI Executions</div>
+              <div class="stat-value">{stats?.ai_executions_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">RAG Embeddings</div>
+              <div class="stat-value">{stats?.ai_embeddings_count || '—'}</div>
             </div>
           </div>
         </div>
