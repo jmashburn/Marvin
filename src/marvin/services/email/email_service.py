@@ -288,33 +288,38 @@ class EmailService(BaseService):
 
     @staticmethod
     def _markdown_to_html(text: str) -> str:
-        """Convert markdown text to HTML using a simple inline approach.
-
-        Handles paragraphs (double newline), bold (**text**), italic (*text*),
-        and bare URLs. No external library required.
-        """
+        """Convert markdown to HTML. Handles headings, bold, italic, links, bare URLs, paragraphs."""
         import re
 
-        # Escape HTML special characters first
+        # Escape HTML special characters
         text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        # Headings (must run before paragraph splitting, line-by-line)
+        text = re.sub(r"^### (.+)$", r"<h3>\1</h3>", text, flags=re.MULTILINE)
+        text = re.sub(r"^## (.+)$",  r"<h2>\1</h2>", text, flags=re.MULTILINE)
+        text = re.sub(r"^# (.+)$",   r"<h1>\1</h1>", text, flags=re.MULTILINE)
 
         # Bold and italic
         text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
         text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
 
-        # Bare URLs → clickable links (not already inside HTML tags)
-        text = re.sub(
-            r"(?<![\"'=])(https?://[^\s<>\"']+)",
-            r'<a href="\1">\1</a>',
-            text,
-        )
+        # Markdown links [text](url)
+        text = re.sub(r"\[(.+?)\]\((https?://[^\s)]+)\)", r'<a href="\2">\1</a>', text)
 
-        # Split on double newline → paragraphs; single newline → <br>
+        # Bare URLs not already in an href
+        text = re.sub(r'(?<!["\'=>])(https?://[^\s<>"\']+)', r'<a href="\1">\1</a>', text)
+
+        # Split on double newline → paragraphs; wrap non-block lines in <p>
         paragraphs = re.split(r"\n{2,}", text.strip())
         html_parts = []
         for para in paragraphs:
-            inner = para.strip().replace("\n", "<br>")
-            html_parts.append(f"<p>{inner}</p>")
+            para = para.strip()
+            if not para:
+                continue
+            if para.startswith("<h") or para.startswith("<ul") or para.startswith("<ol"):
+                html_parts.append(para)
+            else:
+                html_parts.append(f"<p>{para.replace(chr(10), '<br>')}</p>")
 
         return "\n".join(html_parts)
 
