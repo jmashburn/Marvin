@@ -376,11 +376,21 @@ class EmailTemplateController(BaseUserController):
 
         email_service = EmailService()
 
-        # Build test variables
+        # Build test variables covering all system template types
         test_variables = {
             "workspace_name": "Test Workspace",
-            "button_link": self.settings.BASE_URL,
-            "invitation_url": str(self.settings.BASE_URL),
+            "inviter_name": "A Teammate",
+            "invitee_email": data.recipient_email,
+            "invitation_url": f"{self.settings.BASE_URL}/register?token=test",
+            "reset_url": f"{self.settings.BASE_URL}/reset-password/?token=test",
+            "login_url": str(self.settings.BASE_URL),
+            "button_link": str(self.settings.BASE_URL),
+            "username": "testuser",
+            "first_name": "Test",
+            "email": data.recipient_email,
+            "email_address": data.recipient_email,
+            "message_title": "Test Email",
+            "message_body": "This is a test email from Marvin.",
         }
 
         try:

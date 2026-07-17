@@ -370,28 +370,11 @@ class EmailService(BaseService):
             # Determine rendering mode
             raw_custom = db_template.custom_html or ""
             if raw_custom.strip():
-                # Mode 1: custom_html — render with Jinja2, inject into default.html
-                import re as _re
-                used_slugs = set(_re.findall(r'\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}', raw_custom))
-                unresolved = [s for s in used_slugs if s not in variables]
-                if unresolved:
-                    self.logger.warning(
-                        f"EmailEventListener: unresolved variables in template '{db_template.name}': "
-                        + ", ".join(f"{{{{{s}}}}}" for s in sorted(unresolved))
-                    )
+                # Mode 1: custom_html — render Jinja2 variables and send as-is (no chrome wrapper)
                 body_html = Template(_r(raw_custom)).render(**variables)
-                template_data = EmailTemplate(
-                    subject=subject,
-                    header_text=variables.get("message_title", ""),
-                    message_top=body_html,
-                    message_bottom="",
-                    button_link=button_link,
-                    button_text="",
-                    workspace_name=variables.get("workspace_name", ""),
-                )
-                html_content = template_data.render_html(self.default_template)
+                html_content = body_html
             else:
-                # Mode 2: body_markdown — render Jinja2 variables, convert to HTML, inject into default.html
+                # Mode 2: body_markdown — render Jinja2 variables, convert to HTML, inject into default.html chrome
                 raw_markdown = db_template.body_markdown or ""
                 rendered_markdown = Template(_r(raw_markdown)).render(**variables)
                 body_html = self._markdown_to_html(rendered_markdown)

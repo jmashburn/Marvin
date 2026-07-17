@@ -332,11 +332,12 @@ for (const s of mySubscriptions) {
 
         if (mode === 'preview') {
           const iframe = document.getElementById('body-preview-iframe');
-          if (activeBodyMode === 'html') {
-            iframe.srcdoc = document.getElementById('tpl-custom-html').value || '<p style="color:#aaa;padding:24px">No HTML content</p>';
-          } else {
-            iframe.srcdoc = markdownToHtmlDocument(document.getElementById('tpl-body-markdown').value);
-          }
+          const html = activeBodyMode === 'html'
+            ? (document.getElementById('tpl-custom-html').value || '<p style="color:#aaa;padding:24px">No HTML content</p>')
+            : markdownToHtmlDocument(document.getElementById('tpl-body-markdown').value);
+          // contentDocument.write is more reliable than srcdoc for full documents
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (doc) { doc.open(); doc.write(html); doc.close(); }
         }
       });
     });
@@ -452,8 +453,7 @@ for (const s of mySubscriptions) {
           })
         ));
 
-        showToast('Changes saved');
-        // Reload to update SUB_ID_MAP state when subscriptions changed
+        showBanner('Changes saved');
         if (toAdd.length || toRemove.length) {
           window.location.reload();
         }
@@ -550,17 +550,21 @@ for (const s of mySubscriptions) {
     }
 
     // ── Toast helper ─────────────────────────────────────────────────────────
-    function showToast(msg) {
-      const t = document.createElement('div');
-      t.className = 'toast';
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(() => t.classList.add('toast-visible'), 10);
-      setTimeout(() => {
-        t.classList.remove('toast-visible');
-        setTimeout(() => t.remove(), 300);
-      }, 2500);
+    function showBanner(msg) {
+      let banner = document.getElementById('save-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'save-banner';
+        banner.style.cssText = 'position:fixed;top:16px;right:16px;background:#2d7a5e;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+        document.body.appendChild(banner);
+      }
+      banner.textContent = '✓ ' + msg;
+      banner.style.display = 'block';
+      clearTimeout(banner._timer);
+      banner._timer = setTimeout(() => { banner.style.display = 'none'; }, 2500);
     }
+
+    function showToast(msg) { showBanner(msg); }
   </script>
 </AppLayout>
 
