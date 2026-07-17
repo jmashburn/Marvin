@@ -19,16 +19,16 @@ try {
 }
 
 function formatSchedule(task: ScheduledTaskRead): string {
-  if (!task.schedule_config) return 'No schedule';
-  if (task.schedule_type === 'interval') {
-    const s = task.schedule_config.interval_seconds;
+  if (!task.scheduleConfig) return 'No schedule';
+  if (task.scheduleType === 'interval') {
+    const s = task.scheduleConfig.interval_seconds;
     if (s >= 86400) return `Every ${s / 86400} day(s)`;
     if (s >= 3600) return `Every ${s / 3600} hour(s)`;
     if (s >= 60) return `Every ${s / 60} minute(s)`;
     return `Every ${s}s`;
   }
-  if (task.schedule_type === 'cron') return `Cron: ${task.schedule_config.cron_expression}`;
-  if (task.schedule_type === 'once') return `Once: ${task.schedule_config.run_at || '—'}`;
+  if (task.scheduleType === 'cron') return `Cron: ${task.scheduleConfig.cron_expression}`;
+  if (task.scheduleType === 'once') return `Once: ${task.scheduleConfig.run_at || '—'}`;
   return '—';
 }
 ---
@@ -64,8 +64,8 @@ function formatSchedule(task: ScheduledTaskRead): string {
               <div>
                 <div class="task-title-row">
                   <h3>{task.name}</h3>
-                  <span class={`scope-badge ${task.group_id ? 'workspace' : 'system'}`}>
-                    {task.group_id ? 'Workspace' : 'System'}
+                  <span class={`scope-badge ${task.groupId ? 'workspace' : 'system'}`}>
+                    {task.groupId ? 'Workspace' : 'System'}
                   </span>
                 </div>
                 {task.description && <p class="task-description">{task.description}</p>}
@@ -77,7 +77,7 @@ function formatSchedule(task: ScheduledTaskRead): string {
             <div class="task-meta">
               <div class="meta-item">
                 <span class="meta-label">Type</span>
-                <code class="meta-value">{task.task_type}</code>
+                <code class="meta-value">{task.taskType}</code>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Schedule</span>
@@ -85,13 +85,13 @@ function formatSchedule(task: ScheduledTaskRead): string {
               </div>
               <div class="meta-item">
                 <span class="meta-label">Last Run</span>
-                <span class="meta-value">{task.last_status || 'Never'}</span>
+                <span class="meta-value">{task.lastStatus || 'Never'}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Next Run</span>
                 <span class="meta-value">
-                  {task.next_run_at
-                    ? new Date(task.next_run_at).toLocaleString()
+                  {task.nextRunAt
+                    ? new Date(task.nextRunAt).toLocaleString()
                     : 'Not scheduled'}
                 </span>
               </div>
