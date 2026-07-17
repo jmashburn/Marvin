@@ -140,7 +140,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
               );
               const isConnected = !!sub;
               const isSysOverride = eventConnections.some((c: any) =>
-                c.event_type === type && c.workspace_template?.id === t.id
+                c.event_type === type && c.workspace_template?.id === t.id && c.has_workspace_override
               );
               if (isSysOverride) return null;
               return (
