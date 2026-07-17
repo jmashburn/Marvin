@@ -685,6 +685,20 @@ class AppSettings(BaseSettings):
         return self.OPENAI_FEATURE.enabled
 
     # ===============================================
+    # Additional AI Providers (platform credential mode)
+
+    AI_DEFAULT_PROVIDER: str = "openai"
+    """Provider used by workspaces in platform credential mode (openai | anthropic | google)."""
+    ANTHROPIC_API_KEY: MaskedNoneString = None
+    """Anthropic API key for platform credential mode (masked)."""
+    ANTHROPIC_MODEL: str = "claude-sonnet-5"
+    """Default Anthropic model for platform credential mode."""
+    GOOGLE_API_KEY: MaskedNoneString = None
+    """Google Gemini API key for platform credential mode (masked)."""
+    GOOGLE_MODEL: str = "gemini-2.0-flash"
+    """Default Google model for platform credential mode."""
+
+    # ===============================================
     # Apprise Configuration
 
     APPRISE_ENABLED: bool = True
