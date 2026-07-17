@@ -15,9 +15,8 @@ that lived here is shipped — replaced with the live backlog.)
 - [ ] **Surface the `audited` flag per-event in the Events UI** — toggle audit on/off
       without editing the catalog.
 - [ ] **Event Log**: optional dedicated status column (vs the inline dot).
-- [ ] **"Ask Marvin" bubble — v1 (seed of the assistant below)** — a persistent corner
-      bubble that opens RAG Ask (answer-workspace-question) from any page. Reuses the
-      existing endpoint; gate on AI-enabled. Ship this first; it grows into ★ Marvin.
+- [x] **"Ask Marvin" bubble — v1** — floating capability-registry assistant on every
+      page; v1 skill = Ask (RAG) + /help. Add a skill = push a Capability. → grows into ★ Marvin.
 - [ ] Ops: actually create a `prune_event_logs` scheduled task (daily) — handler exists.
 
 ## 🌳 Medium / Features
