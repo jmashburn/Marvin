@@ -63,7 +63,7 @@ class OpenAIProvider(AIProvider):
         resp = client.chat.completions.create(
             model=model,
             messages=self._to_api_messages(messages),
-            response_format={"type": "json_schema", "json_schema": {"name": "output", "schema": output_schema, "strict": True}},
+            response_format={"type": "json_schema", "json_schema": {"name": "output", "schema": output_schema, "strict": False}},
             max_tokens=opts.max_tokens,
             temperature=opts.temperature,
         )
@@ -81,7 +81,7 @@ class OpenAIProvider(AIProvider):
         resp = client.chat.completions.create(
             model=model,
             messages=self._to_api_messages(messages),
-            response_format={"type": "json_schema", "json_schema": {"name": "output", "schema": output_schema, "strict": True}},
+            response_format={"type": "json_schema", "json_schema": {"name": "output", "schema": output_schema, "strict": False}},
             max_tokens=opts.max_tokens,
             temperature=opts.temperature,
         )
