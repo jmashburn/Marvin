@@ -13,7 +13,6 @@ Consciously parked items, most-actionable first. Details live in the linked sect
 | Item | Why deferred | Revisit when | Section |
 |---|---|---|---|
 | **AI event types + emission** | §15 describes `ai_operation_executed` / `ai_operation_failed` events, but the execute path emits none — needs `EventTypes` enum values + DB seed rows + emit calls | Wiring webhooks / subscriptions / notifications to AI activity | §15 |
-| **Scheduled RAG reindex** | Embeddings refresh only via manual `POST /api/ai/embeddings/reindex`; no scheduled-task handler yet | Automating embedding freshness on a cron | §17, Phase 7 |
 | **Auto-embed-on-publish** | Event-bus trigger not wired (depends on AI event emission above) | RAG answers go stale between reindexes | §17, Phase 7 |
 | **Phase 8 — Agents** | Largest/most speculative; not started | A multi-step workflow need appears | §18, Phase 8 |
 | **pgvector on Postgres** | JSON + numpy cosine works on both DBs; pgvector adds a dialect fork | A workspace hits ~tens of thousands of embedded chunks and the numpy full-scan slows | §17, Phase 7 |
@@ -1061,7 +1060,8 @@ All shipped surfaces gate on workspace AI enabled + auth (+ `invocationSources` 
       (chunk→embed→upsert into `ai_embeddings`), `POST /api/ai/embeddings/reindex` (EDITOR+)
 - [x] Semantic search context source — `ContextBuilder.with_semantic_search` (cosine top-k → `OperationContext.retrieved`)
 - [x] `answer-workspace-question` as RAG operation — `requires_retrieval`; answers from retrieved chunks with [n] citations
-- [ ] Auto-embed-on-publish (event-bus trigger) — not yet wired; reindex is manual/explicit for now
+- [x] Scheduled RAG reindex — `ai_reindex_embeddings` scheduled-task handler (workspace or all-workspaces; emits `ai_embeddings_reindexed`)
+- [ ] Auto-embed-on-publish (event-bus trigger) — not yet wired; reindex is manual + scheduled for now
 
 ### Phase 8 — Agents (future)
 - [ ] Agent definition model

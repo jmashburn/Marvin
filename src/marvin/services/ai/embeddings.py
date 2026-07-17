@@ -102,6 +102,35 @@ def index_entity(
     return len(chunks)
 
 
+def _entry_text(e) -> str:
+    return "\n".join(filter(None, [e.title, e.summary, e.description, str(e.data_json or "")]))
+
+
+def _resource_text(r) -> str:
+    return "\n".join(filter(None, [r.name, r.description, r.url]))
+
+
+def reindex_workspace(session: Session, group_id: UUID4, provider, model: str) -> tuple[int, int]:
+    """(Re)index every entry and resource in a workspace. Returns (entities, chunks)."""
+    from marvin.db.models.platform.entries import Entries
+    from marvin.db.models.platform.resources import Resources
+
+    entities = chunks = 0
+    for e in session.query(Entries).filter_by(group_id=group_id).all():
+        try:
+            chunks += index_entity(session, group_id, "entry", e.id, _entry_text(e), provider, model)
+            entities += 1
+        except Exception:
+            continue  # skip a failing entity rather than aborting the whole workspace
+    for r in session.query(Resources).filter_by(group_id=group_id).all():
+        try:
+            chunks += index_entity(session, group_id, "resource", r.id, _resource_text(r), provider, model)
+            entities += 1
+        except Exception:
+            continue
+    return entities, chunks
+
+
 def search_embeddings(
     session: Session,
     group_id: UUID4,
