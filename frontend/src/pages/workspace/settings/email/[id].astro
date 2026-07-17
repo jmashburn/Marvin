@@ -849,6 +849,7 @@ const eventVars: EventVar[] = [...eventVarMap.values()];
 
   .var-chip {
     display: inline-flex;
+    flex-direction: row;
     align-items: center;
     gap: 4px;
     padding: 2px 7px;
@@ -857,6 +858,7 @@ const eventVars: EventVar[] = [...eventVarMap.values()];
     border-radius: 3px;
     cursor: pointer;
     color: var(--muted);
+    white-space: nowrap;
     transition: border-color 0.1s, color 0.1s;
   }
 
