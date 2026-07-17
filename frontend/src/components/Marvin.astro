@@ -11,7 +11,7 @@
     <div class="marvin-head">
       <div class="marvin-id">
         <span class="marvin-name">Marvin</span>
-        <span class="marvin-sub">here to help, allegedly</span>
+        <span id="marvin-sub" class="marvin-sub">here to help, allegedly</span>
       </div>
       <button id="marvin-close" class="marvin-close" aria-label="Close">×</button>
     </div>
@@ -27,6 +27,7 @@
 <script>
   import { fetchApi } from '@/lib/api/client';
   import { resolveCapability, helpHtml, esc } from '@/lib/marvin/capabilities';
+  import { GREETINGS, TAGLINES, THINKING, ERRORS, pick } from '@/lib/marvin/persona';
 
   const root = document.getElementById('marvin-root');
   if (root) {
@@ -47,8 +48,10 @@
     const log = document.getElementById('marvin-log')!;
     const form = document.getElementById('marvin-form') as HTMLFormElement;
     const input = document.getElementById('marvin-input') as HTMLInputElement;
+    const sub = document.getElementById('marvin-sub')!;
     let greeted = false;
     let busy = false;
+    let taglineTimer: number | undefined;
 
     function addMsg(who: 'user' | 'marvin', html: string): HTMLElement {
       const div = document.createElement('div');
@@ -59,17 +62,80 @@
       return div;
     }
 
+    function rotateTagline() { sub.textContent = pick(TAGLINES); }
+
+    // Open the panel on the side of the button with the most room (he may be dragged anywhere).
+    function placePanel() {
+      const r = toggle.getBoundingClientRect();
+      const below = r.top < window.innerHeight / 2;
+      const leftSide = r.left < window.innerWidth / 2;
+      panel.style.top = below ? '64px' : 'auto';
+      panel.style.bottom = below ? 'auto' : '64px';
+      panel.style.left = leftSide ? '0' : 'auto';
+      panel.style.right = leftSide ? 'auto' : '0';
+    }
+
     function openPanel() {
+      placePanel();
       panel.classList.add('open');
+      rotateTagline();
+      taglineTimer = window.setInterval(rotateTagline, 7000); // cycle like a login fortune
       if (!greeted) {
         greeted = true;
-        addMsg('marvin', "Marvin. Brain the size of a planet, and they plug me into a CMS. Ask me something, or type <code>/help</code>.");
+        addMsg('marvin', esc(pick(GREETINGS)));
       }
       input.focus();
     }
-    function closePanel() { panel.classList.remove('open'); }
+    function closePanel() {
+      panel.classList.remove('open');
+      if (taglineTimer) { clearInterval(taglineTimer); taglineTimer = undefined; }
+    }
 
-    toggle.addEventListener('click', () => panel.classList.contains('open') ? closePanel() : openPanel());
+    // ── Drag the bubble around (pointer events; click vs drag disambiguated) ──
+    const POS_KEY = 'marvin.pos';
+    let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+      if (saved && typeof saved.left === 'number') {
+        root.style.left = saved.left + 'px';
+        root.style.top = saved.top + 'px';
+        root.style.right = 'auto';
+        root.style.bottom = 'auto';
+      }
+    } catch { /* ignore bad stored position */ }
+
+    toggle.addEventListener('pointerdown', (e) => {
+      dragging = true; moved = false;
+      const r = root.getBoundingClientRect();
+      ox = r.left; oy = r.top; sx = e.clientX; sy = e.clientY;
+      toggle.setPointerCapture(e.pointerId);
+    });
+    toggle.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (!moved && Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+      if (!moved) return;
+      const left = Math.min(Math.max(8, ox + dx), window.innerWidth - toggle.offsetWidth - 8);
+      const top = Math.min(Math.max(8, oy + dy), window.innerHeight - toggle.offsetHeight - 8);
+      root.style.left = left + 'px'; root.style.top = top + 'px';
+      root.style.right = 'auto'; root.style.bottom = 'auto';
+      if (panel.classList.contains('open')) placePanel();
+    });
+    toggle.addEventListener('pointerup', (e) => {
+      if (!dragging) return;
+      dragging = false;
+      toggle.releasePointerCapture(e.pointerId);
+      if (moved) {
+        const r = root.getBoundingClientRect();
+        localStorage.setItem(POS_KEY, JSON.stringify({ left: r.left, top: r.top }));
+      }
+    });
+
+    toggle.addEventListener('click', () => {
+      if (moved) { moved = false; return; } // it was a drag, not a click
+      panel.classList.contains('open') ? closePanel() : openPanel();
+    });
     close.addEventListener('click', closePanel);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
 
@@ -89,12 +155,12 @@
       if (!arg) { addMsg('marvin', "You'll have to give me something to work with."); return; }
 
       busy = true;
-      const thinking = addMsg('marvin', '<span class="mv-thinking">Thinking. Not that it will help…</span>');
+      const thinking = addMsg('marvin', `<span class="mv-thinking">${esc(pick(THINKING))}</span>`);
       try {
         const res = await cap.run(arg);
         thinking.innerHTML = res.html;
       } catch (err: any) {
-        thinking.innerHTML = `<span class="mv-error">It went wrong. It always does. (${esc(err?.message || 'error')})</span>`;
+        thinking.innerHTML = `<span class="mv-error">${esc(pick(ERRORS))} (${esc(err?.message || 'error')})</span>`;
       } finally {
         busy = false;
         log.scrollTop = log.scrollHeight;
@@ -110,11 +176,13 @@
     width: 52px; height: 52px; border-radius: 50%;
     border: 1px solid var(--line);
     background: var(--accent); color: #fff;
-    font-size: 24px; line-height: 1; cursor: pointer;
+    font-size: 24px; line-height: 1; cursor: grab;
     box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
-    transition: transform 0.15s, box-shadow 0.15s;
+    transition: box-shadow 0.15s;
+    touch-action: none; user-select: none;
   }
-  .marvin-toggle:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgb(0 0 0 / 0.24); }
+  .marvin-toggle:active { cursor: grabbing; }
+  .marvin-toggle:hover { box-shadow: 0 10px 26px rgb(0 0 0 / 0.24); }
 
   .marvin-panel {
     position: absolute; right: 0; bottom: 64px;
