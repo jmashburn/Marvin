@@ -1,9 +1,10 @@
 """Database model for email templates."""
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
+from marvin.db.models._model_utils.auto_init import auto_init
 from marvin.db.models._model_utils.guid import GUID
 
 
@@ -92,3 +93,7 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
     )
 
     __table_args__ = ()
+
+    @auto_init()
+    def __init__(self, session: Session, **kwargs) -> None:
+        pass
