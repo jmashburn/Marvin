@@ -313,7 +313,7 @@ def get_workspace_ai_provider(session: Session, group_id: UUID) -> AIProvider:
     Calls get_ai_provider() after resolving credentials from Secrets.
     """
     from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
-    from marvin.services.secrets import get_secret_backend
+    from marvin.services.secrets.resolver import resolve_secret
 
     settings = session.query(WorkspaceAISettingsModel).filter_by(group_id=group_id).first()
 
@@ -334,8 +334,6 @@ def get_workspace_ai_provider(session: Session, group_id: UUID) -> AIProvider:
         )
         if not provider_row:
             raise AIConfigError("No default provider configured for this workspace")
-        # resolve_secret uses the configured secrets backend — no direct backend call needed
-        from marvin.services.secrets.resolver import resolve_secret
         api_key = resolve_secret(provider_row.secret_ref, group_id)
         return get_ai_provider(provider_row.provider_type, api_key, provider_row.base_url)
 
