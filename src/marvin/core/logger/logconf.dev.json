@@ -12,6 +12,9 @@
       "handlers": [
         "rich"
       ]
-    }
+    },
+    "httpx": { "level": "WARNING" },
+    "httpcore": { "level": "WARNING" },
+    "openai": { "level": "WARNING" }
   }
 }
