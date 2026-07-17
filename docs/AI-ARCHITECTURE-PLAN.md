@@ -74,14 +74,17 @@ Workspace
 
 ## 3. Secrets Integration
 
-AI providers **never store raw API keys**. They store a `secret_ref` (slug) pointing to a `WorkspaceSecret`. Resolution at call time:
+AI providers **never store raw API keys**. They store a `secret_ref` (slug) pointing to a `WorkspaceSecret`. Resolution at call time uses the existing resolver:
 
 ```python
-# In AI provider factory
-def resolve_provider_key(secret_ref: str, group_id: UUID) -> str:
-    return get_secret_backend().get(secret_ref, group_id)
-    # ↑ already handles db/disk/vault/env backends
+# services/secrets/resolver.py — already exists
+from marvin.services.secrets.resolver import resolve_secret, resolve
+
+# In AI provider factory — single line, no new code:
+api_key = resolve_secret(provider_row.secret_ref, group_id)
 ```
+
+`resolve_secret(slug, group_id)` calls `get_secret_backend().get(slug, group_id)` internally — handles all backends (database, disk, vault, bitwarden, env) transparently. No need to call `get_secret_backend()` directly from the AI layer.
 
 Example workspace secrets for AI:
 ```
@@ -100,7 +103,27 @@ The `secret_ref` value stored in `ai_providers.secret_ref` is just the slug stri
 
 ## 4. Variables Integration
 
-All prompt templates support `{{SLUG}}` interpolation via the existing resolver. Available variable sources during prompt construction:
+All prompt templates support `{{SLUG}}` interpolation via the **same resolver used by webhooks and email templates**:
+
+```python
+from marvin.services.secrets.resolver import resolve, resolve_dict
+
+# Interpolate a prompt template string:
+system_prompt = resolve(raw_template, group_id=group_id)
+
+# Interpolate with per-call dynamic context (e.g. entry title, current date):
+prompt = resolve(raw_template, group_id=group_id, context={
+    "current_date": "2026-07-16",
+    "entry_title": entry.title,
+})
+```
+
+Resolution order (already implemented in `resolver.py`):
+1. Per-call `context` dict (lowercase keys — dynamic runtime values)
+2. Workspace Secrets (uppercase slugs — `allow_secrets=True` by default)
+3. Workspace Variables (uppercase slugs — plain-text config)
+
+Available variable sources during prompt construction:
 
 ```
 {{SITE_NAME}}          → GroupPreferences.site_title
@@ -311,7 +334,9 @@ def get_workspace_ai_provider(session: Session, group_id: UUID) -> AIProvider:
         )
         if not provider_row:
             raise AIConfigError("No default provider configured for this workspace")
-        api_key = get_secret_backend().get(provider_row.secret_ref, group_id)
+        # resolve_secret uses the configured secrets backend — no direct backend call needed
+        from marvin.services.secrets.resolver import resolve_secret
+        api_key = resolve_secret(provider_row.secret_ref, group_id)
         return get_ai_provider(provider_row.provider_type, api_key, provider_row.base_url)
 
     raise AIDisabledError("No valid credential mode configured")
