@@ -235,27 +235,86 @@ class AzureOpenAIProvider(AIProvider):
     # base_url and api_version from provider config
 ```
 
-**Provider factory** (`services/ai/provider_factory.py`):
+**Provider factory** — same pattern as `get_secret_backend()` and `get_storage_provider()`:
+
+```
+services/ai/
+├── base.py              # AIProvider ABC + Message / CompletionResult dataclasses
+├── factory.py           # get_ai_provider() — mirrors get_secret_backend()
+└── providers/
+    ├── openai.py
+    ├── anthropic.py
+    ├── google.py
+    ├── azure.py
+    └── ollama.py
+```
 
 ```python
-def get_provider_for_workspace(
-    session: Session,
-    group_id: UUID,
-    operation_override: str | None = None,
-) -> AIProvider:
-    settings = get_workspace_ai_settings(session, group_id)
+# services/ai/factory.py
 
-    if not settings.enabled:
+def get_ai_provider(
+    provider_type: str,
+    api_key: str,
+    base_url: str | None = None,
+) -> AIProvider:
+    """
+    Return a configured AIProvider — mirrors get_secret_backend() / get_storage_provider().
+    Lazy imports keep unused provider SDKs out of the import graph.
+    """
+    if provider_type == "openai":
+        from .providers.openai import OpenAIProvider
+        return OpenAIProvider(api_key=api_key)
+
+    if provider_type == "anthropic":
+        from .providers.anthropic import AnthropicProvider
+        return AnthropicProvider(api_key=api_key)
+
+    if provider_type == "google":
+        from .providers.google import GoogleProvider
+        return GoogleProvider(api_key=api_key)
+
+    if provider_type == "azure":
+        from .providers.azure import AzureOpenAIProvider
+        return AzureOpenAIProvider(api_key=api_key, base_url=base_url)
+
+    if provider_type == "ollama":
+        from .providers.ollama import OllamaProvider
+        return OllamaProvider(base_url=base_url or "http://localhost:11434")
+
+    raise ValueError(f"Unknown AI provider type: {provider_type}")
+
+
+def get_workspace_ai_provider(session: Session, group_id: UUID) -> AIProvider:
+    """
+    Resolve the active provider for a workspace, honouring credential_mode.
+    Calls get_ai_provider() after resolving credentials from Secrets.
+    """
+    from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+    from marvin.services.secrets import get_secret_backend
+
+    settings = session.query(WorkspaceAISettingsModel).filter_by(group_id=group_id).first()
+
+    if not settings or not settings.enabled:
         raise AIDisabledError(f"AI is disabled for workspace {group_id}")
 
     if settings.credential_mode == "platform":
-        return build_platform_provider(settings.provider or get_app_settings().AI_DEFAULT_PROVIDER)
-    elif settings.credential_mode == "workspace":
-        provider_row = get_active_provider(session, group_id, settings)
-        key = get_secret_backend().get(provider_row.secret_ref, group_id)
-        return build_provider(provider_row.provider_type, key, provider_row.base_url)
-    else:
-        raise AIDisabledError("No valid credential mode configured")
+        app = get_app_settings()
+        provider_type = settings.provider or app.AI_DEFAULT_PROVIDER
+        api_key = getattr(app, f"{provider_type.upper()}_API_KEY", None)
+        return get_ai_provider(provider_type, api_key)
+
+    if settings.credential_mode == "workspace":
+        provider_row = (
+            session.query(AIProviderModel)
+            .filter_by(group_id=group_id, is_default=True, enabled=True)
+            .first()
+        )
+        if not provider_row:
+            raise AIConfigError("No default provider configured for this workspace")
+        api_key = get_secret_backend().get(provider_row.secret_ref, group_id)
+        return get_ai_provider(provider_row.provider_type, api_key, provider_row.base_url)
+
+    raise AIDisabledError("No valid credential mode configured")
 ```
 
 ---
