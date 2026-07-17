@@ -96,13 +96,6 @@ const modCfg = s.moderation_config ?? {};
             <span>Use a specific key stored in this workspace's secrets.</span>
           </div>
         </label>
-        <label class:list={["radio-card", { selected: s.credential_mode === "disabled" }]}>
-          <input type="radio" name="credential_mode" value="disabled" checked={s.credential_mode === "disabled"} />
-          <div class="radio-content">
-            <strong>Disabled</strong>
-            <span>AI features are disabled for this workspace regardless of the global setting.</span>
-          </div>
-        </label>
       </div>
 
       <div id="platform-info" class="info-banner" style={s.credential_mode !== "platform" ? "display:none" : ""}>
@@ -138,9 +131,6 @@ const modCfg = s.moderation_config ?? {};
         </label>
       </div>
 
-      <div id="disabled-info" class="info-banner info-banner-warn" style={s.credential_mode !== "disabled" ? "display:none" : ""}>
-        AI features are disabled for this workspace. Users will not see AI controls.
-      </div>
     </fieldset>
 
     <!-- 3. Approval Mode -->
@@ -277,6 +267,8 @@ const modCfg = s.moderation_config ?? {};
 </AppLayout>
 
 <script>
+  import { fetchApi } from '@/lib/api/client';
+
   const form = document.getElementById('ai-settings-form');
   const enabledToggle = document.getElementById('ai-enabled');
   const enabledText = document.getElementById('ai-enabled-text');
@@ -298,13 +290,11 @@ const modCfg = s.moderation_config ?? {};
   const modeInputs = form?.querySelectorAll('input[name="credential_mode"]');
   const platformInfo = document.getElementById('platform-info');
   const workspaceCreds = document.getElementById('workspace-creds');
-  const disabledInfo = document.getElementById('disabled-info');
 
   function syncMode() {
     const mode = form?.querySelector('input[name="credential_mode"]:checked')?.value;
     platformInfo.style.display = mode === 'platform' ? '' : 'none';
     workspaceCreds.style.display = mode === 'workspace' ? '' : 'none';
-    disabledInfo.style.display = mode === 'disabled' ? '' : 'none';
   }
 
   modeInputs?.forEach(inp => inp.addEventListener('change', syncMode));
@@ -368,16 +358,11 @@ const modCfg = s.moderation_config ?? {};
     saveStatus.className = 'save-status';
 
     try {
-      const res = await fetch(`/api/groups/ai-settings`, {
+      await fetchApi('/api/groups/ai-settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${res.status}`);
-      }
 
       saveStatus.textContent = 'Saved';
       saveStatus.className = 'save-status success';
