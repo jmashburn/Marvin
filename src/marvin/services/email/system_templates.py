@@ -143,7 +143,7 @@ def seed_system_templates(session) -> int:
             }
             continue
 
-        template = EmailTemplateModel()
+        template = EmailTemplateModel(session=session)
         template.template_type = defn.template_type
         template.name = defn.name
         template.description = defn.description

@@ -203,7 +203,7 @@ class EmailTemplateController(BaseUserController):
         from marvin.db.models.groups.email_templates import EmailTemplateModel
 
         # Create model instance - id and timestamps will auto-generate
-        template = EmailTemplateModel()
+        template = EmailTemplateModel(session=self.repos.session)
         template.group_id = group_id
         template.template_type = data.template_type
         template.name = data.name
