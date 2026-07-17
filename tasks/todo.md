@@ -15,9 +15,9 @@ that lived here is shipped — replaced with the live backlog.)
 - [ ] **Surface the `audited` flag per-event in the Events UI** — toggle audit on/off
       without editing the catalog.
 - [ ] **Event Log**: optional dedicated status column (vs the inline dot).
-- [ ] **Floating "Ask" chat widget** — a persistent corner bubble (Clippy-but-useful)
-      that opens the RAG Ask (answer-workspace-question) from any page, instead of only
-      the dedicated AI page. Reuses the existing endpoint; gate on AI-enabled.
+- [ ] **"Ask Marvin" bubble — v1 (seed of the assistant below)** — a persistent corner
+      bubble that opens RAG Ask (answer-workspace-question) from any page. Reuses the
+      existing endpoint; gate on AI-enabled. Ship this first; it grows into ★ Marvin.
 - [ ] Ops: actually create a `prune_event_logs` scheduled task (daily) — handler exists.
 
 ## 🌳 Medium / Features
@@ -30,6 +30,19 @@ that lived here is shipped — replaced with the live backlog.)
 - [ ] **Wire `moderation_config`** — add a moderation layer + `block_on_flag`.
 - [ ] **Workspace Providers UI** — create/edit `AIProviderModel` rows (base_url, Azure
       api_version, Ollama endpoint). Needed for Ollama/Azure workspace setups.
+
+## ★ North star: "Marvin" — the expandable workspace assistant
+Persona: **Marvin the Martian** (playful, a little imperious — "where's the kaboom?").
+The "Ask Marvin" bubble is his v1 shell. Not just RAG — a command surface that can *do* things:
+- **Ask** — RAG Q&A over workspace content (one skill among many)
+- **Actions** — Review, Publish, Test, Rebuild, … dispatched to existing endpoints
+  (publishing, scheduled tasks, the operations registry)
+- **Expandable** — a skill/tool registry so capabilities plug in rather than hardcode
+- **MCP as the plugin layer** — host our operations as tools *and* connect external MCP
+  servers, so Marvin's abilities grow without core changes
+- Likely an **agentic loop** (Phase 8 agents) picking which skill/tool to run per request
+Sequencing: operations registry (done) → skill/tool registry → agent loop → MCP host.
+Ship the RAG bubble now as the seed; layer skills onto it.
 
 ## 🌲 Bigger / Phase 8
 - [ ] **Prompt storage** — a `prompts` table (slug, template, variables, version).
