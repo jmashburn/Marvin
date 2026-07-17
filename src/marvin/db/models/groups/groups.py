@@ -23,6 +23,7 @@ from .preferences import GroupPreferencesModel
 if TYPE_CHECKING:
     from ..users import Users
     from ..users.workspace_members import WorkspaceMembers
+    from .ai_providers import AIProviderModel
     from .ai_settings import WorkspaceAISettingsModel
     from .events import GroupEventNotifierModel
     from .invite_tokens import GroupInviteToken
@@ -115,6 +116,11 @@ class Groups(SqlAlchemyBase, BaseMixins):
     # Relationship to GroupEventNotifierModel (one-to-many)
     group_event_notifiers: Mapped[list["GroupEventNotifierModel"]] = orm.relationship(
         "GroupEventNotifierModel", **_common_relationship_args, doc="Event notifiers configured for this group."
+    )
+
+    # Relationship to AIProviderModel (one-to-many)
+    ai_providers: Mapped[list["AIProviderModel"]] = orm.relationship(
+        "AIProviderModel", **_common_relationship_args, doc="AI providers configured for this workspace."
     )
 
     model_config = ConfigDict(

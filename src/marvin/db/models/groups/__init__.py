@@ -1,3 +1,4 @@
+from .ai_providers import *
 from .ai_settings import *
 from .email_event_subscriptions import *
 from .email_templates import *
