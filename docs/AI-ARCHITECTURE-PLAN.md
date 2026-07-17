@@ -173,6 +173,11 @@ The `workspace_ai_settings` row is the single source of truth for workspace AI p
 
 ## 6. Provider Abstraction
 
+> **Shipped in Phases 1–3 — doc reconciled.** The implementation refined this section:
+> `CompletionResult` gained `total_tokens`; the structured path is now `execute_operation()`
+> (returns parsed output **plus** usage) rather than `complete_structured()`; `test_connection`
+> returns `(bool, message)`. Vision capability moved to the model layer (§7). Reflected below.
+
 ```python
 # services/ai/providers/base.py
 
@@ -195,14 +200,16 @@ class CompletionResult:
     content: str
     prompt_tokens: int
     completion_tokens: int
+    total_tokens: int
     model: str
     raw: dict  # full provider response
 
 class AIProvider(ABC):
     slug: str
     display_name: str
-    supports_vision: bool = False
-    supports_structured_output: bool = False
+    # Vision is a MODEL property (see §7) and lives on ai_models rows.
+    # The provider declares only what it cannot know per-model:
+    supports_structured_output: bool = False  # native json_schema / tool_use available
 
     @abstractmethod
     def complete(
@@ -213,19 +220,23 @@ class AIProvider(ABC):
     ) -> CompletionResult: ...
 
     @abstractmethod
-    def complete_structured(
+    def execute_operation(
         self,
         messages: list[Message],
         model: str,
         output_schema: dict,
         options: CompletionOptions,
-    ) -> dict: ...
+    ) -> tuple[dict, CompletionResult]: ...
+    # Returns (parsed_output, result_with_usage). Replaces the earlier
+    # complete_structured(), which returned a bare dict and dropped token usage —
+    # a cost-tracking blind spot. Providers with native structured output override
+    # this; the base class falls back to complete() + JSON parse.
 
     @abstractmethod
     def list_models(self) -> list[str]: ...
 
     @abstractmethod
-    def test_connection(self) -> bool: ...
+    def test_connection(self) -> tuple[bool, str]: ...  # (success, message)
 ```
 
 **Concrete providers:**
@@ -234,13 +245,11 @@ class AIProvider(ABC):
 # services/ai/providers/openai_provider.py
 class OpenAIProvider(AIProvider):
     slug = "openai"
-    supports_vision = True
     supports_structured_output = True  # via response_format
 
 # services/ai/providers/anthropic_provider.py
 class AnthropicProvider(AIProvider):
     slug = "anthropic"
-    supports_vision = True
     supports_structured_output = True  # via tool_use
 
 # services/ai/providers/ollama_provider.py
@@ -340,6 +349,18 @@ def get_workspace_ai_provider(session: Session, group_id: UUID) -> AIProvider:
     raise AIDisabledError("No valid credential mode configured")
 ```
 
+### Provider Isolation & Optional SDKs
+
+**Import boundary.** A module under `providers/` may import only `..base` and its own
+provider SDK — **nothing else from `marvin`**. This one-line rule gives the entire benefit
+of a "provider-agnostic core" (the reason one might reach for a separate `marvin-ai-core`
+package) with none of the packaging cost. Enforced by review + grep, not by a package split.
+
+**Optional dependencies.** Provider SDKs ship as extras — `marvin[openai]`,
+`marvin[anthropic]`, `marvin[google]`, `marvin[all-ai]`. The lazy imports in `get_ai_provider()`
+already assume this: installing Marvin never imports `openai` unless a workspace selects it,
+and a missing SDK raises a clean ImportError with an install hint.
+
 ---
 
 ## 7. Model Abstraction
@@ -351,7 +372,16 @@ Models are configured per-provider. Each `ai_providers` row has an associated se
 2. Workspace default (`workspace_ai_settings.model`)
 3. Provider default model (`ai_models.is_default = True` for this provider)
 
-Models expose capability flags: `supports_vision`, `supports_tools`, `context_window`, `max_output_tokens`. Operations declare requirements; the factory validates compatibility before calling.
+Models expose capability flags: `supports_vision`, `supports_tools`, `context_window`,
+`max_output_tokens`.
+
+**Capability source of truth = `ai_models` rows.** Capability is a *model* property, not a
+provider one (`gpt-4o` has vision, `o1-mini` does not — both are `openai`). The provider
+class declares only `supports_structured_output` (whether native structured output exists
+at all). Operations declare requirements (`requires_vision`, etc.); before calling, the
+executor validates `required ⊆ available` against the selected model row and returns a clear
+422 on mismatch. **(This pre-call check is specified here but not yet implemented — build it
+before Phase 6 vision operations.)**
 
 Well-known model slugs (display only, not validated server-side):
 `gpt-4o`, `gpt-4.1`, `claude-sonnet-5`, `claude-opus-4-8`, `gemini-1.5-pro`, `llama3.2`, `mistral-large`
@@ -1007,6 +1037,24 @@ Observations from the architecture review that apply beyond AI:
 6. **Provider test endpoint** (`POST /api/ai/providers/{id}/test`) is the equivalent of the existing secrets `reveal` endpoint — it validates a connection without exposing the key.
 
 7. **Renderers stay independent** — renderer packages call `workspace.ai.operations.execute()` from the SDK. No AI logic lives in renderer packages. The renderer simply knows which operation slug to invoke and what to do with the suggestion output.
+
+### Rejected Alternatives
+
+8. **Rejected: separate provider packages.** Splitting into `marvin-ai-core` +
+   `marvin-ai-{openai,anthropic,…}` uv packages was considered and rejected. The AI
+   subsystem is defined by its coupling to Entries/Assets/Secrets/Variables/roles (§2), so
+   a standalone "core" is not extractable without dragging half the app with it. Lazy imports
+   (§6) + optional extras already deliver optional dependencies; separate packages add N
+   pyproject files, cross-package version pins, and build targets for no hobby-scale gain.
+
+9. **Rejected: entry-point / plugin discovery.** Entry points solve registering providers you
+   *can't edit the registry for* — a third-party ecosystem. Every provider here is
+   first-party, so the greppable switch-factory (§6) is strictly simpler and easier to debug.
+
+10. **Rejected: building on LangChain.** LangChain's value (a unified provider interface) is
+    exactly the thin layer §6 owns; adopting it as "just another provider" would be a fat
+    adapter that contradicts the thin-adapter rule and adds transitive deps. Kept only as a
+    theoretical last-resort adapter for a provider with no usable official SDK — not planned.
 
 ---
 
