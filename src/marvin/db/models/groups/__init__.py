@@ -1,3 +1,4 @@
+from .ai_embeddings import *
 from .ai_executions import *
 from .ai_providers import *
 from .ai_settings import *
