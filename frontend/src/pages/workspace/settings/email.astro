@@ -36,21 +36,27 @@ try {
 const groupId = (workspace as any)?.id ?? (workspace as any)?.groupId;
 const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
-// Build template_id → [event_type, ...] from both sources
+// Build template_id → [event_type, ...] and (template_id|event_type) → subscription_id
 const eventsByTemplateId: Record<string, string[]> = {};
+const subIdByKey: Record<string, string> = {}; // key = "templateId|eventType"
 
-function _addEvent(id: string, et: string) {
+function _addEvent(id: string, et: string, subId?: string) {
   if (!id || !et) return;
   if (!eventsByTemplateId[id]) eventsByTemplateId[id] = [];
   if (!eventsByTemplateId[id].includes(et)) eventsByTemplateId[id].push(et);
+  if (subId) subIdByKey[`${id}|${et}`] = subId;
 }
 
 for (const conn of eventConnections) {
-  if (conn.system_template?.id) _addEvent(conn.system_template.id, conn.event_type);
-  if (conn.workspace_template?.id && conn.subscription_id) _addEvent(conn.workspace_template.id, conn.event_type);
+  if (conn.workspace_template?.id && conn.subscription_id)
+    _addEvent(conn.workspace_template.id, conn.event_type, conn.subscription_id);
+  else if (conn.system_template?.id)
+    _addEvent(conn.system_template.id, conn.event_type);
 }
 for (const sub of allSubscriptions) {
-  _addEvent(sub.template_id ?? sub.templateId, sub.event_type ?? sub.eventType);
+  const tid = sub.template_id ?? sub.templateId;
+  const et = sub.event_type ?? sub.eventType;
+  _addEvent(tid, et, sub.id);
 }
 
 // Group templates by type to compute effective state
@@ -141,14 +147,26 @@ function isSuperseded(template: any): boolean {
                     {(() => {
                       const evts = eventsByTemplateId[template.id] ?? [];
                       if (!evts.length) return null;
-                      const show = evts.slice(0, 2);
-                      const rest = evts.length - show.length;
                       return (
-                        <p class="connected-event-line">
-                          <span class="connected-dot">&#9679;</span>
-                          {show.map((e, i) => <><code key={i}>{e}</code>{i < show.length - 1 ? ', ' : ''}</>)}
-                          {rest > 0 && <span class="connected-more">+{rest} more</span>}
-                        </p>
+                        <div class="connected-events-list">
+                          {evts.map((e: string) => {
+                            const subId = subIdByKey[`${template.id}|${e}`];
+                            return (
+                              <span class="connected-event-tag" key={e}>
+                                <span class="connected-dot">&#9679;</span>
+                                <code>{e}</code>
+                                {subId && (
+                                  <button
+                                    class="disconnect-event-btn"
+                                    data-sub-id={subId}
+                                    title="Disconnect"
+                                    type="button"
+                                  >&#215;</button>
+                                )}
+                              </span>
+                            );
+                          })}
+                        </div>
                       );
                     })()}
                     {isSuperseded(template) && (
@@ -158,9 +176,8 @@ function isSuperseded(template: any): boolean {
                   <div class="template-actions">
                     {isSystemTpl ? (
                       <button
-                        class="button secondary small edit-template-btn"
+                        class="button secondary small customize-btn"
                         data-template-id={template.id}
-                        data-is-system="true"
                       >
                         Customize
                       </button>
@@ -559,6 +576,67 @@ function isSuperseded(template: any): boolean {
     let isEditMode = false;
 
     // Create template
+    // Customize — create workspace copy of system template then navigate to edit page
+    document.querySelectorAll('.customize-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const templateId = btn.dataset.templateId;
+        btn.disabled = true;
+        btn.textContent = 'Creating…';
+        try {
+          // Fetch system template content
+          const res = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${templateId}`, { credentials: 'include' });
+          if (!res.ok) throw new Error('Could not load template');
+          const tpl = await res.json();
+          const f = (camel, snake) => tpl[camel] ?? tpl[snake] ?? null;
+
+          // Create workspace copy
+          const body = {
+            template_type: f('templateType', 'template_type') ?? 'custom',
+            name: tpl.name,
+            description: tpl.description ?? null,
+            subject: tpl.subject ?? '',
+            body_markdown: f('bodyMarkdown', 'body_markdown') ?? null,
+            custom_html: f('customHtml', 'custom_html') ?? null,
+            enabled: true,
+          };
+          const createRes = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body),
+          });
+          if (!createRes.ok) {
+            const err = await createRes.json().catch(() => ({}));
+            throw new Error(err.detail || 'Create failed');
+          }
+          const created = await createRes.json();
+          window.location.href = `/workspace/settings/email/${created.id}`;
+        } catch (e) {
+          alert('Error: ' + e.message);
+          btn.disabled = false;
+          btn.textContent = 'Customize';
+        }
+      });
+    });
+
+    // Disconnect event from card ×
+    document.querySelectorAll('.disconnect-event-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const subId = btn.dataset.subId;
+        if (!subId || !confirm('Disconnect this event?')) return;
+        try {
+          const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${subId}`, {
+            method: 'DELETE', credentials: 'include',
+          });
+          if (!res.ok && res.status !== 204) throw new Error(`Failed (${res.status})`);
+          window.location.reload();
+        } catch (e) {
+          alert('Error: ' + e.message);
+        }
+      });
+    });
+
     document.getElementById('create-template-btn').addEventListener('click', () => {
       isEditMode = false;
       document.getElementById('modal-title').textContent = 'Create Custom Template';
@@ -1142,32 +1220,49 @@ function isSuperseded(template: any): boolean {
     color: var(--muted);
   }
 
-  .connected-event-line {
+  .connected-events-list {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 4px !important;
-    font-size: 12px;
-    color: var(--accent) !important;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
   }
 
-  .connected-dot {
-    font-size: 8px;
+  .connected-event-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    background: rgba(79,156,132,0.08);
+    border: 1px solid rgba(79,156,132,0.25);
+    border-radius: 4px;
+    font-size: 11px;
     color: var(--accent);
   }
 
-  .connected-event-line code {
-    font-family: monospace;
-    font-size: 11px;
-    background: rgba(79,156,132,0.1);
-    padding: 1px 5px;
-    border-radius: 3px;
+  .connected-dot {
+    font-size: 7px;
   }
 
-  .connected-more {
+  .connected-event-tag code {
+    font-family: monospace;
     font-size: 11px;
+    color: inherit;
+  }
+
+  .disconnect-event-btn {
+    background: none;
+    border: none;
+    padding: 0 0 0 2px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
     color: var(--muted);
-    margin-left: 4px;
+    opacity: 0.6;
+  }
+
+  .disconnect-event-btn:hover {
+    color: var(--color-error);
+    opacity: 1;
   }
 
   .template-actions {
