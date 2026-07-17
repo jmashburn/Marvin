@@ -313,34 +313,82 @@ for (const s of mySubscriptions) {
         btn.classList.add('active');
         const mode = btn.dataset.bodyMode;
 
-        // Keep track of last non-preview mode for preview rendering
         if (mode !== 'preview') activeBodyMode = mode;
 
         document.getElementById('body-markdown-field').style.display = mode === 'markdown' ? 'block' : 'none';
         document.getElementById('body-html-field').style.display = mode === 'html' ? 'block' : 'none';
         document.getElementById('body-preview-field').style.display = mode === 'preview' ? 'block' : 'none';
 
+        if (mode === 'html') {
+          // Auto-populate HTML from markdown if the HTML field is empty
+          const htmlArea = document.getElementById('tpl-custom-html');
+          if (!htmlArea.value.trim()) {
+            const md = document.getElementById('tpl-body-markdown').value;
+            if (md.trim()) {
+              htmlArea.value = markdownToHtmlDocument(md);
+            }
+          }
+        }
+
         if (mode === 'preview') {
           const iframe = document.getElementById('body-preview-iframe');
           if (activeBodyMode === 'html') {
-            iframe.srcdoc = document.getElementById('tpl-custom-html').value;
+            iframe.srcdoc = document.getElementById('tpl-custom-html').value || '<p style="color:#aaa;padding:24px">No HTML content</p>';
           } else {
-            iframe.srcdoc = renderMarkdownToHtml(document.getElementById('tpl-body-markdown').value);
+            iframe.srcdoc = markdownToHtmlDocument(document.getElementById('tpl-body-markdown').value);
           }
         }
       });
     });
 
-    function renderMarkdownToHtml(md) {
-      let html = md
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
-      const paragraphs = html
-        .split(/\n\n+/)
-        .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
-        .join('\n');
-      return `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px;max-width:600px;margin:0 auto;color:#333;">${paragraphs}</body></html>`;
+    function markdownToHtmlDocument(md) {
+      if (!md || !md.trim()) return '<p style="color:#aaa;padding:24px">No content</p>';
+
+      // Preserve {{ variables }} — replace with placeholder before escaping
+      const vars = [];
+      let safe = md.replace(/\{\{([^}]+)\}\}/g, (_, v) => {
+        vars.push(v.trim());
+        return `\x00VAR${vars.length - 1}\x00`;
+      });
+
+      // Headings
+      safe = safe.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      safe = safe.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      safe = safe.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+      // Bold / italic
+      safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+      // Links
+      safe = safe.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#4f9c84">$1</a>');
+
+      // Bare URLs (not already linked)
+      safe = safe.replace(/(?<![">])(https?:\/\/[^\s<>"']+)/g, '<a href="$1" style="color:#4f9c84">$1</a>');
+
+      // Restore variables as styled chips
+      safe = safe.replace(/\x00VAR(\d+)\x00/g, (_, i) =>
+        `<code style="background:#f0f8f5;color:#2d7a5e;padding:1px 5px;border-radius:3px;font-size:0.9em">{{${vars[i]}}}</code>`
+      );
+
+      // Paragraphs
+      const blocks = safe.split(/\n{2,}/).map(block => {
+        block = block.trim();
+        if (!block) return '';
+        if (block.startsWith('<h') || block.startsWith('<ul') || block.startsWith('<ol')) return block;
+        return `<p style="margin:0 0 16px;line-height:1.7">${block.replace(/\n/g, '<br>')}</p>`;
+      }).filter(Boolean).join('\n');
+
+      return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px;">
+    <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+      <tr><td style="height:4px;background:#4f9c84"></td></tr>
+      <tr><td style="padding:28px 40px;font-size:15px;color:#444;line-height:1.7">${blocks}</td></tr>
+      <tr><td style="padding:16px 40px;border-top:1px solid #f0f0f0;background:#fafafa;font-size:12px;color:#aaa">Sent by Marvin CMS</td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
     }
 
     // ── Form save (template + subscriptions) ──────────────────────────────────

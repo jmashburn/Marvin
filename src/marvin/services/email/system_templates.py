@@ -77,15 +77,11 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
     SystemTemplateDefinition(
         template_type="custom",
         name="Custom Notification",
-        description="General-purpose custom notification email.",
-        subject="{{title}}",
-        body_markdown=(
-            "**{{title}}**\n\n"
-            "{{message}}\n\n"
-            "{{action_url}}"
-        ),
-        required_vars=["title", "message"],
-        optional_vars=["action_url"],
+        description="General-purpose custom notification email. Edit to suit any event.",
+        subject="Notification from {{workspace_name}}",
+        body_markdown="Write your message here. Use **{{ variable }}** for dynamic values.",
+        required_vars=[],
+        optional_vars=["workspace_name"],
     ),
 ]
 
