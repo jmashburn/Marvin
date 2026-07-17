@@ -32,7 +32,8 @@ that lived here is shipped — replaced with the live backlog.)
       api_version, Ollama endpoint). Needed for Ollama/Azure workspace setups.
 
 ## ★ North star: "Marvin" — the expandable workspace assistant
-Persona: **Marvin the Martian** (playful, a little imperious — "where's the kaboom?").
+Persona: **Marvin the Paranoid Android** (Hitchhiker's Guide) — brilliant, world-weary,
+deadpan. "Here I am, brain the size of a planet, and they ask me to reindex embeddings."
 The "Ask Marvin" bubble is his v1 shell. Not just RAG — a command surface that can *do* things:
 - **Ask** — RAG Q&A over workspace content (one skill among many)
 - **Actions** — Review, Publish, Test, Rebuild, … dispatched to existing endpoints
