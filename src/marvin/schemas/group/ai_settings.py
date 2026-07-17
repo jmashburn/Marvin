@@ -1,0 +1,46 @@
+"""Pydantic schemas for per-workspace AI workflow policy settings."""
+
+from pydantic import UUID4, ConfigDict
+
+from marvin.schemas._marvin import _MarvinModel
+
+
+class WorkspaceAISettingsCreate(_MarvinModel):
+    enabled: bool = True
+    credential_mode: str = "platform"  # "platform" | "workspace" | "disabled"
+    provider: str | None = None
+    model: str | None = None
+    secret_ref: str | None = None  # slug of a WorkspaceSecret — never a raw key
+    approval_mode: str = "suggest-only"  # "suggest-only" | "allow-draft-update" | "allow-automatic-update"
+
+    invocation_sources: dict | None = None
+    operation_overrides: dict | None = None
+    budget_config: dict | None = None
+    logging_config: dict | None = None
+    moderation_config: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkspaceAISettingsUpdate(_MarvinModel):
+    enabled: bool | None = None
+    credential_mode: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    secret_ref: str | None = None
+    approval_mode: str | None = None
+
+    invocation_sources: dict | None = None
+    operation_overrides: dict | None = None
+    budget_config: dict | None = None
+    logging_config: dict | None = None
+    moderation_config: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkspaceAISettingsRead(WorkspaceAISettingsCreate):
+    id: UUID4
+    group_id: UUID4
+
+    model_config = ConfigDict(from_attributes=True)

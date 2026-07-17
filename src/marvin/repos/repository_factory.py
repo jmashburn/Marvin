@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 # Import all necessary DB models
 from marvin.db.models.events import EventNotifierOptionsModel
+from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
 from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
 from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
@@ -39,6 +40,7 @@ from marvin.db.models.users.password_reset import PasswordResetModel
 
 # Import all necessary Pydantic schemas for repository typing
 from marvin.schemas.event.event import EventNotifierOptionsRead
+from marvin.schemas.group.ai_settings import WorkspaceAISettingsRead
 from marvin.schemas.group.email_event_subscription import EmailEventSubscriptionRead
 from marvin.schemas.group import GroupRead
 from marvin.schemas.group.event import (
@@ -176,6 +178,13 @@ class AllRepositories:
         """
         # RepositoryGroup typically doesn't take group_id for its own operations
         return RepositoryGroup(self.session, PK_ID, Groups, GroupRead)
+
+    @cached_property
+    def workspace_ai_settings(self) -> GroupRepositoryGeneric[WorkspaceAISettingsRead, WorkspaceAISettingsModel]:
+        """Provides access to workspace AI workflow policy settings."""
+        return GroupRepositoryGeneric(
+            self.session, PK_GROUP_ID, WorkspaceAISettingsModel, WorkspaceAISettingsRead, group_id=self.group_id
+        )
 
     @cached_property
     def group_preferences(self) -> GroupRepositoryGeneric[GroupPreferencesRead, GroupPreferencesModel]:

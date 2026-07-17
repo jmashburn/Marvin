@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from . import (
+    ai_settings_controller,
     email_event_subscriptions_controller,
     email_template_controller,
     invitation_controller,
@@ -21,3 +22,4 @@ router.include_router(notification_controller.router, tags=["Groups: Event Notif
 router.include_router(preferences_controller.router, tags=["Groups: Preferences"])
 router.include_router(email_template_controller.router, tags=["Groups: Email Templates"])
 router.include_router(email_event_subscriptions_controller.router, tags=["Groups: Email Event Subscriptions"])
+router.include_router(ai_settings_controller.router, tags=["Groups: AI Workflow Settings"])

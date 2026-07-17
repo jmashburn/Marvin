@@ -23,6 +23,7 @@ from .preferences import GroupPreferencesModel
 if TYPE_CHECKING:
     from ..users import Users
     from ..users.workspace_members import WorkspaceMembers
+    from .ai_settings import WorkspaceAISettingsModel
     from .events import GroupEventNotifierModel
     from .invite_tokens import GroupInviteToken
     from .reports import ReportModel
@@ -70,6 +71,16 @@ class Groups(SqlAlchemyBase, BaseMixins):
         single_parent=True,  # Group is the parent, deletion cascades
         cascade="all, delete-orphan",  # Operations on Group cascade to preferences
         doc="Group-specific preferences.",
+    )
+
+    # Relationship to WorkspaceAISettingsModel (one-to-one)
+    ai_settings: Mapped["WorkspaceAISettingsModel"] = orm.relationship(
+        "WorkspaceAISettingsModel",
+        back_populates="group",
+        uselist=False,
+        single_parent=True,
+        cascade="all, delete-orphan",
+        doc="Per-workspace AI workflow policy settings.",
     )
 
     # Common arguments for several one-to-many relationships from Group
