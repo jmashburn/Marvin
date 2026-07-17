@@ -587,24 +587,37 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     });
   });
 
-  // Variable chips
+  // Variable chips — insert at cursor
   const varsEl = document.getElementById('em-template-vars');
   if (varsEl && eventVariables?.length) {
     const chips = eventVariables.filter(v => v.type !== 'uuid');
     varsEl.innerHTML = `
       <div class="em-vars-header">
-        <span class="em-vars-title">Available variables</span>
-        <span class="em-vars-hint">Click to copy · use as <code>{{ variable }}</code></span>
+        <span class="em-vars-title">Variables</span>
+        <span class="em-vars-hint">Click to insert at cursor</span>
       </div>
       <div class="em-vars-chips">
-        ${chips.map(v => `<button type="button" class="em-var-chip em-var-type-${v.type||'string'}" data-slug="{{ ${v.slug} }}" title="${v.description||v.slug}">{{ ${v.slug} }}</button>`).join('')}
+        ${chips.map(v => `<button type="button" class="em-var-chip" data-slug="{{${v.slug}}}" title="${(v.description||v.slug) + ' — click to insert'}">{{${v.slug}}}</button>`).join('')}
       </div>`;
     varsEl.querySelectorAll('.em-var-chip').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        await navigator.clipboard.writeText(btn.dataset.slug).catch(() => {});
+      btn.addEventListener('click', () => {
+        const slug = btn.dataset.slug;
+        // Insert into whichever field is focused, or body by default
+        const active = document.activeElement;
+        const target = (active === document.getElementById('em-subject') || active === document.getElementById('em-md-body'))
+          ? active
+          : document.getElementById('em-md-body');
+        if (target) {
+          const start = target.selectionStart ?? target.value.length;
+          const end = target.selectionEnd ?? start;
+          target.value = target.value.slice(0, start) + slug + target.value.slice(end);
+          const pos = start + slug.length;
+          target.setSelectionRange(pos, pos);
+          target.focus();
+        }
         const orig = btn.textContent;
         btn.textContent = '✓';
-        setTimeout(() => { btn.textContent = orig; }, 900);
+        setTimeout(() => { btn.textContent = orig; }, 800);
       });
     });
   }
@@ -1321,21 +1334,23 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
   .em-vars-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
   .em-vars-hint { font-size: 11px; color: var(--muted); }
   .em-vars-hint code { font-size: 10px; background: var(--panel); border: 1px solid var(--line); padding: 1px 4px; border-radius: 3px; }
-  .em-vars-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .em-vars-chips { display: flex; flex-wrap: wrap; gap: 4px; }
   .em-var-chip {
-    font-size: 11px;
-    font-family: ui-monospace, monospace;
-    background: rgba(79,156,132,0.08);
-    border: 1px solid rgba(79,156,132,0.2);
-    border-radius: 4px;
-    padding: 3px 9px;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 2px 7px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
     cursor: pointer;
-    color: var(--accent);
-    transition: background 0.1s;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: border-color 0.1s, color 0.1s;
   }
-  .em-var-chip:hover { background: rgba(79,156,132,0.18); }
-  .em-var-type-email { border-color: rgba(79,156,132,0.5); font-weight: 600; }
-  .em-var-type-url { border-color: rgba(100,130,200,0.4); color: #5577cc; }
+  .em-var-chip:hover { border-color: var(--accent); color: var(--accent); }
   .em-subtle-link { font-size: 12px; color: var(--muted); margin-top: 12px; display: inline-block; }
 
   .em-hint {
