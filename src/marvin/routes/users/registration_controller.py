@@ -111,6 +111,7 @@ class RegistrationController(BasePublicController):
             try:
                 group_repos = get_repositories(self.session, group_id=newly_registered_user.group_id)
                 group = group_repos.groups.get_one(newly_registered_user.group_id)
+                token_obj = group_repos.group_invite_tokens.get_one(data.group_token, "token")
                 self.event_bus.dispatch(
                     integration_id="invitation_management",
                     group_id=newly_registered_user.group_id,
@@ -121,6 +122,8 @@ class RegistrationController(BasePublicController):
                         workspace_id=newly_registered_user.group_id,
                         workspace_name=group.name if group else "",
                         invitee_email=newly_registered_user.email,
+                        invitation_url=f"{settings.BASE_URL}/register?token={data.group_token}",
+                        uses_left=token_obj.uses_left if token_obj else None,
                     ),
                     message=f"Invitation accepted by {newly_registered_user.username}",
                 )
