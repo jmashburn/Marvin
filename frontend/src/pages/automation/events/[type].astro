@@ -149,6 +149,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                     <div class="sub-option-name-row">
                       {isConnected && <span class="connected-check">&#10003;</span>}
                       <strong>{t.name}</strong>
+                      {isConnected && <span class="badge-inline badge-custom">Custom</span>}
                     </div>
                     <code class="sub-type">{tplType}</code>
                   </div>
