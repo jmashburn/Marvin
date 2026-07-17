@@ -40,7 +40,7 @@ class WorkspaceAISettingsUpdate(_MarvinModel):
 
 
 class WorkspaceAISettingsRead(WorkspaceAISettingsCreate):
-    id: UUID4
-    group_id: UUID4
+    id: UUID4 | None = None
+    group_id: UUID4 | None = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -40,14 +40,8 @@ class AISettingsController(BaseUserController):
 
         row = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=group_id).first()
         if not row:
-            # Return defaults without persisting — first PATCH will create the row.
-            return WorkspaceAISettingsRead(
-                id="00000000-0000-0000-0000-000000000000",
-                group_id=group_id,
-                enabled=True,
-                credential_mode="platform",
-                approval_mode="suggest-only",
-            )
+            # No row yet — return synthesised defaults; first PATCH will create it.
+            return WorkspaceAISettingsRead(group_id=group_id)
         return WorkspaceAISettingsRead.model_validate(row)
 
     @router.patch("", response_model=WorkspaceAISettingsRead, summary="Update AI Workflow Settings")
