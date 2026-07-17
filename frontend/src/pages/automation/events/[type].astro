@@ -599,14 +599,17 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       <div class="em-vars-chips">
         ${chips.map(v => `<button type="button" class="em-var-chip" data-slug="{{${v.slug}}}" title="${(v.description||v.slug) + ' — click to insert'}">{{${v.slug}}}</button>`).join('')}
       </div>`;
+    // Track last focused editable field in the modal
+    let emLastFocused = document.getElementById('em-md-body');
+    ['em-subject', 'em-md-body'].forEach(id => {
+      document.getElementById(id)?.addEventListener('focus', function() { emLastFocused = this; });
+    });
+
     varsEl.querySelectorAll('.em-var-chip').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.preventDefault()); // prevent focus steal
       btn.addEventListener('click', () => {
         const slug = btn.dataset.slug;
-        // Insert into whichever field is focused, or body by default
-        const active = document.activeElement;
-        const target = (active === document.getElementById('em-subject') || active === document.getElementById('em-md-body'))
-          ? active
-          : document.getElementById('em-md-body');
+        const target = emLastFocused || document.getElementById('em-md-body');
         if (target) {
           const start = target.selectionStart ?? target.value.length;
           const end = target.selectionEnd ?? start;
