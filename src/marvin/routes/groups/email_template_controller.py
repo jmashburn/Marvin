@@ -158,7 +158,7 @@ class EmailTemplateController(BaseUserController):
                     if workspace_tmpl else None
                 ),
                 "subscription_id": _fmt(subscription.id) if subscription else None,
-                "has_workspace_override": workspace_tmpl is not None,
+                "has_workspace_override": subscription is not None,
             })
 
         return result
