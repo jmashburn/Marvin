@@ -1130,9 +1130,13 @@ class AuditLogListener(EventListenerBase):
             list[str]: ["database"] to persist the event, or [] to skip persistence
                        for non-audited internal plumbing events (the "nolog" set).
         """
-        from .event_types import NON_AUDITED_EVENT_TYPES
+        # Audit policy is declared per-event in the catalog (its `audited` flag). Events with no
+        # catalog entry default to audited (safe). Set audited=False on a CatalogEntry to keep it
+        # out of the audit trail — toggleable per event, no code change here.
+        from marvin.services.events.event_catalog import get_catalog_entry
 
-        if event.event_type in NON_AUDITED_EVENT_TYPES:
+        entry = get_catalog_entry(event.event_type.name)
+        if entry is not None and not entry.audited:
             return []
         return ["database"]
 

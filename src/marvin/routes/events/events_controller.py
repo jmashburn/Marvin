@@ -133,6 +133,8 @@ class EventsNotifierOptionsController(BaseUserController):
         from marvin.services.events.payload_schemas import get_payload_example
 
         for entry in CATALOG:
+            if not entry.enabled:
+                continue  # internal/disabled events aren't offered for subscription
             cat = entry.category if entry.category in by_category else "Other"
             by_category[cat].append({
                 "value": entry.event_type,

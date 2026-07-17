@@ -28,6 +28,10 @@ class CatalogEntry:
     category: str
     variables: list[EventVariable] = field(default_factory=list)
     enabled: bool = True
+    """Whether this event is offered for subscription in the Events UI."""
+    audited: bool = True
+    """Whether this event is persisted to the event_log audit trail. Set False for
+    high-frequency internal plumbing whose outcomes are captured elsewhere."""
 
 
 COMMON_VARS = [
@@ -801,10 +805,20 @@ CATALOG: list[CatalogEntry] = [
         ],
     ),
     CatalogEntry(
+        event_type="webhook_task",
+        name="Webhook Task (internal)",
+        description="Internal scheduler tick that dispatches due webhooks. Not subscribable; "
+        "delivery outcomes are recorded in webhook_execution_logs.",
+        category="Automation",
+        enabled=False,   # internal plumbing — not offered for subscription
+        audited=False,   # high-frequency noise — kept out of the audit log
+    ),
+    CatalogEntry(
         event_type="scheduled_task_triggered",
         name="Scheduled Task Triggered",
         description="A scheduled task was manually triggered.",
         category="Automation",
+        audited=False,   # internal trigger — outcome captured by started/completed/failed
         variables=COMMON_VARS + [
             EventVariable("task_name", "Name of the task", "Daily Cleanup", type="name"),
         ],
@@ -814,6 +828,7 @@ CATALOG: list[CatalogEntry] = [
         name="Scheduled Task Started",
         description="A scheduled task has begun execution.",
         category="Automation",
+        audited=False,   # start marker — completed/failed carry the audit value
         variables=COMMON_VARS + [
             EventVariable("task_name", "Name of the task", "Daily Cleanup", type="name"),
         ],
