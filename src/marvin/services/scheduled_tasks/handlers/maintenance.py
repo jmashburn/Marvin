@@ -232,8 +232,57 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
         return summary
 
 
+class PruneEventLogsHandler(ScheduledTaskHandler):
+    """
+    Delete old rows from the event_log audit trail (platform-wide, all workspaces).
+
+    Admin-only: operates across the whole event log, not a single workspace.
+
+    Configuration (task_config):
+    - retention_days: int - Delete events older than this many days. Defaults to the
+      EVENT_LOG_RETENTION_DAYS app setting. A value <= 0 disables pruning (keep forever).
+    """
+
+    name = "Prune Event Logs"
+    description = "Delete audit-trail events older than the retention window (admin only)"
+    admin_only = True
+    config_schema = {
+        "type": "object",
+        "properties": {
+            "retention_days": {
+                "type": "integer",
+                "description": "Delete events older than this many days (<=0 disables). "
+                "Defaults to the EVENT_LOG_RETENTION_DAYS setting.",
+            },
+        },
+    }
+
+    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
+        if task.group_id:
+            return "Skipped: prune_event_logs is admin-only and cannot run in a workspace context"
+
+        from marvin.core.config import get_app_settings
+
+        default_days = getattr(get_app_settings(), "EVENT_LOG_RETENTION_DAYS", 90)
+        retention_days = task.task_config.get("retention_days", default_days)
+        if not retention_days or retention_days <= 0:
+            msg = "Skipped: event log retention disabled (retention_days <= 0)"
+            logger.info(msg)
+            return msg
+
+        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+        with session_context() as session:
+            repos = AllRepositories(session, group_id=None)
+            deleted = repos.event_log.prune_older_than(cutoff)
+
+        summary = f"Pruned {deleted} event log row{'s' if deleted != 1 else ''} older than {retention_days} days"
+        logger.info("Event log prune: %s", summary)
+        return summary
+
+
 # Register handlers
 TaskHandlerRegistry.register("cleanup_temp_files", CleanupTempFilesHandler)
 TaskHandlerRegistry.register("prune_expired_sessions", PruneExpiredSessionsHandler)
 TaskHandlerRegistry.register("prune_expired_invitations", PruneExpiredInvitationsHandler)
 TaskHandlerRegistry.register("remove_orphaned_assets", RemoveOrphanedAssetsHandler)
+TaskHandlerRegistry.register("prune_event_logs", PruneEventLogsHandler)

@@ -152,6 +152,10 @@ class AppSettings(BaseSettings):
     LOG_LEVEL: str = "info"
     """ corresponds to standard Python Log levels """
 
+    EVENT_LOG_RETENTION_DAYS: int = 90
+    """ default retention for the event_log audit trail; the prune_event_logs task deletes
+    rows older than this. 0 disables pruning (keep forever). Overridable per-task. """
+
     _logger: logging.Logger | None = None
 
     DAILY_SCHEDULE_TIME: str = "23:47"

@@ -402,6 +402,17 @@ class EventTypes(EventTypeBase):
     """Event dispatched when the AI provider rejects a call for lack of quota/credits (no tokens available)."""
 
 
+# "nolog" set: pure internal plumbing / high-frequency trigger events that are NOT persisted to
+# the event_log audit trail. Their meaningful outcomes are already captured in dedicated tables
+# (webhook_execution_logs, scheduled_task_execution_log), so logging them here is just noise.
+# Note: scheduled_task_completed/failed are intentionally NOT here — they carry audit value.
+NON_AUDITED_EVENT_TYPES: frozenset = frozenset({
+    EventTypes.webhook_task,
+    EventTypes.scheduled_task_triggered,
+    EventTypes.scheduled_task_started,
+})
+
+
 class EventDocumentTypeBase(Enum):
     """
     Abstract base class for event document types.

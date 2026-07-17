@@ -1127,9 +1127,13 @@ class AuditLogListener(EventListenerBase):
             event (Event): The event to persist.
 
         Returns:
-            list[str]: Always returns ["database"] to persist all events.
+            list[str]: ["database"] to persist the event, or [] to skip persistence
+                       for non-audited internal plumbing events (the "nolog" set).
         """
-        # Always persist all events to database
+        from .event_types import NON_AUDITED_EVENT_TYPES
+
+        if event.event_type in NON_AUDITED_EVENT_TYPES:
+            return []
         return ["database"]
 
     def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
