@@ -53,6 +53,7 @@ const SYSTEM_EVENT_MAP: Record<string, string> = {
   welcome: "user_signup",
 };
 const systemHardcodedEvent = SYSTEM_EVENT_MAP[templateType] ?? null;
+const isAutoConnected = systemHardcodedEvent ? subscribedEvents.has(systemHardcodedEvent) : false;
 
 // Sub ID map: event_type → subscription id (for deletes)
 const subIdMap: Record<string, string> = {};
@@ -239,16 +240,19 @@ for (const evtType of connectedEventTypes) {
 
           {(isSystem || systemHardcodedEvent) && systemHardcodedEvent ? (
             <div class="system-event-row">
-              <div class="event-chip">
+              <div class="event-chip" class:list={[{ 'chip-disconnected': !isSystem && !isAutoConnected }]}>
                 <span class="chip-icon">&#9679;</span>
                 <span class="chip-label">{systemHardcodedEvent}</span>
-                <span class="chip-badge">{isSystem ? 'Always connected' : 'Auto-connected'}</span>
+                {isSystem && <span class="chip-badge">Always connected</span>}
+                {!isSystem && isAutoConnected && <span class="chip-badge">Connected</span>}
+                {!isSystem && !isAutoConnected && <span class="chip-badge chip-badge-off">Not connected</span>}
               </div>
               <p class="system-event-note">
-                Connected to <code>{systemHardcodedEvent}</code>.
                 {isSystem
-                  ? ' Managed by the system — cannot be changed here.'
-                  : <> To disconnect, visit the <a href={`/automation/events/${systemHardcodedEvent}`}>Events page</a>.</>
+                  ? <>Always fires on <code>{systemHardcodedEvent}</code> — managed by the system.</>
+                  : isAutoConnected
+                    ? <>Connected to <code>{systemHardcodedEvent}</code>. <a href={`/automation/events/${systemHardcodedEvent}`}>Manage in Events</a>.</>
+                    : <>Not connected. <a href={`/automation/events/${systemHardcodedEvent}`}>Connect from the Events page</a> to make this template active.</>
                 }
               </p>
             </div>
@@ -997,6 +1001,20 @@ for (const evtType of connectedEventTypes) {
     font-weight: 600;
     color: var(--ink);
   }
+
+  .chip-badge-off {
+    background: rgba(107,114,128,0.12);
+    color: var(--muted);
+  }
+
+  .chip-disconnected {
+    border-color: var(--line);
+    background: var(--bg);
+    opacity: 0.7;
+  }
+
+  .chip-disconnected .chip-icon { color: var(--muted); }
+  .chip-disconnected .chip-label { color: var(--muted); }
 
   .chip-badge {
     font-size: 10px;
