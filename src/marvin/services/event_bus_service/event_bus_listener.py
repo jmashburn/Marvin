@@ -782,6 +782,100 @@ class ScheduledTaskListener(EventListenerBase):
         )
 
 
+class AIEmbeddingReactionListener(EventListenerBase):
+    """
+    Reaction listener that keeps the RAG index fresh: when an entry is published,
+    it embeds that single entry so it is immediately answerable via semantic search
+    (answer-workspace-question) with no manual or scheduled reindex.
+
+    This is a code-defined "reaction" (event -> action). It is deliberately:
+      - best-effort: any failure is logged and swallowed, so it can never break publish;
+      - a no-op when the workspace has AI disabled or a provider without embeddings;
+      - acyclic: it only emits ai_embeddings_reindexed (which re-triggers nothing here),
+        so there is no cascade. A depth/provenance guard is only needed once a reaction
+        can mutate content and re-fire entry events.
+    """
+
+    # Events that should refresh an entry's embeddings.
+    _TRIGGERS = (EventTypes.entry_published,)
+
+    def __init__(self, group_id: UUID4) -> None:
+        from .publisher import ConsolePublisher  # We act on the event; we don't publish through it.
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """Act only on the trigger events; cheap check, no DB access."""
+        return ["ai_embed"] if event.event_type in self._TRIGGERS else []
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        entry_id = getattr(event.document_data, "entry_id", None) or event.entity_id
+        if not entry_id:
+            self.logger.error("AIEmbeddingReactionListener: event carried no entry_id")
+            return
+
+        from marvin.services.ai.embeddings import default_embedding_model, index_entry
+        from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+
+        with self.ensure_session() as session:
+            # Resolve the workspace provider; quietly no-op when AI is off or unavailable.
+            try:
+                provider = get_workspace_ai_provider(session, self.group_id)
+            except AIDisabledError:
+                return
+            except Exception as e:
+                self.logger.warning(f"AIEmbeddingReactionListener: provider unavailable: {e}")
+                return
+
+            if not getattr(provider, "supports_embeddings", False):
+                return
+            model = default_embedding_model(provider.provider_type)
+            if not model:
+                return
+
+            from marvin.db.models.platform.entries import Entries
+            entry = session.get(Entries, entry_id)
+            if not entry or entry.group_id != self.group_id:
+                self.logger.warning(f"AIEmbeddingReactionListener: entry {entry_id} not found for this workspace")
+                return
+
+            try:
+                chunks = index_entry(session, self.group_id, entry, provider, model)
+            except Exception as e:
+                self.logger.warning(f"AIEmbeddingReactionListener: embed failed for entry {entry_id}: {e}")
+                return
+
+        self.logger.info(f"Auto-embedded entry {entry_id} ({chunks} chunk(s)) on publish")
+        self._emit_reindexed(model, chunks)
+
+    def _emit_reindexed(self, model: str, chunks: int) -> None:
+        """Surface the auto-index as an ai_embeddings_reindexed event (audit log + notifications)."""
+        from marvin.services.event_bus_service.event_bus_service import EventBusService
+
+        from .event_types import EventAIEmbeddingsData
+
+        try:
+            workspace_name = None
+            with self.ensure_repos(self.group_id) as repos:
+                grp = repos.groups.get_one(self.group_id)
+                workspace_name = getattr(grp, "name", None) if grp else None
+            EventBusService(bg_tasks=None).dispatch(
+                integration_id="ai_operations",
+                group_id=self.group_id,
+                event_type=EventTypes.ai_embeddings_reindexed,
+                document_data=EventAIEmbeddingsData(
+                    model_id=model,
+                    entities_indexed=1,
+                    chunks_indexed=chunks,
+                    workspace_id=self.group_id,
+                    workspace_name=workspace_name,
+                ),
+                message=f"Auto-indexed 1 entry ({chunks} chunks) on publish",
+            )
+        except Exception as e:
+            self.logger.error(f"AIEmbeddingReactionListener: failed to emit reindexed event: {e}")
+
+
 class ConsoleEventListener(EventListenerBase):
     """
     Event listener that logs all events to the console for debugging.

@@ -110,6 +110,11 @@ def _resource_text(r) -> str:
     return "\n".join(filter(None, [r.name, r.description, r.url]))
 
 
+def index_entry(session: Session, group_id: UUID4, entry, provider, model: str) -> int:
+    """(Re)index a single entry. Convenience wrapper for auto-embed-on-publish. Returns chunk count."""
+    return index_entity(session, group_id, "entry", entry.id, _entry_text(entry), provider, model)
+
+
 def reindex_workspace(session: Session, group_id: UUID4, provider, model: str) -> tuple[int, int]:
     """(Re)index every entry and resource in a workspace. Returns (entities, chunks)."""
     from marvin.db.models.platform.entries import Entries
