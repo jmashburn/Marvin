@@ -1,18 +1,16 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import EmojiPicker from "@/components/EmojiPicker.astro";
-import SmartCollectionFields from "@/components/SmartCollectionFields.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCollection, getCollectionEntries } from "@/lib/api/collections";
-import { listEntries } from "@/lib/api/entries";
+import { listEntryTypes } from "@/lib/api/entryTypes";
 import type { EntryRead, CollectionRead } from "@/lib/api/entries";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
 let collection: CollectionRead | null = null;
-let allEntries: EntryRead[] = [];
-let collectionEntries: EntryRead[] = [];
+let entries: EntryRead[] = [];
+let typeMap = new Map<string, string>();
 let error: string | null = null;
 
 if (!authToken) {
@@ -21,23 +19,41 @@ if (!authToken) {
   error = "Collection ID is required";
 } else {
   try {
-    [collection, allEntries, collectionEntries] = await Promise.all([
+    const [col, ents, types] = await Promise.all([
       getCollection(id, authToken),
-      listEntries(authToken),
       getCollectionEntries(id, authToken),
+      listEntryTypes(authToken),
     ]);
-
-    // Sort collection entries by order field (already sorted by API, but ensure it)
-    collectionEntries.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-
+    collection = col;
+    entries = ents;
+    typeMap = new Map(types.map((t) => [t.id, t.name]));
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Collection] Failed to load:', error);
+    console.error("[Collection view] Failed to load:", error);
+  }
+}
+
+const statusMeta: Record<string, { label: string; cls: string }> = {
+  inbox: { label: "Inbox", cls: "s-inbox" },
+  processing: { label: "Processing", cls: "s-processing" },
+  draft: { label: "Draft", cls: "s-draft" },
+  needs_review: { label: "Needs Review", cls: "s-review" },
+  approved: { label: "Approved", cls: "s-approved" },
+  published: { label: "Published", cls: "s-published" },
+  archived: { label: "Archived", cls: "s-archived" },
+};
+
+function fmtDate(d?: string | null): string {
+  if (!d) return "";
+  try {
+    return new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return "";
   }
 }
 ---
 
-<AppLayout title={collection ? `Edit ${collection.name}` : "Edit Collection"}>
+<AppLayout title={collection ? collection.name : "Collection"}>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading collection:</strong> {error}</p>
@@ -46,569 +62,58 @@ if (!authToken) {
   ) : collection ? (
     <>
       <div class="toolbar">
-        <div>
-          <h2 style="margin:0;font-size:20px;">Edit Collection</h2>
-          <p style="margin:4px 0 0;color:var(--muted);">Update collection details and manage entries</p>
+        <div class="head">
+          <a href="/workspace/collections" class="back-link">← Collections</a>
+          <h2 class="col-title">
+            {collection.icon && <span class="col-icon">{collection.icon}</span>}
+            {collection.name}
+            <span class="col-count">{entries.length}</span>
+            {collection.isSmart && <span class="pill">Smart</span>}
+            {collection.isSystem && <span class="pill system-pill">System</span>}
+          </h2>
+          {collection.description && <p class="col-desc">{collection.description}</p>}
         </div>
-        <a class="button secondary" href="/workspace/collections">Back</a>
+        {!collection.isSystem && (
+          <a class="button secondary" href={`/workspace/collections/${id}/edit`}>Edit collection</a>
+        )}
       </div>
 
-      <section class="form-section">
-        <form id="collection-form" class="form">
-          <div class="form-group">
-            <label for="name">Name *</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              required
-              value={collection.name}
-            />
-            <p class="form-help">Slug will be auto-generated from the name</p>
-          </div>
-
-          <div class="form-group">
-            <label>Slug</label>
-            <input
-              type="text"
-              value={collection.slug}
-              disabled
-              style="background: var(--panel-2); color: var(--muted);"
-            />
-            <p class="form-help" style="font-size: 12px; color: var(--muted);">Auto-generated from name</p>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="icon">Icon</label>
-              <EmojiPicker inputId="icon" value={collection.icon || ""} />
-              <p class="form-help">Emoji or symbol</p>
-            </div>
-
-            <div class="form-group">
-              <label for="color">Color</label>
-              <input
-                type="color"
-                id="color"
-                name="color"
-                value={collection.color || "#a94d3f"}
-              />
-              <p class="form-help">Theme color</p>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="description">Description</label>
-            <textarea
-              id="description"
-              name="description"
-              rows="3"
-            >{collection.description || ""}</textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="sort_order">Sort Order</label>
-            <input
-              type="number"
-              id="sort_order"
-              name="sort_order"
-              value={collection.sortOrder}
-              min="0"
-            />
-            <p class="form-help">Lower numbers appear first</p>
-          </div>
-
-          <SmartCollectionFields checked={collection.isSmart === true} rules={collection.smartRules} />
-
-          <div class="form-group">
-            <label for="metadata">Metadata (JSON)</label>
-            <textarea
-              id="metadata"
-              name="metadata"
-              rows="6"
-              placeholder='&#123;"featured": true, "priority": 1&#125;'
-              class="metadata-editor"
-            >{collection.metadataJson ? JSON.stringify(collection.metadataJson, null, 2) : ''}</textarea>
-            <p class="form-help">Custom metadata as JSON. Example: &#123;"featured": true, "priority": 1&#125;</p>
-
-            {collection.metadataJson && Object.keys(collection.metadataJson).length > 0 && (
-              <div class="metadata-preview">
-                <p class="metadata-preview-title">Current Metadata:</p>
-                <dl class="metadata-preview-list">
-                  {Object.entries(collection.metadataJson).map(([key, value]) => (
-                    <div class="metadata-preview-item">
-                      <dt>{key}</dt>
-                      <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="button">Save Changes</button>
-            <a href="/workspace/collections" class="button secondary">Cancel</a>
-          </div>
-        </form>
-
-        <form method="POST" action={`/api/collections/${id}/delete`} style="margin-top:2rem;">
-          <button type="submit" class="button secondary danger" onclick="return confirm('Delete this collection? This cannot be undone.')">
-            Delete Collection
-          </button>
-        </form>
-      </section>
-
-      <section class="entries-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-          <h3 style="margin:0;font-size:1.125rem;">Entries (<span id="entry-count">{collectionEntries.length}</span>)</h3>
-          <button id="save-entries-btn" class="button small" style="display:none;">Save Changes</button>
+      {entries.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <h3>No entries</h3>
+          <p>Entries matching this collection will appear here.</p>
         </div>
-
-        <div id="attached-entries" class="attached-list">
-          {collectionEntries.map((entry, idx) => {
-            const junction = (entry.collections || []).find((c: any) => c.id === id);
+      ) : (
+        <ul class="inbox">
+          {entries.map((entry) => {
+            const s = statusMeta[entry.status] ?? { label: entry.status, cls: "s-default" };
             return (
-              <div class="attachment-card" data-entry-id={entry.id} data-entry-title={entry.title} data-entry-status={entry.status}>
-                <div class="attachment-header">
-                  <div class="drag-handle" draggable="true">⋮⋮</div>
-                  <div class="sortable-order">{idx + 1}</div>
-                  <div class="attachment-name">
-                    <strong>{entry.title}</strong>
-                    <span class="picker-meta">
-                      <span class={`pill ${entry.status}`}>{entry.status}</span>
-                    </span>
-                  </div>
-                  <div class="attachment-actions">
-                    <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
-                    <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
-                    <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
-                  </div>
-                </div>
-                <div class="attachment-fields">
-                  <div class="field-row">
-                    <label>Role</label>
-                    <input type="text" class="junction-role" value={junction?.role || ''} placeholder="e.g. primary, featured" />
-                  </div>
-                  <div class="field-row field-row-full">
-                    <label>Metadata</label>
-                    <textarea class="junction-metadata attachment-metadata" rows="2" placeholder='{"featured": true}'>{junction?.placementMetadata ? JSON.stringify(junction.placementMetadata, null, 2) : ''}</textarea>
-                  </div>
-                </div>
-              </div>
+              <li class="inbox-row">
+                <a class="inbox-link" href={`/workspace/entries/${entry.id}`}>
+                  <span class={`status-dot ${s.cls}`} title={s.label}></span>
+                  <span class="inbox-main">
+                    <span class="inbox-title">{entry.title || "Untitled"}</span>
+                    {entry.summary && <span class="inbox-summary">{entry.summary}</span>}
+                  </span>
+                  <span class="inbox-meta">
+                    {typeMap.get(entry.entryTypeId) && (
+                      <span class="inbox-type">{typeMap.get(entry.entryTypeId)}</span>
+                    )}
+                    <span class={`status-pill ${s.cls}`}>{s.label}</span>
+                    <span class="inbox-date">{fmtDate(entry.updateAt ?? entry.createdAt)}</span>
+                  </span>
+                </a>
+              </li>
             );
           })}
-        </div>
-
-        <details class="add-picker">
-          <summary>Add Entry</summary>
-          <div class="add-picker-panel">
-            <div class="picker-search">
-              <input type="search" id="entry-search" placeholder="Search entries..." />
-            </div>
-            <div class="picker-list">
-              {allEntries.filter(e => !collectionEntries.some(ce => ce.id === e.id)).map((entry) => (
-                <div class="attachment-card add-entry-item" data-entry-id={entry.id} data-entry-title={entry.title} data-entry-status={entry.status}>
-                  <div class="attachment-header">
-                    <div class="attachment-name">
-                      <strong>{entry.title}</strong>
-                      <span class="picker-meta">
-                        <span class={`pill ${entry.status}`}>{entry.status}</span>
-                        {entry.entryType && <span> &bull; {entry.entryType.name}</span>}
-                      </span>
-                    </div>
-                    <div class="attachment-actions">
-                      <button type="button" class="add-btn icon-btn" title="Add">+</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {allEntries.length === 0 && (
-                <p class="empty-message">No entries available. <a href="/workspace/entries/new">Create one</a>.</p>
-              )}
-            </div>
-          </div>
-        </details>
-      </section>
+        </ul>
+      )}
     </>
-  ) : null}
+  ) : (
+    <div class="error-banner"><p>Collection not found.</p></div>
+  )}
 </AppLayout>
-
-<script>
-  import { createSdkClient } from '@/lib/sdk';
-
-  const sdk = createSdkClient();
-  const form = document.getElementById('collection-form') as HTMLFormElement;
-  const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
-
-  // Smart-collection field toggling lives in the SmartCollectionFields component.
-
-  // Handle form submission via SDK
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const formData = new FormData(form);
-      const name = formData.get('name') as string;
-      const icon = formData.get('icon') as string;
-      const color = formData.get('color') as string;
-      const description = formData.get('description') as string;
-      const sortOrder = formData.get('sort_order') as string;
-      const isSmart = formData.get('is_smart') === 'true';
-      const smartRulesStr = formData.get('smartRules') as string;
-      const metadataStr = formData.get('metadata') as string;
-
-      let smartRules = null;
-      if (isSmart && smartRulesStr?.trim()) {
-        try {
-          smartRules = JSON.parse(smartRulesStr);
-        } catch (error) {
-          alert('Invalid JSON in Smart Rules field');
-          return;
-        }
-      }
-
-      let metadataJson = null;
-      if (metadataStr?.trim()) {
-        try {
-          metadataJson = JSON.parse(metadataStr);
-        } catch (error) {
-          alert('Invalid JSON in Metadata field');
-          return;
-        }
-      }
-
-      submitButton.disabled = true;
-      submitButton.textContent = 'Saving...';
-
-      try {
-        const collectionId = window.location.pathname.split('/').pop()!;
-        await sdk.collections.update(collectionId, {
-          name,
-          icon: icon?.trim() || null,
-          color: color || null,
-          description: description?.trim() || null,
-          sortOrder: sortOrder ? parseInt(sortOrder) : 0,
-          isSmart,
-          smartRules: smartRules,
-          metadataJson: metadataJson,
-        });
-
-        window.location.href = '/workspace/collections';
-      } catch (error: any) {
-        const message = error?.message || error?.detail || 'Failed to update collection';
-        alert(message);
-        submitButton.disabled = false;
-        submitButton.textContent = 'Save Changes';
-      }
-    });
-  }
-
-  // Metadata preview update
-  const metadataEditor = document.getElementById('metadata') as HTMLTextAreaElement;
-  const metadataPreviewContainer = metadataEditor?.closest('.form-group')?.querySelector('.metadata-preview');
-
-  if (metadataEditor) {
-    metadataEditor.addEventListener('input', () => {
-      const value = metadataEditor.value.trim();
-
-      if (!value) {
-        if (metadataPreviewContainer) {
-          metadataPreviewContainer.remove();
-        }
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(value);
-        const entries = Object.entries(parsed);
-
-        if (entries.length === 0) {
-          if (metadataPreviewContainer) {
-            metadataPreviewContainer.remove();
-          }
-          return;
-        }
-
-        let previewHTML = `
-          <div class="metadata-preview">
-            <p class="metadata-preview-title">Current Metadata:</p>
-            <dl class="metadata-preview-list">
-        `;
-
-        entries.forEach(([key, value]) => {
-          const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-          previewHTML += `
-            <div class="metadata-preview-item">
-              <dt>${key}</dt>
-              <dd>${displayValue}</dd>
-            </div>
-          `;
-        });
-
-        previewHTML += `</dl></div>`;
-
-        if (metadataPreviewContainer) {
-          metadataPreviewContainer.outerHTML = previewHTML;
-        } else {
-          const helpText = metadataEditor.closest('.form-group')?.querySelector('.form-help');
-          if (helpText) {
-            helpText.insertAdjacentHTML('afterend', previewHTML);
-          }
-        }
-      } catch (error) {
-        if (metadataPreviewContainer) {
-          metadataPreviewContainer.remove();
-        }
-      }
-    });
-  }
-
-  // --- Entry attachment card management ---
-  const collectionId = window.location.pathname.split('/').pop()!;
-  const entriesContainer = document.getElementById('attached-entries') as HTMLElement;
-  const saveEntriesBtn = document.getElementById('save-entries-btn') as HTMLButtonElement;
-  let draggedCard: HTMLElement | null = null;
-  let entriesDirty = false;
-
-  function markDirty() {
-    entriesDirty = true;
-    if (saveEntriesBtn) saveEntriesBtn.style.display = 'inline-block';
-  }
-
-  function updateEntryOrderNumbers() {
-    entriesContainer?.querySelectorAll('.attachment-card').forEach((card, index) => {
-      const orderEl = card.querySelector('.sortable-order');
-      if (orderEl) orderEl.textContent = String(index + 1);
-    });
-  }
-
-  function updateEntryCount() {
-    const countEl = document.getElementById('entry-count');
-    if (countEl) countEl.textContent = String(entriesContainer?.querySelectorAll('.attachment-card').length ?? 0);
-  }
-
-  function setupEntryCard(card: HTMLElement) {
-    card.querySelector('.remove-btn')?.addEventListener('click', async () => {
-      const entryId = card.dataset.entryId!;
-
-      card.style.opacity = '0.5';
-      try {
-        const entry = await sdk.entries.get(entryId);
-        const currentIds = (entry.collections || []).map((c: any) => typeof c === 'string' ? c : c.id);
-        const updatedIds = currentIds.filter((cid: string) => cid !== collectionId);
-        await sdk.entries.update(entryId, { collection_ids: updatedIds });
-      } catch (error: any) {
-        alert(error?.message || 'Failed to remove entry');
-        card.style.opacity = '1';
-        return;
-      }
-
-      card.remove();
-      updateEntryOrderNumbers();
-      updateEntryCount();
-
-      const pickerItem = document.querySelector(`.add-entry-item[data-entry-id="${entryId}"]`) as HTMLElement;
-      if (pickerItem) pickerItem.style.display = '';
-    });
-
-    card.querySelector('.move-up-btn')?.addEventListener('click', () => {
-      const prev = card.previousElementSibling;
-      if (prev) entriesContainer.insertBefore(card, prev);
-      updateEntryOrderNumbers();
-      markDirty();
-    });
-
-    card.querySelector('.move-down-btn')?.addEventListener('click', () => {
-      const next = card.nextElementSibling;
-      if (next) entriesContainer.insertBefore(next, card);
-      updateEntryOrderNumbers();
-      markDirty();
-    });
-
-    // Mark dirty on field changes
-    card.querySelector('.junction-role')?.addEventListener('input', markDirty);
-    card.querySelector('.junction-metadata')?.addEventListener('input', markDirty);
-
-    // Drag and drop on the handle
-    const handle = card.querySelector('.drag-handle') as HTMLElement;
-    if (handle) {
-      handle.addEventListener('dragstart', (e) => {
-        draggedCard = card;
-        card.classList.add('dragging');
-        (e as DragEvent).dataTransfer!.effectAllowed = 'move';
-      });
-
-      handle.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-        draggedCard = null;
-      });
-    }
-
-    card.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      (e as DragEvent).dataTransfer!.dropEffect = 'move';
-      if (draggedCard && draggedCard !== card) {
-        const bounding = card.getBoundingClientRect();
-        const offset = (e as DragEvent).clientY - bounding.top;
-        if (offset > bounding.height / 2) {
-          card.parentNode!.insertBefore(draggedCard, card.nextSibling);
-        } else {
-          card.parentNode!.insertBefore(draggedCard, card);
-        }
-        updateEntryOrderNumbers();
-        markDirty();
-      }
-    });
-  }
-
-  // Initialize existing cards
-  if (entriesContainer) {
-    entriesContainer.querySelectorAll('.attachment-card').forEach(card => {
-      setupEntryCard(card as HTMLElement);
-    });
-  }
-
-  // Add entry from picker
-  document.querySelectorAll('.add-entry-item').forEach(item => {
-    const addBtn = item.querySelector('.add-btn');
-    if (!addBtn) return;
-    addBtn.addEventListener('click', async () => {
-      const el = item as HTMLElement;
-      const entryId = el.dataset.entryId!;
-      const title = el.dataset.entryTitle!;
-      const entryStatus = el.dataset.entryStatus || 'draft';
-
-      // Add to collection via SDK first
-      el.style.opacity = '0.5';
-      try {
-        const entry = await sdk.entries.get(entryId);
-        const currentIds = (entry.collections || []).map((c: any) => typeof c === 'string' ? c : c.id);
-        if (!currentIds.includes(collectionId)) {
-          await sdk.entries.update(entryId, {
-            collection_ids: [...currentIds, collectionId]
-          });
-        }
-      } catch (error: any) {
-        alert(error?.message || 'Failed to add entry');
-        el.style.opacity = '1';
-        return;
-      }
-
-      const idx = entriesContainer.querySelectorAll('.attachment-card').length;
-
-      const card = document.createElement('div');
-      card.className = 'attachment-card';
-      card.dataset.entryId = entryId;
-      card.dataset.entryTitle = title;
-      card.dataset.entryStatus = entryStatus;
-      card.innerHTML = `
-        <div class="attachment-header">
-          <div class="drag-handle" draggable="true">⋮⋮</div>
-          <div class="sortable-order">${idx + 1}</div>
-          <div class="attachment-name">
-            <strong>${title}</strong>
-            <span class="picker-meta">
-              <span class="pill ${entryStatus}">${entryStatus}</span>
-            </span>
-          </div>
-          <div class="attachment-actions">
-            <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
-            <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
-            <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
-          </div>
-        </div>
-        <div class="attachment-fields">
-          <div class="field-row">
-            <label>Role</label>
-            <input type="text" class="junction-role" value="" placeholder="e.g. primary, featured" />
-          </div>
-          <div class="field-row field-row-full">
-            <label>Metadata</label>
-            <textarea class="junction-metadata attachment-metadata" rows="2" placeholder='{"featured": true}'></textarea>
-          </div>
-        </div>
-      `;
-
-      entriesContainer.appendChild(card);
-      setupEntryCard(card);
-      updateEntryCount();
-      el.style.display = 'none';
-    });
-  });
-
-  // Entry search filter for add picker
-  const entrySearch = document.getElementById('entry-search') as HTMLInputElement;
-  if (entrySearch) {
-    entrySearch.addEventListener('input', (e) => {
-      const query = (e.target as HTMLInputElement).value.toLowerCase();
-      document.querySelectorAll('.add-entry-item').forEach(item => {
-        const text = item.textContent?.toLowerCase() || '';
-        const el = item as HTMLElement;
-        // Only filter visible items (not already added)
-        if (el.style.display !== 'none') {
-          el.style.display = text.includes(query) ? '' : 'none';
-        }
-      });
-    });
-  }
-
-  // Save all entry changes (junction updates + reorder)
-  if (saveEntriesBtn) {
-    saveEntriesBtn.addEventListener('click', async () => {
-      const cards = entriesContainer?.querySelectorAll('.attachment-card');
-      if (!cards || cards.length === 0) return;
-
-      saveEntriesBtn.disabled = true;
-      saveEntriesBtn.textContent = 'Saving...';
-
-      try {
-        const orderEntries: Array<{ entryId: string; sortOrder: number }> = [];
-
-        for (const [index, card] of Array.from(cards).entries()) {
-          const el = card as HTMLElement;
-          const entryId = el.dataset.entryId!;
-          const role = (el.querySelector('.junction-role') as HTMLInputElement)?.value?.trim() || null;
-          const metadataStr = (el.querySelector('.junction-metadata') as HTMLTextAreaElement)?.value?.trim() || '';
-
-          let metadataJson: Record<string, unknown> | null = null;
-          if (metadataStr) {
-            try {
-              metadataJson = JSON.parse(metadataStr);
-            } catch {
-              alert(`Invalid JSON in metadata for "${el.dataset.entryTitle}"`);
-              saveEntriesBtn.disabled = false;
-              saveEntriesBtn.textContent = 'Save Changes';
-              return;
-            }
-          }
-
-          await sdk.collections.updateEntryJunction(collectionId, entryId, {
-            role,
-            metadataJson,
-          });
-
-          orderEntries.push({ entryId, sortOrder: index });
-        }
-
-        await sdk.collections.reorderEntries(collectionId, orderEntries);
-
-        saveEntriesBtn.textContent = 'Saved';
-        saveEntriesBtn.style.display = 'none';
-        entriesDirty = false;
-
-        setTimeout(() => {
-          saveEntriesBtn.textContent = 'Save Changes';
-          saveEntriesBtn.disabled = false;
-        }, 2000);
-      } catch (error: any) {
-        alert(error?.message || 'Failed to save entry changes');
-        saveEntriesBtn.disabled = false;
-        saveEntriesBtn.textContent = 'Save Changes';
-      }
-    });
-  }
-</script>
 
 <style>
   .error-banner {
@@ -622,358 +127,165 @@ if (!authToken) {
     gap: 1rem;
   }
 
-  .error-banner p {
-    margin: 0;
-    color: var(--color-error);
-  }
-
-  .form-section {
-    max-width: 42rem;
-  }
-
-  .form {
+  .head {
     display: grid;
-    gap: 1.5rem;
-    padding: 2rem;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    gap: 0.35rem;
   }
 
-  .form-group {
-    display: grid;
-    gap: 0.5rem;
+  .back-link {
+    font-size: 0.8125rem;
+    color: var(--muted);
+    text-decoration: none;
   }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
-  label {
-    font-weight: 600;
-    font-size: 0.875rem;
+  .back-link:hover {
     color: var(--ink);
   }
 
-  input[type="text"],
-  input[type="number"],
-  input[type="color"],
-  textarea {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--bg);
+  .col-title {
+    margin: 0;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .col-icon {
+    font-size: 1.25rem;
+  }
+  .col-count {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--panel-2);
+    padding: 0.1rem 0.55rem;
+    border-radius: 10px;
+  }
+  .system-pill {
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+  .col-desc {
+    margin: 0;
+    color: var(--muted);
     font-size: 0.875rem;
   }
 
-  input[type="color"] {
-    height: 40px;
-    cursor: pointer;
+  .inbox {
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--panel);
   }
 
-  textarea {
-    resize: vertical;
-    font-family: inherit;
-  }
-
-  .form-help {
-    margin: 0;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 0.75rem;
-    padding-top: 1rem;
+  .inbox-row + .inbox-row {
     border-top: 1px solid var(--line);
   }
 
-  .entries-section {
-    margin-top: 2rem;
-  }
-
-  .section-help {
-    margin: 0 0 1rem;
-    font-size: 0.875rem;
-    color: var(--muted);
-  }
-
-  .picker-meta {
-    font-size: 0.75rem;
-    color: var(--muted);
+  .inbox-link {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-  }
-
-  .pill {
-    display: inline-block;
-    padding: 0.125rem 0.5rem;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    text-transform: uppercase;
-  }
-
-  .pill.published {
-    background: rgba(34, 197, 94, 0.1);
-    color: rgb(34, 197, 94);
-  }
-
-  .pill.draft {
-    background: rgba(156, 163, 175, 0.1);
-    color: rgb(107, 114, 128);
-  }
-
-  .empty-message {
-    text-align: center;
-    color: var(--muted);
-    padding: 2rem;
-  }
-
-  .button.small {
-    min-height: 32px;
-    padding: 6px 10px;
-    font-size: 0.875rem;
-  }
-
-  .metadata-preview {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: var(--panel-2);
-    border-radius: 6px;
-  }
-
-  .metadata-preview-title {
-    margin: 0 0 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .metadata-preview-list {
-    display: grid;
     gap: 0.75rem;
-    margin: 0;
+    padding: 0.7rem 1rem;
+    text-decoration: none;
+    color: var(--ink);
+    transition: background 0.12s;
   }
-
-  .metadata-preview-item {
-    padding: 0.5rem;
-    background: var(--bg);
-    border-radius: 4px;
-  }
-
-  .metadata-preview-item dt {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.25rem;
-  }
-
-  .metadata-preview-item dd {
-    margin: 0;
-    font-size: 0.875rem;
-    word-break: break-word;
-    white-space: pre-wrap;
-    font-family: monospace;
-  }
-
-  .attached-list {
-    display: grid;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .attachment-card {
+  .inbox-link:hover {
     background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    overflow: hidden;
   }
 
-  .attachment-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
+  .status-dot {
+    flex: 0 0 auto;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted);
   }
 
-  .attachment-name {
-    flex: 1;
+  .inbox-main {
+    flex: 1 1 auto;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.125rem;
+    gap: 0.1rem;
   }
-
-  .attachment-name strong {
-    font-size: 0.8125rem;
-    font-weight: 500;
+  .inbox-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .inbox-summary {
+    font-size: 0.8rem;
+    color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .attachment-actions {
-    display: flex;
-    gap: 0.25rem;
-    flex-shrink: 0;
-  }
-
-  .icon-btn {
-    width: 24px;
-    height: 24px;
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    border-radius: 4px;
-    font-size: 14px;
+  .inbox-meta {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 0;
-    line-height: 1;
+    gap: 0.6rem;
   }
-
-  .icon-btn:hover {
-    background: var(--panel);
-    color: var(--ink);
-  }
-
-  .remove-btn:hover {
-    color: var(--color-error, #ef5350);
-  }
-
-  .add-btn {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--brand);
-  }
-
-  .attachment-fields {
-    padding: 0.5rem 0.75rem;
-    border-top: 1px solid var(--line);
-    display: grid;
-    gap: 0.375rem;
-  }
-
-  .field-row {
-    display: grid;
-    grid-template-columns: 5rem 1fr;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .field-row label {
+  .inbox-type {
     font-size: 0.75rem;
-    font-weight: 500;
     color: var(--muted);
   }
-
-  .field-row input,
-  .field-row textarea {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.8125rem;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: var(--bg);
+  .inbox-date {
+    font-size: 0.75rem;
+    color: var(--muted);
+    min-width: 3rem;
+    text-align: right;
   }
 
-  .field-row-full {
-    grid-template-columns: 1fr;
+  .status-pill {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.5rem;
+    border-radius: 10px;
+    background: var(--panel-2);
+    color: var(--muted);
+    white-space: nowrap;
   }
 
-  .field-row-full label {
-    margin-bottom: 0.125rem;
+  /* status colors (dot + pill tint) */
+  .s-inbox { --sc: #6b7280; }
+  .s-processing { --sc: #8b5cf6; }
+  .s-draft { --sc: #d97706; }
+  .s-review { --sc: #2563eb; }
+  .s-approved { --sc: #059669; }
+  .s-published { --sc: #16a34a; }
+  .s-archived { --sc: #9ca3af; }
+  .s-default { --sc: var(--muted); }
+
+  .status-dot { background: var(--sc, var(--muted)); }
+  .status-pill {
+    color: var(--sc, var(--muted));
+    background: color-mix(in srgb, var(--sc, var(--muted)) 14%, transparent);
   }
 
-  .attachment-metadata {
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
-    font-size: 11px;
-    line-height: 1.4;
-    resize: vertical;
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 0.75rem;
+    padding: 4rem 2rem;
+    text-align: center;
   }
-
-  .attachment-card.dragging {
+  .empty-icon {
+    font-size: 3rem;
     opacity: 0.5;
   }
-
-  .drag-handle {
+  .empty-state h3 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+  .empty-state p {
+    margin: 0;
     color: var(--muted);
-    font-size: 1rem;
-    cursor: grab;
-    user-select: none;
-  }
-
-  .drag-handle:active {
-    cursor: grabbing;
-  }
-
-  .sortable-order {
-    min-width: 2rem;
-    text-align: center;
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: var(--muted);
-    padding: 0.25rem 0.5rem;
-    background: var(--panel-2);
-    border-radius: 4px;
-  }
-
-  .add-picker {
-    margin-top: 0.5rem;
-  }
-
-  .add-picker summary {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--brand);
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 6px;
-  }
-
-  .add-picker summary:hover {
-    background: var(--panel-2);
-  }
-
-  .add-picker-panel {
-    margin-top: 0.5rem;
-    padding: 0.75rem;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-  }
-
-  .add-picker-panel .picker-search {
-    margin-bottom: 0.75rem;
-  }
-
-  .add-picker-panel .picker-search input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--bg);
-    font-size: 0.875rem;
-  }
-
-  .add-picker-panel .picker-list {
-    max-height: 400px;
-    overflow-y: auto;
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .add-picker-panel .attachment-card {
-    background: var(--bg);
   }
 </style>

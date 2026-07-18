@@ -107,7 +107,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                         <span class="empty-value">EMPTY</span>
                       )}
                     </td>
-                    <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
+                    <td class="collection-name">{collection.name ? <a href={`/workspace/collections/${collection.id}`} class="name-link"><strong>{collection.name}</strong></a> : <span class="empty-value">EMPTY</span>}</td>
                     <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                     <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
                     <td>
@@ -120,7 +120,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                         <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
                       ) : (
                         <div class="actions">
-                          <a href={`/workspace/collections/${collection.id}`} class="button secondary small">Edit</a>
+                          <a href={`/workspace/collections/${collection.id}/edit`} class="button secondary small">Edit</a>
                           <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
                             <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
                               Delete
@@ -168,7 +168,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                             <span class="empty-value">EMPTY</span>
                           )}
                         </td>
-                        <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
+                        <td class="collection-name">{collection.name ? <a href={`/workspace/collections/${collection.id}`} class="name-link"><strong>{collection.name}</strong></a> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
                         <td class="count-cell">{collection.entryCount ?? 0}</td>
@@ -177,7 +177,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                             <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
                           ) : (
                             <div class="actions">
-                              <a href={`/workspace/collections/${collection.id}`} class="button secondary small">Edit</a>
+                              <a href={`/workspace/collections/${collection.id}/edit`} class="button secondary small">Edit</a>
                               <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
                                 <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
                                   Delete
@@ -225,7 +225,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                             <span class="empty-value">EMPTY</span>
                           )}
                         </td>
-                        <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
+                        <td class="collection-name">{collection.name ? <a href={`/workspace/collections/${collection.id}`} class="name-link"><strong>{collection.name}</strong></a> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
                         <td class="count-cell">{collection.entryCount ?? 0}</td>
@@ -234,7 +234,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                             <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
                           ) : (
                             <div class="actions">
-                              <a href={`/workspace/collections/${collection.id}`} class="button secondary small">Edit</a>
+                              <a href={`/workspace/collections/${collection.id}/edit`} class="button secondary small">Edit</a>
                               <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
                                 <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
                                   Delete
@@ -584,5 +584,14 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
   .count-cell {
     font-variant-numeric: tabular-nums;
     color: var(--muted);
+  }
+
+  .name-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .name-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 </style>
