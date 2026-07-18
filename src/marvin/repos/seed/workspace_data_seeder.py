@@ -190,6 +190,9 @@ class WorkspaceDataSeeder:
             "description": entry_type_data.get("description"),
             "sort_order": entry_type_data.get("sortOrder", 0),
             "content_schema": entry_type_data.get("schemaJson", {}),
+            "rendering": entry_type_data.get("renderingJson"),
+            "capabilities": entry_type_data.get("capabilitiesJson"),
+            "recipe": entry_type_data.get("recipeJson"),
         }
 
         # Create entry type

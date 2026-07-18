@@ -234,6 +234,9 @@ class WorkspaceExporter:
                     "description": et.description,
                     "sortOrder": et.sort_order,
                     "schemaJson": et.content_schema,
+                    "renderingJson": et.rendering,
+                    "capabilitiesJson": et.capabilities,
+                    "recipeJson": et.recipe,
                 }
             )
 

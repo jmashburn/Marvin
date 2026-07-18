@@ -91,6 +91,11 @@ Ship the RAG bubble now as the seed; layer skills onto it.
       level (site settings · collection.metadata · entry.metadata) — no new tables for v1.
       Builds on `resolve_prompt_messages` {{SLUG}} interpolation. Fixes "drafts sound generic"
       at scale. Backbone for user-authored operations/agents.
+      **Prompt = separate, overridable layer (not baked into recipe_json):** system entry_types
+      ship a DEFAULT prompt/voice, but a created prompt (workspace/site/collection/entry) OVERRIDES
+      it — never forced. Store overrides SEPARATELY from the system entry_type (cascade metadata /
+      prompts store) so re-seeding refreshes the system default WITHOUT clobbering overrides.
+      → generated entry-type recipes stay structure-only (assets/resources); voice lives here.
 - [ ] **Junction metadata = typed relationships (assembly layer)** — EntryAssets.metadata (role:
       hero/gallery/thumbnail + crop/focal), EntryCollections.metadata (featured/sort/layout),
       EntryResources.metadata (primary/mentioned). Distinct from the recipe: recipe *drives
