@@ -27,13 +27,53 @@ class ReorderEntriesRequest(BaseModel):
     entries: list[EntryOrderItem]
 
 
+class CollectionOrderItem(BaseModel):
+    """Schema for a single collection order update."""
+
+    id: UUID4
+    sort_order: int = Field(validation_alias="sortOrder")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ReorderCollectionsRequest(BaseModel):
+    """Schema for bulk reordering collections in the workspace."""
+
+    collections: list[CollectionOrderItem]
+
+
 @controller(router)
 class CollectionsController(BaseUserController):
     """Authenticated CRUD routes for collections."""
 
     @router.get("", response_model=list[CollectionRead], summary="List Collections")
     def list_collections(self) -> list[CollectionRead]:
-        return self.repos.collections.get_all(order_by="name")
+        # Ordered by sort_order (ascending) so the system workflow collections (negative
+        # sort_order) lead — Inbox first — and drag-and-drop reordering is reflected.
+        return self.repos.collections.get_all(order_by="sort_order", order_descending=False)
+
+    @router.patch("/order", summary="Reorder Collections")
+    def reorder_collections(self, data: ReorderCollectionsRequest) -> dict:
+        """Bulk-update collection sort_order for this workspace.
+
+        Writes sort_order directly (not via the repo update), so it works for system
+        collections too — reordering is display-only and doesn't touch their locked content.
+        """
+        from marvin.db.models.platform import Collections
+
+        ids = [item.id for item in data.collections]
+        rows = (
+            self.session.query(Collections)
+            .filter(Collections.group_id == self.group_id, Collections.id.in_(ids))
+            .all()
+        )
+        by_id = {row.id: row for row in rows}
+        for item in data.collections:
+            row = by_id.get(item.id)
+            if row is not None:
+                row.sort_order = item.sort_order
+        self.session.commit()
+        return {"updated": len(rows)}
 
     @router.post("", response_model=CollectionRead, status_code=status.HTTP_201_CREATED, summary="Create Collection")
     def create_collection(self, data: CollectionCreate) -> CollectionRead:
