@@ -4,6 +4,13 @@ Captured from working sessions. Grouped by effort. (The original AI-settings bui
 that lived here is shipped — replaced with the live backlog.)
 
 ## 🍂 Low-hanging
+- [ ] **Resync SDK generated types** — `cd MarvinSDK && npm run generate:types && npm run build`
+      (openapi-typescript off the running backend). Picks up this session's backend surface
+      (recipe_json, compose-entry, AI stats fields, event-log fix, …) and lets the frontend drop
+      the `as Parameters<…>` casts in entryTypes.ts. Its own task — big generated diff + rebuild.
+- [ ] **Recipe UI placement** (thought, not mandate) — v1 recipe editor lives in the entry-type
+      form. The admin "Custom Fields" / "Templates" placeholders under Entries could become a
+      dedicated recipe builder (structured assets/resources/enrichment) instead of raw JSON.
 - [ ] **`AI_ALLOW_WORKSPACE_CREDENTIALS` platform toggle** — let a platform admin
       allow/disallow workspaces using their own AI keys (credential_mode=workspace).
       Enforce in the ai-settings PATCH + gate the UI. **← doing now**
@@ -30,9 +37,35 @@ that lived here is shipped — replaced with the live backlog.)
       field-mapping per op (summary→entry.summary, tags→entry.tags, …), apply gated by
       approval_mode × entity status (draft vs published), emit an event (re-triggers
       auto-embed), editor accept/diff UX. `operation_overrides` slots in here.
+- [ ] **Entry-type authoring "recipe"** ⭐ — a NEW `recipe_json`/`authoring_json` column (do NOT
+      reuse `capabilities_json` — that already holds publishable/submittable/routable behavior
+      flags consumed by publishing + marvin-renderers-core; `rendering_json` = layout/component).
+      Fields today: schema_json=form · rendering_json=render · capabilities_json=behavior flags.
+      recipe_json is the authoring contract beyond fields:
+      1. **Media contract** — assets {min,max, roles: hero/gallery/thumbnail, derive: [...]}
+      2. **Relationship contract** — resources {types, extract: entities→supplier/tool/etc.}
+      3. **Enrichment steps** — per-field/op (compose body, alt-text, smart-crop, palette)
+      Mechanisms: image *derivations* via Pillow (crop/resize/enhance/palette→metadata) — NOT
+      image-gen; smart-crop = vision picks focal point + Pillow cuts; resource-extract = AI
+      entities→Resources (e.g. Otter Wax→supplier). Rejigger list: EntryTypeCapabilities
+      pydantic schema · services/media (Pillow) · new ops smart-crop + extract-resources ·
+      recipe step-runner in compose · entry-type editor UI · **recipe-driven Create/Edit Entry
+      page** (render asset drop-zones with role/count limits + resource slots from the manifest,
+      not just validate) — same manifest, two front doors (human-filled vs AI-composed).
+      Sequence: ① manifest+assets contract → ② image derivations → ③ resource extraction → ④ UI.
 - [ ] **Wire `invocation_sources`** — gate operations by source (editor/forms/actions/
       mcp/scheduled). Currently stored, never checked.
 - [ ] **Wire `moderation_config`** — add a moderation layer + `block_on_flag`.
+- [ ] **Aesthetic gatekeeping for images** — a vision op that scores an uploaded/derived image
+      against the **site aesthetic profile** (from the theme cascade — e.g. "rustic leather &
+      wood") and flags or gates mismatches ("flowery photo on a rustic site"). Runs on upload /
+      compose / publish; flag (warn) vs gate (block) per config. Ties: theme cascade (defines
+      the aesthetic to compare to) + recipe.enrichment (declare the check per type) + a new
+      flavour of moderation. Store the fit score/flag in asset metadata for review.
+- [ ] **Tags on entries + expand resource typing** — a tagging system for entries (freeform +
+      maybe relational/related-tags), and grow `resources.resourceType` beyond the current set
+      into a richer/extensible taxonomy. Ties to the existing `generate-tags` AI op and resource
+      extraction from the recipe.
 - [ ] **Workspace Providers UI** — create/edit `AIProviderModel` rows (base_url, Azure
       api_version, Ollama endpoint). Needed for Ollama/Azure workspace setups.
 
@@ -51,9 +84,23 @@ Sequencing: operations registry (done) → skill/tool registry → agent loop �
 Ship the RAG bubble now as the seed; layer skills onto it.
 
 ## 🌲 Bigger / Phase 8
-- [ ] **Prompt storage** — a `prompts` table (slug, template, variables, version).
-      Builds on the existing `resolve_prompt_messages` {{SLUG}} interpolation. Backbone
-      for user-authored operations/agents. Sequence right before agents.
+- [ ] **Prompt storage + cascading theme/tone** ⭐ — user-authored prompts, but resolved as a
+      CSS-like cascade: **Site → Collection → Entry-type → Entry** (nearest wins), two facets —
+      **tone/voice** (injected into compose/enrichment via ContextBuilder) and **style/theme**
+      (design tokens for render, can feed AI palette matching). Storage: reuse metadata at each
+      level (site settings · collection.metadata · entry.metadata) — no new tables for v1.
+      Builds on `resolve_prompt_messages` {{SLUG}} interpolation. Fixes "drafts sound generic"
+      at scale. Backbone for user-authored operations/agents.
+- [ ] **Junction metadata = typed relationships (assembly layer)** — EntryAssets.metadata (role:
+      hero/gallery/thumbnail + crop/focal), EntryCollections.metadata (featured/sort/layout),
+      EntryResources.metadata (primary/mentioned). Distinct from the recipe: recipe *drives
+      generation*, junction metadata *types the assembled result* for rendering. Compose writes
+      roles here; templates read them. **renderers-core ALREADY reads this**: resolve.ts
+      `getFeaturedAsset` picks `role==='hero'||'featured'` from asset junction metadata. So
+      use that exact vocabulary (hero/featured) — compose writing the role lights up rendering
+      with zero render changes. capabilities_json (publishable/submittable/routable) +
+      rendering_json (renderer/package/config) feed renderers-core's EntryTypeInfo — leave both
+      as-is; the authoring recipe goes in a NEW recipe_json field.
 - [ ] **MCP server** — expose operations as MCP tools (dependency installed, no code).
 - [ ] **Agents** — AgentDefinition, agent_executions, agentic loop.
 - [ ] **RAG-ify a curated log slice** — embed failures/AI-runs/publishes into a separate
