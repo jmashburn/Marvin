@@ -189,6 +189,11 @@ class EntryRead(_MarvinModel):
         description="Custom non-schema metadata",
         serialization_alias="metadataJson",
     )
+    suggestion_json: dict | None = Field(
+        default=None,
+        description="Pending AI-proposed changes staged for review (write-back)",
+        serialization_alias="suggestionJson",
+    )
     created_by: UUID4 | None = None
     created_at: datetime | None = None
     update_at: datetime | None = None

@@ -26,6 +26,7 @@ class GenerateSummaryOperation(AIOperation):
         },
         "required": ["summary", "word_count"],
     }
+    writeback = {"summary": "summary"}
 
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
         max_words = input.get("max_words", 80)
@@ -67,6 +68,8 @@ class GenerateTagsOperation(AIOperation):
         },
         "required": ["tags"],
     }
+    # No first-class tags column yet — stage onto metadata until the tagging system lands.
+    writeback = {"tags": "metadata_json.tags"}
 
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
         max_tags = input.get("max_tags", 8)

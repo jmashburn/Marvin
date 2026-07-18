@@ -284,6 +284,53 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
 
         return entry
 
+    # ── AI write-back (apply / stage suggestions) ──────────────────────────
+
+    def apply_fields(self, entry_id: Any, fields: dict) -> None:
+        """Apply a {target: value} map onto an entry and commit.
+
+        Targets: a top-level column ("summary"/"title"/"description"), a "data_json.<key>"
+        path, or a "metadata_json.<key>" path. `_meta` keys are ignored.
+        """
+        entry = self.session.get(Entries, entry_id)
+        if not entry:
+            return
+        for target, value in fields.items():
+            if target == "_meta":
+                continue
+            if target.startswith("data_json."):
+                data = dict(entry.data_json or {})
+                data[target.split(".", 1)[1]] = value
+                entry.data_json = data
+            elif target.startswith("metadata_json."):
+                meta = dict(entry.metadata_json or {})
+                meta[target.split(".", 1)[1]] = value
+                entry.metadata_json = meta
+            else:
+                setattr(entry, target, value)
+        self.session.commit()
+
+    def stage_suggestion(self, entry_id: Any, fields: dict) -> None:
+        """Merge proposed fields into the entry's pending suggestion_json (for later review)."""
+        entry = self.session.get(Entries, entry_id)
+        if not entry:
+            return
+        staged = dict(entry.suggestion_json or {})
+        staged.update(fields)
+        entry.suggestion_json = staged
+        self.session.commit()
+
+    def apply_suggestion(self, entry_id: Any) -> EntryRead | None:
+        """Apply the staged suggestion_json onto the entry and clear it."""
+        entry = self.session.get(Entries, entry_id)
+        if not entry:
+            return None
+        if entry.suggestion_json:
+            self.apply_fields(entry_id, {k: v for k, v in entry.suggestion_json.items() if k != "_meta"})
+            entry.suggestion_json = None
+            self.session.commit()
+        return self.get_one(entry_id)
+
     def _attach_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:
         """Attach collections to an entry."""
         for sort_order, collection_id in enumerate(collection_ids):

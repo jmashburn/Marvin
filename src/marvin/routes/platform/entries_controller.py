@@ -83,6 +83,45 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
         return entry
 
+    @router.post("/{item_id}/apply-suggestion", response_model=EntryRead, summary="Apply AI Suggestion")
+    def apply_suggestion(self, item_id: UUID4) -> EntryRead:
+        """Apply the entry's staged AI suggestion (suggestion_json) and clear it.
+
+        This is the human-approval half of write-back: an AI op stages proposed changes under
+        suggestion_json (when approval_mode doesn't auto-apply); this endpoint commits them.
+        """
+        existing = self.repos.entries.get_one(item_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
+
+        entry = self.repos.entries.apply_suggestion(item_id)
+
+        # Emit entry_updated so reactions (re-embed, smart collections) fire.
+        try:
+            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
+            self.event_bus.dispatch(
+                integration_id="entry_management",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_updated,
+                document_data=EventEntryData(
+                    operation=EventOperation.update,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    workspace_id=entry.group_id,
+                    workspace_name=workspace_name,
+                    author_id=entry.created_by,
+                    author_name=author_name,
+                ),
+                message=f"AI suggestion applied to '{entry.title}'",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch entry_updated (apply-suggestion): {e}", exc_info=True)
+
+        return entry
+
     @router.patch("/{item_id}", response_model=EntryRead, summary="Update Entry")
     def update_entry(self, item_id: UUID4, data: EntryUpdate) -> EntryRead:
         old_entry = self.repos.entries.get_one(item_id)

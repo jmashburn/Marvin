@@ -72,6 +72,10 @@ class AIOperation(ABC):
     # Surfaces this operation may be invoked from (default: all). Intersected with the
     # workspace's invocation_sources policy at execute time.
     invocation_sources: tuple[str, ...] = INVOCATION_SOURCES
+    # Write-back field map for entries: {output_field: entry_target}. entry_target is a
+    # top-level column ("summary"/"title"/"description") or a "data_json.<key>" /
+    # "metadata_json.<key>" path. Empty → this op only proposes (never applies).
+    writeback: dict = field(default_factory=dict)
 
     @abstractmethod
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:

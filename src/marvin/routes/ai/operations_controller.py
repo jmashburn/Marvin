@@ -174,6 +174,9 @@ class AIOperationsController(BaseUserController):
             )
             self.session.commit()
 
+            # Write-back: apply or stage the output onto the entity per approval_mode.
+            self._write_back(operation, body.entity_type, entity_id, parsed, execution.id)
+
         except Exception as e:
             execution.status = "failed"
             execution.completed_at = datetime.now(UTC)
@@ -617,6 +620,73 @@ class AIOperationsController(BaseUserController):
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         cfg = (settings.logging_config if settings else None) or {}
         return bool(cfg.get("log_inputs", False)), bool(cfg.get("log_outputs", True))
+
+    def _approval_mode(self) -> str:
+        """Workspace approval_mode: suggest-only | allow-draft-update | allow-automatic-update."""
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        return (settings.approval_mode if settings and settings.approval_mode else "suggest-only")
+
+    def _write_back(self, operation, entity_type, entity_id, output_json, execution_id) -> str | None:
+        """Apply or stage an operation's output onto an entry, gated by approval_mode.
+
+        Entries only (v1). Uses the operation's `writeback` field map. Returns
+        "applied" | "staged" | None. Best-effort — never breaks the operation response.
+        """
+        if entity_type != "entry" or not entity_id or not isinstance(output_json, dict):
+            return None
+        writeback = getattr(operation, "writeback", None) or {}
+        proposed = {target: output_json[out] for out, target in writeback.items() if out in output_json}
+        if not proposed:
+            return None
+
+        from marvin.db.models.platform.entries import Entries
+        entry = self.session.get(Entries, entity_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+
+        mode = self._approval_mode()
+        is_draft = entry.status not in ("published", "archived")
+        should_apply = mode == "allow-automatic-update" or (mode == "allow-draft-update" and is_draft)
+
+        try:
+            if should_apply:
+                self.repos.entries.apply_fields(entity_id, proposed)
+                self._emit_entry_updated(entry)
+                return "applied"
+            self.repos.entries.stage_suggestion(
+                entity_id,
+                {**proposed, "_meta": {"operation": operation.slug, "executionId": str(execution_id)}},
+            )
+            return "staged"
+        except Exception as e:
+            self.session.rollback()
+            self.logger.warning(f"write-back failed for entry {entity_id}: {e}")
+            return None
+
+    def _emit_entry_updated(self, entry) -> None:
+        """Dispatch entry_updated after an AI write-back so reactions fire (re-embed, smart collections)."""
+        from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
+        try:
+            self.event_bus.dispatch(
+                integration_id="ai_operations",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_updated,
+                document_data=EventEntryData(
+                    operation=EventOperation.update,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    entry_type=None,
+                    workspace_id=self.group_id,
+                    workspace_name=self.group.name if self.group else None,
+                    author_id=self.user.id if self.user else None,
+                ),
+                message=f"Entry '{entry.title}' updated by AI write-back",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch entry_updated (write-back): {e}")
 
     def _resolve_entity_id(self, entity_type: str | None, entity_id):
         """Accept a UUID or a slug for entity_id so MCP/CLI callers can work in slugs.
