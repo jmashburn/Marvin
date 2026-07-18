@@ -89,6 +89,8 @@ class CollectionSummary(_MarvinModel):
     """System workflow collection — locked from edit/delete and internal-only."""
     is_public: bool = True
     """Whether this collection is exposed via the publish API."""
+    entry_count: int | None = None
+    """Number of entries in this collection (populated by the list endpoint)."""
     created_at: datetime | None = None
     """Timestamp when the collection was created."""
     update_at: datetime | None = None

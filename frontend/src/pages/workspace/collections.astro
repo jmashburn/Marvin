@@ -90,7 +90,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                   <th>Slug</th>
                   <th>Description</th>
                   <th>Type</th>
-                  <th>Sort Order</th>
+                  <th>Entries</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -114,7 +114,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                       <span class="pill">{collection.isSmart ? 'Smart' : 'Manual'}</span>
                       {collection.isSystem && <span class="pill system-pill">System</span>}
                     </td>
-                    <td>{collection.sortOrder}</td>
+                    <td class="count-cell">{collection.entryCount ?? 0}</td>
                     <td>
                       {collection.isSystem ? (
                         <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
@@ -152,7 +152,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                       <th>Name</th>
                       <th>Slug</th>
                       <th>Description</th>
-                      <th>Sort Order</th>
+                      <th>Entries</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -171,7 +171,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                         <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
-                        <td>{collection.sortOrder}</td>
+                        <td class="count-cell">{collection.entryCount ?? 0}</td>
                         <td>
                           {collection.isSystem ? (
                             <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
@@ -209,7 +209,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                       <th>Name</th>
                       <th>Slug</th>
                       <th>Description</th>
-                      <th>Sort Order</th>
+                      <th>Entries</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -228,7 +228,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                         <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
-                        <td>{collection.sortOrder}</td>
+                        <td class="count-cell">{collection.entryCount ?? 0}</td>
                         <td>
                           {collection.isSystem ? (
                             <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
@@ -354,11 +354,6 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
     const order = rows
       .map((r, i) => ({ id: r.dataset.id, sortOrder: i }))
       .filter((o) => o.id);
-    // reflect the new sort_order in the visible column immediately
-    rows.forEach((r, i) => {
-      const cell = r.children[6] as HTMLElement | undefined; // Sort Order column
-      if (cell) cell.textContent = String(i);
-    });
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       fetch('/api/collections/reorder', {
@@ -584,5 +579,10 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
     font-size: 0.8125rem;
     color: var(--muted);
     white-space: nowrap;
+  }
+
+  .count-cell {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
   }
 </style>

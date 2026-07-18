@@ -50,7 +50,23 @@ class CollectionsController(BaseUserController):
     def list_collections(self) -> list[CollectionRead]:
         # Ordered by sort_order (ascending) so the system workflow collections (negative
         # sort_order) lead — Inbox first — and drag-and-drop reordering is reflected.
-        return self.repos.collections.get_all(order_by="sort_order", order_descending=False)
+        collections = self.repos.collections.get_all(order_by="sort_order", order_descending=False)
+
+        # Attach entry counts in one grouped query (avoids N+1).
+        from sqlalchemy import func
+
+        from marvin.db.models.platform import Collections, EntryCollections
+
+        counts = dict(
+            self.session.query(EntryCollections.collection_id, func.count(EntryCollections.entry_id))
+            .join(Collections, Collections.id == EntryCollections.collection_id)
+            .filter(Collections.group_id == self.group_id)
+            .group_by(EntryCollections.collection_id)
+            .all()
+        )
+        for collection in collections:
+            collection.entry_count = counts.get(collection.id, 0)
+        return collections
 
     @router.patch("/order", summary="Reorder Collections")
     def reorder_collections(self, data: ReorderCollectionsRequest) -> dict:
