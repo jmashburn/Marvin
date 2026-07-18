@@ -2,7 +2,7 @@
   {
     "name": "Page",
     "slug": "page",
-    "icon": "📄",
+    "icon": "\ud83d\udcc4",
     "color": "#2563EB",
     "description": "A standard content page with markdown body content.",
     "sort_order": 100,
@@ -28,12 +28,51 @@
       "publishable": true,
       "submittable": false,
       "routable": true
+    },
+    "recipeJson": {
+      "assets": {
+        "min": 0,
+        "max": 5,
+        "roles": [
+          {
+            "role": "hero",
+            "max": 1,
+            "derive": [
+              "thumbnail",
+              "palette"
+            ]
+          },
+          {
+            "role": "gallery",
+            "max": 4
+          }
+        ]
+      },
+      "resources": {
+        "extract": [
+          {
+            "type": "supplier",
+            "source": "body",
+            "capture": [
+              "name",
+              "url"
+            ]
+          },
+          {
+            "type": "tool",
+            "source": "body",
+            "capture": [
+              "name"
+            ]
+          }
+        ]
+      }
     }
   },
   {
     "name": "Article",
     "slug": "article",
-    "icon": "📝",
+    "icon": "\ud83d\udcdd",
     "color": "#7C3AED",
     "description": "A publishable article, note, or long-form post.",
     "sortOrder": 200,
@@ -58,12 +97,51 @@
       "publishable": true,
       "submittable": false,
       "routable": true
+    },
+    "recipeJson": {
+      "assets": {
+        "min": 0,
+        "max": 5,
+        "roles": [
+          {
+            "role": "hero",
+            "max": 1,
+            "derive": [
+              "thumbnail",
+              "palette"
+            ]
+          },
+          {
+            "role": "gallery",
+            "max": 4
+          }
+        ]
+      },
+      "resources": {
+        "extract": [
+          {
+            "type": "supplier",
+            "source": "body",
+            "capture": [
+              "name",
+              "url"
+            ]
+          },
+          {
+            "type": "tool",
+            "source": "body",
+            "capture": [
+              "name"
+            ]
+          }
+        ]
+      }
     }
   },
   {
     "name": "Project",
     "slug": "project",
-    "icon": "🛠️",
+    "icon": "\ud83d\udee0\ufe0f",
     "color": "#D97706",
     "description": "A documented project, build, case study, or body of work.",
     "sortOrder": 300,
@@ -80,7 +158,13 @@
           "key": "status",
           "label": "Project Status",
           "type": "select",
-          "options": ["planned", "active", "paused", "completed", "archived"],
+          "options": [
+            "planned",
+            "active",
+            "paused",
+            "completed",
+            "archived"
+          ],
           "defaultValue": "active"
         },
         {
@@ -104,12 +188,51 @@
       "publishable": true,
       "submittable": false,
       "routable": true
+    },
+    "recipeJson": {
+      "assets": {
+        "min": 0,
+        "max": 5,
+        "roles": [
+          {
+            "role": "hero",
+            "max": 1,
+            "derive": [
+              "thumbnail",
+              "palette"
+            ]
+          },
+          {
+            "role": "gallery",
+            "max": 4
+          }
+        ]
+      },
+      "resources": {
+        "extract": [
+          {
+            "type": "supplier",
+            "source": "overview",
+            "capture": [
+              "name",
+              "url"
+            ]
+          },
+          {
+            "type": "tool",
+            "source": "overview",
+            "capture": [
+              "name"
+            ]
+          }
+        ]
+      }
     }
   },
   {
     "name": "Reference",
     "slug": "reference",
-    "icon": "📚",
+    "icon": "\ud83d\udcda",
     "color": "#059669",
     "description": "Evergreen reference material, documentation, or guides.",
     "sortOrder": 400,
@@ -138,12 +261,51 @@
       "publishable": true,
       "submittable": false,
       "routable": true
+    },
+    "recipeJson": {
+      "assets": {
+        "min": 0,
+        "max": 5,
+        "roles": [
+          {
+            "role": "hero",
+            "max": 1,
+            "derive": [
+              "thumbnail",
+              "palette"
+            ]
+          },
+          {
+            "role": "gallery",
+            "max": 4
+          }
+        ]
+      },
+      "resources": {
+        "extract": [
+          {
+            "type": "supplier",
+            "source": "body",
+            "capture": [
+              "name",
+              "url"
+            ]
+          },
+          {
+            "type": "tool",
+            "source": "body",
+            "capture": [
+              "name"
+            ]
+          }
+        ]
+      }
     }
   },
   {
     "name": "Navigation Item",
     "slug": "navigation-item",
-    "icon": "🔗",
+    "icon": "\ud83d\udd17",
     "color": "#0F766E",
     "description": "A generic navigation or menu link.",
     "sortOrder": 500,
@@ -180,7 +342,7 @@
   {
     "name": "Resource",
     "slug": "resource",
-    "icon": "📦",
+    "icon": "\ud83d\udce6",
     "color": "#6B7280",
     "description": "A reusable object, material, supplier, tool, link, or reference.",
     "sortOrder": 600,
@@ -214,12 +376,51 @@
       "publishable": true,
       "submittable": false,
       "routable": true
+    },
+    "recipeJson": {
+      "assets": {
+        "min": 0,
+        "max": 5,
+        "roles": [
+          {
+            "role": "hero",
+            "max": 1,
+            "derive": [
+              "thumbnail",
+              "palette"
+            ]
+          },
+          {
+            "role": "gallery",
+            "max": 4
+          }
+        ]
+      },
+      "resources": {
+        "extract": [
+          {
+            "type": "supplier",
+            "source": "body",
+            "capture": [
+              "name",
+              "url"
+            ]
+          },
+          {
+            "type": "tool",
+            "source": "body",
+            "capture": [
+              "name"
+            ]
+          }
+        ]
+      }
     }
   },
   {
     "name": "FAQ",
     "slug": "faq",
-    "icon": "❓",
+    "icon": "\u2753",
     "color": "#9333EA",
     "description": "A question and answer entry.",
     "sortOrder": 700,
