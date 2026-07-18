@@ -35,16 +35,18 @@ that lived here is shipped — replaced with the live backlog.)
       startup lifespan (idempotent, group_id=NULL, interval 86400s). (7b514a3)
 
 ## 🌳 Medium / Features
-- [ ] **Route composed entries into a collection** ⭐ — compose (and the AI-off skeleton) creates
-      an entry but never adds it to a collection, so it's orphaned. Two coexisting mechanisms:
-      (a) **imperative** — declare target collection slug(s) on the recipe (or entry_type); compose
-      writes EntryCollections rows after create — deterministic, works AI-off, doubles as the human
-      create-entry default. (b) **declarative/smart** — implement smart-collection membership:
-      `collections.is_smart`/`smart_rules` are COLUMNS THAT NOTHING EVALUATES today (confirmed), so a
-      "Bench Notes" smart collection including all published bench-note entries is vaporware. Wiring
-      smart_rules (match by entry_type/status/tag) makes type→collection routing automatic; imperative
-      pins remain the escape hatch (like manual + smart playlists). Near-term: do (a) via recipe;
-      backlog (b) as its own feature. Ties: recipe · capabilities_json · the write-back step.
+- [x] **Route entries into collections via smart rules** ✅ (declarative half done) — smart
+      collections are now REAL (materialized-via-reactions): `smart_rules` (entry_types + statuses,
+      match all|any) evaluated by a reaction on entry create/update/publish/… → EntryCollections
+      rows; reads/renderers-core unchanged; daily reconcile safety net. `tags` reserved as a
+      forward-compatible rule dimension. (7c3abe1) **Remaining follow-ups:**
+      · **compose should emit `entry_created`** — it creates entries via the repo directly, so
+        composed DRAFTS aren't synced at creation (they file on publish / next reconcile). Making
+        compose emit the event makes composed entries first-class to ALL reactions.
+      · **smart-rule builder UI** (rules are set via the collections API; no editor yet).
+      · **mixed smart+manual** collections (MVP is smart XOR manual — smart membership is fully derived).
+      · optional **imperative recipe.collections** pins as an escape hatch (superseded for the
+        orphaning problem by smart rules).
 - [ ] **Schema-driven typing for resources? (assets: probably not)** — TODAY: only *entries* use
       entry_types. **Assets** have no type (mime_type + metadata blob) — leave as-is; a lightweight
       asset-kind + metadata schema is low value. **Resources** carry a plain `resource_type` STRING
@@ -94,10 +96,13 @@ that lived here is shipped — replaced with the live backlog.)
       compose / publish; flag (warn) vs gate (block) per config. Ties: theme cascade (defines
       the aesthetic to compare to) + recipe.enrichment (declare the check per type) + a new
       flavour of moderation. Store the fit score/flag in asset metadata for review.
-- [ ] **Tags on entries + expand resource typing** — a tagging system for entries (freeform +
-      maybe relational/related-tags), and grow `resources.resourceType` beyond the current set
-      into a richer/extensible taxonomy. Ties to the existing `generate-tags` AI op and resource
-      extraction from the recipe.
+- [ ] **Tagging system — entries + assets + resources (one shared vocabulary)** — a tagging
+      system spanning all three (freeform + maybe relational/related-tags), so the same tags drive
+      search, filtering, and **smart-collection rules** (the `tags` rule dimension is already wired
+      forward-compatibly — it goes live the moment entries carry tags). Also grow
+      `resources.resourceType` into a richer/extensible taxonomy. Ties: `generate-tags` AI op ·
+      recipe resource-extraction · smart collections (of entries now; of assets/resources once they
+      share the tag vocabulary).
 - [x] **Asset/Resource as first-class schema field types** ✅ — `EntryTypeSchemaDefinition` excludes
       them today ("handled via the UI sidebar"), but entry types already carry `asset`/`resource`
       field types in schema_json → strict validation fails (only preserved via a warning). Add
