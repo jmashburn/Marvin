@@ -98,8 +98,10 @@ class WorkspaceMembersController(BaseAdminController):
             document_data=EventMemberData(
                 operation=EventOperation.create,
                 workspace_id=workspace_id,
+                workspace_name=workspace.name,
                 user_id=data.user_id,
                 username=user.username,
+                user_full_name=user.full_name if user else None,
                 role=data.workspace_role.value,
             ),
             message=f"{user.username} added to workspace with {data.workspace_role.value} role",
@@ -204,6 +206,8 @@ class WorkspaceMembersController(BaseAdminController):
         # Dispatch member_role_changed event
         from marvin.services.event_bus_service.event_types import EventMemberData, EventOperation, EventTypes
 
+        workspace_obj = self.repos.groups.get_one(workspace_id)
+        user_for_event = self.repos.users.get_one(user_id)
         self.event_bus.dispatch(
             integration_id="workspace_management_admin",
             group_id=workspace_id,
@@ -211,8 +215,10 @@ class WorkspaceMembersController(BaseAdminController):
             document_data=EventMemberData(
                 operation=EventOperation.update,
                 workspace_id=workspace_id,
+                workspace_name=workspace_obj.name if workspace_obj else None,
                 user_id=user_id,
                 username=updated.username,
+                user_full_name=user_for_event.full_name if user_for_event else None,
                 role=data.workspace_role.value,
                 previous_role=previous_role.value,
             ),
@@ -286,6 +292,8 @@ class WorkspaceMembersController(BaseAdminController):
         # Dispatch member_removed event
         from marvin.services.event_bus_service.event_types import EventMemberData, EventOperation, EventTypes
 
+        workspace_obj = self.repos.groups.get_one(workspace_id)
+        user_for_event = self.repos.users.get_one(user_id)
         self.event_bus.dispatch(
             integration_id="workspace_management_admin",
             group_id=workspace_id,
@@ -293,8 +301,10 @@ class WorkspaceMembersController(BaseAdminController):
             document_data=EventMemberData(
                 operation=EventOperation.delete,
                 workspace_id=workspace_id,
+                workspace_name=workspace_obj.name if workspace_obj else None,
                 user_id=user_id,
                 username=member_username,
+                user_full_name=user_for_event.full_name if user_for_event else None,
                 role=member_role.value,
             ),
             message=f"{member_username} removed from workspace",

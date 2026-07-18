@@ -230,58 +230,51 @@ class AppriseEventListener(EventListenerBase):
         """
         super().__init__(group_id, ApprisePublisher())  # Uses ApprisePublisher for dispatching
 
-    def get_subscribers(self, event: Event) -> list[str]:
+    def get_subscribers(self, event: Event) -> list[GroupEventNotifierPrivate]:
         """
-        Retrieves a list of Apprise URLs subscribed to the given event for the listener's group.
+        Retrieves a list of enabled notifier objects subscribed to the given event.
 
-        Filters enabled notifiers and their options to match the event's type.
-        Also updates the URLs with event data if applicable (for custom URL schemes).
-
-        Args:
-            event (Event): The event to find subscribers for.
-
-        Returns:
-            list[str]: A list of processed Apprise URLs ready for notification.
+        Returns the matching `GroupEventNotifierPrivate` objects so that
+        `publish_to_subscribers` can fire and log per-notifier.
         """
-        # This listener only acts on events that are not `webhook_task`
         if event.event_type == EventTypes.webhook_task:
             return []
 
-        apprise_urls: list[str] = []
+        target_option = f"{EventNameSpace.namespace.value}.{event.event_type.name.replace('-', '_')}"
+        self.logger.debug(f"Target Event {target_option}")
+
+        matching: list[GroupEventNotifierPrivate] = []
         with self.ensure_repos(self.group_id) as repos:
-            # Fetch all enabled group event notifiers (private schema to access apprise_url)
             enabled_notifiers: list[GroupEventNotifierPrivate] = repos.group_event_notifier.multi_query(
                 {"enabled": True}, override_schema=GroupEventNotifierPrivate
             )
-
-            # Construct the target event option string (e.g., "core.test_message")
-            target_event_option_str = f"{EventNameSpace.namespace.value}.{event.event_type.name.replace('-', '_')}"
-            self.logger.debug(f"Target Event {target_event_option_str}")
-
             for notifier in enabled_notifiers:
-                if not notifier.apprise_url:  # Skip if no URL configured
+                if not notifier.apprise_url:
                     continue
-                # Check if any of this notifier's subscribed options match the current event
                 for option_summary in notifier.options:
-                    if getattr(option_summary, self._option_value_field_name, None) == target_event_option_str:
-                        self.logger.debug(f"Appending {notifier.apprise_url}")
-                        apprise_urls.append(notifier.apprise_url)
-                        break  # Found a match for this notifier, no need to check its other options
+                    if getattr(option_summary, self._option_value_field_name, None) == target_option:
+                        matching.append(notifier)
+                        break
 
-            # Update URLs with event-specific parameters if applicable
-            if apprise_urls:
-                apprise_urls = self.update_urls_with_event_data(apprise_urls, event)
-        return apprise_urls
+        return matching
 
-    def publish_to_subscribers(self, event: Event, subscribers_apprise_urls: list[str]) -> None:  # Renamed subscribers
+    def publish_to_subscribers(self, event: Event, subscribers: list[GroupEventNotifierPrivate]) -> None:
         """
-        Publishes the event to the provided list of Apprise URLs.
-
-        Args:
-            event (Event): The event to publish.
-            subscribers_apprise_urls (list[str]): A list of Apprise URLs to send the notification to.
+        Publishes the event to each notifier individually, logging per-notifier.
         """
-        self.publisher.publish(event, subscribers_apprise_urls)  # Publisher handles the actual sending
+        from marvin.services.secrets.resolver import resolve
+
+        for notifier in subscribers:
+            resolved_url = resolve(notifier.apprise_url, group_id=self.group_id)
+            enriched = self.update_urls_with_event_data([resolved_url], event)
+            self.logger.info(f"Notifier '{notifier.name}' → {resolved_url}")
+            self.publisher.publish(
+                event,
+                enriched,
+                notifier_id=notifier.id,
+                group_id=self.group_id,
+                event_type=event.event_type.name,
+            )
 
     @staticmethod
     def update_urls_with_event_data(apprise_urls: list[str], event: Event) -> list[str]:
@@ -360,6 +353,15 @@ class AppriseEventListener(EventListenerBase):
         return scheme in ["form", "forms", "json", "jsons", "xml", "xmls"]
 
 
+def _resolve_webhook_headers(webhook_config: "WebhookRead", group_id) -> dict[str, str] | None:
+    """Resolve {{SLUG}} references in webhook headers using the configured secret backend."""
+    raw = getattr(webhook_config, "headers", None) or getattr(webhook_config, "headers_json", None)
+    if not raw:
+        return None
+    from marvin.services.secrets.resolver import resolve_dict
+    return resolve_dict(raw, group_id)
+
+
 class WebhookEventListener(EventListenerBase):
     """
     Event listener that handles events by triggering configured group webhooks.
@@ -395,129 +397,166 @@ class WebhookEventListener(EventListenerBase):
             list[WebhookRead]: A list of `WebhookRead` schemas for webhooks that
                                should be triggered by this event.
         """
-        # EXISTING: Handle scheduled webhook_task events
         if event.event_type == EventTypes.webhook_task and isinstance(event.document_data, EventWebhookData):
             webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
-            scheduled_webhooks_list = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
-            return scheduled_webhooks_list
+            scheduled = self.get_scheduled_webhooks(webhook_event_data.webhook_start_dt, webhook_event_data.webhook_end_dt)
+            self.logger.debug(f"webhook_task: {len(scheduled)} scheduled webhook(s) in window")
+            return scheduled
 
-        # NEW: Handle event-subscribed webhooks
-        # Find webhooks that have subscribed to this specific event type
+        # Event-driven: find webhooks subscribed to this event type
         with self.ensure_session() as session:
-            stmt = select(GroupWebhooksModel).where(
-                GroupWebhooksModel.enabled == True,  # noqa: E712 - SQLAlchemy specific comparison
-                GroupWebhooksModel.group_id == self.group_id,
-            )
-            db_webhooks = session.execute(stmt).scalars().all()
+            db_webhooks = session.execute(
+                select(GroupWebhooksModel).where(
+                    GroupWebhooksModel.enabled == True,  # noqa: E712
+                    GroupWebhooksModel.group_id == self.group_id,
+                )
+            ).scalars().all()
 
-            # Filter webhooks by subscribed_events in Python (SQLite compatible)
-            # subscribed_events is stored as JSON array, filter to those containing this event
-            filtered_webhooks = [wh for wh in db_webhooks if wh.subscribed_events and event.event_type.value in wh.subscribed_events]
+            filtered = [
+                wh for wh in db_webhooks
+                if wh.subscribed_events
+                and event.event_type.name in wh.subscribed_events
+                and getattr(wh.webhook_type, "value", None) == "event_driven"
+            ]
 
-            return [WebhookRead.model_validate(wh) for wh in filtered_webhooks]
+            if filtered:
+                self.logger.info(
+                    f"event:{event.event_type.name} → {len(filtered)} webhook(s): "
+                    + ", ".join(wh.name or str(wh.id) for wh in filtered)
+                )
+            else:
+                self.logger.debug(f"event:{event.event_type.name} → no webhook subscribers")
 
-    def publish_to_subscribers(self, event: Event, subscribers_webhooks: list[WebhookRead]) -> None:  # Renamed subscribers
-        """
-        Publishes the event data to the provided list of webhook configurations.
+            return [WebhookRead.model_validate(wh) for wh in filtered]
 
-        Handles two types of webhooks:
-        1. Scheduled webhooks (webhook_task events) - uses dynamic payload generation
-        2. Event-subscribed webhooks - sends the full event payload
+    def publish_to_subscribers(self, event: Event, subscribers_webhooks: list[WebhookRead]) -> None:
+        """Publish event data to each webhook subscriber."""
+        from marvin.services.webhooks.substitution import apply_substitutions
 
-        Args:
-            event (Event): The event containing data to publish.
-            subscribers_webhooks (list[WebhookRead]): A list of `WebhookRead` schemas
-                                                      representing the webhooks to trigger.
-        """
-        # Handle event-subscribed webhooks (non-webhook_task events)
         if event.event_type != EventTypes.webhook_task:
-            # For event-subscribed webhooks, send the full event payload
+            # Event-driven path
             for webhook_config in subscribers_webhooks:
+                self.logger.debug(
+                    f"  → firing event-driven webhook '{webhook_config.name}' "
+                    f"[{webhook_config.method.name} {webhook_config.url}]"
+                )
+                resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
+                payload_override = None
+                if webhook_config.custom_payload:
+                    ws_name, ws_slug = "", ""
+                    try:
+                        with self.ensure_repos(self.group_id) as repos:
+                            grp = repos.groups.get_one(self.group_id)
+                            if grp:
+                                ws_name = getattr(grp, "name", "") or ""
+                                ws_slug = getattr(grp, "slug", "") or ""
+                    except Exception:
+                        pass
+                    ctx = {
+                        "trigger": event.event_type.name,
+                        "timestamp": event.timestamp.isoformat() if event.timestamp else "",
+                        "workspace_name": ws_name,
+                        "workspace_slug": ws_slug,
+                    }
+                    base = jsonable_encoder(event, exclude_none=True)
+                    if "eventType" in base and hasattr(event.event_type, "name"):
+                        base["eventType"] = event.event_type.name
+                    base["meta"] = apply_substitutions(
+                        webhook_config.custom_payload, self.group_id, ctx
+                    )
+                    payload_override = base
                 self.publisher.publish(
-                    event,  # Send the complete event
-                    [webhook_config.url],  # Single webhook URL
-                    method=webhook_config.method.name,  # HTTP method
-                    webhook_id=webhook_config.id,  # For logging
-                    group_id=self.group_id,  # For logging
+                    event,
+                    [webhook_config.url],
+                    method=webhook_config.method.name,
+                    webhook_id=webhook_config.id,
+                    group_id=self.group_id,
+                    headers=resolved_headers,
+                    payload_override=payload_override,
                 )
             return
 
-        # Handle scheduled webhook_task events (existing logic)
+        # Scheduled webhook_task path
         if not isinstance(event.document_data, EventWebhookData):
-            self.logger.warning(f"WebhookEventListener received event with mismatched document_data type: {type(event.document_data)}")
+            self.logger.warning(
+                f"WebhookEventListener: unexpected document_data type: {type(event.document_data)}"
+            )
             return
 
         webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
+        now_iso = datetime.now(UTC).isoformat()
+
+        # Build substitution context once — used by all webhooks in this batch
+        workspace_name = ""
+        workspace_slug = ""
+        try:
+            with self.ensure_repos(self.group_id) as repos:
+                group = repos.groups.get_one(self.group_id)
+                if group:
+                    workspace_name = getattr(group, "name", "") or ""
+                    workspace_slug = getattr(group, "slug", "") or ""
+        except Exception:
+            pass
+
+        context = {
+            "timestamp": now_iso,
+            "workspace_name": workspace_name,
+            "workspace_slug": workspace_slug,
+            "trigger": "scheduled",
+        }
 
         for webhook_config in subscribers_webhooks:
-            dynamic_payload_data = {}  # Data to be generated by webhook_type specific functions
-
-            # If the event operation is 'info', try to get data from a registered webhook type handler
-            if webhook_event_data.operation == EventOperation.info:
-                with self.ensure_webhooks(self.group_id) as webhook_runners:  # Get webhook runners
-                    # Check if a runner (handler) exists for the webhook's type
-                    if webhook_config.webhook_type and hasattr(webhook_runners, webhook_config.webhook_type.name):
-                        webhook_type_handler = getattr(webhook_runners, webhook_config.webhook_type.name)
-                        if webhook_type_handler and callable(getattr(webhook_type_handler, "info", None)):
-                            try:
-                                # Call the .info() method of the handler to get dynamic data
-                                dynamic_payload_data = webhook_type_handler.info()
-                                self.logger.debug(
-                                    f"Dynamic data for webhook {webhook_config.name} (type: {webhook_config.webhook_type.name}): {dynamic_payload_data}"
-                                )
-                            except Exception as e:
-                                self.logger.error(
-                                    f"Error executing .info() for webhook type {webhook_config.webhook_type.name} on webhook {webhook_config.name}: {e}"
-                                )
-
-            # Update the event's document_data with the dynamic payload for this specific webhook
-            # This is a bit tricky as it modifies the event's document_data for each subscriber.
-            # It might be better to create a copy or pass data directly to publisher.
-            # Original: event.document_data.document_type = webhook.webhook_type (Modifies original event)
-            # Original: webhook_data.webhook_body = data (Modifies original event's document_data)
-
-            # Create a specific payload for this webhook call
-            current_webhook_payload_body = dynamic_payload_data or {}  # Use dynamic data or empty dict
-
-            # The publisher's `publish` method for WebhookPublisher needs to be designed
-            # to accept the original event, the target URL, method, and this specific body.
-            # Assuming WebhookPublisher.publish can take an additional `body_override` or similar.
-            # The original code modified `event.document_data.webhook_body`.
-            # A cleaner way is to pass specific data to the publisher for this call.
-
-            # For now, replicating the modification of a shared object, though it's not ideal:
-            # Create a mutable copy of the original document data for this specific publish operation
-            current_event_document_data = webhook_event_data.model_copy(deep=True)
-            current_event_document_data.document_type = webhook_config.webhook_type  # Set specific document type
-            current_event_document_data.webhook_body = current_webhook_payload_body  # Set specific body
-
-            # Create a copy of the event with unique webhook_body and document_type for this specific webhook
-            # This prevents mutation of the shared event object that could overwrite data for other webhooks in the loop
-            event_copy = event.model_copy(
-                update={
-                    "document_data": EventWebhookData(
-                        operation=webhook_event_data.operation,
-                        webhook_start_dt=webhook_event_data.webhook_start_dt,
-                        webhook_end_dt=webhook_event_data.webhook_end_dt,
-                        webhook_body=current_webhook_payload_body,  # Unique body for this webhook
-                        document_type=webhook_config.webhook_type,  # Unique document type for this webhook
-                    )
-                }
+            self.logger.debug(
+                f"  → scheduled webhook '{webhook_config.name}' "
+                f"[{webhook_config.method.name if webhook_config.method else 'POST'} {webhook_config.url}] "
+                f"type={webhook_config.webhook_type.value if webhook_config.webhook_type else 'generic'}"
             )
 
-            if current_webhook_payload_body or webhook_config.method == webhook_config.method.GET:  # Send if data or GET request
-                self.publisher.publish(
-                    event_copy,  # Send the independent copy
-                    [webhook_config.url],  # List containing single URL for this webhook
-                    method=webhook_config.method.name,  # HTTP method for this webhook
-                    webhook_id=webhook_config.id,  # Pass webhook ID for logging
-                    group_id=self.group_id,  # Pass group ID for logging
+            handler_data: dict = {}
+            webhook_type_name = webhook_config.webhook_type.value if webhook_config.webhook_type else "generic"
+
+            if webhook_event_data.operation == EventOperation.info:
+                with self.ensure_webhooks(self.group_id) as webhook_runners:
+                    handler = webhook_runners.get_webhook_handler(webhook_type_name)
+                    if handler:
+                        try:
+                            handler_data = handler.info(webhook_config, context)
+                        except Exception as e:
+                            self.logger.error(
+                                f"Error calling .info() for webhook {webhook_config.name} "
+                                f"(type={webhook_type_name}): {e}"
+                            )
+
+            # Mirror event-driven shape: context at top level, stats in data
+            clean_payload: dict = {
+                "timestamp": now_iso,
+                "workspaceId": str(self.group_id),
+                "workspaceName": workspace_name,
+                "workspaceSlug": workspace_slug,
+                "webhookType": webhook_type_name,
+            }
+            if handler_data:
+                clean_payload["documentData"] = handler_data
+            if webhook_config.custom_payload:
+                clean_payload["meta"] = apply_substitutions(
+                    webhook_config.custom_payload, self.group_id, context
                 )
-            else:
-                self.logger.info(f"Skipping webhook {webhook_config.name} as no data was generated by its type handler and it's not a GET request.")
-        # Original code had `return True` which doesn't match `-> None` type hint.
-        # Assuming side effect only, so no explicit return.
-        return
+
+            self.logger.info(
+                f"WEBHOOK FIRING: '{webhook_config.name}' "
+                f"[{webhook_config.method.name if webhook_config.method else 'POST'} {webhook_config.url}] "
+                f"type={webhook_type_name}"
+            )
+            resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
+            self.publisher.publish(
+                event,
+                [webhook_config.url],
+                method=webhook_config.method.name,
+                webhook_id=webhook_config.id,
+                group_id=self.group_id,
+                headers=resolved_headers,
+                payload_override=clean_payload,
+            )
 
     def get_scheduled_webhooks(self, start_datetime: datetime, end_datetime: datetime) -> list[WebhookRead]:  # Renamed params
         """
@@ -621,7 +660,7 @@ class ScheduledTaskListener(EventListenerBase):
             start_time = datetime.now(UTC)
 
             # Import event bus for handler to use
-            from marvin.services.event_bus_service import EventBusService
+            from marvin.services.event_bus_service.event_bus_service import EventBusService
 
             event_bus = EventBusService(bg_tasks=None)
 
@@ -638,7 +677,7 @@ class ScheduledTaskListener(EventListenerBase):
                 # Get and execute handler
                 handler = TaskHandlerRegistry.get_handler(task.task_type)
                 self.logger.info(f"Executing scheduled task: {task.name} (type: {task.task_type})")
-                handler.execute(task, event_bus)
+                output = handler.execute(task, event_bus)
 
                 # Calculate duration
                 end_time = datetime.now(UTC)
@@ -651,6 +690,7 @@ class ScheduledTaskListener(EventListenerBase):
                     status="success",
                     executed_at=start_time,
                     duration_ms=duration_ms,
+                    output=output,
                 )
 
                 # Update task state
@@ -661,6 +701,14 @@ class ScheduledTaskListener(EventListenerBase):
                     last_duration_ms=duration_ms,
                     failure_count=0,  # Reset on success
                 )
+
+                # Recalculate next_run_at for recurring tasks
+                next_run = repos.scheduled_tasks._compute_next_run(task.schedule_type, task.schedule_config)
+                if next_run:
+                    repos.scheduled_tasks.update_next_run(task.id, next_run)
+                elif task.schedule_type == "once":
+                    # One-time task — clear next_run_at so scheduler won't re-fire it
+                    repos.scheduled_tasks.update_next_run(task.id, None)
 
                 # Emit completed event
                 event_bus.dispatch(
@@ -719,6 +767,11 @@ class ScheduledTaskListener(EventListenerBase):
             failure_count=task.failure_count + 1,
         )
 
+        # Still recalculate next_run_at so the task keeps retrying on schedule
+        next_run = repos.scheduled_tasks._compute_next_run(task.schedule_type, task.schedule_config)
+        if next_run:
+            repos.scheduled_tasks.update_next_run(task.id, next_run)
+
         # Emit failed event
         event_bus.dispatch(
             integration_id="scheduled_tasks",
@@ -727,6 +780,208 @@ class ScheduledTaskListener(EventListenerBase):
             document_data=event.document_data,
             message=f"Scheduled task '{task.name}' failed: {error_message}",
         )
+
+
+class AIEmbeddingReactionListener(EventListenerBase):
+    """
+    Reaction listener that keeps the RAG index fresh: when an entry is published
+    (or a live entry's content is edited) it embeds that single entry so it is
+    immediately answerable via semantic search (answer-workspace-question) with no
+    manual or scheduled reindex.
+
+    This is a code-defined "reaction" (event -> action). It is deliberately:
+      - best-effort: any failure is logged and swallowed, so it can never break publish;
+      - a no-op when the workspace has AI disabled or a provider without embeddings;
+      - acyclic: it only emits ai_embeddings_reindexed (which re-triggers nothing here),
+        so there is no cascade. A depth/provenance guard is only needed once a reaction
+        can mutate content and re-fire entry events.
+    """
+
+    # Events that should refresh an entry's embeddings.
+    #   entry_published: a (re)publish transition — (re)index the entry.
+    #   entry_updated:   a content edit of an already-live, already-indexed entry — re-index.
+    # entry_updated fires on *every* save (drafts, inbox, etc.), so it is gated hard in
+    # publish_to_subscribers; see _should_index_on_update for the judgment call.
+    _TRIGGERS = (EventTypes.entry_published, EventTypes.entry_updated)
+
+    def __init__(self, group_id: UUID4) -> None:
+        from .publisher import ConsolePublisher  # We act on the event; we don't publish through it.
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """Act only on the trigger events; cheap check, no DB access."""
+        return ["ai_embed"] if event.event_type in self._TRIGGERS else []
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        entry_id = getattr(event.document_data, "entry_id", None) or event.entity_id
+        if not entry_id:
+            self.logger.error("AIEmbeddingReactionListener: event carried no entry_id")
+            return
+
+        from marvin.services.ai.embeddings import default_embedding_model, index_entry
+        from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+
+        with self.ensure_session() as session:
+            # Resolve the workspace provider; quietly no-op when AI is off or unavailable.
+            try:
+                provider = get_workspace_ai_provider(session, self.group_id)
+            except AIDisabledError:
+                return
+            except Exception as e:
+                self.logger.warning(f"AIEmbeddingReactionListener: provider unavailable: {e}")
+                return
+
+            if not getattr(provider, "supports_embeddings", False):
+                return
+            model = default_embedding_model(provider.provider_type)
+            if not model:
+                return
+
+            from marvin.db.models.platform.entries import Entries
+            entry = session.get(Entries, entry_id)
+            if not entry or entry.group_id != self.group_id:
+                self.logger.warning(f"AIEmbeddingReactionListener: entry {entry_id} not found for this workspace")
+                return
+
+            # An entry_updated fires on every save. Only re-embed a live entry whose
+            # content actually changed, and never double-embed the publish transition
+            # (which emits entry_updated *and* entry_published). See _should_index_on_update.
+            is_update = event.event_type == EventTypes.entry_updated
+            if is_update and not self._should_index_on_update(
+                entry.status, self._has_embedding_index(session, entry_id, model)
+            ):
+                return
+
+            try:
+                chunks = index_entry(session, self.group_id, entry, provider, model)
+            except Exception as e:
+                self.logger.warning(f"AIEmbeddingReactionListener: embed failed for entry {entry_id}: {e}")
+                return
+
+        verb = "on update" if is_update else "on publish"
+        self.logger.info(f"Auto-embedded entry {entry_id} ({chunks} chunk(s)) {verb}")
+        self._emit_reindexed(model, chunks, verb)
+
+    @staticmethod
+    def _should_index_on_update(status: str, has_existing_index: bool) -> bool:
+        """
+        Gate for re-embedding on entry_updated (the key judgment call).
+
+        Re-embed ONLY when both hold:
+          1. the entry is currently published — never index draft/inbox/archived saves,
+             which would otherwise fire on every keystroke-save; and
+          2. the entry already has an embedding index for this model — i.e. it is a
+             live, already-indexed entry whose content changed.
+
+        Condition (2) also prevents a redundant double-embed on the publish transition:
+        the controller emits entry_updated *then* entry_published for the same request,
+        but on first publish there is no prior index yet, so entry_updated no-ops here
+        and entry_published owns the initial indexing.
+        """
+        return status == "published" and has_existing_index
+
+    def _has_embedding_index(self, session: Session, entry_id: UUID4, model: str) -> bool:
+        """True if this entry already has embedding chunks for the given model."""
+        from marvin.db.models.groups.ai_embeddings import AIEmbeddingModel
+
+        return (
+            session.query(AIEmbeddingModel)
+            .filter_by(
+                group_id=self.group_id,
+                entity_type="entry",
+                entity_id=entry_id,
+                model_id=model,
+            )
+            .first()
+            is not None
+        )
+
+    def _emit_reindexed(self, model: str, chunks: int, verb: str = "on publish") -> None:
+        """Surface the auto-index as an ai_embeddings_reindexed event (audit log + notifications)."""
+        from marvin.services.event_bus_service.event_bus_service import EventBusService
+
+        from .event_types import EventAIEmbeddingsData
+
+        try:
+            workspace_name = None
+            with self.ensure_repos(self.group_id) as repos:
+                grp = repos.groups.get_one(self.group_id)
+                workspace_name = getattr(grp, "name", None) if grp else None
+            EventBusService(bg_tasks=None).dispatch(
+                integration_id="ai_operations",
+                group_id=self.group_id,
+                event_type=EventTypes.ai_embeddings_reindexed,
+                document_data=EventAIEmbeddingsData(
+                    model_id=model,
+                    entities_indexed=1,
+                    chunks_indexed=chunks,
+                    workspace_id=self.group_id,
+                    workspace_name=workspace_name,
+                ),
+                message=f"Auto-indexed 1 entry ({chunks} chunks) {verb}",
+            )
+        except Exception as e:
+            self.logger.error(f"AIEmbeddingReactionListener: failed to emit reindexed event: {e}")
+
+
+class SmartCollectionReactionListener(EventListenerBase):
+    """
+    Reaction listener that keeps smart-collection membership in sync.
+
+    When an entry's type or status changes (created / updated / published / unpublished /
+    archived / restored), re-evaluate which of the workspace's smart collections it belongs to
+    and add or remove EntryCollections rows accordingly. The read path (renderers-core,
+    publishing) is unchanged — it reads junction rows exactly as for a manually-curated
+    collection. Declarative rules, imperative materialization, unchanged reads.
+
+    entry_deleted is intentionally omitted: EntryCollections has ON DELETE CASCADE, so the DB
+    removes membership automatically. Best-effort — any failure is logged and swallowed, so it
+    can never break entry writes.
+    """
+
+    _TRIGGERS = (
+        EventTypes.entry_created,
+        EventTypes.entry_updated,
+        EventTypes.entry_published,
+        EventTypes.entry_unpublished,
+        EventTypes.entry_archived,
+        EventTypes.entry_restored,
+    )
+
+    def __init__(self, group_id: UUID4) -> None:
+        from .publisher import ConsolePublisher  # We act on the event; we don't publish through it.
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """Act only on entry lifecycle events; cheap check, no DB access."""
+        return ["smart_collections"] if event.event_type in self._TRIGGERS else []
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        entry_id = getattr(event.document_data, "entry_id", None) or event.entity_id
+        if not entry_id:
+            return
+
+        from marvin.db.models.platform.entries import Entries
+        from marvin.services.collections.smart_collections import sync_entry
+
+        with self.ensure_session() as session:
+            entry = session.get(Entries, entry_id)
+            if not entry or entry.group_id != self.group_id:
+                return
+            try:
+                changed = sync_entry(session, self.group_id, entry)
+                if changed:
+                    session.commit()
+                    self.logger.info(
+                        f"Smart collections: synced entry {entry_id} ({changed} membership change(s))"
+                    )
+            except Exception as e:
+                session.rollback()
+                self.logger.warning(
+                    f"SmartCollectionReactionListener: sync failed for entry {entry_id}: {e}"
+                )
 
 
 class ConsoleEventListener(EventListenerBase):
@@ -761,7 +1016,15 @@ class ConsoleEventListener(EventListenerBase):
         Returns:
             list[str]: Always returns ["console"] to log all events.
         """
-        # Always log all events to console
+        _INTERNAL = {
+            EventTypes.webhook_task,
+            EventTypes.scheduled_task_triggered,
+            EventTypes.scheduled_task_started,
+            EventTypes.scheduled_task_completed,
+            EventTypes.scheduled_task_failed,
+        }
+        if event.event_type in _INTERNAL:
+            return []
         return ["console"]
 
     def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
@@ -774,6 +1037,170 @@ class ConsoleEventListener(EventListenerBase):
         """
         # Use the ConsolePublisher to log the event
         self.publisher.publish(event, subscribers)
+
+
+class EmailEventListener(EventListenerBase):
+    """
+    Event listener that fires email templates when a matching event occurs.
+
+    Reads EmailEventSubscription rows for the group, resolves recipients,
+    and sends email via EmailService._send_db_template.  When no workspace
+    subscription exists for an event that has a system template mapping, a
+    VirtualEmailSubscription pointing to the system template is used instead.
+    """
+
+    def __init__(self, group_id) -> None:
+        from .publisher import ConsolePublisher
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[Any]:
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.services.email.system_email_events import (
+            VirtualEmailSubscription,
+            get_template_type_for_event,
+            SYSTEM_TEMPLATE_EVENT_MAP,
+        )
+
+        if event.event_type == EventTypes.webhook_task:
+            return []
+
+        with self.ensure_repos(self.group_id) as repos:
+            workspace_subs = repos.email_event_subscriptions.multi_query(
+                {"event_type": event.event_type.name, "enabled": True}
+            )
+
+            # Check for system template mapping for this event
+            system_template_type = get_template_type_for_event(event.event_type.name)
+            if not system_template_type:
+                return workspace_subs
+
+            system_mapping = SYSTEM_TEMPLATE_EVENT_MAP[system_template_type]
+
+            # Find workspace templates of this type
+            ws_templates_of_type = (
+                repos.session.query(EmailTemplateModel)
+                .filter(
+                    EmailTemplateModel.template_type == system_template_type,
+                    EmailTemplateModel.group_id == self.group_id,
+                    EmailTemplateModel.enabled == True,  # noqa: E712
+                )
+                .all()
+            )
+            ws_template_ids = {t.id for t in ws_templates_of_type}
+
+            # Find subscriptions that explicitly connect a workspace template of this type
+            connected_subs = [
+                sub for sub in workspace_subs
+                if sub.template_id in ws_template_ids
+            ]
+
+            if connected_subs:
+                # Explicit connection via Events page — use only those
+                self.logger.info(
+                    f"EmailEventListener: {len(connected_subs)} explicitly connected "
+                    f"workspace template(s) for '{system_template_type}'"
+                )
+                return connected_subs
+
+            # No explicit connection — fall through to system template
+            system_template = (
+                repos.session.query(EmailTemplateModel)
+                .filter(
+                    EmailTemplateModel.group_id.is_(None),
+                    EmailTemplateModel.template_type == system_template_type,
+                )
+                .first()
+            )
+
+            if system_template and system_template.enabled:
+                return [VirtualEmailSubscription(
+                    template_id=system_template.id,
+                    event_type=event.event_type.name,
+                    recipient_type=system_mapping["recipient_type"],
+                    recipient_field=system_mapping.get("recipient_field"),
+                    recipient_email=system_mapping.get("recipient_email"),
+                )]
+
+            return workspace_subs
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[Any]) -> None:
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+        from marvin.db.models.users.roles import WorkspaceRole
+        from marvin.db.models.users import Users
+        from marvin.services.email.email_service import EmailService
+        from marvin.services.events.event_variables import build_event_variables, enrich_variables
+
+        variables = enrich_variables(build_event_variables(event), self.group_id)
+        email_service = EmailService(group_id=str(self.group_id))
+
+        with self.ensure_session() as session:
+            for sub in subscribers:
+                template = session.get(EmailTemplateModel, sub.template_id)
+                if template is None or not template.enabled:
+                    self.logger.warning(f"EmailEventListener: template {sub.template_id} not found or disabled")
+                    continue
+
+                recipients = self._resolve_recipients(sub, variables, session)
+                if not recipients:
+                    self.logger.info(
+                        f"EmailEventListener: no recipients for subscription {sub.id} "
+                        f"(event={event.event_type.name})"
+                    )
+                    continue
+
+                for addr in recipients:
+                    try:
+                        self.logger.info(
+                            f"EmailEventListener: sending template '{template.name}' "
+                            f"to {addr} for event {event.event_type.name}"
+                        )
+                        email_service._send_db_template(addr, template, variables)
+                    except Exception as exc:
+                        self.logger.error(
+                            f"EmailEventListener: failed sending to {addr} "
+                            f"(template={template.name}, event={event.event_type.name}): {exc}"
+                        )
+
+    def _resolve_recipients(self, sub: Any, variables: dict, session) -> list[str]:
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
+        from marvin.db.models.users.roles import WorkspaceRole
+        from marvin.db.models.users import Users
+        from sqlalchemy.orm import Session
+
+        match sub.recipient_type:
+            case "event_field":
+                field = sub.recipient_field
+                if field and field in variables:
+                    addr = variables[field]
+                    if isinstance(addr, str) and addr and "@" in addr:
+                        return [addr]
+                    self.logger.warning(
+                        f"EmailEventListener: event_field '{field}' resolved to non-email value "
+                        f"'{addr}' for subscription {sub.id} — possible misconfiguration, skipping"
+                    )
+                    return []
+                return []
+            case "specific":
+                if not sub.recipient_email:
+                    return []
+                return [a.strip() for a in sub.recipient_email.split(",") if a.strip()]
+            case "admins":
+                stmt = (
+                    select(Users.email)
+                    .join(WorkspaceMembers, WorkspaceMembers.user_id == Users.id)
+                    .where(
+                        WorkspaceMembers.group_id == self.group_id,
+                        WorkspaceMembers.workspace_role.in_(
+                            [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]
+                        ),
+                    )
+                )
+                rows = session.execute(stmt).scalars().all()
+                return [r for r in rows if r]
+            case _:
+                return []
 
 
 class AuditLogListener(EventListenerBase):
@@ -808,9 +1235,17 @@ class AuditLogListener(EventListenerBase):
             event (Event): The event to persist.
 
         Returns:
-            list[str]: Always returns ["database"] to persist all events.
+            list[str]: ["database"] to persist the event, or [] to skip persistence
+                       for non-audited internal plumbing events (the "nolog" set).
         """
-        # Always persist all events to database
+        # Audit policy is declared per-event in the catalog (its `audited` flag). Events with no
+        # catalog entry default to audited (safe). Set audited=False on a CatalogEntry to keep it
+        # out of the audit trail — toggleable per event, no code change here.
+        from marvin.services.events.event_catalog import get_catalog_entry
+
+        entry = get_catalog_entry(event.event_type.name)
+        if entry is not None and not entry.audited:
+            return []
         return ["database"]
 
     def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:

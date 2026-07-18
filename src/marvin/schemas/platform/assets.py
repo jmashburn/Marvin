@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_serializer, field_validator
+from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_serializer, field_validator, model_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -18,7 +18,7 @@ class AssetUploadRequest(_MarvinModel):
     """Alt text for accessibility."""
     description: str | None = None
     """Optional description of the asset."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional asset metadata."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -50,7 +50,7 @@ class AssetCreateInternal(_MarvinModel):
 
     alt_text: str | None = None
     description: str | None = None
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,7 +62,7 @@ class AssetUpdate(_MarvinModel):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
     alt_text: str | None = Field(default=None, validation_alias=AliasChoices("alt_text", "altText"))
     description: str | None = None
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -88,7 +88,7 @@ class AssetCreate(_MarvinModel):
     """Alt text for accessibility."""
     description: str | None = None
     """Optional description of the asset."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"))
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional asset metadata."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -135,29 +135,39 @@ class AssetRead(AssetSummary):
 
     description: str | None = None
     """Optional description."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata_"))
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata_json"))
     """Optional asset metadata."""
     uploaded_by: UUID4
     """ID of user who uploaded the asset."""
 
-    @field_validator("metadata_", mode="before")
+    @field_validator("metadata_json", mode="before")
     @classmethod
     def validate_metadata(cls, value: Any) -> dict | None:
         """Ensure metadata is a dict, not SQLAlchemy MetaData."""
         if value is None:
             return None
-        # If it's a SQLAlchemy MetaData object, return None instead
         if hasattr(value, "__class__") and value.__class__.__name__ == "MetaData":
             return None
-        # If it's not a dict, try to convert or return None
         if not isinstance(value, dict):
             return None
         return value
 
-    @field_serializer("metadata_")
+    @field_serializer("metadata_json")
     def serialize_metadata(self, value: dict | None, _info) -> dict | None:
         """Ensure metadata is serialized as dict."""
         return value if isinstance(value, dict) else None
+
+    @model_validator(mode="after")
+    def compute_public_url(self) -> "AssetRead":
+        if not self.storage_key:
+            return self
+        try:
+            from marvin.services.storage.provider_factory import get_storage_provider
+
+            self.public_url = get_storage_provider().get_public_url(self.storage_key)
+        except Exception:
+            pass  # retain DB value as degraded fallback if provider config is broken
+        return self
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -169,13 +179,9 @@ class AssetPlacement(_MarvinModel):
     """Role for this entry, such as hero, featured, support, inline, or download."""
     position: int = 0
     """Display order for this entry."""
-    focal_point: str | None = None
-    """CSS-style focal point for cropped media, such as '50% 50%'."""
-    caption: str | None = None
-    """Optional caption for this placement."""
     placement_metadata: dict | None = Field(
         default=None,
-        validation_alias=AliasChoices("placement_metadata", "metadata_"),
+        validation_alias=AliasChoices("placement_metadata", "metadata_json"),
     )
     """Optional placement metadata."""
 

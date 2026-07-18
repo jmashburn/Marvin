@@ -19,6 +19,7 @@ from fastapi.encoders import jsonable_encoder  # For encoding Pydantic models to
 
 from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
+from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
 from marvin.db.models._model_utils.guid import GUID
 from marvin.services.event_bus_service.event_types import Event  # Core Event model
@@ -61,70 +62,62 @@ class PublisherLike(Protocol):
 class ApprisePublisher:
     """
     Publishes events using the Apprise library to various notification services.
-
-    It initializes an Apprise instance and uses it to send notifications based on
-    the event's message content. URLs are tagged with the event ID to help Apprise
-    manage notifications, potentially avoiding duplicates if a URL is added multiple times
-    for the same event (though Apprise's internal handling of tags is key here).
     """
 
     def __init__(self, hard_fail: bool = False) -> None:
-        """
-        Initializes the ApprisePublisher.
-
-        Args:
-            hard_fail (bool, optional): If True, an exception will be raised if
-                Apprise fails to add a notification URL. Defaults to False.
-        """
-        # Configure Apprise asset options (e.g., async mode, image handling)
-        asset = apprise.AppriseAsset(
-            async_mode=True,  # Enable asynchronous notifications if supported by Apprise setup
-            image_url_mask="",  # Configuration for image URL masking if needed
-        )
-        self.apprise = apprise.Apprise(asset=asset)  # Create Apprise instance
         self.hard_fail: bool = hard_fail
-        """If True, raise an exception on failure to add an Apprise URL."""
 
-    def publish(self, event: Event, notification_urls: list[str], **_: Any) -> None:  # Added **_ to match protocol
-        """
-        Publishes an event to a list of notification URLs using Apprise.
-
-        Each notification URL is added to the Apprise instance with a tag derived
-        from the event's unique ID. A single `notify` call is then made for all
-        tagged URLs.
-
-        Args:
-            event (Event): The event object containing message title and body.
-            notification_urls (list[str]): A list of Apprise-compatible notification URLs.
-            **_ (Any): Catches any additional keyword arguments (ignored by this publisher).
-        """
+    def publish(
+        self,
+        event: Event,
+        notification_urls: list[str],
+        notifier_id: GUID | None = None,
+        group_id: GUID | None = None,
+        event_type: str | None = None,
+        **_: Any,
+    ) -> None:
         if not notification_urls:
-            return  # No URLs to notify
+            return
 
-        tags_for_this_notification: list[str] = []
+        asset = apprise.AppriseAsset(async_mode=False, image_url_mask="")
+        ap = apprise.Apprise(asset=asset)
+
+        tags: list[str] = []
         for dest_url in notification_urls:
-            # Use the event's unique ID as a tag. This helps Apprise identify
-            # the notification if the same URL is added multiple times for this event.
-            # Apprise typically uses tags to send a notification to all services associated with that tag.
-            event_specific_tag = str(event.event_id)
-            tags_for_this_notification.append(event_specific_tag)
-
-            # Add the destination URL to Apprise with the event-specific tag
-            status = self.apprise.add(dest_url, tag=event_specific_tag)
-
-            if not status and self.hard_fail:
-                # If adding the URL fails and hard_fail is True, raise an exception.
+            tag = str(event.event_id)
+            tags.append(tag)
+            added = ap.add(dest_url, tag=tag)
+            if not added and self.hard_fail:
                 raise Exception(f"Apprise failed to add URL: {dest_url}")
 
-        # Send the notification using the event's message title and body.
-        # The `tag` parameter in `notify` ensures that only services matching these tags receive this notification.
-        # Using a list of unique tags ensures each URL (if tagged uniquely) gets one notification.
-        if tags_for_this_notification:  # Only notify if URLs were successfully added/tagged
-            self.apprise.notify(
+        if not tags:
+            return
+
+        try:
+            result = ap.notify(
                 title=event.message.title,
                 body=event.message.body,
-                tag=list(set(tags_for_this_notification)),  # Use unique tags for the notify call
+                tag=list(set(tags)),
             )
+            success = bool(result)
+        except Exception as exc:
+            _log_notification_execution(
+                notifier_id=notifier_id,
+                group_id=group_id,
+                status="failed",
+                event_type=event_type,
+                error_message=str(exc),
+                request_payload={"title": event.message.title, "body": event.message.body},
+            )
+            return
+
+        _log_notification_execution(
+            notifier_id=notifier_id,
+            group_id=group_id,
+            status="success" if success else "failed",
+            event_type=event_type,
+            request_payload={"title": event.message.title, "body": event.message.body},
+        )
 
 
 def _log_webhook_execution(
@@ -134,10 +127,11 @@ def _log_webhook_execution(
     http_status_code: int | None = None,
     error_message: str | None = None,
     retry_attempt: int = 0,
+    request_payload: dict | None = None,
+    response_body: str | None = None,
 ) -> None:
     """Log webhook execution to database."""
     if webhook_id is None or group_id is None:
-        # Cannot log without IDs
         return
 
     try:
@@ -151,12 +145,45 @@ def _log_webhook_execution(
                 http_status_code=http_status_code,
                 error_message=error_message,
                 retry_attempt=retry_attempt,
+                request_payload=request_payload,
+                response_body=response_body,
             )
             session.add(log)
             session.commit()
     except Exception as e:
         logger = get_logger()
         logger.error(f"Failed to log webhook execution: {e}")
+
+
+def _log_notification_execution(
+    notifier_id: GUID | None,
+    group_id: GUID | None,
+    status: str,
+    event_type: str | None = None,
+    error_message: str | None = None,
+    request_payload: dict | None = None,
+) -> None:
+    """Log Apprise notification execution to database."""
+    if notifier_id is None or group_id is None:
+        return
+
+    try:
+        with session_context() as session:
+            log = NotificationExecutionLogModel(
+                session=session,
+                notifier_id=notifier_id,
+                group_id=group_id,
+                executed_at=datetime.now(UTC),
+                status=status,
+                event_type=event_type,
+                error_message=error_message,
+                request_payload=request_payload,
+            )
+            session.add(log)
+            session.commit()
+    except Exception as e:
+        logger = get_logger()
+        logger.error(f"Failed to log notification execution: {e}")
 
 
 def _calculate_retry_delay(attempt: int) -> float:
@@ -189,19 +216,17 @@ class ConsolePublisher:
         # Format the event nicely for console output
         separator = "=" * 80
         self.logger.info(separator)
-        self.logger.info(f"🔔 EVENT DISPATCHED: {event.event_type.value}")
+        self.logger.info(f"🔔 EVENT DISPATCHED: {event.event_type.name}")
         self.logger.info(f"   Integration: {event.integration_id}")
         self.logger.info(f"   Message: {event.message.title}")
         if event.message.body and event.message.body != "generic":
             self.logger.info(f"   Body: {event.message.body}")
         if event.document_data:
-            # Convert to JSON for readable output
             data_dict = jsonable_encoder(event.document_data)
-            self.logger.info(f"   Document Type: {data_dict.get('document_type', 'unknown')}")
+            self.logger.info(f"   Document Type: {data_dict.get('documentType') or 'unknown'}")
             self.logger.info(f"   Operation: {data_dict.get('operation', 'unknown')}")
-            # Log key fields (exclude metadata fields)
             for key, value in data_dict.items():
-                if key not in ["document_type", "operation"]:
+                if key not in ["documentType", "operation"]:
                     self.logger.info(f"   {key}: {value}")
         self.logger.info(separator)
 
@@ -229,18 +254,19 @@ class WebhookPublisher:
         self.logger = get_logger()
 
     def publish(
-        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, **_: Any
+        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, headers: dict[str, str] | None = None, payload_override: dict | None = None, **_: Any
     ) -> None:
         """
         Publishes event data to a list of notification URLs using the specified HTTP method.
 
         Includes retry logic with exponential backoff and logs execution attempts to the database.
 
-        The full `event` object is JSON-encoded and sent as the request body for
-        POST and PUT requests. For GET and DELETE, no body is sent.
+        When ``payload_override`` is supplied it is sent instead of the serialized event object.
+        POST and PUT requests use a body; GET and DELETE do not.
 
         Args:
-            event (Event): The event object to publish. Its data will be serialized to JSON.
+            event (Event): The event object (used for metadata / fallback serialisation).
+            payload_override: If provided, sent as the POST/PUT body instead of the event.
             notification_urls (list[str]): A list of URLs to send the webhook request to.
             method (str, optional): The HTTP method to use (e.g., "POST", "GET", "PUT", "DELETE").
                                     Defaults to "POST".
@@ -257,10 +283,13 @@ class WebhookPublisher:
         if not notification_urls:
             return
 
-        # Prepare the event payload for methods that use a body (POST, PUT)
-        # `jsonable_encoder` handles Pydantic models, datetimes, UUIDs, etc., correctly for JSON.
-        event_payload = jsonable_encoder(event)
-        http_method = method.upper()  # Ensure method is uppercase for comparison
+        if payload_override is not None:
+            event_payload = payload_override
+        else:
+            event_payload = jsonable_encoder(event, exclude_none=True)
+            if "eventType" in event_payload and hasattr(event.event_type, "name"):
+                event_payload["eventType"] = event.event_type.name
+        http_method = method.upper()
 
         for url in notification_urls:
             # Retry loop for each URL
@@ -268,26 +297,32 @@ class WebhookPublisher:
                 try:
                     response: requests.Response | None = None
                     if http_method == "GET":
-                        response = requests.get(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.get(url, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     elif http_method == "POST":
-                        response = requests.post(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.post(url, json=event_payload, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     elif http_method == "PUT":
-                        response = requests.put(url, json=event_payload, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.put(url, json=event_payload, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     elif http_method == "DELETE":
-                        response = requests.delete(url, timeout=DEFAULT_WEBHOOK_TIMEOUT)
+                        response = requests.delete(url, headers=headers, timeout=DEFAULT_WEBHOOK_TIMEOUT)
                     else:
                         raise ValueError(f"Unsupported HTTP method for webhook: {method}")
 
                     # Check if the request was successful
                     if response is not None:
                         if response.ok:
-                            # Success! Log and break out of retry loop
+                            # Capture response body (truncate to 4KB)
+                            try:
+                                resp_body = response.text[:4096] or None
+                            except Exception:
+                                resp_body = None
                             _log_webhook_execution(
                                 webhook_id=webhook_id,
                                 group_id=group_id,
                                 status="success",
                                 http_status_code=response.status_code,
                                 retry_attempt=attempt,
+                                request_payload=event_payload if http_method in ("POST", "PUT") else None,
+                                response_body=resp_body,
                             )
                             break  # Exit retry loop on success
                         else:
@@ -296,15 +331,25 @@ class WebhookPublisher:
 
                 except (requests.exceptions.RequestException, ValueError) as e:
                     is_last_attempt = attempt == MAX_RETRY_ATTEMPTS - 1
+                    failed_response = getattr(e, "response", None)
 
-                    # Log the execution attempt
+                    # Capture response body for debugging (truncate to 4KB)
+                    resp_body: str | None = None
+                    if failed_response is not None:
+                        try:
+                            resp_body = failed_response.text[:4096]
+                        except Exception:
+                            pass
+
                     _log_webhook_execution(
                         webhook_id=webhook_id,
                         group_id=group_id,
                         status="failed" if is_last_attempt else "retrying",
-                        http_status_code=getattr(getattr(e, "response", None), "status_code", None),
+                        http_status_code=getattr(failed_response, "status_code", None),
                         error_message=str(e),
                         retry_attempt=attempt,
+                        request_payload=event_payload if http_method in ("POST", "PUT") else None,
+                        response_body=resp_body,
                     )
 
                     if is_last_attempt:
@@ -390,7 +435,9 @@ class AuditLogPublisher:
 
                 log_entry = EventLogModel(
                     event_id=event.event_id,
-                    event_type=event.event_type.value,
+                    # Store the stable, human-readable name (e.g. "entry_published"), not the
+                    # enum's ordinal — matches the schema/API contract and survives enum reordering.
+                    event_type=event.event_type.name,
                     occurred_at=event.timestamp,
                     workspace_id=event.workspace_id,
                     user_id=event.user_id,
@@ -405,7 +452,7 @@ class AuditLogPublisher:
 
                 session.add(log_entry)
                 session.commit()
-                self.logger.debug(f"Persisted event {event.event_id} ({event.event_type.value}) to audit log")
+                self.logger.debug(f"Persisted event {event.event_id} ({event.event_type.name}) to audit log")
 
         except Exception as e:
             self.logger.error(f"Failed to persist event {event.event_id} to audit log: {e}", exc_info=True)

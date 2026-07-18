@@ -1,0 +1,293 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { requireAdmin } from "@/lib/auth";
+import { getAuthToken } from "@/lib/api/client";
+import { listAllTasks } from "@/lib/api/admin/scheduledTasks";
+import type { ScheduledTaskRead } from "@/lib/api/admin/scheduledTasks";
+
+await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+const authToken = getAuthToken(Astro.cookies);
+
+let tasks: ScheduledTaskRead[] = [];
+let error: string | null = null;
+
+try {
+  tasks = await listAllTasks(authToken);
+} catch (e) {
+  console.error('[admin/scheduled-tasks] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+function formatSchedule(task: ScheduledTaskRead): string {
+  if (!task.scheduleConfig) return 'No schedule';
+  if (task.scheduleType === 'interval') {
+    const s = task.scheduleConfig.interval_seconds;
+    if (s >= 86400) return `Every ${s / 86400} day(s)`;
+    if (s >= 3600) return `Every ${s / 3600} hour(s)`;
+    if (s >= 60) return `Every ${s / 60} minute(s)`;
+    return `Every ${s}s`;
+  }
+  if (task.scheduleType === 'cron') return `Cron: ${task.scheduleConfig.cron_expression}`;
+  if (task.scheduleType === 'once') return `Once: ${task.scheduleConfig.run_at || '—'}`;
+  return '—';
+}
+---
+
+<AdminLayout title="Scheduled Tasks">
+  <div class="toolbar">
+    <div>
+      <h2>Scheduled Tasks</h2>
+      <p>Manage system and workspace scheduled tasks</p>
+    </div>
+    <div class="toolbar-actions">
+      <a href="/admin/scheduled-tasks/log" class="button secondary">Activity Log</a>
+      <a href="/admin/scheduled-tasks/new" class="button">New System Task</a>
+    </div>
+  </div>
+
+  {error && (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  )}
+
+  <div class="page-container">
+    {tasks.length === 0 ? (
+      <div class="empty-state">
+        <p class="empty-title">No scheduled tasks found</p>
+        <p class="empty-desc">Create a system task or have workspace owners add workspace tasks</p>
+        <a href="/admin/scheduled-tasks/new" class="button">New System Task</a>
+      </div>
+    ) : (
+      <div class="tasks-grid">
+        {tasks.map((task) => (
+          <article class="task-card">
+            <div class="task-header">
+              <div>
+                <div class="task-title-row">
+                  <h3>{task.name}</h3>
+                  <span class={`scope-badge ${task.groupId ? 'workspace' : 'system'}`}>
+                    {task.groupId ? 'Workspace' : 'System'}
+                  </span>
+                </div>
+                {task.description && <p class="task-description">{task.description}</p>}
+              </div>
+              <span class={`status-badge ${task.enabled ? 'active' : 'inactive'}`}>
+                {task.enabled ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div class="task-meta">
+              <div class="meta-item">
+                <span class="meta-label">Type</span>
+                <code class="meta-value">{task.taskType}</code>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Schedule</span>
+                <span class="meta-value">{formatSchedule(task)}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Last Run</span>
+                <span class="meta-value">{task.lastStatus || 'Never'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Next Run</span>
+                <span class="meta-value">
+                  {task.nextRunAt
+                    ? new Date(task.nextRunAt).toLocaleString()
+                    : 'Not scheduled'}
+                </span>
+              </div>
+            </div>
+            <div class="task-actions">
+              <a href={`/admin/scheduled-tasks/${task.id}`} class="button secondary small">Edit</a>
+              <button
+                class="button secondary small"
+                data-action="toggle"
+                data-id={task.id}
+                data-enabled={String(task.enabled)}
+              >{task.enabled ? 'Disable' : 'Enable'}</button>
+              <button
+                class="button secondary small"
+                data-action="run"
+                data-id={task.id}
+                data-name={task.name}
+              >Run Now</button>
+              <button
+                class="button secondary small danger"
+                data-action="delete"
+                data-id={task.id}
+                data-name={task.name}
+              >Delete</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    )}
+  </div>
+</AdminLayout>
+
+<script>
+  async function apiCall(url: string, method: string, body?: any) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.status === 204 ? null : res.json();
+  }
+
+  document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.id!;
+      const enabled = (btn as HTMLElement).dataset.enabled === 'true';
+      try {
+        await apiCall(`/api/admin/scheduled-tasks/${id}`, 'PATCH', { enabled: !enabled });
+        window.location.reload();
+      } catch { alert('Failed to update task'); }
+    });
+  });
+
+  document.querySelectorAll('[data-action="run"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name;
+      if (!confirm(`Manually trigger "${name}" now?`)) return;
+      try {
+        await apiCall(`/api/admin/scheduled-tasks/${id}/execute`, 'POST');
+        alert('Task triggered!');
+      } catch { alert('Failed to trigger task'); }
+    });
+  });
+
+  document.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name;
+      if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+      try {
+        await apiCall(`/api/admin/scheduled-tasks/${id}`, 'DELETE');
+        window.location.reload();
+      } catch { alert('Failed to delete task'); }
+    });
+  });
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .toolbar p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+
+  .toolbar-actions { display: flex; gap: 8px; }
+
+  .page-container { max-width: 1200px; }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-desc { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
+
+  .tasks-grid { display: grid; gap: 16px; }
+
+  .task-card {
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  .task-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .task-title-row h3 { margin: 0; font-size: 16px; font-weight: 600; }
+
+  .scope-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .scope-badge.system {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+  }
+
+  .scope-badge.workspace {
+    background: rgba(79, 156, 132, 0.1);
+    color: var(--accent);
+  }
+
+  .task-description { margin: 0; font-size: 13px; color: var(--muted); }
+
+  .status-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .status-badge.active { background: rgba(79, 156, 132, 0.1); color: var(--accent); }
+  .status-badge.inactive { background: rgba(128, 128, 128, 0.1); color: var(--muted); }
+
+  .task-meta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .meta-item { display: flex; flex-direction: column; gap: 4px; }
+
+  .meta-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .meta-value { font-size: 14px; }
+
+  .task-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .button.small { padding: 6px 14px; font-size: 13px; }
+  .button.danger { color: var(--color-error); }
+  .button.danger:hover { background: var(--color-error-bg); }
+</style>

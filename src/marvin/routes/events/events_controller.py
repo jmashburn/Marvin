@@ -27,6 +27,14 @@ from marvin.services.event_bus_service.event_types import (
     EventTypes,
     EventUserSignupData,  # This specific data type seems misused for a generic GET all options.
 )
+from marvin.schemas._marvin import _MarvinModel
+
+
+class EventTypeOption(_MarvinModel):
+    """Represents a single event type available for webhook subscriptions."""
+
+    value: str
+    label: str
 
 # APIRouter for event notifier options, using MarvinCrudRoute for consistent header handling.
 # All routes here will be under /event.
@@ -109,3 +117,40 @@ class EventsNotifierOptionsController(BaseUserController):
         # Set HATEOAS pagination guide URLs for client navigation
         paginated_response.set_pagination_guides(router.url_path_for("get_all"), q.model_dump())
         return paginated_response
+
+    @router.get("/types", summary="List subscribable event types with data contracts")
+    def list_event_types(self) -> list[dict]:
+        """
+        Returns event types available for subscription with their data contracts —
+        what variables each event provides for use in templates and notifications.
+        Only returns events in the catalog (user-subscribable subset of all EventTypes).
+        """
+        from marvin.services.events.event_catalog import CATALOG, CATEGORIES
+
+        by_category: dict[str, list] = {c: [] for c in CATEGORIES}
+        by_category["Other"] = []
+
+        from marvin.services.events.payload_schemas import get_payload_example
+
+        for entry in CATALOG:
+            if not entry.enabled:
+                continue  # internal/disabled events aren't offered for subscription
+            cat = entry.category if entry.category in by_category else "Other"
+            by_category[cat].append({
+                "value": entry.event_type,
+                "label": entry.name,
+                "description": entry.description,
+                "category": entry.category,
+                "enabled": entry.enabled,
+                "variables": [
+                    {"slug": v.slug, "description": v.description, "example": v.example, "type": v.type}
+                    for v in entry.variables
+                ],
+                "payloadExample": get_payload_example(entry.event_type),
+            })
+
+        return [
+            entry
+            for cat in CATEGORIES
+            for entry in by_category.get(cat, [])
+        ]

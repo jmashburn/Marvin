@@ -71,9 +71,6 @@ class ScheduledTaskUpdate(_MarvinModel):
     schedule_config: dict | None = None
     """Schedule configuration."""
 
-    task_type: str | None = None
-    """Task type identifier."""
-
     task_config: dict | None = None
     """Task-specific configuration parameters."""
 
@@ -175,6 +172,9 @@ class ScheduledTaskExecutionLogRead(_MarvinModel):
 
     error_traceback: str | None = None
     """Full error traceback for debugging."""
+
+    output: str | None = None
+    """Human-readable summary of what the handler did."""
 
     retry_attempt: int
     """Retry attempt number (0 = first attempt)."""

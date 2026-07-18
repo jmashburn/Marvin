@@ -41,6 +41,12 @@ class ScheduledTasksRepository(GroupRepositoryGeneric[ScheduledTaskRead, Schedul
         if not data_dict.get("slug") and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
+        # Calculate initial next_run_at from schedule
+        if not data_dict.get("next_run_at"):
+            data_dict["next_run_at"] = self._compute_next_run(
+                data_dict.get("schedule_type"), data_dict.get("schedule_config")
+            )
+
         return super().create(data_dict)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> ScheduledTaskRead:
@@ -51,7 +57,34 @@ class ScheduledTasksRepository(GroupRepositoryGeneric[ScheduledTaskRead, Schedul
         data_dict.pop("slug", None)
         data_dict.pop("group_id", None)
 
+        # Recalculate next_run_at when schedule changes
+        if "schedule_type" in data_dict or "schedule_config" in data_dict:
+            existing = self.get_one(match_value)
+            schedule_type = data_dict.get("schedule_type") or (existing.schedule_type if existing else None)
+            schedule_config = data_dict.get("schedule_config") or (existing.schedule_config if existing else None)
+            data_dict["next_run_at"] = self._compute_next_run(schedule_type, schedule_config)
+
         return super().update(match_value, data_dict, match_key=match_key)
+
+    @staticmethod
+    def _compute_next_run(schedule_type: str | None, schedule_config: dict | None) -> datetime | None:
+        """Calculate next_run_at from schedule type and config."""
+        if not schedule_type or not schedule_config:
+            return None
+        now = datetime.now(UTC)
+        if schedule_type == "once":
+            run_at = schedule_config.get("run_at")
+            if run_at:
+                if isinstance(run_at, str):
+                    dt = datetime.fromisoformat(run_at.replace("Z", "+00:00"))
+                    return dt.astimezone(UTC).replace(tzinfo=None)
+                return run_at
+        elif schedule_type == "interval":
+            seconds = schedule_config.get("interval_seconds")
+            if seconds:
+                return now + timedelta(seconds=int(seconds))
+        # cron: skip for now (croniter not yet a dependency)
+        return None
 
     def get_due_tasks(self, now: datetime) -> list[ScheduledTaskRead]:
         """
@@ -77,7 +110,7 @@ class ScheduledTasksRepository(GroupRepositoryGeneric[ScheduledTaskRead, Schedul
         results = self.session.execute(stmt).scalars().all()
         return [ScheduledTaskRead.model_validate(r) for r in results]
 
-    def update_next_run(self, task_id: UUID4, next_run: datetime) -> None:
+    def update_next_run(self, task_id: UUID4, next_run: datetime | None) -> None:
         """
         Update next_run_at after execution.
 
@@ -157,6 +190,7 @@ class ScheduledTaskExecutionLogRepository(GroupRepositoryGeneric[ScheduledTaskEx
         duration_ms: int | None = None,
         error_message: str | None = None,
         error_traceback: str | None = None,
+        output: str | None = None,
         retry_attempt: int = 0,
     ) -> ScheduledTaskExecutionLogRead:
         """
@@ -184,6 +218,7 @@ class ScheduledTaskExecutionLogRepository(GroupRepositoryGeneric[ScheduledTaskEx
             duration_ms=duration_ms,
             error_message=error_message,
             error_traceback=error_traceback,
+            output=output,
             retry_attempt=retry_attempt,
         )
         self.session.add(log_entry)
@@ -215,6 +250,29 @@ class ScheduledTaskExecutionLogRepository(GroupRepositoryGeneric[ScheduledTaskEx
             .limit(limit)
             .offset(offset)
         )
+
+        results = self.session.execute(stmt).scalars().all()
+        return [ScheduledTaskExecutionLogRead.model_validate(r) for r in results]
+
+    def get_workspace_log(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ScheduledTaskExecutionLogRead]:
+        """
+        Get all execution logs for this workspace, ordered by executed_at descending.
+
+        When group_id is None (admin context), returns logs across all workspaces.
+        """
+        stmt = (
+            select(ScheduledTaskExecutionLogModel)
+            .order_by(ScheduledTaskExecutionLogModel.executed_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+
+        if self.group_id:
+            stmt = stmt.where(ScheduledTaskExecutionLogModel.group_id == self.group_id)
 
         results = self.session.execute(stmt).scalars().all()
         return [ScheduledTaskExecutionLogRead.model_validate(r) for r in results]

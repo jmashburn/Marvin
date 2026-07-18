@@ -24,6 +24,27 @@ function getMimeCategory(mimeType: string): string {
   if (mimeType.includes('pdf')) return 'document';
   return 'other';
 }
+
+// Group assets by MIME category
+const categoryLabels: Record<string, string> = {
+  image: 'Images',
+  video: 'Videos',
+  audio: 'Audio',
+  document: 'Documents',
+  other: 'Other',
+};
+const categoryGroups = new Map<string, { label: string; assets: any[] }>();
+for (const asset of assets) {
+  const cat = getMimeCategory(asset.mimeType);
+  if (!categoryGroups.has(cat)) {
+    categoryGroups.set(cat, { label: categoryLabels[cat] || cat, assets: [] });
+  }
+  categoryGroups.get(cat)!.assets.push(asset);
+}
+const categoryOrder = ['image', 'video', 'audio', 'document', 'other'];
+const sortedCategoryGroups = categoryOrder
+  .filter(cat => categoryGroups.has(cat))
+  .map(cat => ({ key: cat, ...categoryGroups.get(cat)! }));
 ---
 
 <AppLayout title="Assets">
@@ -68,69 +89,161 @@ function getMimeCategory(mimeType: string): string {
           <a href="/workspace/assets/new" class="button">Upload Your First Asset</a>
         </div>
       ) : (
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Preview</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Dimensions</th>
-              <th>Size</th>
-              <th>Alt Text</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assets.map((asset: any) => (
-              <tr class="asset-row" data-type={getMimeCategory(asset.mimeType)}>
-                <td>
-                  <div class="preview">
-                    {asset.publicUrl && getMimeCategory(asset.mimeType) === 'image' ? (
-                      <img
-                        src={asset.publicUrl}
-                        alt={asset.altText ?? asset.name}
-                        style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
-                      />
-                    ) : (
-                      <span class="file-icon">{
-                        getMimeCategory(asset.mimeType) === 'video' ? '🎬' :
-                        getMimeCategory(asset.mimeType) === 'audio' ? '🎵' :
-                        getMimeCategory(asset.mimeType) === 'document' ? '📄' : '📎'
-                      }</span>
-                    )}
-                  </div>
-                </td>
-                <td class="asset-name">
-                  <strong>{asset.name}</strong>
-                  {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
-                </td>
-                <td class="asset-type"><span class="type-badge">{asset.mimeType}</span></td>
-                <td>
-                  {asset.width && asset.height
-                    ? `${asset.width} × ${asset.height}`
-                    : '—'}
-                </td>
-                <td>
-                  {asset.fileSize
-                    ? `${(asset.fileSize / 1024).toFixed(1)} KB`
-                    : '—'}
-                </td>
-                <td class="alt-text-cell">{asset.altText || '—'}</td>
-                <td>
-                  <div class="actions">
-                    <a href={`/workspace/assets/${asset.id}/view`} class="button secondary small">View</a>
-                    <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
-                    <form method="POST" action={`/api/assets/${asset.id}/delete`} style="display:inline;">
-                      <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this asset?')">
-                        Delete
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
+        <>
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="view-table" title="All assets">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+              All
+            </button>
+            <button class="toggle-btn" id="view-grouped" title="Group by type">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="14" height="3" rx="1"/><rect x="3" y="5.5" width="12" height="2" rx="0.5" opacity="0.6"/><rect x="3" y="8.5" width="12" height="2" rx="0.5" opacity="0.6"/><rect x="1" y="12" width="14" height="3" rx="1"/></svg>
+              Types
+            </button>
+          </div>
+
+          <div id="table-view" class="view-section">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Preview</th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Dimensions</th>
+                  <th>Size</th>
+                  <th>Alt Text</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assets.map((asset: any) => (
+                  <tr class="asset-row" data-type={getMimeCategory(asset.mimeType)}>
+                    <td>
+                      <div class="preview">
+                        {asset.publicUrl && getMimeCategory(asset.mimeType) === 'image' ? (
+                          <img
+                            src={asset.publicUrl}
+                            alt={asset.altText ?? asset.name}
+                            style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
+                          />
+                        ) : (
+                          <span class="file-icon">{
+                            getMimeCategory(asset.mimeType) === 'video' ? '🎬' :
+                            getMimeCategory(asset.mimeType) === 'audio' ? '🎵' :
+                            getMimeCategory(asset.mimeType) === 'document' ? '📄' : '📎'
+                          }</span>
+                        )}
+                      </div>
+                    </td>
+                    <td class="asset-name">
+                      <strong>{asset.name}</strong>
+                      {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
+                    </td>
+                    <td class="asset-type"><span class="type-badge">{asset.mimeType}</span></td>
+                    <td>
+                      {asset.width && asset.height
+                        ? `${asset.width} × ${asset.height}`
+                        : '—'}
+                    </td>
+                    <td>
+                      {asset.fileSize
+                        ? `${(asset.fileSize / 1024).toFixed(1)} KB`
+                        : '—'}
+                    </td>
+                    <td class="alt-text-cell">{asset.altText || '—'}</td>
+                    <td>
+                      <div class="actions">
+                        <a href={`/workspace/assets/${asset.id}/view`} class="button secondary small">View</a>
+                        <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
+                        <form method="POST" action={`/api/assets/${asset.id}/delete`} style="display:inline;">
+                          <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this asset?')">
+                            Delete
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div id="grouped-view" class="view-section" style="display:none;">
+            {sortedCategoryGroups.map(({ key, label, assets: groupAssets }) => (
+              <details class="collection-group" data-group-type={key}>
+                <summary class="collection-header">
+                  <h3 class="collection-title">
+                    <span class="collapse-chevron"></span>
+                    {label}
+                    <span class="collection-count">{groupAssets.length}</span>
+                  </h3>
+                </summary>
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Preview</th>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Dimensions</th>
+                      <th>Size</th>
+                      <th>Alt Text</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupAssets.map((asset: any) => (
+                      <tr class="asset-row" data-type={getMimeCategory(asset.mimeType)}>
+                        <td>
+                          <div class="preview">
+                            {asset.publicUrl && getMimeCategory(asset.mimeType) === 'image' ? (
+                              <img
+                                src={asset.publicUrl}
+                                alt={asset.altText ?? asset.name}
+                                style={`object-position: ${asset.focalPoint ?? "50% 50%"}`}
+                              />
+                            ) : (
+                              <span class="file-icon">{
+                                getMimeCategory(asset.mimeType) === 'video' ? '🎬' :
+                                getMimeCategory(asset.mimeType) === 'audio' ? '🎵' :
+                                getMimeCategory(asset.mimeType) === 'document' ? '📄' : '📎'
+                              }</span>
+                            )}
+                          </div>
+                        </td>
+                        <td class="asset-name">
+                          <strong>{asset.name}</strong>
+                          {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
+                        </td>
+                        <td class="asset-type"><span class="type-badge">{asset.mimeType}</span></td>
+                        <td>
+                          {asset.width && asset.height
+                            ? `${asset.width} × ${asset.height}`
+                            : '—'}
+                        </td>
+                        <td>
+                          {asset.fileSize
+                            ? `${(asset.fileSize / 1024).toFixed(1)} KB`
+                            : '—'}
+                        </td>
+                        <td class="alt-text-cell">{asset.altText || '—'}</td>
+                        <td>
+                          <div class="actions">
+                            <a href={`/workspace/assets/${asset.id}/view`} class="button secondary small">View</a>
+                            <a href={`/workspace/assets/${asset.id}`} class="button secondary small">Edit</a>
+                            <form method="POST" action={`/api/assets/${asset.id}/delete`} style="display:inline;">
+                              <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this asset?')">
+                                Delete
+                              </button>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </>
       )}
     </>
   )}
@@ -139,6 +252,26 @@ function getMimeCategory(mimeType: string): string {
 <script>
   const searchInput = document.getElementById('filter-search') as HTMLInputElement;
   const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
+  const tableView = document.getElementById('table-view');
+  const groupedView = document.getElementById('grouped-view');
+  const viewTableBtn = document.getElementById('view-table');
+  const viewGroupedBtn = document.getElementById('view-grouped');
+
+  function setView(view: 'table' | 'grouped') {
+    if (!tableView || !groupedView) return;
+    tableView.style.display = view === 'table' ? '' : 'none';
+    groupedView.style.display = view === 'grouped' ? '' : 'none';
+    viewTableBtn?.classList.toggle('active', view === 'table');
+    viewGroupedBtn?.classList.toggle('active', view === 'grouped');
+    localStorage.setItem('assets-view', view);
+    filterAssets();
+  }
+
+  viewTableBtn?.addEventListener('click', () => setView('table'));
+  viewGroupedBtn?.addEventListener('click', () => setView('grouped'));
+
+  const savedView = localStorage.getItem('assets-view') as 'table' | 'grouped' | null;
+  if (savedView) setView(savedView);
 
   function filterAssets() {
     const searchQuery = searchInput?.value.toLowerCase() || '';
@@ -154,7 +287,14 @@ function getMimeCategory(mimeType: string): string {
 
       (row as HTMLElement).style.display = (matchesSearch && matchesType) ? '' : 'none';
     });
+
+    document.querySelectorAll('.collection-group').forEach(group => {
+      const visibleRows = group.querySelectorAll('.asset-row:not([style*="display: none"])');
+      (group as HTMLElement).style.display = visibleRows.length > 0 ? '' : 'none';
+    });
   }
+
+  filterAssets();
 
   searchInput?.addEventListener('input', filterAssets);
   typeFilter?.addEventListener('change', filterAssets);
@@ -268,5 +408,105 @@ function getMimeCategory(mimeType: string): string {
 
   .button.danger:hover {
     background: var(--color-error-bg);
+  }
+
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--panel-2);
+    border-radius: 6px;
+    padding: 2px;
+    width: fit-content;
+    margin-bottom: 1.5rem;
+  }
+
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .toggle-btn:hover {
+    color: var(--ink);
+  }
+
+  .toggle-btn.active {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  .collection-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .collection-group > .table {
+    margin-top: 1rem;
+  }
+
+  .collection-header {
+    padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  .collection-header::-webkit-details-marker {
+    display: none;
+  }
+
+  .collection-header:hover {
+    background: var(--panel-2);
+    border-radius: 6px;
+  }
+
+  .collection-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .collapse-chevron {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    transition: transform 0.15s;
+  }
+
+  .collapse-chevron::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(-45deg) translate(1px, -1px);
+    margin: 4px auto;
+  }
+
+  details[open] > .collection-header .collapse-chevron {
+    transform: rotate(90deg);
+  }
+
+  .collection-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--panel-2);
+    padding: 0.125rem 0.5rem;
+    border-radius: 10px;
   }
 </style>

@@ -8,6 +8,8 @@ testing the notifier configurations.
 
 from functools import cached_property  # For lazy-loading properties
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status  # Added status for HTTP_201_CREATED
 from pydantic import UUID4  # For UUID type validation
 
@@ -24,6 +26,7 @@ from marvin.schemas.group.event import (  # Pydantic schemas for group event not
     GroupEventNotifierRead,
     GroupEventNotifierSave,  # Intermediate schema for creation logic
     GroupEventNotifierUpdate,
+    NotificationExecutionLogRead,
 )
 from marvin.schemas.mapper import cast  # Utility for casting between schema types
 from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters
@@ -37,6 +40,7 @@ from marvin.services.event_bus_service.event_types import (  # Event system comp
     EventOperation,
     EventTypes,
 )
+from marvin.services.event_bus_service.publisher import _log_notification_execution
 
 # APIRouter for group event notifications, using MarvinCrudRoute for consistent header handling.
 # All routes will be under /group/notifications.
@@ -157,6 +161,12 @@ class GroupEventsNotifierController(BaseUserController):
         # Use the mixin's create_one method for standardized creation and error handling
         return self.mixins.create_one(save_data)
 
+    @router.get("/log", response_model=list[NotificationExecutionLogRead], summary="Get All Notification Execution Logs")
+    def get_all_notification_logs(self, limit: int = 200) -> list[NotificationExecutionLogRead]:
+        """Returns the most recent notification execution logs across all notifiers in the group."""
+        self._check_apprise_available()
+        return self.repos.notification_logs().get_all(limit=limit, order_by="executed_at")
+
     @router.get("/{item_id}", response_model=GroupEventNotifierRead, summary="Get a Specific Group Event Notifier")
     def get_one(self, item_id: UUID4) -> GroupEventNotifierRead:
         """
@@ -236,6 +246,12 @@ class GroupEventsNotifierController(BaseUserController):
     # Test Event Notifications
     # =======================================================================
 
+    @router.get("/{item_id}/logs", response_model=list[NotificationExecutionLogRead], summary="Get Notification Execution Logs")
+    def get_notification_logs(self, item_id: UUID4, limit: int = 50) -> list[NotificationExecutionLogRead]:
+        """Returns the most recent execution log entries for a notifier."""
+        self._check_apprise_available()
+        return self.repos.notification_logs().multi_query({"notifier_id": item_id}, limit=limit)
+
     # TODO: "properly re-implement this with new event listeners" - as per original code comment
     @router.post("/{item_id}/test", summary="Test a Group Event Notifier")
     def test_notification(self, item_id: UUID4) -> dict:
@@ -260,33 +276,44 @@ class GroupEventsNotifierController(BaseUserController):
         if not notifier_config:  # Should be caught by get_one if not found
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notifier configuration not found.")
 
-        # Construct a test event payload
         event_type = EventTypes.test_message
         test_event_payload = Event(
-            message=EventBusMessage.from_type(event_type, "This is a test message from Marvin."),
+            message=EventBusMessage.from_type(
+                event_type,
+                f"Test from Marvin — notification '{notifier_config.name}' is working correctly."
+            ),
             event_type=event_type,
-            integration_id="marvin_test_event_notification",  # Unique ID for this test event source
-            document_data=EventDocumentDataBase(  # Basic document data for the event
+            integration_id="marvin_test_event_notification",
+            workspace_id=self.group_id,
+            document_data=EventDocumentDataBase(
                 document_type=EventDocumentType.generic, operation=EventOperation.info
             ),
         )
 
-        # Initialize a temporary AppriseEventListener for this test.
-        # It's scoped to the current user's group_id.
-        test_listener = AppriseEventListener(self.group_id)
-
-        # Directly publish to the specific Apprise URL of the notifier being tested.
-        # The `publish_to_subscribers` method here is used somewhat unconventionally
-        # by passing a list containing just the single Apprise URL to test.
         try:
-            test_listener.publish_to_subscribers(test_event_payload, [notifier_config.apprise_url])
-            self.logger.info(f"Test notification sent to notifier ID {item_id} (URL: {notifier_config.apprise_url}) for group {self.group_id}")
+            from marvin.services.secrets.resolver import resolve
+            resolved_url = resolve(notifier_config.apprise_url, group_id=self.group_id)
+            enriched_urls = AppriseEventListener.update_urls_with_event_data([resolved_url], test_event_payload)
+            # Publish directly — the publisher will log the attempt with notifier_id/group_id
+            from marvin.services.event_bus_service.publisher import ApprisePublisher
+            publisher = ApprisePublisher()
+            publisher.publish(
+                test_event_payload,
+                enriched_urls,
+                notifier_id=item_id,
+                group_id=self.group_id,
+                event_type="test_message",
+            )
+            self.logger.info(f"Test notification sent to notifier ID {item_id} for group {self.group_id}")
         except Exception as e:
             self.logger.error(f"Failed to send test notification for notifier ID {item_id}: {e}")
-            # Consider if an error response should be sent to the client here,
-            # e.g., a 500 error if Apprise fails. Currently, it would still return 204.
-            # For a more robust test, this might raise an HTTPException.
-            # For now, matching original behavior of logging and returning status regardless of Apprise outcome.
-            pass
+            _log_notification_execution(
+                notifier_id=item_id,
+                group_id=self.group_id,
+                status="failed",
+                event_type="test_message",
+                error_message=str(e),
+                request_payload={"title": test_event_payload.message.title, "body": test_event_payload.message.body},
+            )
 
         return {"status": "ok", "message": "Test notification sent successfully"}

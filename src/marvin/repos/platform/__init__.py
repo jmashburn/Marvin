@@ -6,10 +6,14 @@ from .collections import CollectionsRepository
 from .entries import EntriesRepository
 from .entry_types import EntryTypesRepository
 from .event_log import EventLogRepository
-from .forms import FormsRepository
 from .form_submissions import FormSubmissionsRepository
+from .forms import FormsRepository
 from .resources import ResourcesRepository
 from .scheduled_tasks import ScheduledTaskExecutionLogRepository, ScheduledTasksRepository
+
+# isort: split
+# CODE_GEN_ID: PLATFORM_REPO_IMPORTS
+# END: PLATFORM_REPO_IMPORTS
 
 __all__ = [
     "APIClientsRepository",
@@ -23,4 +27,6 @@ __all__ = [
     "ResourcesRepository",
     "ScheduledTaskExecutionLogRepository",
     "ScheduledTasksRepository",
+    # CODE_GEN_ID: PLATFORM_REPO_ALL
+    # END: PLATFORM_REPO_ALL
 ]

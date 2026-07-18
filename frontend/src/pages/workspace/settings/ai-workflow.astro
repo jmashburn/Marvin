@@ -1,0 +1,613 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getAIWorkflowSettings } from "@/lib/api/aiWorkflowSettings";
+import { fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let settings: any = null;
+let secrets: any[] = [];
+let error: string | null = null;
+
+try {
+  [settings, secrets] = await Promise.all([
+    getAIWorkflowSettings(authToken),
+    fetchApi<any[]>(`/api/groups/secrets`, {}, authToken),
+  ]);
+} catch (e) {
+  console.error('[ai-workflow] Error loading settings:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// API returns camelCase (_MarvinModel alias_generator=camelize)
+const s = {
+  enabled: settings?.enabled ?? true,
+  credentialMode: settings?.credentialMode ?? "platform",
+  provider: settings?.provider ?? null,
+  model: settings?.model ?? null,
+  secretRef: settings?.secretRef ?? null,
+  approvalMode: settings?.approvalMode ?? "suggest-only",
+  invocationSources: settings?.invocationSources ?? null,
+  budgetConfig: settings?.budgetConfig ?? null,
+  loggingConfig: settings?.loggingConfig ?? null,
+  moderationConfig: settings?.moderationConfig ?? null,
+  allowWorkspaceCredentials: settings?.allowWorkspaceCredentials ?? true,
+};
+
+const invSrc = s.invocationSources ?? {
+  editor: true,
+  forms: true,
+  actions: true,
+  mcp: false,
+  scheduledJobs: false,
+};
+
+const budgetCfg = s.budgetConfig ?? {};
+const logCfg = s.loggingConfig ?? {};
+const modCfg = s.moderationConfig ?? {};
+---
+
+<AppLayout title="AI Settings" eyebrow="Settings">
+  <div class="page-header">
+    <div>
+      <h2>AI Settings</h2>
+      <p>Control how and whether AI features operate in this workspace.</p>
+    </div>
+    <a href="/workspace/settings?tab=ai" class="button secondary small">Back to AI</a>
+  </div>
+
+  {error && (
+    <div class="alert alert-error"><strong>Error loading settings:</strong> {error}</div>
+  )}
+
+  <form id="ai-settings-form">
+    <!-- 1. Enable / Disable -->
+    <div class="section-card">
+      <div class="section-header">
+        <div>
+          <h3>AI Features</h3>
+          <p>Enable or disable all AI capabilities for this workspace.</p>
+        </div>
+        <label class="toggle-label">
+          <input type="checkbox" name="enabled" id="ai-enabled" class="toggle-input" checked={s.enabled} />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          <span class="toggle-text" id="ai-enabled-text">{s.enabled ? "Enabled" : "Disabled"}</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 2. Credential Mode -->
+    <div class="section-card ai-dependent" id="credential-section">
+      <div class="section-title">
+        <h3>Credential Mode</h3>
+        <p>Which AI credentials this workspace uses.</p>
+      </div>
+      <div class="radio-group">
+        <label class:list={["radio-card", { selected: s.credentialMode === "platform" }]}>
+          <input type="radio" name="credential_mode" value="platform" checked={s.credentialMode === "platform"} />
+          <div class="radio-content">
+            <strong>Platform</strong>
+            <span>Credentials configured by your platform administrator.</span>
+          </div>
+        </label>
+        <label class:list={["radio-card", { selected: s.credentialMode === "workspace", disabled: !s.allowWorkspaceCredentials }]}>
+          <input type="radio" name="credential_mode" value="workspace" checked={s.credentialMode === "workspace"} disabled={!s.allowWorkspaceCredentials} />
+          <div class="radio-content">
+            <strong>Workspace</strong>
+            <span>{s.allowWorkspaceCredentials
+              ? "Use a specific key stored in this workspace's secrets."
+              : "Disabled by the platform administrator — only platform credentials are allowed."}</span>
+          </div>
+        </label>
+      </div>
+
+      <div id="platform-info" class="info-banner" style={s.credentialMode !== "platform" ? "display:none" : ""}>
+        Credentials are provided by the platform administrator. No further configuration needed.
+      </div>
+
+      <div id="workspace-creds" style={s.credentialMode !== "workspace" ? "display:none" : ""}>
+        <div class="info-banner" style="margin-bottom:16px;">
+          <strong>Bring your own AI.</strong> You need one thing: your provider's API key.
+          Add it under <a href="/workspace/settings/environment">Environment → Secrets</a>, then
+          pick a provider + model and reference that secret below.
+          <br />
+          <small style="color:var(--muted);">Ollama needs no key (just a Base URL); Ollama &amp; Azure use the Providers config for their endpoint.</small>
+        </div>
+        <div class="form-row">
+          <label class="form-field">
+            <span class="label">Provider</span>
+            <select name="provider" class="input" id="provider-select">
+              <option value="" selected={!s.provider}>— select —</option>
+              <option value="openai" selected={s.provider === "openai"}>OpenAI</option>
+              <option value="anthropic" selected={s.provider === "anthropic"}>Anthropic</option>
+              <option value="ollama" selected={s.provider === "ollama"}>Ollama (self-hosted)</option>
+              <option value="other" selected={s.provider === "other"}>Other</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span class="label">Model</span>
+            <input type="text" name="model" class="input" value={s.model ?? ""} placeholder="e.g. gpt-4o, claude-sonnet-5" />
+          </label>
+        </div>
+        <label class="form-field">
+          <span class="label">Secret Reference</span>
+          <select name="secret_ref" class="input">
+            <option value="" selected={!s.secretRef}>— none —</option>
+            {secrets.map((sec: any) => (
+              <option value={sec.slug} selected={s.secretRef === sec.slug}>{sec.name} ({sec.slug})</option>
+            ))}
+          </select>
+          <small class="hint">Pick the workspace secret holding your provider's API key. The key lives in Secrets — never stored here.</small>
+        </label>
+      </div>
+
+    </div>
+
+    <!-- 3. Approval Mode -->
+    <div class="section-card ai-dependent" id="approval-section">
+      <div class="section-title">
+        <h3>Approval Mode</h3>
+        <p>How much autonomy AI has to apply changes without human review.</p>
+      </div>
+      <div class="radio-group">
+        <label class:list={["radio-card", { selected: s.approvalMode === "suggest-only" }]}>
+          <input type="radio" name="approval_mode" value="suggest-only" checked={s.approvalMode === "suggest-only"} />
+          <div class="radio-content">
+            <strong>Suggest only</strong>
+            <span>AI outputs are shown as suggestions. Users must accept manually.</span>
+          </div>
+        </label>
+        <label class:list={["radio-card", { selected: s.approvalMode === "allow-draft-update" }]}>
+          <input type="radio" name="approval_mode" value="allow-draft-update" checked={s.approvalMode === "allow-draft-update"} />
+          <div class="radio-content">
+            <strong>Allow draft update</strong>
+            <span>AI can update draft entries automatically. Published entries still require review.</span>
+          </div>
+        </label>
+        <label class:list={["radio-card", { selected: s.approvalMode === "allow-automatic-update" }]}>
+          <input type="radio" name="approval_mode" value="allow-automatic-update" checked={s.approvalMode === "allow-automatic-update"} />
+          <div class="radio-content">
+            <strong>Allow automatic update</strong>
+            <span>AI can apply changes to any entry without additional approval.</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- 4. Invocation Sources -->
+    <div class="section-card ai-dependent">
+      <div class="section-title">
+        <h3>Invocation Sources</h3>
+        <p>Which subsystems are allowed to trigger AI calls.</p>
+      </div>
+      <div class="toggle-grid">
+        {[
+          { key: "editor", label: "Editor", desc: "AI writing and editing tools in the content editor" },
+          { key: "forms", label: "Forms", desc: "AI field suggestions in form entry flows" },
+          { key: "actions", label: "Actions", desc: "AI-powered automation actions" },
+          { key: "mcp", label: "MCP", desc: "Model Context Protocol integrations" },
+          { key: "scheduledJobs", label: "Scheduled Jobs", desc: "AI steps in recurring scheduled tasks" },
+        ].map(({ key, label, desc }) => (
+          <label class="source-toggle">
+            <div class="source-info">
+              <strong>{label}</strong>
+              <span>{desc}</span>
+            </div>
+            <input
+              type="checkbox"
+              name={`invocation_sources.${key}`}
+              class="toggle-input"
+              checked={invSrc[key] !== false}
+            />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        ))}
+      </div>
+    </div>
+
+    <!-- 5. Advanced (collapsible) -->
+    <details class="section-card ai-dependent advanced-section">
+      <summary class="advanced-summary">Advanced Settings</summary>
+
+      <div class="advanced-body">
+        <!-- Budget -->
+        <div class="sub-section">
+          <h4>Budget Limits</h4>
+          <div class="form-row">
+            <label class="form-field">
+              <span class="label">Max tokens per request</span>
+              <input type="number" name="budget.max_tokens_per_request" class="input"
+                value={budgetCfg.max_tokens_per_request ?? ""} placeholder="e.g. 4096" min="1" />
+            </label>
+            <label class="form-field">
+              <span class="label">Max requests per day</span>
+              <input type="number" name="budget.max_requests_per_day" class="input"
+                value={budgetCfg.max_requests_per_day ?? ""} placeholder="e.g. 1000" min="1" />
+            </label>
+          </div>
+        </div>
+
+        <!-- Logging -->
+        <div class="sub-section">
+          <h4>Logging</h4>
+          <div class="toggle-grid compact">
+            <label class="source-toggle">
+              <div class="source-info"><strong>Log inputs</strong><span>Record prompts sent to AI</span></div>
+              <input type="checkbox" name="logging.log_inputs" class="toggle-input" checked={logCfg.log_inputs !== false} />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+            <label class="source-toggle">
+              <div class="source-info"><strong>Log outputs</strong><span>Record AI responses</span></div>
+              <input type="checkbox" name="logging.log_outputs" class="toggle-input" checked={logCfg.log_outputs !== false} />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <label class="form-field" style="margin-top:12px">
+            <span class="label">Retention (days)</span>
+            <input type="number" name="logging.retention_days" class="input"
+              value={logCfg.retention_days ?? ""} placeholder="e.g. 30" min="1" style="max-width:160px" />
+          </label>
+        </div>
+
+        <!-- Moderation -->
+        <div class="sub-section">
+          <h4>Moderation</h4>
+          <div class="toggle-grid compact">
+            <label class="source-toggle">
+              <div class="source-info"><strong>Enable moderation</strong><span>Run AI outputs through a content moderation layer</span></div>
+              <input type="checkbox" name="moderation.enabled" class="toggle-input" checked={modCfg.enabled === true} />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+            <label class="source-toggle">
+              <div class="source-info"><strong>Block on flag</strong><span>Prevent flagged output from being applied</span></div>
+              <input type="checkbox" name="moderation.block_on_flag" class="toggle-input" checked={modCfg.block_on_flag === true} />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- Save -->
+    <div class="form-actions">
+      <button type="submit" class="button" id="save-btn">Save Settings</button>
+      <span id="save-status" class="save-status"></span>
+    </div>
+  </form>
+</AppLayout>
+
+<script>
+  import { fetchApi } from '@/lib/api/client';
+
+  const form = document.getElementById('ai-settings-form');
+  const enabledToggle = document.getElementById('ai-enabled');
+  const enabledText = document.getElementById('ai-enabled-text');
+  const saveStatus = document.getElementById('save-status');
+
+  // Dependent sections dim when AI is disabled
+  function syncEnabled() {
+    const on = enabledToggle?.checked;
+    enabledText.textContent = on ? 'Enabled' : 'Disabled';
+    document.querySelectorAll('.ai-dependent').forEach(el => {
+      el.style.opacity = on ? '' : '0.45';
+      el.style.pointerEvents = on ? '' : 'none';
+    });
+  }
+  enabledToggle?.addEventListener('change', syncEnabled);
+  syncEnabled();
+
+  // Credential mode visibility
+  const modeInputs = form?.querySelectorAll('input[name="credential_mode"]');
+  const platformInfo = document.getElementById('platform-info');
+  const workspaceCreds = document.getElementById('workspace-creds');
+
+  function syncMode() {
+    const mode = form?.querySelector('input[name="credential_mode"]:checked')?.value;
+    platformInfo.style.display = mode === 'platform' ? '' : 'none';
+    workspaceCreds.style.display = mode === 'workspace' ? '' : 'none';
+  }
+
+  modeInputs?.forEach(inp => inp.addEventListener('change', syncMode));
+  syncMode();
+
+  // Radio card selected style
+  form?.querySelectorAll('.radio-group').forEach(group => {
+    group.querySelectorAll('input[type="radio"]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        group.querySelectorAll('.radio-card').forEach(c => c.classList.remove('selected'));
+        inp.closest('.radio-card')?.classList.add('selected');
+      });
+    });
+  });
+
+  // Save handler
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+
+    const invSrc = {};
+    for (const key of ['editor', 'forms', 'actions', 'mcp', 'scheduledJobs']) {
+      invSrc[key] = fd.has(`invocation_sources.${key}`);
+    }
+
+    const budgetCfg = {};
+    const maxTokens = fd.get('budget.max_tokens_per_request');
+    const maxReqs = fd.get('budget.max_requests_per_day');
+    if (maxTokens) budgetCfg.max_tokens_per_request = Number(maxTokens);
+    if (maxReqs) budgetCfg.max_requests_per_day = Number(maxReqs);
+
+    const logCfg = {
+      log_inputs: fd.has('logging.log_inputs'),
+      log_outputs: fd.has('logging.log_outputs'),
+    };
+    const retDays = fd.get('logging.retention_days');
+    if (retDays) logCfg.retention_days = Number(retDays);
+
+    const modCfg = {
+      enabled: fd.has('moderation.enabled'),
+      block_on_flag: fd.has('moderation.block_on_flag'),
+    };
+
+    const mode = fd.get('credential_mode');
+    const payload = {
+      enabled: fd.has('enabled'),
+      credential_mode: mode,
+      approval_mode: fd.get('approval_mode'),
+      provider: mode === 'workspace' ? (fd.get('provider') || null) : null,
+      model: mode === 'workspace' ? (fd.get('model') || null) : null,
+      secret_ref: mode === 'workspace' ? (fd.get('secret_ref') || null) : null,
+      invocation_sources: invSrc,
+      budget_config: Object.keys(budgetCfg).length ? budgetCfg : null,
+      logging_config: logCfg,
+      moderation_config: modCfg,
+    };
+
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.disabled = true;
+    saveStatus.textContent = 'Saving…';
+    saveStatus.className = 'save-status';
+
+    try {
+      await fetchApi('/api/groups/ai-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      saveStatus.textContent = 'Saved';
+      saveStatus.className = 'save-status success';
+      setTimeout(() => window.location.reload(), 800);
+    } catch (err) {
+      saveStatus.textContent = `Error: ${err.message}`;
+      saveStatus.className = 'save-status error';
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+    gap: 16px;
+  }
+
+  .page-header h2 { margin: 0 0 6px; font-size: 22px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .alert {
+    padding: 14px 16px; margin-bottom: 20px; border-radius: var(--radius);
+    background: var(--color-error-bg); color: var(--color-error);
+    border: 1px solid var(--color-error); font-size: 14px;
+  }
+
+  /* ── Section cards ── */
+  .section-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+    transition: opacity 0.2s, pointer-events 0.2s;
+  }
+
+  .section-card > .section-title,
+  .section-card > legend.section-title {
+    display: block;
+    padding: 0;
+    border: none;
+    margin-bottom: 16px;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .section-title h3, .section-header h3 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+  .section-title p, .section-header p { margin: 0; font-size: 13px; color: var(--muted); }
+
+  /* ── Toggle ── */
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .toggle-input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+  .toggle-track {
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    background: var(--line);
+    border-radius: 11px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  .toggle-input:checked + .toggle-track { background: var(--accent); }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  .toggle-input:checked + .toggle-track .toggle-thumb { transform: translateX(18px); }
+  .toggle-text { font-size: 14px; font-weight: 500; color: var(--ink); }
+
+  /* ── Radio cards ── */
+  .radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .radio-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    background: var(--bg);
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .radio-card:hover { border-color: var(--accent); }
+  .radio-card.selected { border-color: var(--accent); background: rgba(79,156,132,0.06); }
+  .radio-card.disabled { opacity: 0.5; cursor: not-allowed; }
+  .radio-card.disabled:hover { border-color: var(--line); }
+
+  .radio-card input[type="radio"] { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
+
+  .radio-content { display: flex; flex-direction: column; gap: 2px; }
+  .radio-content strong { font-size: 14px; font-weight: 600; }
+  .radio-content span { font-size: 13px; color: var(--muted); }
+
+  /* ── Info banners ── */
+  .info-banner {
+    background: rgba(79,156,132,0.08);
+    border: 1px solid rgba(79,156,132,0.25);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  .info-banner-warn {
+    background: rgba(234,179,8,0.08);
+    border-color: rgba(234,179,8,0.3);
+    color: var(--ink);
+  }
+
+  /* ── Invocation toggles grid ── */
+  .toggle-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .toggle-grid.compact { margin-top: 8px; }
+
+  .source-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+
+  .source-toggle:last-child { border-bottom: none; }
+  .source-toggle:hover { background: var(--panel); }
+
+  .source-info { flex: 1; }
+  .source-info strong { display: block; font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .source-info span { font-size: 12px; color: var(--muted); }
+
+  .source-toggle .toggle-input + .toggle-track { margin-left: auto; }
+
+  /* ── Form elements ── */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .form-field { display: grid; gap: 8px; }
+  .label { font-size: 13px; font-weight: 500; }
+  .hint { font-size: 12px; color: var(--muted); }
+
+  .input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--ink);
+    box-sizing: border-box;
+  }
+
+  .input:focus { border-color: var(--accent); outline: none; }
+
+  /* ── Advanced / collapsible ── */
+  .advanced-section summary { list-style: none; }
+  .advanced-summary {
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 0;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+  }
+
+  .advanced-summary::before { content: '▶'; font-size: 10px; color: var(--muted); transition: transform 0.15s; }
+  details[open] .advanced-summary::before { transform: rotate(90deg); }
+
+  .advanced-body { margin-top: 20px; display: flex; flex-direction: column; gap: 20px; }
+
+  .sub-section h4 { margin: 0 0 12px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+
+  /* ── Save row ── */
+  .form-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 8px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .save-status { font-size: 13px; color: var(--muted); }
+  .save-status.success { color: var(--accent); }
+  .save-status.error { color: var(--color-error); }
+
+  /* ── workspace-creds inner spacing ── */
+  #workspace-creds { display: flex; flex-direction: column; gap: 16px; }
+  #workspace-creds .form-row { margin-bottom: 0; }
+</style>

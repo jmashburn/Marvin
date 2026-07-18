@@ -16,6 +16,15 @@ serve identical purposes. This documentation reflects the models as defined in t
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvin schemas
 
 
+class LoginInfo(_MarvinModel):
+    """Public login page configuration — no auth required."""
+
+    oidc_enabled: bool = False
+    oidc_provider_name: str = "OAuth"
+    oidc_auto_redirect: bool = False
+    allow_signup: bool = False
+
+
 class AppStatistics(_MarvinModel):
     """
     Schema for basic application statistics.

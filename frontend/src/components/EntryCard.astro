@@ -10,7 +10,10 @@ const { entry, collectionsMap } = Astro.props;
 
 // Get collections for this entry
 const entryCollections = entry.collections
-  ?.map(id => collectionsMap?.get(id))
+  ?.map((item: any) => {
+    const id = typeof item === 'string' ? item : item.id;
+    return collectionsMap?.get(id);
+  })
   .filter(Boolean) as CollectionRead[] | undefined;
 const asset = entry.assets?.find((item) => item.role === "featured" || item.role === "hero") ?? entry.assets?.[0];
 

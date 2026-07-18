@@ -23,9 +23,12 @@ from marvin.services import BaseService  # Base service class for common functio
 
 # Event listener implementations
 from marvin.services.event_bus_service.event_bus_listener import (
+    AIEmbeddingReactionListener,
+    SmartCollectionReactionListener,
     AppriseEventListener,
     AuditLogListener,
     ConsoleEventListener,
+    EmailEventListener,
     EventListenerBase,
     ScheduledTaskListener,
     WebhookEventListener,
@@ -147,9 +150,12 @@ class EventBusService(BaseService):
         return [
             AuditLogListener(group_id),  # Persists all events to event_log table (MUST BE FIRST).
             ScheduledTaskListener(group_id),  # Executes scheduled tasks when triggered.
+            AIEmbeddingReactionListener(group_id),  # Auto-embeds an entry into the RAG index on publish.
+            SmartCollectionReactionListener(group_id),  # Materializes smart-collection membership on entry changes.
             ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
             AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.
+            EmailEventListener(group_id),  # Fires email templates on matching events.
         ]
 
     def _publish_event(self, event: Event, group_id: UUID4) -> None:
@@ -228,13 +234,20 @@ class EventBusService(BaseService):
             entity_type=entity_type,
         )
 
-        # If BackgroundTasks instance is available, run publishing as a background task
+        event_name = event_type.name if hasattr(event_type, "name") else str(event_type)
+        is_internal = event_name in ("webhook_task", "scheduled_task_triggered", "scheduled_task_started", "scheduled_task_completed", "scheduled_task_failed")
+
         if self.bg_tasks:
-            self.logger.debug(f"Adding Event: {event_type} to Background Task")
+            if not is_internal:
+                self.logger.info(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
+            else:
+                self.logger.debug(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
             self.bg_tasks.add_task(self._publish_event, event=event_payload, group_id=group_id)
         else:
-            # Otherwise, publish synchronously (blocks until all listeners processed)
-            self.logger.debug(f"Adding Event: {event_type}")
+            if not is_internal:
+                self.logger.info(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
+            else:
+                self.logger.debug(f"EVENT DISPATCHED: {event_name} [{integration_id}]")
             self._publish_event(event=event_payload, group_id=group_id)
 
     @classmethod

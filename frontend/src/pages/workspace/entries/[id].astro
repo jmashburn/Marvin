@@ -5,9 +5,9 @@ import { getAuthToken } from "@/lib/api/client";
 import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections } from "@/lib/api/collections";
-import { getEntryCollections } from "@/lib/api/entries";
 import { getAssets } from "@/lib/api/platform";
 import { listResources } from "@/lib/api/resources";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
@@ -17,10 +17,58 @@ if (Astro.request.method === 'POST' && id && authToken) {
   try {
     const formData = await Astro.request.formData();
 
-    // Parse multi-select fields
-    const collectionIds = formData.getAll('collection_ids') as string[];
-    const assetIds = formData.getAll('asset_ids') as string[];
-    const resourceIds = formData.getAll('resource_ids') as string[];
+    // Parse structured collection attachments
+    const collectionAttachments: Array<Record<string, any>> = [];
+    let collIdx = 0;
+    while (formData.has(`collection_attachments[${collIdx}].collection_id`)) {
+      let collMeta = null;
+      const collMetaStr = (formData.get(`collection_attachments[${collIdx}].metadata`) as string) || '';
+      if (collMetaStr.trim()) {
+        try { collMeta = JSON.parse(collMetaStr); } catch { /* ignore invalid JSON */ }
+      }
+      collectionAttachments.push({
+        collection_id: formData.get(`collection_attachments[${collIdx}].collection_id`) as string,
+        role: (formData.get(`collection_attachments[${collIdx}].role`) as string) || null,
+        metadata: collMeta,
+      });
+      collIdx++;
+    }
+
+    // Parse structured asset attachments
+    const assetAttachments: Array<Record<string, any>> = [];
+    let assetIdx = 0;
+    while (formData.has(`asset_attachments[${assetIdx}].asset_id`)) {
+      let assetMeta = null;
+      const assetMetaStr = (formData.get(`asset_attachments[${assetIdx}].metadata`) as string) || '';
+      if (assetMetaStr.trim()) {
+        try { assetMeta = JSON.parse(assetMetaStr); } catch { /* ignore invalid JSON */ }
+      }
+      assetAttachments.push({
+        asset_id: formData.get(`asset_attachments[${assetIdx}].asset_id`) as string,
+        role: (formData.get(`asset_attachments[${assetIdx}].role`) as string) || null,
+        metadata: assetMeta,
+        position: assetIdx,
+      });
+      assetIdx++;
+    }
+
+    // Parse structured resource attachments
+    const resourceAttachments: Array<Record<string, any>> = [];
+    let resIdx = 0;
+    while (formData.has(`resource_attachments[${resIdx}].resource_id`)) {
+      let resMeta = null;
+      const resMetaStr = (formData.get(`resource_attachments[${resIdx}].metadata`) as string) || '';
+      if (resMetaStr.trim()) {
+        try { resMeta = JSON.parse(resMetaStr); } catch { /* ignore invalid JSON */ }
+      }
+      resourceAttachments.push({
+        resource_id: formData.get(`resource_attachments[${resIdx}].resource_id`) as string,
+        role: (formData.get(`resource_attachments[${resIdx}].role`) as string) || null,
+        metadata: resMeta,
+        position: resIdx,
+      });
+      resIdx++;
+    }
 
     // Parse dataJson from schema fields (dataJson.fieldKey format)
     const dataJson: Record<string, any> = {};
@@ -48,7 +96,7 @@ if (Astro.request.method === 'POST' && id && authToken) {
       }
     }
 
-    const updateData = {
+    const updateData: Record<string, any> = {
       entry_type_id: formData.get('entry_type_id') as string,
       title: formData.get('title') as string,
       slug: (formData.get('slug') as string) || null,
@@ -57,9 +105,9 @@ if (Astro.request.method === 'POST' && id && authToken) {
       data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
       status: formData.get('status') as string,
       metadata_json: metadataJson,
-      collection_ids: collectionIds,
-      asset_ids: assetIds,
-      resource_ids: resourceIds,
+      collection_attachments: collectionAttachments,
+      asset_attachments: assetAttachments,
+      resource_attachments: resourceAttachments,
     };
 
     await updateEntry(id, updateData, authToken);
@@ -73,7 +121,6 @@ if (Astro.request.method === 'POST' && id && authToken) {
 let entry: EntryRead | null = null;
 let entryTypes: EntryTypeRead[] = [];
 let collections: CollectionRead[] = [];
-let entryCollections: CollectionRead[] = [];
 let allAssets: any[] = [];
 let allResources: any[] = [];
 let error: string | null = null;
@@ -84,11 +131,10 @@ if (!id) {
   error = "Authentication required";
 } else {
   try {
-    [entry, entryTypes, collections, entryCollections, allAssets, allResources] = await Promise.all([
+    [entry, entryTypes, collections, allAssets, allResources] = await Promise.all([
       getEntry(id, authToken),
       listEntryTypes(authToken),
       listCollections(authToken),
-      getEntryCollections(id, authToken),
       getAssets(authToken),
       listResources(authToken),
     ]);
@@ -100,13 +146,54 @@ if (!id) {
 
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
-const entryCollectionIds = new Set(entryCollections.map(c => c.id));
-const attachedAssetIds = new Set((entry?.assets || []).map((a: any) => a.id));
-const attachedResourceIds = new Set((entry?.resources || []).map((r: any) => r.id));
+const attachedCollections = (entry?.collections || []).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+const attachedCollectionIds = new Set(attachedCollections.map((c: any) => c.id));
+const attachedAssets = (entry?.assets || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+const attachedResources = (entry?.resources || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+const attachedAssetIds = new Set(attachedAssets.map((a: any) => a.id));
+const attachedResourceIds = new Set(attachedResources.map((r: any) => r.id));
 
 // Get entry type schema for schema-driven form
 const entryType = entry ? entryTypes.find(t => t.id === entry.entryTypeId) : null;
 const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?.length > 0;
+
+// AI assist gating: workspace AI enabled + editor invocation source + auth (fail closed).
+let aiEditorEnabled = false;
+if (entry && authToken) {
+  try {
+    const aiSdk = createSdkClient(authToken);
+    const aiSettings: any = await aiSdk.ai.settings.get();
+    const sources = aiSettings?.invocationSources ?? aiSettings?.invocation_sources;
+    aiEditorEnabled = aiSettings?.enabled !== false && sources?.editor !== false;
+  } catch {
+    aiEditorEnabled = false;
+  }
+}
+
+// Pending AI suggestion (write-back): proposed field changes staged for human review.
+const suggestion = (entry as any)?.suggestionJson as Record<string, any> | null | undefined;
+function suggestionCurrent(target: string): any {
+  if (!entry) return undefined;
+  if (target.startsWith('data_json.')) return (entry as any).dataJson?.[target.slice('data_json.'.length)];
+  if (target.startsWith('metadata_json.')) return (entry as any).metadataJson?.[target.slice('metadata_json.'.length)];
+  return (entry as any)[target];
+}
+function suggestionFormat(v: any): string {
+  if (v == null || v === '') return '—';
+  if (Array.isArray(v)) return v.join(', ');
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+const suggestionFields = suggestion
+  ? Object.keys(suggestion)
+      .filter((k) => k !== '_meta')
+      .map((target) => ({
+        label: target.replace(/^data_json\./, '').replace(/^metadata_json\./, ''),
+        current: suggestionFormat(suggestionCurrent(target)),
+        proposed: suggestionFormat(suggestion[target]),
+      }))
+  : [];
+const suggestionOp = suggestion?._meta?.operation as string | undefined;
 ---
 
 <AppLayout title={entry ? entry.title : "Edit Entry"}>
@@ -129,6 +216,30 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
           <a class="button secondary" href="/workspace/entries">Back</a>
         </div>
       </div>
+
+      {suggestionFields.length > 0 && (
+        <div class="suggestion-banner">
+          <div class="suggestion-head">
+            <span class="suggestion-title">✨ AI suggested changes</span>
+            {suggestionOp && <span class="suggestion-op">from <code>{suggestionOp}</code></span>}
+          </div>
+          <ul class="suggestion-list">
+            {suggestionFields.map((f) => (
+              <li class="suggestion-field">
+                <span class="suggestion-label">{f.label}</span>
+                <div class="suggestion-diff">
+                  <div class="diff-row diff-current"><span class="diff-tag">current</span><span class="diff-val">{f.current}</span></div>
+                  <div class="diff-row diff-proposed"><span class="diff-tag">proposed</span><span class="diff-val">{f.proposed}</span></div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div class="suggestion-actions">
+            <button type="button" id="apply-suggestion" class="button">Apply changes</button>
+            <button type="button" id="reject-suggestion" class="button secondary">Reject</button>
+          </div>
+        </div>
+      )}
 
       <div class="editor-layout">
         <section class="main-editor">
@@ -282,13 +393,19 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
             </div>
 
             <div class="form-group">
-              <label for="summary">Summary</label>
+              <div class="label-row">
+                <label for="summary">Summary</label>
+                {aiEditorEnabled && (
+                  <button type="button" id="ai-summary-btn" class="ai-mini-btn">✨ Generate</button>
+                )}
+              </div>
               <textarea
                 id="summary"
                 name="summary"
                 rows="3"
                 form="entry-form"
               >{entry.summary || ""}</textarea>
+              {aiEditorEnabled && <p id="ai-summary-status" class="ai-status" style="display:none;"></p>}
             </div>
 
             <div class="form-group">
@@ -339,115 +456,206 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
           </div>
 
           <div class="sidebar-section">
-            <h3>Collections ({Array.from(entryCollectionIds).length})</h3>
+            <h3>Collections (<span id="collection-count">{attachedCollections.length}</span>)</h3>
             <p class="section-help">Organize entry by collection</p>
 
-            <div class="picker-search">
-              <input
-                type="search"
-                id="collection-search"
-                placeholder="Search collections..."
-              />
+            <div id="attached-collections" class="attached-list">
+              {attachedCollections.map((coll: any, idx: number) => (
+                <div class="attachment-card" data-collection-id={coll.id}>
+                  <div class="attachment-header">
+                    <div class="attachment-preview" style={`background-color: ${coll.color || '#a94d3f'}`}>
+                      <span class="attachment-icon" style="font-size:18px;">{coll.icon || '📁'}</span>
+                    </div>
+                    <div class="attachment-name">
+                      <strong>{coll.name}</strong>
+                      <span class="picker-meta">{coll.slug}</span>
+                    </div>
+                    <div class="attachment-actions">
+                      <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+                      <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+                      <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+                    </div>
+                  </div>
+                  <div class="attachment-fields">
+                    <input type="hidden" name={`collection_attachments[${idx}].collection_id`} value={coll.id} form="entry-form" />
+                    <div class="field-row">
+                      <label>Role</label>
+                      <input type="text" name={`collection_attachments[${idx}].role`} value={coll.role || ''} placeholder="e.g. primary, featured" form="entry-form" />
+                    </div>
+                    <div class="field-row field-row-full">
+                      <label>Metadata</label>
+                      <textarea name={`collection_attachments[${idx}].metadata`} rows="2" placeholder='{"featured": true}' form="entry-form" class="attachment-metadata">{coll.placementMetadata ? JSON.stringify(coll.placementMetadata, null, 2) : ''}</textarea>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div class="picker-list">
-              {sortedCollections.map((collection) => (
-                <label class="picker-item collection-picker-item">
-                  <input
-                    type="checkbox"
-                    name="collection_ids"
-                    value={collection.id}
-                    checked={entryCollectionIds.has(collection.id)}
-                    form="entry-form"
-                  />
-                  <div class="picker-preview" style={`background-color: ${collection.color || '#a94d3f'}`}>
-                    <div class="picker-icon">{collection.icon || '📁'}</div>
-                  </div>
-                  <div class="picker-info">
-                    <strong>{collection.name}</strong>
-                    <span class="picker-meta">{collection.isSmart ? 'Smart Collection' : 'Collection'}</span>
-                  </div>
-                </label>
-              ))}
-              {sortedCollections.length === 0 && (
-                <p class="empty-message">No collections available. <a href="/workspace/collections/new">Create one</a>.</p>
-              )}
-            </div>
+            <details class="add-picker">
+              <summary>Add Collection</summary>
+              <div class="add-picker-panel">
+                <div class="picker-search">
+                  <input type="search" id="collection-search" placeholder="Search collections..." />
+                </div>
+                <div class="picker-list">
+                  {sortedCollections.filter((c) => !attachedCollectionIds.has(c.id)).map((collection) => (
+                    <div class="attachment-card add-collection-item" data-collection-id={collection.id} data-collection-name={collection.name} data-collection-slug={collection.slug} data-collection-icon={collection.icon || '📁'} data-collection-color={collection.color || '#a94d3f'}>
+                      <div class="attachment-header">
+                        <div class="attachment-preview" style={`background-color: ${collection.color || '#a94d3f'}`}>
+                          <span class="attachment-icon" style="font-size:18px;">{collection.icon || '📁'}</span>
+                        </div>
+                        <div class="attachment-name">
+                          <strong>{collection.name}</strong>
+                          <span class="picker-meta">{collection.slug}</span>
+                        </div>
+                        <div class="attachment-actions">
+                          <button type="button" class="add-btn icon-btn" title="Add">+</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {sortedCollections.length === 0 && (
+                    <p class="empty-message">No collections available. <a href="/workspace/collections/new">Create one</a>.</p>
+                  )}
+                </div>
+              </div>
+            </details>
           </div>
 
           <div class="sidebar-section">
-            <h3>Assets ({Array.from(attachedAssetIds).length})</h3>
+            <h3>Assets (<span id="asset-count">{attachedAssets.length}</span>)</h3>
             <p class="section-help">Attach images, files, and media</p>
 
-            <div class="picker-search">
-              <input
-                type="search"
-                id="asset-search"
-                placeholder="Search assets..."
-              />
+            <div id="attached-assets" class="attached-list">
+              {attachedAssets.map((asset: any, idx: number) => (
+                <div class="attachment-card" data-asset-id={asset.id}>
+                  <div class="attachment-header">
+                    <div class="attachment-preview">
+                      {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
+                        <img src={asset.publicUrl} alt={asset.altText || asset.name} />
+                      ) : (
+                        <span class="attachment-icon">📄</span>
+                      )}
+                    </div>
+                    <div class="attachment-name">
+                      <strong>{asset.name}</strong>
+                      <span class="picker-meta">{asset.mimeType}</span>
+                    </div>
+                    <div class="attachment-actions">
+                      <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+                      <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+                      <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+                    </div>
+                  </div>
+                  <div class="attachment-fields">
+                    <input type="hidden" name={`asset_attachments[${idx}].asset_id`} value={asset.id} form="entry-form" />
+                    <div class="field-row">
+                      <label>Role</label>
+                      <input type="text" name={`asset_attachments[${idx}].role`} value={asset.role || ''} placeholder="e.g. hero, thumbnail" form="entry-form" />
+                    </div>
+                    <div class="field-row field-row-full">
+                      <label>Metadata</label>
+                      <textarea name={`asset_attachments[${idx}].metadata`} rows="2" placeholder='{"focal_point": "50% 30%"}' form="entry-form" class="attachment-metadata">{asset.placementMetadata ? JSON.stringify(asset.placementMetadata, null, 2) : ''}</textarea>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div class="picker-list">
-              {allAssets.map((asset: any) => (
-                <label class="picker-item asset-picker-item">
-                  <input
-                    type="checkbox"
-                    name="asset_ids"
-                    value={asset.id}
-                    checked={attachedAssetIds.has(asset.id)}
-                    form="entry-form"
-                  />
-                  <div class="picker-preview">
-                    {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
-                      <img src={asset.publicUrl} alt={asset.altText || asset.name} />
-                    ) : (
-                      <div class="picker-icon">📄</div>
-                    )}
-                  </div>
-                  <div class="picker-info">
-                    <strong>{asset.name}</strong>
-                    <span class="picker-meta">{asset.mimeType}</span>
-                  </div>
-                </label>
-              ))}
-              {allAssets.length === 0 && (
-                <p class="empty-message">No assets available. <a href="/workspace/assets/new">Upload one</a>.</p>
-              )}
-            </div>
+            <details class="add-picker">
+              <summary>Add Asset</summary>
+              <div class="add-picker-panel">
+                <div class="picker-search">
+                  <input type="search" id="asset-search" placeholder="Search assets..." />
+                </div>
+                <div class="picker-list">
+                  {allAssets.filter((a: any) => !attachedAssetIds.has(a.id)).map((asset: any) => (
+                    <div class="attachment-card add-asset-item" data-asset-id={asset.id} data-asset-name={asset.name} data-asset-mime={asset.mimeType} data-asset-url={asset.publicUrl || ''} data-asset-alt={asset.altText || ''}>
+                      <div class="attachment-header">
+                        <div class="attachment-preview">
+                          {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
+                            <img src={asset.publicUrl} alt={asset.altText || asset.name} />
+                          ) : (
+                            <span class="attachment-icon">📄</span>
+                          )}
+                        </div>
+                        <div class="attachment-name">
+                          <strong>{asset.name}</strong>
+                          <span class="picker-meta">{asset.mimeType}</span>
+                        </div>
+                        <div class="attachment-actions">
+                          <button type="button" class="add-btn icon-btn" title="Add">+</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {allAssets.length === 0 && (
+                    <p class="empty-message">No assets available. <a href="/workspace/assets/new">Upload one</a>.</p>
+                  )}
+                </div>
+              </div>
+            </details>
           </div>
 
           <div class="sidebar-section">
-            <h3>Resources ({Array.from(attachedResourceIds).length})</h3>
+            <h3>Resources (<span id="resource-count">{attachedResources.length}</span>)</h3>
             <p class="section-help">Attach external resources and references</p>
 
-            <div class="picker-search">
-              <input
-                type="search"
-                id="resource-search"
-                placeholder="Search resources..."
-              />
+            <div id="attached-resources" class="attached-list">
+              {attachedResources.map((resource: any, idx: number) => (
+                <div class="attachment-card" data-resource-id={resource.id}>
+                  <div class="attachment-header">
+                    <div class="attachment-name">
+                      <strong>{resource.name}</strong>
+                      <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
+                    </div>
+                    <div class="attachment-actions">
+                      <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+                      <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+                      <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+                    </div>
+                  </div>
+                  <div class="attachment-fields">
+                    <input type="hidden" name={`resource_attachments[${idx}].resource_id`} value={resource.id} form="entry-form" />
+                    <div class="field-row">
+                      <label>Role</label>
+                      <input type="text" name={`resource_attachments[${idx}].role`} value={resource.role || ''} placeholder="e.g. primary, accent" form="entry-form" />
+                    </div>
+                    <div class="field-row field-row-full">
+                      <label>Metadata</label>
+                      <textarea name={`resource_attachments[${idx}].metadata`} rows="2" placeholder='{"quantity": "2.5", "unit": "yards"}' form="entry-form" class="attachment-metadata">{resource.placementMetadata ? JSON.stringify(resource.placementMetadata, null, 2) : ''}</textarea>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div class="picker-list">
-              {allResources.map((resource: any) => (
-                <label class="picker-item resource-picker-item">
-                  <input
-                    type="checkbox"
-                    name="resource_ids"
-                    value={resource.id}
-                    checked={attachedResourceIds.has(resource.id)}
-                    form="entry-form"
-                  />
-                  <div class="picker-info">
-                    <strong>{resource.name}</strong>
-                    <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
-                  </div>
-                </label>
-              ))}
-              {allResources.length === 0 && (
-                <p class="empty-message">No resources available. <a href="/workspace/resources/new">Create one</a>.</p>
-              )}
-            </div>
+            <details class="add-picker">
+              <summary>Add Resource</summary>
+              <div class="add-picker-panel">
+                <div class="picker-search">
+                  <input type="search" id="resource-search" placeholder="Search resources..." />
+                </div>
+                <div class="picker-list">
+                  {allResources.filter((r: any) => !attachedResourceIds.has(r.id)).map((resource: any) => (
+                    <div class="attachment-card add-resource-item" data-resource-id={resource.id} data-resource-name={resource.name} data-resource-type={resource.resourceType} data-resource-url={resource.url || ''}>
+                      <div class="attachment-header">
+                        <div class="attachment-name">
+                          <strong>{resource.name}</strong>
+                          <span class="picker-meta">{resource.resourceType}{resource.url ? ` • ${resource.url}` : ''}</span>
+                        </div>
+                        <div class="attachment-actions">
+                          <button type="button" class="add-btn icon-btn" title="Add">+</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {allResources.length === 0 && (
+                    <p class="empty-message">No resources available. <a href="/workspace/resources/new">Create one</a>.</p>
+                  )}
+                </div>
+              </div>
+            </details>
           </div>
 
         </aside>
@@ -456,7 +664,7 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   ) : null}
 </AppLayout>
 
-<style>
+<style is:global>
   .error-banner {
     padding: 1.5rem;
     background: var(--color-error-bg);
@@ -468,6 +676,87 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
     gap: 1rem;
   }
 
+  /* AI suggestion (write-back) banner */
+  .suggestion-banner {
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--accent, #a94d3f);
+    border-left-width: 3px;
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--accent, #a94d3f) 6%, var(--panel));
+    display: grid;
+    gap: 0.75rem;
+  }
+  .suggestion-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .suggestion-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .suggestion-op {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .suggestion-op code {
+    font-size: 0.72rem;
+    background: var(--bg);
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+  .suggestion-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.75rem;
+  }
+  .suggestion-field {
+    display: grid;
+    gap: 0.3rem;
+  }
+  .suggestion-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink);
+    text-transform: capitalize;
+  }
+  .suggestion-diff {
+    display: grid;
+    gap: 0.2rem;
+  }
+  .diff-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+  .diff-tag {
+    flex: 0 0 auto;
+    width: 4.5rem;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .diff-current .diff-val {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  }
+  .diff-proposed .diff-val {
+    color: var(--ink);
+  }
+  .suggestion-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+  }
+
   .error-banner p {
     margin: 0;
     color: var(--color-error);
@@ -475,7 +764,7 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
 
   .editor-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-columns: minmax(0, 1fr) 32rem;
     gap: 1.5rem;
   }
 
@@ -851,6 +1140,183 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
     text-decoration: underline;
   }
 
+  .attached-list {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .attachment-card {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .attachment-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .attachment-preview {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .attachment-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .attachment-icon {
+    font-size: 18px;
+  }
+
+  .attachment-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .attachment-name strong {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .attachment-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .icon-btn:hover {
+    background: var(--panel);
+    color: var(--ink);
+  }
+
+  .remove-btn:hover {
+    color: var(--color-error, #ef5350);
+  }
+
+  .add-btn {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--brand);
+  }
+
+  .attachment-fields {
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 0.375rem;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .field-row label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .field-row input,
+  .field-row select,
+  .field-row textarea {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8125rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+
+  .field-row-full {
+    grid-template-columns: 1fr;
+  }
+
+  .field-row-full label {
+    margin-bottom: 0.125rem;
+  }
+
+  .attachment-metadata {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    resize: vertical;
+  }
+
+  .add-picker {
+    margin-top: 0.5rem;
+  }
+
+  .add-picker summary {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--brand);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+  }
+
+  .add-picker summary:hover {
+    background: var(--panel-2);
+  }
+
+  .add-picker-panel {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  .add-picker-panel .picker-search {
+    margin-bottom: 0.75rem;
+  }
+
+  .add-picker-panel .picker-list {
+    margin-top: 0;
+  }
+
+  .add-picker-panel .attachment-card {
+    background: var(--bg);
+  }
+
   .picker-search {
     margin-bottom: 1rem;
   }
@@ -993,6 +1459,36 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
       order: -1;
     }
   }
+  .label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .ai-mini-btn {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--accent);
+    cursor: pointer;
+  }
+
+  .ai-mini-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .ai-mini-btn:disabled { opacity: 0.6; cursor: default; }
+
+  .ai-status {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+  }
+
+  .ai-status.ok { color: var(--accent); background: rgba(79, 156, 132, 0.1); }
+  .ai-status.err { color: var(--color-error); background: var(--color-error-bg); }
 </style>
 
 <script>
@@ -1002,12 +1498,73 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   const form = document.getElementById('entry-form') as HTMLFormElement;
   const deleteButton = document.getElementById('delete-entry-button') as HTMLButtonElement;
 
+  // AI suggestion (write-back) apply / reject
+  const applySuggestionBtn = document.getElementById('apply-suggestion') as HTMLButtonElement | null;
+  const rejectSuggestionBtn = document.getElementById('reject-suggestion') as HTMLButtonElement | null;
+  async function suggestionAction(kind: 'apply' | 'reject') {
+    const entryId = window.location.pathname.split('/').pop();
+    if (!entryId) return;
+    applySuggestionBtn?.setAttribute('disabled', 'true');
+    rejectSuggestionBtn?.setAttribute('disabled', 'true');
+    try {
+      const res = await fetch(`/api/entries/${entryId}/${kind}-suggestion`, { method: 'POST' });
+      if (!res.ok) throw new Error(String(res.status));
+      window.location.reload();
+    } catch (e) {
+      alert(`Failed to ${kind} suggestion.`);
+      applySuggestionBtn?.removeAttribute('disabled');
+      rejectSuggestionBtn?.removeAttribute('disabled');
+    }
+  }
+  applySuggestionBtn?.addEventListener('click', () => suggestionAction('apply'));
+  rejectSuggestionBtn?.addEventListener('click', () => suggestionAction('reject'));
+
   // Auto-generate slug from title for unpublished entries
   const titleInput = document.getElementById('title') as HTMLInputElement;
   const slugInput = document.getElementById('slug') as HTMLInputElement;
   const statusSelect = document.getElementById('status') as HTMLSelectElement;
   const saveButton = document.getElementById('save-button') as HTMLButtonElement;
   const publishButton = document.getElementById('publish-button') as HTMLButtonElement;
+
+  // AI assist: generate a summary and fill the field as a suggestion.
+  const aiSummaryBtn = document.getElementById('ai-summary-btn') as HTMLButtonElement | null;
+  const aiSummaryStatus = document.getElementById('ai-summary-status') as HTMLElement | null;
+  if (aiSummaryBtn) {
+    aiSummaryBtn.addEventListener('click', async () => {
+      const entryId = window.location.pathname.split('/').pop()!;
+      const original = aiSummaryBtn.textContent;
+      aiSummaryBtn.disabled = true;
+      aiSummaryBtn.textContent = '…';
+      if (aiSummaryStatus) { aiSummaryStatus.style.display = 'none'; aiSummaryStatus.className = 'ai-status'; }
+      try {
+        const exec: any = await sdk.ai.operations.execute('generate-summary', {
+          entityType: 'entry',
+          entityId: entryId,
+        });
+        const out = exec?.outputJson ?? exec?.output_json ?? {};
+        const summary = out.summary;
+        const field = document.getElementById('summary') as HTMLTextAreaElement | null;
+        if (summary && field) field.value = summary;
+        if (aiSummaryStatus) {
+          const tokens = exec?.totalTokens ?? exec?.total_tokens;
+          aiSummaryStatus.textContent = summary
+            ? `Suggestion applied${tokens ? ` · ${tokens} tokens` : ''}. Review, then Save to keep it.`
+            : 'No suggestion returned.';
+          aiSummaryStatus.classList.add(summary ? 'ok' : 'err');
+          aiSummaryStatus.style.display = 'block';
+        }
+      } catch (err: any) {
+        if (aiSummaryStatus) {
+          aiSummaryStatus.textContent = err?.message || err?.detail || 'AI request failed';
+          aiSummaryStatus.classList.add('err');
+          aiSummaryStatus.style.display = 'block';
+        }
+      } finally {
+        aiSummaryBtn.disabled = false;
+        aiSummaryBtn.textContent = original;
+      }
+    });
+  }
 
   // Status labels for button text
   const statusLabels: Record<string, string> = {
@@ -1160,7 +1717,217 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   // Form submission now handled server-side via POST
   // No need for client-side fetch - form submits naturally
 
-  // Collection, asset, and resource search filters
+  // Attachment management helpers
+  function reindexAttachments(container: HTMLElement, prefix: string) {
+    const cards = container.querySelectorAll('.attachment-card');
+    cards.forEach((card, idx) => {
+      card.querySelectorAll('[name]').forEach(field => {
+        const el = field as HTMLInputElement | HTMLSelectElement;
+        el.name = el.name.replace(/\[\d+\]/, `[${idx}]`);
+      });
+    });
+  }
+
+  function updateCount(id: string, container: HTMLElement) {
+    const countEl = document.getElementById(id);
+    if (countEl) countEl.textContent = String(container.querySelectorAll('.attachment-card').length);
+  }
+
+  function setupCardButtons(card: HTMLElement, container: HTMLElement, prefix: string, countId: string) {
+    card.querySelector('.remove-btn')?.addEventListener('click', () => {
+      card.remove();
+      reindexAttachments(container, prefix);
+      updateCount(countId, container);
+    });
+    card.querySelector('.move-up-btn')?.addEventListener('click', () => {
+      const prev = card.previousElementSibling;
+      if (prev) container.insertBefore(card, prev);
+      reindexAttachments(container, prefix);
+    });
+    card.querySelector('.move-down-btn')?.addEventListener('click', () => {
+      const next = card.nextElementSibling;
+      if (next) container.insertBefore(next, card);
+      reindexAttachments(container, prefix);
+    });
+  }
+
+  // Initialize existing collection attachment cards
+  const attachedCollectionsContainer = document.getElementById('attached-collections') as HTMLElement;
+  if (attachedCollectionsContainer) {
+    attachedCollectionsContainer.querySelectorAll('.attachment-card').forEach(card => {
+      setupCardButtons(card as HTMLElement, attachedCollectionsContainer, 'collection_attachments', 'collection-count');
+    });
+  }
+
+  // Initialize existing asset attachment cards
+  const attachedAssetsContainer = document.getElementById('attached-assets') as HTMLElement;
+  if (attachedAssetsContainer) {
+    attachedAssetsContainer.querySelectorAll('.attachment-card').forEach(card => {
+      setupCardButtons(card as HTMLElement, attachedAssetsContainer, 'asset_attachments', 'asset-count');
+    });
+  }
+
+  // Initialize existing resource attachment cards
+  const attachedResourcesContainer = document.getElementById('attached-resources') as HTMLElement;
+  if (attachedResourcesContainer) {
+    attachedResourcesContainer.querySelectorAll('.attachment-card').forEach(card => {
+      setupCardButtons(card as HTMLElement, attachedResourcesContainer, 'resource_attachments', 'resource-count');
+    });
+  }
+
+  // Add collection from picker
+  document.querySelectorAll('.add-collection-item').forEach(item => {
+    const addBtn = item.querySelector('.add-btn');
+    if (!addBtn) return;
+    addBtn.addEventListener('click', () => {
+      const el = item as HTMLElement;
+      const id = el.dataset.collectionId!;
+      const name = el.dataset.collectionName!;
+      const slug = el.dataset.collectionSlug || '';
+      const icon = el.dataset.collectionIcon || '📁';
+      const color = el.dataset.collectionColor || '#a94d3f';
+      const idx = attachedCollectionsContainer.querySelectorAll('.attachment-card').length;
+
+      const card = document.createElement('div');
+      card.className = 'attachment-card';
+      card.dataset.collectionId = id;
+      card.innerHTML = `
+        <div class="attachment-header">
+          <div class="attachment-preview" style="background-color: ${color}">
+            <span class="attachment-icon" style="font-size:18px;">${icon}</span>
+          </div>
+          <div class="attachment-name">
+            <strong>${name}</strong>
+            <span class="picker-meta">${slug}</span>
+          </div>
+          <div class="attachment-actions">
+            <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+            <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+            <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+          </div>
+        </div>
+        <div class="attachment-fields">
+          <input type="hidden" name="collection_attachments[${idx}].collection_id" value="${id}" form="entry-form" />
+          <div class="field-row">
+            <label>Role</label>
+            <input type="text" name="collection_attachments[${idx}].role" value="" placeholder="e.g. primary, featured" form="entry-form" />
+          </div>
+          <div class="field-row field-row-full">
+            <label>Metadata</label>
+            <textarea name="collection_attachments[${idx}].metadata" rows="2" placeholder='{"featured": true}' form="entry-form" class="attachment-metadata"></textarea>
+          </div>
+        </div>
+      `;
+
+      attachedCollectionsContainer.appendChild(card);
+      setupCardButtons(card, attachedCollectionsContainer, 'collection_attachments', 'collection-count');
+      updateCount('collection-count', attachedCollectionsContainer);
+      (item as HTMLElement).style.display = 'none';
+    });
+  });
+
+  // Add asset from picker
+  document.querySelectorAll('.add-asset-item').forEach(item => {
+    const addBtn = item.querySelector('.add-btn');
+    if (!addBtn) return;
+    addBtn.addEventListener('click', () => {
+      const el = item as HTMLElement;
+      const id = el.dataset.assetId!;
+      const name = el.dataset.assetName!;
+      const mime = el.dataset.assetMime || '';
+      const url = el.dataset.assetUrl || '';
+      const alt = el.dataset.assetAlt || '';
+      const idx = attachedAssetsContainer.querySelectorAll('.attachment-card').length;
+
+      const isImage = mime.startsWith('image/') && url;
+      const previewHtml = isImage
+        ? `<div class="attachment-preview"><img src="${url}" alt="${alt || name}" /></div>`
+        : `<div class="attachment-preview"><span class="attachment-icon">📄</span></div>`;
+
+      const card = document.createElement('div');
+      card.className = 'attachment-card';
+      card.dataset.assetId = id;
+      card.innerHTML = `
+        <div class="attachment-header">
+          ${previewHtml}
+          <div class="attachment-name">
+            <strong>${name}</strong>
+            <span class="picker-meta">${mime}</span>
+          </div>
+          <div class="attachment-actions">
+            <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+            <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+            <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+          </div>
+        </div>
+        <div class="attachment-fields">
+          <input type="hidden" name="asset_attachments[${idx}].asset_id" value="${id}" form="entry-form" />
+          <div class="field-row">
+            <label>Role</label>
+            <input type="text" name="asset_attachments[${idx}].role" value="" placeholder="e.g. hero, thumbnail" form="entry-form" />
+          </div>
+          <div class="field-row field-row-full">
+            <label>Metadata</label>
+            <textarea name="asset_attachments[${idx}].metadata" rows="2" placeholder='{"focal_point": "50% 30%"}' form="entry-form" class="attachment-metadata"></textarea>
+          </div>
+        </div>
+      `;
+
+      attachedAssetsContainer.appendChild(card);
+      setupCardButtons(card, attachedAssetsContainer, 'asset_attachments', 'asset-count');
+      updateCount('asset-count', attachedAssetsContainer);
+      (item as HTMLElement).style.display = 'none';
+    });
+  });
+
+  // Add resource from picker
+  document.querySelectorAll('.add-resource-item').forEach(item => {
+    const addBtn = item.querySelector('.add-btn');
+    if (!addBtn) return;
+    addBtn.addEventListener('click', () => {
+      const el = item as HTMLElement;
+      const id = el.dataset.resourceId!;
+      const name = el.dataset.resourceName!;
+      const type = el.dataset.resourceType || '';
+      const url = el.dataset.resourceUrl || '';
+      const idx = attachedResourcesContainer.querySelectorAll('.attachment-card').length;
+
+      const card = document.createElement('div');
+      card.className = 'attachment-card';
+      card.dataset.resourceId = id;
+      card.innerHTML = `
+        <div class="attachment-header">
+          <div class="attachment-name">
+            <strong>${name}</strong>
+            <span class="picker-meta">${type}${url ? ' • ' + url : ''}</span>
+          </div>
+          <div class="attachment-actions">
+            <button type="button" class="move-up-btn icon-btn" title="Move up">↑</button>
+            <button type="button" class="move-down-btn icon-btn" title="Move down">↓</button>
+            <button type="button" class="remove-btn icon-btn" title="Remove">×</button>
+          </div>
+        </div>
+        <div class="attachment-fields">
+          <input type="hidden" name="resource_attachments[${idx}].resource_id" value="${id}" form="entry-form" />
+          <div class="field-row">
+            <label>Role</label>
+            <input type="text" name="resource_attachments[${idx}].role" value="" placeholder="e.g. primary, accent" form="entry-form" />
+          </div>
+          <div class="field-row field-row-full">
+            <label>Metadata</label>
+            <textarea name="resource_attachments[${idx}].metadata" rows="2" placeholder='{"quantity": "2.5", "unit": "yards"}' form="entry-form" class="attachment-metadata"></textarea>
+          </div>
+        </div>
+      `;
+
+      attachedResourcesContainer.appendChild(card);
+      setupCardButtons(card, attachedResourcesContainer, 'resource_attachments', 'resource-count');
+      updateCount('resource-count', attachedResourcesContainer);
+      (item as HTMLElement).style.display = 'none';
+    });
+  });
+
+  // Search filters for add pickers
   const collectionSearch = document.getElementById('collection-search') as HTMLInputElement;
   const assetSearch = document.getElementById('asset-search') as HTMLInputElement;
   const resourceSearch = document.getElementById('resource-search') as HTMLInputElement;
@@ -1168,9 +1935,11 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   if (collectionSearch) {
     collectionSearch.addEventListener('input', (e) => {
       const query = (e.target as HTMLInputElement).value.toLowerCase();
-      document.querySelectorAll('.collection-picker-item').forEach(item => {
-        const text = item.textContent?.toLowerCase() || '';
-        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      document.querySelectorAll('.add-collection-item').forEach(item => {
+        const el = item as HTMLElement;
+        if (el.style.display === 'none' && !query) return;
+        const text = el.textContent?.toLowerCase() || '';
+        el.style.display = text.includes(query) ? '' : 'none';
       });
     });
   }
@@ -1178,9 +1947,11 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   if (assetSearch) {
     assetSearch.addEventListener('input', (e) => {
       const query = (e.target as HTMLInputElement).value.toLowerCase();
-      document.querySelectorAll('.asset-picker-item').forEach(item => {
-        const text = item.textContent?.toLowerCase() || '';
-        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      document.querySelectorAll('.add-asset-item').forEach(item => {
+        const el = item as HTMLElement;
+        if (el.style.display === 'none' && !query) return;
+        const text = el.textContent?.toLowerCase() || '';
+        el.style.display = text.includes(query) ? '' : 'none';
       });
     });
   }
@@ -1188,9 +1959,11 @@ const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?
   if (resourceSearch) {
     resourceSearch.addEventListener('input', (e) => {
       const query = (e.target as HTMLInputElement).value.toLowerCase();
-      document.querySelectorAll('.resource-picker-item').forEach(item => {
-        const text = item.textContent?.toLowerCase() || '';
-        (item as HTMLElement).style.display = text.includes(query) ? '' : 'none';
+      document.querySelectorAll('.add-resource-item').forEach(item => {
+        const el = item as HTMLElement;
+        if (el.style.display === 'none' && !query) return;
+        const text = el.textContent?.toLowerCase() || '';
+        el.style.display = text.includes(query) ? '' : 'none';
       });
     });
   }

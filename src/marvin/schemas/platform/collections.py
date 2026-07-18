@@ -1,9 +1,9 @@
 """Collection schemas."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import ConfigDict, StringConstraints, UUID4
+from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -27,6 +27,8 @@ class CollectionCreate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    is_public: bool = True
+    """Whether this collection is exposed via the publish API."""
     metadata_json: dict | None = None
     """Custom metadata for this collection."""
     entry_ids: list[UUID4] | None = None
@@ -54,6 +56,8 @@ class CollectionUpdate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    is_public: bool | None = None
+    """Whether this collection is exposed via the publish API."""
     metadata_json: dict | None = None
     """Custom metadata for this collection."""
     entry_ids: list[UUID4] | None = None
@@ -81,6 +85,12 @@ class CollectionSummary(_MarvinModel):
     """Optional color code."""
     is_smart: bool
     """Whether this is a smart collection."""
+    is_system: bool = False
+    """System workflow collection — locked from edit/delete and internal-only."""
+    is_public: bool = True
+    """Whether this collection is exposed via the publish API."""
+    entry_count: int | None = None
+    """Number of entries in this collection (populated by the list endpoint)."""
     created_at: datetime | None = None
     """Timestamp when the collection was created."""
     update_at: datetime | None = None
@@ -98,5 +108,41 @@ class CollectionRead(CollectionSummary):
     """Optional rules for smart collections."""
     metadata_json: dict | None = None
     """Custom metadata for this collection."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateEntryCollectionRequest(_MarvinModel):
+    """Schema for updating junction fields on an entry-collection relationship."""
+
+    role: str | None = None
+    metadata_json: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryCollectionRead(_MarvinModel):
+    """Collection summary with entry-specific placement details."""
+
+    id: UUID4
+    name: str
+    slug: str
+    icon: str | None = None
+    color: str | None = None
+    role: str | None = None
+    placement_metadata: dict | None = Field(
+        default=None,
+        validation_alias=AliasChoices("placement_metadata", "metadata_json"),
+    )
+    sort_order: int = 0
+
+    @field_validator("placement_metadata", mode="before")
+    @classmethod
+    def validate_placement_metadata(cls, value: Any) -> dict | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            return None
+        return value
 
     model_config = ConfigDict(from_attributes=True)

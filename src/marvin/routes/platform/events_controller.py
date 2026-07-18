@@ -7,14 +7,12 @@ Events can be filtered by type, entity, user, and date range.
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
 
-from marvin.core.dependencies import require_workspace_member
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
 from marvin.schemas.platform.event_log import EventLogRead, EventLogSummary
-from marvin.schemas.user.user import PrivateUser
 
 router = APIRouter(prefix="/events", tags=["Events (Platform)"])
 
@@ -34,7 +32,6 @@ class EventsController(BaseUserController):
         end_date: datetime | None = None,
         limit: int = 50,
         offset: int = 0,
-        _user: PrivateUser = Depends(require_workspace_member()),
     ) -> list[EventLogSummary]:
         """
         List events for the current workspace with optional filtering.
@@ -81,7 +78,6 @@ class EventsController(BaseUserController):
     def get_event(
         self,
         event_id: UUID4,
-        _user: PrivateUser = Depends(require_workspace_member()),
     ) -> EventLogRead:
         """
         Get a single event by its event_id.
@@ -121,7 +117,6 @@ class EventsController(BaseUserController):
         entity_type: str | None = None,
         limit: int = 50,
         offset: int = 0,
-        _user: PrivateUser = Depends(require_workspace_member()),
     ) -> list[EventLogSummary]:
         """
         Get complete event history for a specific entity (entry, asset, etc.).
@@ -164,7 +159,6 @@ class EventsController(BaseUserController):
         end_date: datetime | None = None,
         limit: int = 50,
         offset: int = 0,
-        _user: PrivateUser = Depends(require_workspace_member()),
     ) -> list[EventLogSummary]:
         """
         Get activity history for a specific user in the current workspace.

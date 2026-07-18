@@ -49,10 +49,21 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
         # Now commit everything together
         self.session.commit()
 
+        # If this is a smart collection, materialize its membership from the rules.
+        self._resync_smart_membership(new_collection.id)
+
         # Return via get_one to get all relationships loaded
         return self.get_one(new_collection.id)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> CollectionRead:
+        # System workflow collections are locked (managed by Marvin).
+        target = self.session.get(Collections, match_value)
+        if target is not None and target.is_system:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="System collections are managed by Marvin and cannot be modified.",
+            )
+
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
         # Don't auto-regenerate slug on update - slugs should remain stable once created
@@ -73,15 +84,45 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
             self.session.refresh(self.session.get(Collections, collection.id))
             collection = self.get_one(collection.id)
 
+        # Re-materialize membership when this is (or just became) a smart collection, so a
+        # rules change immediately re-evaluates which entries belong.
+        if self._resync_smart_membership(collection.id):
+            collection = self.get_one(collection.id)
+
         return collection
 
+    def _resync_smart_membership(self, collection_id: Any) -> bool:
+        """Re-materialize a smart collection's membership from its rules. No-op if not smart.
+
+        Returns True if the collection is smart (membership was (re)evaluated).
+        """
+        from marvin.services.collections.smart_collections import sync_collection
+
+        collection = self.session.get(Collections, collection_id)
+        if not collection or not collection.is_smart:
+            return False
+        if sync_collection(self.session, collection.group_id, collection):
+            self.session.commit()
+        return True
+
     def delete(self, value: Any, match_key: str | None = None) -> CollectionRead:
-        entry_count = self._count_entries_in_collection(value)
-        if entry_count:
+        collection = self.session.get(Collections, value)
+        # System workflow collections cannot be deleted.
+        if collection is not None and collection.is_system:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Collection is in use by entries and cannot be deleted.",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="System collections cannot be deleted.",
             )
+        # Smart collections own their membership — rows are auto-materialized from rules, not
+        # curated — so the "in use by entries" guard doesn't apply; the FK cascade clears the
+        # junction rows on delete.
+        if not (collection and collection.is_smart):
+            entry_count = self._count_entries_in_collection(value)
+            if entry_count:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Collection is in use by entries and cannot be deleted.",
+                )
         return super().delete(value, match_key=match_key)
 
     def _count_entries_in_collection(self, collection_id: Any) -> int:

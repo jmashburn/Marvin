@@ -1,0 +1,187 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+const { type, webhookId } = Astro.params;
+
+let eventInfo: any = null;
+let webhook: any = null;
+let isConnected = false;
+let error: string | null = null;
+
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+
+function buildExamplePayload(eventType: string, variables: any[]): object {
+  const varExamples: Record<string, string> = {};
+  for (const v of variables || []) {
+    varExamples[v.slug] = v.example || `<${v.slug}>`;
+  }
+
+  return {
+    eventType,
+    eventId: "evt_a1b2c3d4-...",
+    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    workspaceId: "<workspace-uuid>",
+    message: {
+      title: eventType.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+      body: eventType,
+    },
+    documentData: varExamples,
+    userId: "<user-uuid>",
+  };
+}
+
+try {
+  const [allTypes, webhookData] = await Promise.all([
+    sdk.events.getOptions() as Promise<any[]>,
+    sdk.webhooks.get(webhookId!),
+  ]);
+
+  eventInfo = allTypes.find((e: any) => e.value === type) || null;
+  webhook = webhookData;
+
+  if (!eventInfo) {
+    return Astro.redirect('/automation/events');
+  }
+
+  const subscribedEvents: string[] = (webhook as any)?.subscribedEvents ?? (webhook as any)?.subscribed_events ?? [];
+  isConnected = subscribedEvents.includes(type || '');
+} catch (e) {
+  console.error('[events/webhook-connect] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const examplePayload = (eventInfo as any)?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables ?? []) : {});
+---
+
+<AppLayout title="Connect Webhook" eyebrow="Events">
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : (eventInfo && webhook) ? (
+    <>
+      <div class="breadcrumb">
+        <a href="/automation/events">Events</a>
+        <span>›</span>
+        <a href={`/automation/events/${type}`}>{eventInfo.label}</a>
+        <span>›</span>
+        <span>Webhook</span>
+      </div>
+
+      <!-- Card matching modal layout -->
+      <div class="wh-card">
+        <div class="wh-header">
+          <div>
+            <h3>{webhook.name}</h3>
+            <code class="wh-url">{webhook.url}</code>
+          </div>
+          {isConnected
+            ? <span class="connected-pill">&#10003; Connected</span>
+            : <span class="disconnected-pill">Not connected</span>}
+        </div>
+
+        <div class="wh-body">
+          <p class="wh-label">
+            Your endpoint will receive this JSON via POST when <strong>{eventInfo.label}</strong> fires:
+          </p>
+          <pre class="wh-payload">{JSON.stringify(examplePayload, null, 2)}</pre>
+        </div>
+
+        <div class="wh-footer">
+          <span class="wh-note">
+            {isConnected
+              ? 'This webhook fires on every ' + eventInfo.label + ' event. Disconnect to stop.'
+              : 'Connect to start receiving ' + eventInfo.label + ' events at this URL.'}
+            {' '}<a href={`/automation/webhooks/${webhookId}`} class="wh-link">Edit webhook →</a>
+          </span>
+          <div class="wh-actions">
+            {isConnected
+              ? <button type="button" id="disconnect-btn" class="button secondary danger">Disconnect</button>
+              : <button type="button" id="connect-btn" class="button">Connect</button>}
+            <a href={`/automation/events/${type}`} class="button secondary">Back</a>
+          </div>
+        </div>
+      </div>
+    </>
+  ) : null}
+</AppLayout>
+
+<script define:vars={{ type, webhookId, isConnected, apiUrl }}>
+  const connectBtn = document.getElementById('connect-btn');
+  const disconnectBtn = document.getElementById('disconnect-btn');
+
+  async function toggleConnection(connect) {
+    try {
+      const res = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const webhook = await res.json();
+
+      const currentEvents = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
+      const updated = connect
+        ? [...new Set([...currentEvents, type])]
+        : currentEvents.filter(e => e !== type);
+
+      const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${webhookId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ...webhook, subscribedEvents: updated, subscribed_events: updated }),
+      });
+      if (!putRes.ok) {
+        const err = await putRes.json().catch(() => ({}));
+        throw new Error(err.detail || `Save failed: ${putRes.status}`);
+      }
+      window.location.href = `/automation/events/${type}`;
+    } catch (e) {
+      alert('Error: ' + e.message);
+      console.error(e);
+    }
+  }
+
+  connectBtn?.addEventListener('click', () => toggleConnection(true));
+  disconnectBtn?.addEventListener('click', () => toggleConnection(false));
+</script>
+
+<style>
+  .alert { padding: 16px; border-radius: var(--radius); background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); margin-bottom: 20px; }
+
+  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--ink); }
+
+  /* Card — mirrors modal content panel */
+  .wh-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  .wh-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+  .wh-header h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .wh-url { font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted); }
+
+  .connected-pill { background: rgba(79,156,132,0.1); color: var(--accent); border: 1px solid rgba(79,156,132,0.25); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+  .disconnected-pill { background: var(--bg); color: var(--muted); border: 1px solid var(--line); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+
+  .wh-body { padding: 20px 24px; }
+  .wh-label { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .wh-label strong { color: var(--ink); }
+  .var-tag { font-size: 11px; font-family: ui-monospace, monospace; color: var(--accent); background: rgba(79,156,132,0.08); padding: 1px 5px; border-radius: 3px; }
+
+  .wh-payload { font-size: 12px; font-family: ui-monospace, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; overflow-x: auto; max-height: 360px; overflow-y: auto; white-space: pre; margin: 0; color: var(--ink); line-height: 1.5; }
+
+  .wh-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .wh-note { font-size: 13px; color: var(--muted); flex: 1; min-width: 160px; }
+  .wh-actions { display: flex; gap: 8px; }
+
+  .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
+  .button.secondary.danger:hover { background: var(--color-error-bg); }
+  .wh-link { color: var(--accent); text-decoration: none; font-size: 12px; }
+  .wh-link:hover { text-decoration: underline; }
+</style>

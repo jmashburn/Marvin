@@ -61,8 +61,6 @@ class PublishedEntryAsset(_MarvinModel):
 
     role: str | None = None
     position: int = 0
-    focal_point: str | None = None
-    caption: str | None = None
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     asset: PublishedAssetRead
 
@@ -148,8 +146,8 @@ class PublishedEntryRead(_MarvinModel):
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom non-schema metadata as JSON object."""
 
-    collections: list["PublishedCollectionSummary"] = []
-    """Collections this entry belongs to."""
+    collections: list["PublishedEntryCollection"] = []
+    """Collections this entry belongs to, with relationship context."""
 
     resources: list["PublishedEntryResource"] = []
     """Resources referenced by this entry with relationship context."""
@@ -192,8 +190,8 @@ class PublishedEntryListItem(_MarvinModel):
     status: str
     """Entry status (e.g., 'published', 'draft', 'needs_review')."""
 
-    collections: list[str] = []
-    """List of collection slugs this entry belongs to."""
+    collections: list["PublishedEntryCollection"] = []
+    """Collections this entry belongs to, with relationship context."""
 
     assets: list[str] = Field(default=[], serialization_alias="assetSlugs")
     """List of asset slugs included in this entry."""
@@ -291,11 +289,25 @@ class PublishedCollectionSummary(_MarvinModel):
     name: str
     """Collection display name."""
 
+    description: str | None = None
+    """Optional collection description."""
+
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom metadata as JSON object."""
 
     sort_order: int
     """Display order for UI."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublishedEntryCollection(_MarvinModel):
+    """A collection as used by a specific entry — relationship context + collection data."""
+
+    role: str | None = None
+    position: int = 0
+    metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
+    collection: PublishedCollectionSummary
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -339,8 +351,6 @@ class PublishedEntryResource(_MarvinModel):
     """A resource as used by a specific entry — relationship context + resource data."""
 
     role: str | None = None
-    quantity: str | None = None
-    unit: str | None = None
     position: int = 0
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     resource: PublishedResourceSummary

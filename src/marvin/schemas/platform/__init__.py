@@ -22,12 +22,17 @@ from .collections import (
     CollectionRead,
     CollectionSummary,
     CollectionUpdate,
+    EntryCollectionRead,
+    UpdateEntryCollectionRequest,
 )
 from .entries import (
+    AssetAttachment,
+    CollectionAttachment,
     EntryCreate,
     EntryRead,
     EntrySummary,
     EntryUpdate,
+    ResourceAttachment,
 )
 from .entry_types import (
     EntryTypeCreate,
@@ -37,7 +42,9 @@ from .entry_types import (
 )
 from .event_log import EventLogRead, EventLogSummary
 from .resources import (
+    EntryResourceRead,
     ResourceCreate,
+    ResourcePlacement,
     ResourceRead,
     ResourceSummary,
     ResourceUpdate,
@@ -49,6 +56,10 @@ from .scheduled_tasks import (
     ScheduledTaskSummary,
     ScheduledTaskUpdate,
 )
+
+# isort: split
+# CODE_GEN_ID: PLATFORM_SCHEMA_IMPORTS
+# END: PLATFORM_SCHEMA_IMPORTS
 
 __all__ = [
     "APIClientCreate",
@@ -63,10 +74,14 @@ __all__ = [
     "AssetSummary",
     "AssetUpdate",
     "AssetUploadRequest",
+    "CollectionAttachment",
     "CollectionCreate",
     "CollectionRead",
     "CollectionSummary",
     "CollectionUpdate",
+    "EntryCollectionRead",
+    "UpdateEntryCollectionRequest",
+    "AssetAttachment",
     "EntryAssetRead",
     "EntryCreate",
     "EntryRead",
@@ -78,7 +93,10 @@ __all__ = [
     "EntryUpdate",
     "EventLogRead",
     "EventLogSummary",
+    "EntryResourceRead",
+    "ResourceAttachment",
     "ResourceCreate",
+    "ResourcePlacement",
     "ResourceRead",
     "ResourceSummary",
     "ResourceUpdate",
@@ -87,6 +105,8 @@ __all__ = [
     "ScheduledTaskRead",
     "ScheduledTaskSummary",
     "ScheduledTaskUpdate",
+    # CODE_GEN_ID: PLATFORM_SCHEMA_ALL
+    # END: PLATFORM_SCHEMA_ALL
     # Legacy aliases for backward compatibility
     "SiteClientCreate",
     "SiteClientRead",

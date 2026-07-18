@@ -1,0 +1,1068 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+const { id } = Astro.params;
+
+let template: any = null;
+let eventOptions: any[] = [];
+let subscriptions: any[] = [];
+let wsId: string | null = null;
+let error: string | null = null;
+
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+
+try {
+  const workspace = await getCurrentWorkspace(authToken!);
+  wsId = (workspace as any)?.id ?? (workspace as any)?.groupId ?? null;
+
+  if (!wsId) throw new Error("Could not determine workspace ID");
+
+  [template, eventOptions, subscriptions] = await Promise.all([
+    fetchApi<any>(`/api/platform/workspaces/${wsId}/email-templates/${id}`, {}, authToken),
+    sdk.events.getOptions().then((r: any) => Array.isArray(r) ? r : (r?.items ?? [])).catch(() => []),
+    fetchApi<any[]>('/api/groups/email-event-subscriptions', {}, authToken).catch(() => []),
+  ]);
+} catch (e) {
+  console.error('[email/edit] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+if (!template && !error) {
+  return Astro.redirect('/workspace/settings/email');
+}
+
+const isSystem = template && !(template.groupId ?? template.group_id);
+const templateType: string = template?.templateType ?? template?.template_type ?? '';
+
+// Subscriptions for this template
+const mySubscriptions = (subscriptions ?? []).filter((s: any) =>
+  (s.template_id ?? s.templateId) === id
+);
+const subscribedEvents = new Set(mySubscriptions.map((s: any) => s.event_type ?? s.eventType));
+
+// System template event mapping (mirrors backend SYSTEM_TEMPLATE_EVENT_MAP)
+const SYSTEM_EVENT_MAP: Record<string, string> = {
+  invitation: "invitation_sent",
+  password_reset: "user_password_reset_requested",
+  welcome: "user_signup",
+};
+const systemHardcodedEvent = SYSTEM_EVENT_MAP[templateType] ?? null;
+const isAutoConnected = systemHardcodedEvent ? subscribedEvents.has(systemHardcodedEvent) : false;
+
+// Sub ID map: event_type → subscription id (for deletes)
+const subIdMap: Record<string, string> = {};
+for (const s of mySubscriptions) {
+  const et = s.event_type ?? s.eventType;
+  if (et) subIdMap[et] = s.id;
+}
+
+// Collect event variables from connected events
+const connectedEventTypes = [
+  ...(systemHardcodedEvent ? [systemHardcodedEvent] : []),
+  ...[...subscribedEvents].filter(e => e !== systemHardcodedEvent),
+];
+
+const eventVarSeen = new Set();
+const eventVars: Array<{ slug: string; description: string; example: string; fromEvent: string }> = [];
+for (const evtType of connectedEventTypes) {
+  const evtInfo = eventOptions.find((e: any) => e.value === evtType);
+  for (const v of (evtInfo?.variables ?? [])) {
+    if (!eventVarSeen.has(v.slug)) {
+      eventVarSeen.add(v.slug);
+      eventVars.push({ slug: v.slug, description: v.description ?? '', example: v.example ?? '', fromEvent: evtType });
+    }
+  }
+}
+---
+
+<AppLayout title={template?.name ?? 'Edit Template'} eyebrow="Workspace Settings">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings" },
+    { label: "Email Settings", href: "/workspace/settings/email" },
+    { label: template?.name ?? "Edit Template" }
+  ]} />
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : template ? (
+    <div class="edit-layout">
+      <form id="template-form">
+        <input type="hidden" id="template-id" value={template.id} />
+        <input type="hidden" id="ws-id" value={wsId} />
+
+        <!-- Template fields section -->
+        <div class="form-section">
+          <div class="section-header">
+            <div>
+              <h3>{isSystem ? template.name : 'Edit Template'}</h3>
+            </div>
+            {isSystem && <span class="badge badge-system">System Template</span>}
+            {!isSystem && <span class="badge badge-customized">Workspace Template</span>}
+          </div>
+
+          {isSystem && (
+            <p class="system-note">
+              System templates are read-only. <a href={`/workspace/settings/email?customize=${id}`}>Create a workspace override</a> to customize this template.
+            </p>
+          )}
+
+          <div class="form-group">
+            <label for="tpl-name">Name</label>
+            <input
+              type="text"
+              id="tpl-name"
+              value={template.name}
+              disabled={isSystem}
+              class="input"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="tpl-description">Description</label>
+            <input
+              type="text"
+              id="tpl-description"
+              value={template.description ?? ''}
+              disabled={isSystem}
+              class="input"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="tpl-subject">Subject</label>
+            <input
+              type="text"
+              id="tpl-subject"
+              value={template.subject ?? ''}
+              disabled={isSystem}
+              class="input"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Body</label>
+            <div class="body-tabs">
+              <button type="button" class="body-tab active" data-body-mode="markdown">Markdown</button>
+              <button type="button" class="body-tab" data-body-mode="html">Custom HTML</button>
+              <button type="button" class="body-tab" data-body-mode="preview">Preview</button>
+            </div>
+            <div id="body-markdown-field">
+              <textarea
+                id="tpl-body-markdown"
+                rows="14"
+                disabled={isSystem}
+                class="input textarea"
+                placeholder="Write in Markdown — use &#123;&#123; variable &#125;&#125; for dynamic values"
+              >{template.bodyMarkdown ?? template.body_markdown ?? ''}</textarea>
+              <small class="input-hint">Rendered to HTML and wrapped in the standard email template</small>
+            </div>
+            <div id="body-html-field" style="display:none">
+              <textarea
+                id="tpl-custom-html"
+                rows="14"
+                disabled={isSystem}
+                class="input textarea"
+                placeholder="<!DOCTYPE html>&#10;<html>&#10;<body>&#10;  <!-- full HTML here -->&#10;</body>&#10;</html>"
+              >{template.customHtml ?? template.custom_html ?? ''}</textarea>
+              <small class="input-hint">Full Jinja2 HTML — bypasses the standard template entirely</small>
+            </div>
+            <div id="body-preview-field" style="display:none">
+              <iframe
+                id="body-preview-iframe"
+                style="width:100%;height:400px;border:1px solid var(--line);border-radius:var(--radius);background:white;"
+              ></iframe>
+            </div>
+          </div>
+
+          {eventVars.length > 0 && (
+            <div class="vars-panel">
+              <div class="vars-header">
+                <span class="vars-title">Event Variables</span>
+                <span class="vars-hint">Click to insert at cursor</span>
+              </div>
+              <div class="vars-chips" id="vars-chips">
+                {eventVars.map(v => (
+                  <button
+                    type="button"
+                    class="var-chip"
+                    data-slug={`{{${v.slug}}}`}
+                    title={(v.description ? v.description + ' — ' : '') + 'click to insert'}
+                  >
+                    <code>{`{{${v.slug}}}`}</code>
+                  </button>
+                ))}
+              </div>
+              <div class="vars-ws-row">
+                <span class="vars-hint">Workspace variables (UPPER_CASE): </span>
+                <span id="ws-vars-inline" class="vars-hint">loading…</span>
+              </div>
+            </div>
+          )}
+
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              id="tpl-enabled"
+              disabled={isSystem}
+              checked={template.enabled !== false}
+            />
+            <span>Enabled</span>
+          </label>
+        </div>
+
+        <!-- Event Subscriptions section -->
+        <div class="form-section">
+          <div class="section-header">
+            <div>
+              <h3>Event Subscriptions</h3>
+              <p class="section-description">
+                {isSystem || systemHardcodedEvent
+                  ? "This template is connected to its event automatically."
+                  : "Select which events should trigger this email template."}
+              </p>
+            </div>
+            {!isSystem && !systemHardcodedEvent && (
+              <div class="selection-actions">
+                <button type="button" id="select-all" class="link-button">Select All</button>
+                <span class="separator">·</span>
+                <button type="button" id="select-none" class="link-button">Clear All</button>
+              </div>
+            )}
+          </div>
+
+          {(isSystem || systemHardcodedEvent) && systemHardcodedEvent ? (
+            <div class="system-event-row">
+              <div class="event-chip" class:list={[{ 'chip-disconnected': !isSystem && !isAutoConnected }]}>
+                <span class="chip-icon">&#9679;</span>
+                <span class="chip-label">{systemHardcodedEvent}</span>
+                {isSystem && <span class="chip-badge">Always connected</span>}
+                {!isSystem && isAutoConnected && <span class="chip-badge">Connected</span>}
+                {!isSystem && !isAutoConnected && <span class="chip-badge chip-badge-off">Not connected</span>}
+              </div>
+              <p class="system-event-note">
+                {isSystem
+                  ? <>Always fires on <code>{systemHardcodedEvent}</code> — managed by the system.</>
+                  : isAutoConnected
+                    ? <>Connected to <code>{systemHardcodedEvent}</code>. <a href={`/automation/events/${systemHardcodedEvent}`}>Manage in Events</a>.</>
+                    : <>Not connected. <a href={`/automation/events/${systemHardcodedEvent}`}>Connect from the Events page</a> to make this template active.</>
+                }
+              </p>
+            </div>
+          ) : isSystem ? (
+            <p class="muted">No system event mapping for this template type.</p>
+          ) : (
+            <>
+              <div class="search-field">
+                <input type="text" id="event-search" placeholder="Search events…" class="input" />
+              </div>
+              <div class="events-checklist" id="events-checklist">
+                {eventOptions.map((evt: any) => {
+                  const isChecked = subscribedEvents.has(evt.value);
+                  return (
+                    <label
+                      class="event-checkbox"
+                      data-event-name={(evt.label ?? '').toLowerCase()}
+                      data-event-description={(evt.description ?? '').toLowerCase()}
+                    >
+                      <input
+                        type="checkbox"
+                        name="events"
+                        value={evt.value}
+                        checked={isChecked}
+                      />
+                      <div class="event-checkbox-content">
+                        <span class="event-checkbox-name">{evt.label}</span>
+                        {evt.description && (
+                          <span class="event-checkbox-description">{evt.description}</span>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              <div class="selection-summary" id="selection-summary">
+                {subscribedEvents.size} event{subscribedEvents.size !== 1 ? 's' : ''} selected
+              </div>
+            </>
+          )}
+        </div>
+
+        {!isSystem && (
+          <div class="form-actions">
+            <button type="submit" class="button primary">Save Changes</button>
+            <button
+              type="button"
+              id="test-send-btn"
+              class="button secondary"
+              data-template-id={template.id}
+            >
+              Test Send
+            </button>
+            <button
+              type="button"
+              id="delete-btn"
+              class="button danger"
+              data-template-id={template.id}
+            >
+              Delete Template
+            </button>
+          </div>
+        )}
+      </form>
+    </div>
+  ) : null}
+
+  <!-- Test Send Modal -->
+  <div id="test-modal" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h3>Send Test Email</h3>
+        <button class="modal-close" id="close-test-modal">&times;</button>
+      </div>
+      <form id="test-send-form">
+        <div class="form-group" style="padding:20px">
+          <label for="test-recipient">Recipient Email *</label>
+          <input type="email" id="test-recipient" placeholder="test@example.com" required class="input" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="button secondary" id="cancel-test-btn">Cancel</button>
+          <button type="submit" class="button">Send Test</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script define:vars={{ wsId, id, isSystem, systemHardcodedEvent, subIdMap, apiUrl }}>
+    const GROUP_ID = wsId;
+    const TEMPLATE_ID = id;
+    const SUB_ID_MAP = subIdMap;
+
+    // ── Variable chips — click to copy ────────────────────────────────────────
+    function insertAtCursor(text) {
+      // Insert into whichever body textarea is currently active
+      const ta = activeBodyMode === 'html'
+        ? document.getElementById('tpl-custom-html')
+        : document.getElementById('tpl-body-markdown');
+      if (!ta) return;
+      const start = ta.selectionStart ?? ta.value.length;
+      const end = ta.selectionEnd ?? start;
+      ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+      const pos = start + text.length;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
+    }
+
+    document.querySelectorAll('.var-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slug = btn.dataset.slug;
+        if (!slug) return;
+        insertAtCursor(slug);
+        const code = btn.querySelector('code');
+        if (code) {
+          const orig = code.textContent;
+          code.textContent = '✓';
+          setTimeout(() => { code.textContent = orig; }, 900);
+        }
+      });
+    });
+
+    // Load workspace variables (UPPER_CASE) inline
+    (async () => {
+      const el = document.getElementById('ws-vars-inline');
+      if (!el) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/groups/variables`, { credentials: 'include' });
+        const vars = res.ok ? await res.json() : [];
+        if (!vars.length) { el.textContent = 'none configured'; return; }
+        el.innerHTML = vars.map((v) =>
+          `<code class="ws-var-chip" title="${v.slug}" style="cursor:pointer;background:rgba(79,156,132,0.08);padding:1px 5px;border-radius:3px;font-size:11px;margin:0 2px">{{${v.slug}}}</code>`
+        ).join('');
+        el.querySelectorAll('.ws-var-chip').forEach(c => {
+          c.addEventListener('click', async () => {
+            const t = c.title ? `{{${c.title}}}` : c.textContent ?? '';
+            try { await navigator.clipboard.writeText(t); } catch {}
+            const orig = c.textContent; c.textContent = '✓'; setTimeout(() => { c.textContent = orig; }, 1000);
+          });
+        });
+      } catch { el.textContent = '—'; }
+    })();
+
+    // ── Body mode tabs ────────────────────────────────────────────────────────
+    // Track which non-preview mode is active so preview knows what to render
+    let activeBodyMode = 'markdown';
+
+    const isHtmlMode = !!(document.getElementById('tpl-custom-html').value.trim());
+    if (isHtmlMode) {
+      activeBodyMode = 'html';
+      document.querySelector('[data-body-mode="html"]')?.click();
+    }
+
+    document.querySelectorAll('[data-body-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-body-mode]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.bodyMode;
+
+        if (mode !== 'preview') activeBodyMode = mode;
+
+        document.getElementById('body-markdown-field').style.display = mode === 'markdown' ? 'block' : 'none';
+        document.getElementById('body-html-field').style.display = mode === 'html' ? 'block' : 'none';
+        document.getElementById('body-preview-field').style.display = mode === 'preview' ? 'block' : 'none';
+
+        if (mode === 'html') {
+          // Auto-populate HTML from markdown if the HTML field is empty
+          const htmlArea = document.getElementById('tpl-custom-html');
+          if (!htmlArea.value.trim()) {
+            const md = document.getElementById('tpl-body-markdown').value;
+            if (md.trim()) {
+              htmlArea.value = markdownToHtmlDocument(md);
+            }
+          }
+        }
+
+        if (mode === 'preview') {
+          const iframe = document.getElementById('body-preview-iframe');
+          const html = activeBodyMode === 'html'
+            ? (document.getElementById('tpl-custom-html').value || '<p style="color:#aaa;padding:24px">No HTML content</p>')
+            : markdownToHtmlDocument(document.getElementById('tpl-body-markdown').value);
+          // contentDocument.write is more reliable than srcdoc for full documents
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (doc) { doc.open(); doc.write(html); doc.close(); }
+        }
+      });
+    });
+
+    function markdownToHtmlDocument(md) {
+      if (!md || !md.trim()) return '<p style="color:#aaa;padding:24px">No content</p>';
+
+      // Preserve {{ variables }} — replace with placeholder before escaping
+      const vars = [];
+      let safe = md.replace(/\{\{([^}]+)\}\}/g, (_, v) => {
+        vars.push(v.trim());
+        return `\x00VAR${vars.length - 1}\x00`;
+      });
+
+      // Headings
+      safe = safe.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+      safe = safe.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+      safe = safe.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+      // Bold / italic
+      safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+      // Links
+      safe = safe.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#4f9c84">$1</a>');
+
+      // Bare URLs (not already linked)
+      safe = safe.replace(/(?<![">])(https?:\/\/[^\s<>"']+)/g, '<a href="$1" style="color:#4f9c84">$1</a>');
+
+      // Restore variables as styled chips
+      safe = safe.replace(/\x00VAR(\d+)\x00/g, (_, i) =>
+        `<code style="background:#f0f8f5;color:#2d7a5e;padding:1px 5px;border-radius:3px;font-size:0.9em">{{${vars[i]}}}</code>`
+      );
+
+      // Paragraphs
+      const blocks = safe.split(/\n{2,}/).map(block => {
+        block = block.trim();
+        if (!block) return '';
+        if (block.startsWith('<h') || block.startsWith('<ul') || block.startsWith('<ol')) return block;
+        return `<p style="margin:0 0 16px;line-height:1.7">${block.replace(/\n/g, '<br>')}</p>`;
+      }).filter(Boolean).join('\n');
+
+      return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px;">
+    <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+      <tr><td style="height:4px;background:#4f9c84"></td></tr>
+      <tr><td style="padding:28px 40px;font-size:15px;color:#444;line-height:1.7">${blocks}</td></tr>
+      <tr><td style="padding:16px 40px;border-top:1px solid #f0f0f0;background:#fafafa;font-size:12px;color:#aaa">Sent by Marvin CMS</td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+    }
+
+    // ── Form save (template + subscriptions) ──────────────────────────────────
+    document.getElementById('template-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (isSystem) return;
+
+      const usingHtml = activeBodyMode === 'html';
+      const data = {
+        name: document.getElementById('tpl-name').value,
+        description: document.getElementById('tpl-description').value || null,
+        subject: document.getElementById('tpl-subject').value,
+        body_markdown: usingHtml ? null : (document.getElementById('tpl-body-markdown').value || null),
+        custom_html: usingHtml ? (document.getElementById('tpl-custom-html').value || null) : null,
+        enabled: document.getElementById('tpl-enabled').checked,
+      };
+
+      try {
+        // Save template fields
+        const res = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${TEMPLATE_ID}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Save failed (${res.status})`);
+        }
+
+        // Diff and apply subscription changes
+        // Skip for system-typed templates — their connections are managed from the Events page
+        if (systemHardcodedEvent) {
+          showBanner('Changes saved');
+          return;
+        }
+
+        const checked = new Set(
+          [...document.querySelectorAll('#events-checklist input[type=checkbox]:checked')]
+            .map(cb => cb.value)
+        );
+        const existing = new Set(Object.keys(SUB_ID_MAP));
+        const toAdd = [...checked].filter(ev => !existing.has(ev));
+        const toRemove = [...existing].filter(ev => !checked.has(ev));
+
+        await Promise.all(toRemove.map(eventType => {
+          const subId = SUB_ID_MAP[eventType];
+          return subId
+            ? fetch(`${apiUrl}/api/groups/email-event-subscriptions/${subId}`, {
+                method: 'DELETE',
+                credentials: 'include',
+              })
+            : Promise.resolve();
+        }));
+
+        await Promise.all(toAdd.map(eventType =>
+          fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              template_id: TEMPLATE_ID,
+              event_type: eventType,
+              recipient_type: 'admins',
+              enabled: true,
+            }),
+          })
+        ));
+
+        showBanner('Changes saved');
+        if (toAdd.length || toRemove.length) {
+          window.location.reload();
+        }
+      } catch (e) {
+        alert('Error saving: ' + e.message);
+      }
+    });
+
+    // ── Delete ────────────────────────────────────────────────────────────────
+    document.getElementById('delete-btn')?.addEventListener('click', async () => {
+      if (!confirm('Delete this template? This cannot be undone.')) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${TEMPLATE_ID}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!res.ok && res.status !== 204) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Delete failed (${res.status})`);
+        }
+        window.location.href = '/workspace/settings/email';
+      } catch (e) {
+        alert('Error deleting template: ' + e.message);
+      }
+    });
+
+    // ── Test send modal ───────────────────────────────────────────────────────
+    const testModal = document.getElementById('test-modal');
+    document.getElementById('test-send-btn')?.addEventListener('click', () => {
+      testModal?.classList.add('show');
+      document.body.style.overflow = 'hidden';
+    });
+    function closeTestModal() {
+      testModal?.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+    document.getElementById('close-test-modal')?.addEventListener('click', closeTestModal);
+    document.getElementById('cancel-test-btn')?.addEventListener('click', closeTestModal);
+    testModal?.querySelector('.modal-overlay')?.addEventListener('click', closeTestModal);
+
+    document.getElementById('test-send-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const recipient = document.getElementById('test-recipient').value;
+      try {
+        const res = await fetch(`${apiUrl}/api/platform/workspaces/${GROUP_ID}/email-templates/${TEMPLATE_ID}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ recipient_email: recipient }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Send failed (${res.status})`);
+        }
+        closeTestModal();
+        showToast('Test email sent to ' + recipient);
+      } catch (e) {
+        alert('Error sending test email: ' + e.message);
+      }
+    });
+
+    // ── Event subscription checklist ──────────────────────────────────────────
+    if (!isSystem) {
+      function updateSummary() {
+        const count = document.querySelectorAll('#events-checklist input[type=checkbox]:checked').length;
+        const el = document.getElementById('selection-summary');
+        if (el) el.textContent = count + ' event' + (count !== 1 ? 's' : '') + ' selected';
+      }
+
+      // Wire change events for live count updates
+      document.querySelectorAll('#events-checklist input[type=checkbox]').forEach(cb => {
+        cb.addEventListener('change', updateSummary);
+      });
+
+      // Search filter
+      document.getElementById('event-search')?.addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase();
+        document.querySelectorAll('.event-checkbox').forEach(label => {
+          const name = label.dataset.eventName || '';
+          const desc = label.dataset.eventDescription || '';
+          label.style.display = (name.includes(q) || desc.includes(q)) ? '' : 'none';
+        });
+      });
+
+      // Select all / clear all
+      document.getElementById('select-all')?.addEventListener('click', () => {
+        document.querySelectorAll('#events-checklist input[type=checkbox]').forEach(cb => cb.checked = true);
+        updateSummary();
+      });
+      document.getElementById('select-none')?.addEventListener('click', () => {
+        document.querySelectorAll('#events-checklist input[type=checkbox]').forEach(cb => cb.checked = false);
+        updateSummary();
+      });
+    }
+
+    // ── Toast helper ─────────────────────────────────────────────────────────
+    function showBanner(msg) {
+      let banner = document.getElementById('save-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'save-banner';
+        banner.style.cssText = 'position:fixed;top:16px;right:16px;background:#2d7a5e;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+        document.body.appendChild(banner);
+      }
+      banner.textContent = '✓ ' + msg;
+      banner.style.display = 'block';
+      clearTimeout(banner._timer);
+      banner._timer = setTimeout(() => { banner.style.display = 'none'; }, 2500);
+    }
+
+    function showToast(msg) { showBanner(msg); }
+  </script>
+</AppLayout>
+
+<style>
+  .edit-layout {
+    max-width: 900px;
+  }
+
+  #template-form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .section-description {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .selection-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .link-button {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .separator {
+    color: var(--muted);
+  }
+
+  .search-field {
+    margin-top: 4px;
+  }
+
+  .events-checklist {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--panel-2, var(--bg));
+    border-radius: var(--radius);
+    display: grid;
+    gap: 8px;
+  }
+
+  .event-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .event-checkbox:hover {
+    border-color: var(--accent);
+  }
+
+  .event-checkbox input[type="checkbox"] {
+    margin-top: 2px;
+    cursor: pointer;
+  }
+
+  .event-checkbox-content {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+  }
+
+  .event-checkbox-name {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .event-checkbox-description {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .selection-summary {
+    padding: 8px 12px;
+    background: var(--panel-2, var(--bg));
+    border-radius: var(--radius);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .system-note {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+    padding: 12px 16px;
+    background: rgba(100,100,100,0.05);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+  }
+
+  .badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+
+  .badge-system {
+    background: rgba(100,100,100,0.1);
+    color: var(--muted);
+  }
+
+  .badge-customized {
+    background: rgba(79,156,132,0.1);
+    color: var(--accent);
+  }
+
+  .form-group {
+    display: grid;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .vars-panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    background: var(--panel-2, var(--bg));
+    display: grid;
+    gap: 8px;
+  }
+
+  .vars-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .vars-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+  }
+
+  .vars-hint {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .vars-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .var-chip {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: border-color 0.1s, color 0.1s;
+  }
+
+  .var-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  .var-chip code {
+    font-family: monospace;
+    font-size: 11px;
+    color: inherit;
+  }
+
+  .var-chip svg { opacity: 0.5; flex-shrink: 0; }
+
+  .vars-ws-row {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .body-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .body-tab {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--line);
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .body-tab.active {
+    background: var(--panel);
+    color: var(--ink);
+    border-bottom-color: var(--panel);
+  }
+
+  .input-hint {
+    display: block;
+    margin-top: 5px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--ink);
+    box-sizing: border-box;
+  }
+
+  .input:disabled {
+    background: var(--panel-2);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .textarea {
+    resize: vertical;
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .checkbox-label input[type=checkbox] {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  /* System event chip */
+  .system-event-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .event-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(79,156,132,0.08);
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    font-size: 13px;
+  }
+
+  .chip-icon {
+    color: var(--accent);
+    font-size: 10px;
+  }
+
+  .chip-label {
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .chip-badge-off {
+    background: rgba(107,114,128,0.12);
+    color: var(--muted);
+  }
+
+  .chip-disconnected {
+    border-color: var(--line);
+    background: var(--bg);
+    opacity: 0.7;
+  }
+
+  .chip-disconnected .chip-icon { color: var(--muted); }
+  .chip-disconnected .chip-label { color: var(--muted); }
+
+  .chip-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    background: rgba(79,156,132,0.15);
+    padding: 2px 7px;
+    border-radius: 10px;
+  }
+
+  .system-event-note {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .muted { color: var(--muted); font-size: 14px; }
+
+  .alert { padding: 16px; margin-bottom: 24px; border-radius: var(--radius); }
+  .alert-error { background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error); }
+
+  /* Buttons */
+  .button { padding: 9px 18px; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  .button.primary { background: var(--primary); color: white; border-color: var(--primary); }
+  .button.secondary { background: transparent; border-color: var(--line); }
+  .button.danger { background: var(--color-error); color: white; border-color: var(--color-error); }
+  .button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Modal */
+  .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; }
+  .modal.show { display: block; }
+  .modal-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+  .modal-content { position: relative; max-width: 500px; margin: 10vh auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .modal-small { max-width: 420px; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+  .modal-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 24px; color: var(--muted); cursor: pointer; padding: 0; line-height: 1; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 20px; background: var(--panel-2); border-top: 1px solid var(--line); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: var(--radius); font-size: 14px; font-weight: 500; z-index: 9999; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast-visible { opacity: 1; }
+</style>

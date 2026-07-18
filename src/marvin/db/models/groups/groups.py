@@ -23,9 +23,14 @@ from .preferences import GroupPreferencesModel
 if TYPE_CHECKING:
     from ..users import Users
     from ..users.workspace_members import WorkspaceMembers
+    from .ai_executions import AIExecutionModel
+    from .ai_providers import AIProviderModel
+    from .ai_settings import WorkspaceAISettingsModel
     from .events import GroupEventNotifierModel
     from .invite_tokens import GroupInviteToken
     from .reports import ReportModel
+    from .secrets import WorkspaceSecret
+    from .variables import WorkspaceVariable
     from .webhooks import GroupWebhooksModel
 
 
@@ -70,6 +75,16 @@ class Groups(SqlAlchemyBase, BaseMixins):
         doc="Group-specific preferences.",
     )
 
+    # Relationship to WorkspaceAISettingsModel (one-to-one)
+    ai_settings: Mapped["WorkspaceAISettingsModel"] = orm.relationship(
+        "WorkspaceAISettingsModel",
+        back_populates="group",
+        uselist=False,
+        single_parent=True,
+        cascade="all, delete-orphan",
+        doc="Per-workspace AI workflow policy settings.",
+    )
+
     # Common arguments for several one-to-many relationships from Group
     # These relationships imply that the related objects are owned by the group
     # and should be deleted if the group is deleted.
@@ -87,6 +102,14 @@ class Groups(SqlAlchemyBase, BaseMixins):
     webhooks: Mapped[list["GroupWebhooksModel"]] = orm.relationship(
         "GroupWebhooksModel", **_common_relationship_args, doc="Webhooks configured for this group."
     )
+    # Relationship to WorkspaceSecret (one-to-many)
+    secrets: Mapped[list["WorkspaceSecret"]] = orm.relationship(
+        "WorkspaceSecret", **_common_relationship_args, doc="Workspace secrets."
+    )
+    # Relationship to WorkspaceVariable (one-to-many)
+    variables: Mapped[list["WorkspaceVariable"]] = orm.relationship(
+        "WorkspaceVariable", **_common_relationship_args, doc="Workspace variables."
+    )
     # Relationship to ReportModel (one-to-many)
     group_reports: Mapped[list["ReportModel"]] = orm.relationship(
         "ReportModel", **_common_relationship_args, doc="Reports generated for or by this group."
@@ -94,6 +117,16 @@ class Groups(SqlAlchemyBase, BaseMixins):
     # Relationship to GroupEventNotifierModel (one-to-many)
     group_event_notifiers: Mapped[list["GroupEventNotifierModel"]] = orm.relationship(
         "GroupEventNotifierModel", **_common_relationship_args, doc="Event notifiers configured for this group."
+    )
+
+    # Relationship to AIProviderModel (one-to-many)
+    ai_providers: Mapped[list["AIProviderModel"]] = orm.relationship(
+        "AIProviderModel", **_common_relationship_args, doc="AI providers configured for this workspace."
+    )
+
+    # Relationship to AIExecutionModel (one-to-many)
+    ai_executions: Mapped[list["AIExecutionModel"]] = orm.relationship(
+        "AIExecutionModel", **_common_relationship_args, doc="AI execution audit log for this workspace."
     )
 
     model_config = ConfigDict(

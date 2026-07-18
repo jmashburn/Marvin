@@ -134,6 +134,26 @@ import SchemaEditor from "@/components/SchemaEditor.astro";
         <input type="hidden" name="capabilities_json" id="capabilities_json" />
       </div>
 
+      {/* Recipe (authoring) */}
+      <div class="config-section">
+        <details id="recipe-details">
+          <summary class="section-heading">Recipe (authoring)</summary>
+          <div class="config-fields">
+            <p style="margin:0 0 8px;color:var(--muted);font-size:13px;">
+              What to gather &amp; derive to build one — assets contract, resource extraction, enrichment. JSON for now.
+            </p>
+            <textarea
+              name="recipe_json"
+              id="recipe_json"
+              rows="10"
+              spellcheck="false"
+              style="width:100%;font-family:ui-monospace,monospace;font-size:13px;line-height:1.5;padding:10px;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);color:var(--ink);"
+              placeholder={'{\n  "assets": { "min": 1, "roles": [{ "role": "hero", "required": true }] }\n}'}
+            ></textarea>
+          </div>
+        </details>
+      </div>
+
       <div class="form-actions">
         <button type="submit" class="button">Create Entry Type</button>
         <a href="/workspace/entry-types" class="button secondary">Cancel</a>

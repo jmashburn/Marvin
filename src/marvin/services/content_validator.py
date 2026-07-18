@@ -15,6 +15,8 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from marvin.schemas.platform.entry_type_schema import (
+    AssetFieldSchema,
+    AssetListFieldSchema,
     BooleanFieldSchema,
     DateFieldSchema,
     DateTimeFieldSchema,
@@ -23,6 +25,8 @@ from marvin.schemas.platform.entry_type_schema import (
     JsonFieldSchema,
     MarkdownFieldSchema,
     NumberFieldSchema,
+    ResourceFieldSchema,
+    ResourceListFieldSchema,
     SelectFieldSchema,
     TextareaFieldSchema,
     TextFieldSchema,
@@ -169,9 +173,24 @@ class ContentValidator(BaseService):
             self._validate_datetime_field(field_schema, value)
         elif isinstance(field_schema, JsonFieldSchema):
             self._validate_json_field(field_schema, value)
+        elif isinstance(field_schema, (AssetFieldSchema, ResourceFieldSchema)):
+            self._validate_reference_field(field_schema, value, is_list=False)
+        elif isinstance(field_schema, (AssetListFieldSchema, ResourceListFieldSchema)):
+            self._validate_reference_field(field_schema, value, is_list=True)
         else:
             # Unknown field type - should not happen with discriminated union
             self.logger.warning(f"Unknown field type for field '{field_key}': {type(field_schema)}")
+
+    def _validate_reference_field(self, field_schema: FieldSchema, value: Any, is_list: bool) -> None:
+        """Asset/resource reference: an id string, or a list of id strings for list variants."""
+        if is_list:
+            if not isinstance(value, list):
+                raise ContentValidationError(field_schema.key, f"Expected a list of ids, got {type(value).__name__}")
+            for item in value:
+                if not isinstance(item, str):
+                    raise ContentValidationError(field_schema.key, "Each item must be an id string")
+        elif not isinstance(value, str):
+            raise ContentValidationError(field_schema.key, f"Expected an id string, got {type(value).__name__}")
 
     def _validate_text_field(self, field_schema: TextFieldSchema | TextareaFieldSchema, value: Any) -> None:
         """Validate text or textarea field."""

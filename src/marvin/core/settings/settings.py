@@ -122,6 +122,9 @@ class AppSettings(BaseSettings):
     BASE_URL: str = "http://localhost:8080"
     """trailing slashes are trimmed (ex. `http://localhost:8080/` becomes ``http://localhost:8080`)"""
 
+    FRONTEND_URL: str = "http://localhost:4322"
+    """URL of the frontend app. Used for OIDC callback redirects in dev. In production same-origin deployments, set to BASE_URL."""
+
     API_DOCS: bool = True
 
     SECRET: str
@@ -149,12 +152,20 @@ class AppSettings(BaseSettings):
     LOG_LEVEL: str = "info"
     """ corresponds to standard Python Log levels """
 
+    EVENT_LOG_RETENTION_DAYS: int = 90
+    """ default retention for the event_log audit trail; the prune_event_logs task deletes
+    rows older than this. 0 disables pruning (keep forever). Overridable per-task. """
+
+    AI_EXECUTION_RETENTION_DAYS: int = 90
+    """ default retention for ai_executions; the prune_ai_executions task deletes rows older
+    than this. A workspace's logging_config.retention_days overrides it. 0 disables. """
+
     _logger: logging.Logger | None = None
 
     DAILY_SCHEDULE_TIME: str = "23:47"
     """Local server time, in HH:MM format. See `DAILY_SCHEDULE_TIME_UTC` for the parsed UTC equivalent"""
 
-    GITHUB_VERSION_URL: str = "https://github.com/jmashburn/Marvin/releases/latest"
+    GITHUB_VERSION_URL: str = "https://api.github.com/repos/InnerOpen/marvin/tags"
 
     GIT_COMMIT_HASH: str = "unknown"
 
@@ -281,8 +292,43 @@ class AppSettings(BaseSettings):
     STORAGE_S3_SECRET_KEY: MaskedNoneString | None = None
     """S3 secret access key. Required when STORAGE_PROVIDER=s3. Masked in output."""
 
-    STORAGE_S3_PUBLIC_URL: str | None = None
-    """Public URL for S3 assets (CDN URL if using one). Optional."""
+    STORAGE_REMOTE_PUBLIC_URL: str | None = None
+    """Public base URL for remote storage assets (CDN, custom domain, etc). Works with S3, R2, MinIO, Spaces, etc. Optional."""
+
+    # ===============================================
+    # Secrets Backend Configuration
+
+    SECRET_BACKEND: str = "database"
+    """Secret storage backend: 'database' | 'disk' | 'env' | 'vault' | 'bitwarden'. Default: database"""
+
+    SECRETS_DIR: Path | None = None
+    """Directory for disk backend secret files. Defaults to {DATA_DIR}/secrets/"""
+
+    # HashiCorp Vault
+    VAULT_ADDR: str | None = None
+    """Vault server URL. Required for vault backend. e.g. http://127.0.0.1:8200"""
+
+    VAULT_TOKEN: MaskedNoneString | None = None
+    """Vault authentication token. Required for vault backend. Masked in output."""
+
+    VAULT_MOUNT: str = "secret"
+    """Vault KV v2 mount path. Default: secret"""
+
+    VAULT_PATH_PREFIX: str = "marvin"
+    """Path prefix within the Vault mount. Default: marvin"""
+
+    # Bitwarden Secrets Manager
+    BITWARDEN_ACCESS_TOKEN: MaskedNoneString | None = None
+    """Bitwarden machine account access token. Required for bitwarden backend. Masked in output."""
+
+    BITWARDEN_PROJECT_ID: str | None = None
+    """Bitwarden Secrets Manager project UUID to scope secrets to."""
+
+    BITWARDEN_API_URL: str | None = None
+    """Bitwarden API URL. Only needed for self-hosted instances."""
+
+    BITWARDEN_IDENTITY_URL: str | None = None
+    """Bitwarden Identity URL. Only needed for self-hosted instances."""
 
     # Asset Upload Configuration
 
@@ -299,10 +345,10 @@ class AppSettings(BaseSettings):
 
     model_config = SettingsConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-    @field_validator("BASE_URL")
+    @field_validator("BASE_URL", "FRONTEND_URL")
     @classmethod
     def remove_trailing_slash(cls, v: str) -> str:
-        """Pydantic validator to remove trailing slashes from the BASE_URL."""
+        """Pydantic validator to remove trailing slashes from URL settings."""
         if v and v[-1] == "/":
             return v[:-1]
 
@@ -323,6 +369,15 @@ class AppSettings(BaseSettings):
 
     DB_ENGINE: str = "sqlite"
     """The database engine to use ('sqlite' or 'postgres')."""
+
+    DB_POOL_SIZE: int = 5
+    """SQLAlchemy connection pool size (number of persistent connections)."""
+
+    DB_MAX_OVERFLOW: int = 10
+    """Maximum number of connections above pool_size allowed before blocking."""
+
+    DB_SQLITE_WAL_MODE: bool = True
+    """Enable WAL journal mode for SQLite (allows concurrent reads during writes)."""
 
     DB_PROVIDER: AbstractDBProvider | None = None
     """The database provider instance, configured by `app_settings_constructor`."""
@@ -391,8 +446,9 @@ class AppSettings(BaseSettings):
     # ===============================================
     # Email Configuration
 
-    _DEFAULT_EMAIL_TEMPLATE: str = "branded.html"
-    """Default Email Template. place in templates folder"""
+    EMAIL_TEMPLATE: str = "branded.html"
+    """HTML wrapper template filename. Options bundled: branded.html, workspace.html, default.html.
+    Set via EMAIL_TEMPLATE env var. Drop a custom file in the data templates dir to override."""
     SMTP_HOST: str | None = None
     """SMTP server hostname or IP address."""
     SMTP_PORT: str | None = "587"
@@ -635,6 +691,48 @@ class AppSettings(BaseSettings):
     def OPENAI_ENABLED(self) -> bool:
         """Indicates if OpenAI integration is configured and enabled."""
         return self.OPENAI_FEATURE.enabled
+
+    # ===============================================
+    # Additional AI Providers (platform credential mode)
+
+    AI_DEFAULT_PROVIDER: str = "openai"
+    """Provider used by workspaces in platform credential mode (openai | anthropic | google)."""
+    AI_ALLOW_WORKSPACE_CREDENTIALS: bool = True
+    """Whether workspaces may use their own AI credentials (credential_mode='workspace').
+    When false, only platform-provided credentials are allowed and the workspace option is
+    rejected + hidden in the UI."""
+    ANTHROPIC_API_KEY: MaskedNoneString = None
+    """Anthropic API key for platform credential mode (masked)."""
+    ANTHROPIC_MODEL: str = "claude-sonnet-5"
+    """Default Anthropic model for platform credential mode."""
+    GOOGLE_API_KEY: MaskedNoneString = None
+    """Google Gemini API key for platform credential mode (masked)."""
+    GOOGLE_MODEL: str = "gemini-2.0-flash"
+    """Default Google model for platform credential mode."""
+
+    AI_BUDGET_WARNING_PERCENT: float = 80.0
+    """Percent (0-100) of a workspace's monthly AI cost limit at which to fire the
+    `ai_budget_threshold_reached` event. Set to 0 to disable the early warning."""
+
+    # ── Embeddings / RAG ──
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    """Embedding model for the OpenAI (and Azure) providers."""
+    GOOGLE_EMBEDDING_MODEL: str = "models/text-embedding-004"
+    """Embedding model for the Google provider."""
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    """Embedding model for the Ollama provider."""
+    AI_RAG_TOP_K: int = 5
+    """Number of similar chunks retrieved per RAG question."""
+    AI_EMBED_CHUNK_SIZE: int = 1500
+    """Max characters per embedded text chunk."""
+    AI_EMBED_CHUNK_OVERLAP: int = 150
+    """Character overlap between consecutive embedded chunks."""
+
+    # ── Generation defaults ──
+    AI_DEFAULT_TEMPERATURE: float = 0.7
+    """Default sampling temperature for AI operations."""
+    AI_DEFAULT_MAX_TOKENS: int | None = None
+    """Default max output tokens for AI operations (None = provider default)."""
 
     # ===============================================
     # Apprise Configuration

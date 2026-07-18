@@ -1,9 +1,10 @@
 """Database model for email templates."""
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
+from marvin.db.models._model_utils.auto_init import auto_init
 from marvin.db.models._model_utils.guid import GUID
 
 
@@ -11,12 +12,17 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
     """Email templates stored in the database.
 
     Supports both system-wide templates (group_id=None) and workspace-specific
-    templates (group_id set). Templates are HTML with Jinja2 variable support.
+    templates (group_id set). Templates support Jinja2 variable substitution.
+
+    Rendering modes (mutually exclusive, custom_html takes priority):
+    - body_markdown: Markdown body rendered to HTML and injected into default.html
+    - custom_html: Full HTML template that overrides the default layout entirely
 
     Template types:
     - invitation: Workspace invitation emails
     - password_reset: Password reset emails
-    - notification: General notification emails
+    - welcome: Welcome emails for new users
+    - custom: Custom / general-purpose notification emails
     - test: Test emails for SMTP verification
     """
 
@@ -30,7 +36,7 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
         sa.String,
         nullable=False,
         index=True,
-        doc="Type of email template (invitation, password_reset, notification, test)",
+        doc="Type of email template (invitation, password_reset, welcome, custom, test)",
     )
     group_id: Mapped[GUID | None] = mapped_column(
         GUID,
@@ -52,38 +58,23 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
         doc="Description of when this template is used",
     )
 
-    # Email content - supports two modes:
-    # 1. Structured mode: Use subject + content fields, rendered with default.html template
-    # 2. Custom HTML mode: Use custom_html with full HTML template (overrides structured fields)
+    # Email content - supports two modes (custom_html takes priority):
+    # 1. body_markdown: Markdown body rendered to HTML and injected into default.html
+    # 2. custom_html: Full HTML template that overrides the default layout entirely
     subject: Mapped[str] = mapped_column(
         sa.String,
         nullable=False,
         doc="Email subject line - supports Jinja2 variables like {{ user_name }}",
     )
-    header_text: Mapped[str | None] = mapped_column(
-        sa.String,
-        nullable=True,
-        doc="Header text for structured template (used with default.html)",
-    )
-    message_top: Mapped[str | None] = mapped_column(
+    body_markdown: Mapped[str | None] = mapped_column(
         sa.Text,
         nullable=True,
-        doc="Top message for structured template (used with default.html)",
-    )
-    message_bottom: Mapped[str | None] = mapped_column(
-        sa.Text,
-        nullable=True,
-        doc="Bottom message for structured template (used with default.html)",
-    )
-    button_text: Mapped[str | None] = mapped_column(
-        sa.String,
-        nullable=True,
-        doc="Button text for structured template (used with default.html)",
+        doc="Markdown body rendered via default.html template. Supports Jinja2 variables.",
     )
     custom_html: Mapped[str | None] = mapped_column(
         sa.Text,
         nullable=True,
-        doc="Full custom HTML template - if set, overrides structured fields. Supports Jinja2 variables.",
+        doc="Full custom HTML template - if set, overrides body_markdown. Supports Jinja2 variables.",
     )
 
     # Template variables documentation
@@ -101,11 +92,8 @@ class EmailTemplateModel(SqlAlchemyBase, BaseMixins):
         doc="Whether this template is active",
     )
 
-    # Unique constraint: one template per type per workspace
-    __table_args__ = (
-        sa.UniqueConstraint(
-            "template_type",
-            "group_id",
-            name="uq_email_template_type_group",
-        ),
-    )
+    __table_args__ = ()
+
+    @auto_init()
+    def __init__(self, session: Session, **kwargs) -> None:
+        pass

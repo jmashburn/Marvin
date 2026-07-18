@@ -176,6 +176,18 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
                 detail=f"Invalid capabilities definition: {e}",
             )
 
+    def _validate_recipe_json(self, recipe_json: dict | None) -> None:
+        if recipe_json is None:
+            return
+        from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+        try:
+            EntryTypeRecipe.model_validate(recipe_json)
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid recipe definition: {e}",
+            )
+
     def _check_renderer_warnings(self, data_dict: dict) -> list[str]:
         if not data_dict.get("is_rendered"):
             return []
@@ -201,6 +213,12 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if not data_dict.get("slug") and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
+        # These columns are NOT NULL; the request schema now defaults them to None (so the
+        # generated SDK type marks them optional), so coalesce back to the real defaults here.
+        for field, default in (("sort_order", 0), ("is_system", False), ("is_rendered", False)):
+            if data_dict.get(field) is None:
+                data_dict[field] = default
+
         # Map Pydantic field names to DB column names
         if "content_schema" in data_dict:
             data_dict["schema_json"] = data_dict.pop("content_schema")
@@ -208,6 +226,8 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             data_dict["rendering_json"] = data_dict.pop("rendering")
         if "capabilities" in data_dict:
             data_dict["capabilities_json"] = data_dict.pop("capabilities")
+        if "recipe" in data_dict:
+            data_dict["recipe_json"] = data_dict.pop("recipe")
 
         # Validate JSON fields if provided
         if "schema_json" in data_dict:
@@ -216,6 +236,8 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             self._validate_rendering_json(data_dict["rendering_json"])
         if "capabilities_json" in data_dict:
             self._validate_capabilities_json(data_dict["capabilities_json"])
+        if "recipe_json" in data_dict:
+            self._validate_recipe_json(data_dict["recipe_json"])
 
         warnings = self._check_renderer_warnings(data_dict)
         result = super().create(data_dict)
@@ -245,6 +267,8 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             data_dict["rendering_json"] = data_dict.pop("rendering")
         if "capabilities" in data_dict:
             data_dict["capabilities_json"] = data_dict.pop("capabilities")
+        if "recipe" in data_dict:
+            data_dict["recipe_json"] = data_dict.pop("recipe")
 
         # Validate JSON fields if provided
         if "schema_json" in data_dict:
@@ -253,6 +277,8 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             self._validate_rendering_json(data_dict["rendering_json"])
         if "capabilities_json" in data_dict:
             self._validate_capabilities_json(data_dict["capabilities_json"])
+        if "recipe_json" in data_dict:
+            self._validate_recipe_json(data_dict["recipe_json"])
 
         warnings = self._check_renderer_warnings(data_dict)
         data_dict.pop("slug", None)

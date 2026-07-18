@@ -52,6 +52,10 @@ class EntryTypes(SqlAlchemyBase, BaseMixins):
     capabilities_json: Mapped[dict | None] = mapped_column("capabilities_json", sa.JSON, nullable=True)
     """Behavioral capabilities for this entry type (CapabilitiesDefinition)."""
 
+    recipe_json: Mapped[dict | None] = mapped_column("recipe_json", sa.JSON, nullable=True)
+    """Authoring recipe: what to gather/derive to build an entry of this type
+    (assets contract, resource extraction, enrichment steps) — EntryTypeRecipe."""
+
     entries: Mapped[list["Entries"]] = orm.relationship("Entries", back_populates="entry_type")
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)

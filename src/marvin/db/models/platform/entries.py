@@ -53,6 +53,9 @@ class Entries(SqlAlchemyBase, BaseMixins):
     expire_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)
     """Expiration datetime - when this entry should be hidden/archived."""
     metadata_json: Mapped[dict | None] = mapped_column("metadata_json", sa.JSON, nullable=True)
+    # Pending AI-proposed changes staged for human review (write-back). Keyed by target field,
+    # e.g. {"summary": "…", "_meta": {"operation": "generate-summary", "executionId": "…"}}.
+    suggestion_json: Mapped[dict | None] = mapped_column("suggestion_json", sa.JSON, nullable=True)
     """Custom non-schema metadata (API keys, external IDs, CMS config, etc.)."""
     created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 

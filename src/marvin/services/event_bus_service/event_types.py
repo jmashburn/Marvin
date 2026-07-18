@@ -385,6 +385,22 @@ class EventTypes(EventTypeBase):
     digest_sent = auto()
     """Event dispatched when a digest email is sent."""
 
+    # ==========================================================================
+    # AI Events
+    # ==========================================================================
+    ai_operation_executed = auto()
+    """Event dispatched when an AI operation completes successfully."""
+    ai_operation_failed = auto()
+    """Event dispatched when an AI operation fails."""
+    ai_embeddings_reindexed = auto()
+    """Event dispatched when workspace embeddings are (re)indexed for semantic search / RAG."""
+    ai_budget_threshold_reached = auto()
+    """Event dispatched when workspace AI spend crosses a budget warning threshold (~80%)."""
+    ai_budget_exceeded = auto()
+    """Event dispatched when the workspace monthly AI cost limit is reached."""
+    ai_provider_quota_exceeded = auto()
+    """Event dispatched when the AI provider rejects a call for lack of quota/credits (no tokens available)."""
+
 
 class EventDocumentTypeBase(Enum):
     """
@@ -433,6 +449,25 @@ class EventDocumentType(EventDocumentTypeBase):
     """Indicates the event data pertains to a resource."""
     deployment = "deployment"
     """Indicates the event data pertains to a site deployment."""
+    ai = "ai"
+    """Indicates the event data pertains to an AI operation or execution."""
+
+
+class WebhookMode(str, Enum):
+    """Determines when a webhook fires and what payload it sends."""
+
+    generic = "generic"
+    user = "user"
+    entries = "entries"
+    event_driven = "event_driven"
+
+
+WEBHOOK_MODE_DESCRIPTIONS: dict[str, str] = {
+    "generic": "Fires on a schedule and sends your custom payload as-is. Use this for simple timed pings or custom data pushes.",
+    "user": "Fires on a schedule and includes workspace member statistics (total members, new members since last run) alongside your custom payload.",
+    "entries": "Fires on a schedule and includes content entry statistics (totals, published, draft, new since last run) alongside your custom payload.",
+    "event_driven": "Fires immediately when a subscribed workspace event occurs (e.g. entry published, member added). Connect events from the Events page after creating.",
+}
 
 
 class EventOperationBase(Enum):
@@ -507,6 +542,19 @@ class EventUserSignupData(EventDocumentDataBase):
     """The email address of the newly signed-up user."""
 
 
+class EventPasswordResetData(EventDocumentDataBase):
+    """Data payload for a password reset request event."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.user
+    operation: EventOperationBase = EventOperation.info
+    email: str
+    """The email address of the user requesting a password reset. Resolves as email_address convenience alias."""
+    reset_url: str
+    """The password reset URL. Resolves as button_link convenience alias."""
+    username: str | None = None
+    """The username of the user requesting the reset."""
+
+
 class EventWorkspaceCreatedData(EventDocumentDataBase):
     """
     Data payload for an event indicating a workspace has been created.
@@ -520,6 +568,8 @@ class EventWorkspaceCreatedData(EventDocumentDataBase):
     """The name of the created workspace."""
     creator_id: UUID4
     """The user ID of the workspace creator."""
+    creator_name: str | None = None
+    """The full name or username of the workspace creator."""
 
 
 class EventWorkspaceData(EventDocumentDataBase):
@@ -540,8 +590,12 @@ class EventWorkspaceSettingsData(EventDocumentDataBase):
     document_type: EventDocumentTypeBase = EventDocumentType.workspace
     workspace_id: UUID4
     """The unique identifier of the workspace."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     changed_fields: list[str]
     """List of preference fields that were modified (e.g., ['site_title', 'site_logo'])."""
+    changed_by_name: str | None = None
+    """The full name of the user who changed the settings."""
 
 
 class EventWebhookData(EventDocumentDataBase):
@@ -550,17 +604,10 @@ class EventWebhookData(EventDocumentDataBase):
     Contains information needed by WebhookEventListener to find and trigger scheduled webhooks.
     """
 
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
+    operation: EventOperationBase = EventOperation.info
     webhook_start_dt: datetime
-    """The start datetime for the window in which to find scheduled webhooks."""
     webhook_end_dt: datetime
-    """The end datetime for the window in which to find scheduled webhooks."""
-    webhook_body: Any = None  # Body to be sent by the webhook, can be dynamically generated.
-    """
-    The body/payload to be sent by the webhook. This can be populated dynamically
-    by the `WebhookEventListener` based on `webhook_type`. Defaults to None.
-    """
-    # document_type and operation would be set by the dispatcher of webhook_task events.
-    # e.g., document_type = EventDocumentType.generic, operation = EventOperation.info
 
 
 # =============================================================================
@@ -580,8 +627,12 @@ class EventEntryData(EventDocumentDataBase):
     """The type/schema of the entry."""
     workspace_id: UUID4
     """The workspace containing the entry."""
-    author_id: UUID4
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
+    author_id: UUID4 | None = None
     """The user who created/modified the entry."""
+    author_name: str | None = None
+    """The full name of the entry author."""
 
 
 class EventFormData(EventDocumentDataBase):
@@ -596,6 +647,12 @@ class EventFormData(EventDocumentDataBase):
     """The name of the form."""
     workspace_id: UUID4
     """The workspace containing the form."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
+    author_id: UUID4 | None = None
+    """The user who created/modified the form."""
+    author_name: str | None = None
+    """The full name of the form author."""
 
 
 class EventFormSubmissionData(EventDocumentDataBase):
@@ -614,6 +671,8 @@ class EventFormSubmissionData(EventDocumentDataBase):
     """The submitted form data."""
     workspace_id: UUID4
     """The workspace containing the form."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
 
 
 class EventCollectionData(EventDocumentDataBase):
@@ -626,6 +685,8 @@ class EventCollectionData(EventDocumentDataBase):
     """The name of the collection."""
     workspace_id: UUID4
     """The workspace containing the collection."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     entry_count: int | None = None
     """The number of entries in the collection."""
 
@@ -646,14 +707,34 @@ class EventAssetData(EventDocumentDataBase):
     """The asset type classification (image, document, video, audio, archive, svg, other)."""
     storage_key: str
     """The storage key for the asset."""
+    workspace_id: UUID4 | None = None
+    """The workspace the asset belongs to."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
+    uploader_id: UUID4 | None = None
+    """The user who uploaded the asset."""
+    uploader_name: str | None = None
+    """The full name of the uploader."""
 
     @classmethod
-    def from_schema(cls, asset: "AssetRead") -> "EventAssetData":
+    def from_schema(
+        cls,
+        asset: "AssetRead",
+        *,
+        workspace_id: "UUID4 | None" = None,
+        workspace_name: str | None = None,
+        uploader_id: "UUID4 | None" = None,
+        uploader_name: str | None = None,
+    ) -> "EventAssetData":
         """
         Create EventAssetData from an AssetRead schema.
 
         Args:
             asset: AssetRead schema instance
+            workspace_id: The workspace ID (optional)
+            workspace_name: The workspace name (optional)
+            uploader_id: The uploader user ID (optional)
+            uploader_name: The uploader full name (optional)
 
         Returns:
             EventAssetData instance
@@ -668,6 +749,10 @@ class EventAssetData(EventDocumentDataBase):
             mime_type=asset.mime_type,
             asset_type=asset.asset_type,
             storage_key=asset.storage_key,
+            workspace_id=workspace_id,
+            workspace_name=workspace_name,
+            uploader_id=uploader_id,
+            uploader_name=uploader_name,
         )
 
 
@@ -677,10 +762,14 @@ class EventMemberData(EventDocumentDataBase):
     document_type: EventDocumentTypeBase = EventDocumentType.member
     workspace_id: UUID4
     """The workspace ID."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     user_id: UUID4
     """The user ID of the member."""
     username: str
     """The username of the member."""
+    user_full_name: str | None = None
+    """The full name of the member."""
     role: str
     """The role of the member (OWNER, ADMIN, EDITOR, AUTHOR, VIEWER)."""
     previous_role: str | None = None
@@ -691,14 +780,18 @@ class EventInvitationData(EventDocumentDataBase):
     """Data payload for invitation events."""
 
     document_type: EventDocumentTypeBase = EventDocumentType.invitation
-    invitation_id: UUID4 | str
-    """The unique identifier or token of the invitation."""
+    invitation_token: UUID4 | str
+    """The unique token of the invitation."""
     workspace_id: UUID4
     """The workspace the invitation is for."""
-    inviter_id: UUID4
-    """The user who created the invitation."""
+    workspace_name: str | None = None
+    """The name of the workspace."""
+    inviter_name: str | None = None
+    """The name of the user who created the invitation."""
     invitee_email: str | None = None
     """The email address of the invited user (if applicable)."""
+    invitation_url: str | None = None
+    """The URL the invitee clicks to accept the invitation."""
     uses_left: int | None = None
     """The number of remaining uses for the invitation."""
 
@@ -723,12 +816,16 @@ class EventDeploymentData(EventDocumentDataBase):
     document_type: EventDocumentTypeBase = EventDocumentType.deployment
     workspace_id: UUID4
     """The workspace being deployed."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     deployment_id: str | None = None
     """The unique identifier of the deployment."""
     site_url: str | None = None
     """The URL of the deployed site."""
     triggered_by: UUID4
     """The user who triggered the deployment."""
+    triggered_by_name: str | None = None
+    """The full name of the user who triggered the deployment."""
     status: str | None = None
     """The status of the deployment (started, completed, failed)."""
     error_message: str | None = None
@@ -747,12 +844,16 @@ class EventAPIClientData(EventDocumentDataBase):
     """The slug of the API client."""
     workspace_id: UUID4
     """The workspace the API client belongs to."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     permissions: dict
     """The permissions granted to the API client."""
     enabled: bool
     """Whether the API client is enabled."""
     token_prefix: str | None = None
     """The prefix of the token (for token rotation events)."""
+    created_by_name: str | None = None
+    """The full name of the user who created/manages the API client."""
 
 
 class EventEntryTypeData(EventDocumentDataBase):
@@ -767,6 +868,8 @@ class EventEntryTypeData(EventDocumentDataBase):
     """The slug of the entry type."""
     workspace_id: UUID4
     """The workspace the entry type belongs to."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     description: str | None = None
     """The description of the entry type."""
 
@@ -785,6 +888,8 @@ class EventResourceData(EventDocumentDataBase):
     """The type of resource (fabric, tool, supplier, etc.)."""
     workspace_id: UUID4
     """The workspace the resource belongs to."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     url: str | None = None
     """The external URL of the resource."""
 
@@ -803,6 +908,8 @@ class EventScheduledTaskData(EventDocumentDataBase):
     """The type of task (e.g., 'publish', 'cleanup')."""
     workspace_id: UUID4 | None = None
     """The workspace the task belongs to (None for system tasks)."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
     enabled: bool = True
     """Whether the task is enabled."""
     next_run_at: datetime | None = None
@@ -811,12 +918,13 @@ class EventScheduledTaskData(EventDocumentDataBase):
     """Status of last execution."""
 
     @classmethod
-    def from_model(cls, task: "ScheduledTaskModel") -> "EventScheduledTaskData":
+    def from_model(cls, task: "ScheduledTaskModel", workspace_name: str | None = None) -> "EventScheduledTaskData":
         """
         Create EventScheduledTaskData from a ScheduledTaskModel.
 
         Args:
             task: ScheduledTaskModel instance
+            workspace_name: Human-readable workspace name (optional)
 
         Returns:
             EventScheduledTaskData instance
@@ -830,10 +938,84 @@ class EventScheduledTaskData(EventDocumentDataBase):
             task_slug=task.slug,
             task_type=task.task_type,
             workspace_id=task.group_id,
+            workspace_name=workspace_name,
             enabled=task.enabled,
             next_run_at=task.next_run_at,
             last_status=task.last_status,
         )
+
+
+class EventAIOperationData(EventDocumentDataBase):
+    """Data payload for AI operation execution events (executed / failed)."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.ai
+    operation: EventOperationBase = EventOperation.info
+    operation_slug: str
+    """The AI operation that ran (e.g. 'generate-summary')."""
+    provider_type: str
+    """The provider used (openai, anthropic, google, ...)."""
+    model_id: str
+    """The model used."""
+    status: str
+    """Execution status (completed | failed)."""
+    execution_id: UUID4 | None = None
+    """The ai_executions row id."""
+    entity_type: str | None = None
+    """The target entity type (entry, asset, resource, ...)."""
+    entity_id: UUID4 | None = None
+    """The target entity id."""
+    total_tokens: int | None = None
+    """Total tokens used."""
+    estimated_cost_usd: float | None = None
+    """Estimated cost in USD."""
+    error_message: str | None = None
+    """Error detail when status is failed."""
+    workspace_id: UUID4
+    """The workspace the operation ran in."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
+
+
+class EventAIEmbeddingsData(EventDocumentDataBase):
+    """Data payload for AI embedding reindex events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.ai
+    operation: EventOperationBase = EventOperation.info
+    model_id: str
+    """The embedding model used."""
+    entities_indexed: int
+    """Number of entities embedded."""
+    chunks_indexed: int
+    """Number of chunks embedded."""
+    workspace_id: UUID4
+    """The workspace reindexed."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
+
+
+class EventAIBudgetData(EventDocumentDataBase):
+    """Data payload for AI budget / quota events (threshold, exceeded, provider quota)."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.ai
+    operation: EventOperationBase = EventOperation.info
+    reason: str
+    """What triggered it: 'monthly_cost' | 'provider_quota'."""
+    current_value: float | None = None
+    """Current spend (USD) for cost events."""
+    limit_value: float | None = None
+    """The configured limit (USD) for cost events."""
+    percent: float | None = None
+    """Percent of the limit reached."""
+    provider_type: str | None = None
+    """The provider involved (for provider_quota)."""
+    operation_slug: str | None = None
+    """The operation that triggered it (for provider_quota)."""
+    detail: str | None = None
+    """Human-readable detail / provider error text."""
+    workspace_id: UUID4
+    """The workspace this pertains to."""
+    workspace_name: str | None = None
+    """The human-readable name of the workspace."""
 
 
 class EventBusMessage(_MarvinModel):

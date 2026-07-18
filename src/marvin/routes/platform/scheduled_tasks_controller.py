@@ -30,7 +30,7 @@ class ScheduledTasksController(BaseUserController):
     @router.get("/task-types")
     def list_task_types(self, detailed: bool = False):
         """
-        List all available task types that can be scheduled.
+        List task types available to workspace users (excludes admin-only types).
 
         Args:
             detailed: If True, return full metadata including config schemas
@@ -38,8 +38,8 @@ class ScheduledTasksController(BaseUserController):
         from marvin.services.scheduled_tasks import TaskHandlerRegistry
 
         if detailed:
-            return TaskHandlerRegistry.get_task_type_info()
-        return TaskHandlerRegistry.list_registered_types()
+            return [t for t in TaskHandlerRegistry.get_task_type_info() if not t.get("admin_only")]
+        return [t for t in TaskHandlerRegistry.list_registered_types(include_admin=False)]
 
     @router.get("", response_model=list[ScheduledTaskRead])
     def list_tasks(self):
@@ -59,13 +59,18 @@ class ScheduledTasksController(BaseUserController):
             integration_id="platform_api",
             group_id=self.group_id,
             event_type=EventTypes.scheduled_task_created,
-            document_data=EventScheduledTaskData.from_model(task),
+            document_data=EventScheduledTaskData.from_model(task, workspace_name=self.group.name if self.group else None),
             message=f"Scheduled task '{task.name}' created",
             entity_id=task.id,
             entity_type="scheduled_task",
         )
 
         return task
+
+    @router.get("/log", response_model=list[ScheduledTaskExecutionLogRead])
+    def get_workspace_log(self, limit: int = 100):
+        """Get execution log for all tasks in the current workspace."""
+        return self.repos.scheduled_task_executions.get_workspace_log(limit=limit)
 
     @router.get("/{id_or_slug}", response_model=ScheduledTaskRead)
     def get_task(self, id_or_slug: Annotated[str, Path()]):
@@ -108,7 +113,7 @@ class ScheduledTasksController(BaseUserController):
             integration_id="platform_api",
             group_id=self.group_id,
             event_type=EventTypes.scheduled_task_updated,
-            document_data=EventScheduledTaskData.from_model(task),
+            document_data=EventScheduledTaskData.from_model(task, workspace_name=self.group.name if self.group else None),
             message=f"Scheduled task '{task.name}' updated",
             entity_id=task.id,
             entity_type="scheduled_task",
@@ -122,7 +127,13 @@ class ScheduledTasksController(BaseUserController):
         # Try UUID first
         try:
             uuid_val = UUID4(id_or_slug)
-            task = self.repos.scheduled_tasks.delete(uuid_val)
+            task = self.repos.scheduled_tasks.get_one(uuid_val)
+            if not task:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Scheduled task '{id_or_slug}' not found",
+                )
+            self.repos.scheduled_tasks.delete(uuid_val)
         except ValueError:
             # Try slug
             task = self.repos.scheduled_tasks.get_by_slug(id_or_slug)
@@ -138,7 +149,7 @@ class ScheduledTasksController(BaseUserController):
             integration_id="platform_api",
             group_id=self.group_id,
             event_type=EventTypes.scheduled_task_deleted,
-            document_data=EventScheduledTaskData.from_model(task),
+            document_data=EventScheduledTaskData.from_model(task, workspace_name=self.group.name if self.group else None),
             message=f"Scheduled task '{task.name}' deleted",
             entity_id=task.id,
             entity_type="scheduled_task",
@@ -166,7 +177,7 @@ class ScheduledTasksController(BaseUserController):
             integration_id="platform_api",
             group_id=self.group_id,
             event_type=EventTypes.scheduled_task_triggered,
-            document_data=EventScheduledTaskData.from_model(task),
+            document_data=EventScheduledTaskData.from_model(task, workspace_name=self.group.name if self.group else None),
             message=f"Scheduled task '{task.name}' manually triggered",
             entity_id=task.id,
             entity_type="scheduled_task",

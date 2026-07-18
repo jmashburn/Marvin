@@ -1,6 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getAuthToken } from "@/lib/api/client";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from '@/lib/sdk';
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
@@ -25,7 +25,7 @@ try {
 // Check if Apprise is available
 try {
   const configCheck = await sdk.adminSystem.check() as any;
-  appriseReady = configCheck?.apprise_ready === true;
+  appriseReady = (configCheck as any)?.appriseReady ?? configCheck?.apprise_ready ?? false;
 } catch (e) {
   console.error('[workspace/settings] Error checking Apprise availability:', e);
   // Default to false if check fails
@@ -35,11 +35,12 @@ try {
 let stats: any = null;
 if (currentTab === 'statistics' && workspace?.id) {
   try {
-    const [members, entries, assets, apiClients] = await Promise.all([
+    const [members, entries, assets, apiClients, platformStats] = await Promise.all([
       listWorkspaceMembers(workspace.id, authToken),
       listEntries(authToken),
       getAssets(authToken),
       getSiteClients(authToken),
+      fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch(() => null),
     ]);
 
     stats = {
@@ -48,7 +49,11 @@ if (currentTab === 'statistics' && workspace?.id) {
       entries_count: entries.length,
       assets_count: assets.length,
       api_tokens_count: apiClients.length,
-      webhooks_count: 0, // TODO: Add when webhooks API is available
+      webhooks_count: platformStats?.webhooks ?? 0,
+      ai_executions_count: platformStats?.aiExecutions ?? platformStats?.ai_executions ?? 0,
+      ai_embeddings_count: platformStats?.aiEmbeddings ?? platformStats?.ai_embeddings ?? 0,
+      ai_tokens_count: platformStats?.aiTokens ?? platformStats?.ai_tokens ?? 0,
+      ai_cost_usd: platformStats?.aiCostUsd ?? platformStats?.ai_cost_usd ?? 0,
     };
   } catch (e) {
     console.error('[workspace/settings] Error loading statistics:', e);
@@ -62,6 +67,7 @@ const tabs = [
   { id: 'email', label: 'Email', icon: '📧' },
   { id: 'publishing', label: 'Publishing', icon: '🌐' },
   { id: 'automation', label: 'Automation', icon: '⚡' },
+  { id: 'ai', label: 'AI', icon: '✨' },
   { id: 'integrations', label: 'Integrations', icon: '🔌' },
   { id: 'statistics', label: 'Statistics', icon: '📊' },
 ];
@@ -99,10 +105,18 @@ const tabs = [
               <strong>Workspace Details</strong>
               <p>Name, description, and branding</p>
             </a>
+            <a href="/workspace/settings/environment" class="link-card">
+              <strong>Environment</strong>
+              <p>Variables and Secrets — reference with &#123;&#123;SLUG&#125;&#125; anywhere</p>
+            </a>
             <div class="link-card disabled">
               <strong>Preferences</strong>
               <p>Timezone, locale, and regional settings (Coming soon)</p>
             </div>
+            <a href="/workspace/settings/backups" class="link-card">
+              <strong>Backups</strong>
+              <p>Export workspace bundles and restore from a backup</p>
+            </a>
           </div>
         </div>
       )}
@@ -213,17 +227,39 @@ const tabs = [
             ) : (
               <div class="link-card disabled">
                 <strong>Notifications</strong>
-                <p>Requires Apprise (currently disabled)</p>
+                <p>Requires notifications service (currently disabled)</p>
               </div>
             )}
-            <div class="link-card disabled">
+            <a href="/workspace/scheduled-tasks" class="link-card">
               <strong>Scheduler</strong>
-              <p>Coming soon</p>
-            </div>
-            <div class="link-card disabled">
-              <strong>AI Workflows</strong>
-              <p>Coming soon</p>
-            </div>
+              <p>Automate recurring workspace operations</p>
+            </a>
+            <a href="/workspace/events" class="link-card">
+              <strong>Event Log</strong>
+              <p>The full workspace audit trail — every event, with payloads</p>
+            </a>
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'ai' && (
+        <div class="content-section">
+          <h2>AI</h2>
+          <p class="section-description">AI capabilities, credentials, and activity for this workspace</p>
+
+          <div class="quick-links">
+            <a href="/workspace/settings/ai-workflow" class="link-card">
+              <strong>AI Settings</strong>
+              <p>Enable AI, credentials, approval mode, and per-subsystem access</p>
+            </a>
+            <a href="/workspace/settings/ai-ask" class="link-card">
+              <strong>Ask Workspace</strong>
+              <p>Ask questions answered from your content, with citations (RAG)</p>
+            </a>
+            <a href="/workspace/settings/ai-executions" class="link-card">
+              <strong>AI Executions</strong>
+              <p>History of AI operations: tokens, cost, and output</p>
+            </a>
           </div>
         </div>
       )}
@@ -269,6 +305,22 @@ const tabs = [
             <div class="stat-card">
               <div class="stat-label">Webhooks</div>
               <div class="stat-value">{stats?.webhooks_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI Executions</div>
+              <div class="stat-value">{stats?.ai_executions_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">RAG Embeddings</div>
+              <div class="stat-value">{stats?.ai_embeddings_count || '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI Tokens (This Month)</div>
+              <div class="stat-value">{stats?.ai_tokens_count ? Number(stats.ai_tokens_count).toLocaleString() : '—'}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">AI Cost (This Month)</div>
+              <div class="stat-value">{stats?.ai_cost_usd ? `$${Number(stats.ai_cost_usd).toFixed(Number(stats.ai_cost_usd) < 1 ? 4 : 2)}` : '—'}</div>
             </div>
           </div>
         </div>

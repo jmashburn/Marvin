@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
 import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
+import Marvin from "@/components/Marvin.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
 
@@ -142,6 +143,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
         </section>
       </main>
       <ThemeSwitcher />
+      <Marvin />
     </div>
   </body>
 </html>

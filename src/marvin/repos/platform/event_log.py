@@ -37,6 +37,14 @@ class EventLogRepository(GroupRepositoryGeneric):
         result = self.session.execute(stmt).scalars().first()
         return EventLogRead.model_validate(result) if result else None
 
+    def prune_older_than(self, cutoff: datetime) -> int:
+        """Delete event_log rows older than `cutoff` (across all workspaces). Returns rows deleted."""
+        from sqlalchemy import delete
+
+        result = self.session.execute(delete(EventLogModel).where(EventLogModel.occurred_at < cutoff))
+        self.session.commit()
+        return result.rowcount or 0
+
     def get_by_entity(
         self,
         entity_id: UUID4,

@@ -1,97 +1,791 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
 import { requireAdmin } from "@/lib/auth";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+
+const authToken = getAuthToken(Astro.cookies);
+let workspaces: { id: string; name: string; slug: string }[] = [];
+let allBackups: { filename: string; size: number; created_at: string; workspace_slug: string }[] = [];
+
+try {
+  const response = await fetchApi<any>('/api/admin/groups', {}, authToken);
+  workspaces = (response.items || []).map((w: any) => ({ id: w.id, name: w.name, slug: w.slug }));
+} catch (e) {
+  console.error('[admin/backups] Failed to load workspaces:', e);
+}
+
+try {
+  const list = await fetchApi<{ filename: string; size: number; created_at: string; workspace_slug: string }[]>(
+    '/api/admin/backups',
+    {},
+    authToken,
+  );
+  allBackups = Array.isArray(list) ? list : [];
+} catch (e) {
+  console.error('[admin/backups] Failed to load backups:', e);
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
 ---
 
 <AdminLayout title="Backups">
   <div class="toolbar">
     <div>
       <h2>Backups</h2>
-      <p>Backup and restore platform data</p>
+      <p>Create, download, and restore workspace bundles across all workspaces</p>
     </div>
-    <button class="button" disabled>Create Backup</button>
   </div>
 
-  <div class="page-container">
-    <section class="backups-section">
-      <h3>Database Backups</h3>
-      <p class="section-description">Create and manage database backups</p>
-      <div class="coming-soon">
-        <p>🚧 Backup management coming soon</p>
-        <p class="hint">This will allow creating database backups, scheduling automatic backups, and restoring from backups.</p>
+  <div class="sections">
+
+    <!-- Create Backup -->
+    <section class="card">
+      <div class="card-header">
+        <h3>Create Backup</h3>
+        <p>Generate a ZIP bundle for any workspace — collections, entry types, entries, resources, assets, and site configuration. The backup is persisted on the server and appears in the list below.</p>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label for="create-workspace">Workspace</label>
+          <select id="create-workspace">
+            <option value="">— select a workspace —</option>
+            {workspaces.map(w => (
+              <option value={w.id} data-slug={w.slug}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+        <div class="actions">
+          <button type="button" id="create-btn" class="button" disabled>
+            Create Backup
+          </button>
+          <span id="create-status" class="status-msg"></span>
+        </div>
       </div>
     </section>
+
+    <!-- All Backups -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h3>All Backups</h3>
+          <p>Backup files on the server, newest first.</p>
+        </div>
+        <div class="filter-field">
+          <select id="filter-workspace">
+            <option value="">All workspaces</option>
+            {workspaces.map(w => (
+              <option value={w.slug}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {allBackups.length > 0 ? (
+        <table class="backup-table" id="backup-table">
+          <thead>
+            <tr>
+              <th>Workspace</th>
+              <th>Filename</th>
+              <th>Size</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="backup-tbody">
+            {allBackups.map(b => (
+              <tr>
+                <td class="slug-cell">{b.workspace_slug}</td>
+                <td class="filename-cell">{b.filename}</td>
+                <td class="num-cell">{fmtSize(b.size)}</td>
+                <td class="num-cell">{fmtDate(b.created_at)}</td>
+                <td class="action-cell">
+                  <a
+                    href={`/api/admin/backups/${encodeURIComponent(b.filename)}`}
+                    download={b.filename}
+                    class="dl-link"
+                  >Download</a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p id="empty-msg" class="empty-msg">No backups yet. Use "Create Backup" above to get started.</p>
+      )}
+    </section>
+
+    <!-- Import -->
+    <section class="card">
+      <div class="target-note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <div>
+          <p class="note-headline">Content always imports into the selected workspace</p>
+          <p class="note-body">The workspace block inside the bundle is ignored — content lands in whichever workspace you choose below.</p>
+        </div>
+      </div>
+      <div class="card-header">
+        <h3>Import</h3>
+        <p>Restore a previously exported bundle into any workspace.</p>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label for="import-workspace">Target workspace</label>
+          <select id="import-workspace">
+            <option value="">— select a workspace —</option>
+            {workspaces.map(w => (
+              <option value={w.id}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div class="drop-zone" id="importDropZone">
+          <input type="file" id="import-file" accept=".zip" hidden />
+
+          <div id="importPlaceholder">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <p class="drop-primary">Drop .zip bundle here or <span class="drop-link">browse</span></p>
+            <p class="drop-secondary">Exported from a Backup above</p>
+          </div>
+
+          <div id="importFileInfo" style="display:none;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+              <polyline points="13 2 13 9 20 9"/>
+            </svg>
+            <div class="file-meta">
+              <p id="importFileName" class="file-name"></p>
+              <p id="importFileSize" class="file-size"></p>
+            </div>
+            <button type="button" id="importClearFile" class="clear-btn" title="Remove file">✕</button>
+          </div>
+        </div>
+
+        <label class="overwrite-label">
+          <input type="checkbox" id="import-overwrite" />
+          <span>Overwrite existing records</span>
+          <small>Updates entries, collections, resources, and assets matched by slug. Junction rows are cleared and rebuilt.</small>
+        </label>
+
+        <div class="actions">
+          <button type="button" id="import-btn" class="button" disabled>
+            Import Bundle
+          </button>
+          <span id="import-status" class="status-msg"></span>
+        </div>
+      </div>
+    </section>
+
   </div>
 </AdminLayout>
 
 <style>
   .toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 32px;
-    padding-bottom: 20px;
+    margin-bottom: 2rem;
+    padding-bottom: 1.25rem;
     border-bottom: 1px solid var(--line);
   }
 
   .toolbar h2 {
     margin: 0;
-    font-size: 24px;
+    font-size: 1.5rem;
     font-weight: 600;
   }
 
   .toolbar p {
-    margin: 8px 0 0;
+    margin: 0.25rem 0 0;
     color: var(--muted);
-    font-size: 14px;
+    font-size: 0.875rem;
   }
 
-  .page-container {
-    max-width: 900px;
+  .sections {
+    display: grid;
+    gap: 1.5rem;
+    max-width: 800px;
   }
 
-  .backups-section {
+  .card {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 24px;
+    overflow: hidden;
   }
 
-  .backups-section h3 {
-    margin: 0 0 4px;
-    font-size: 18px;
+  .card-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .card-header h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
     font-weight: 600;
   }
 
-  .section-description {
-    margin: 0 0 20px;
-    font-size: 14px;
+  .card-header p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .card-body {
+    padding: 1.5rem;
+    display: grid;
+    gap: 1rem;
+  }
+
+  /* Notice banner */
+  .target-note {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 1rem 1.25rem;
+    background: var(--panel-2, #f5f5f5);
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8125rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .target-note svg {
+    flex-shrink: 0;
+    margin-top: 3px;
     color: var(--muted);
   }
 
-  .coming-soon {
-    padding: 40px 24px;
-    text-align: center;
-    background: var(--panel-2);
+  .note-headline {
+    margin: 0;
+    font-weight: 500;
+    color: var(--ink);
+    font-size: 0.875rem;
+  }
+
+  .note-body {
+    margin: 0.375rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Field */
+  .field {
+    display: grid;
+    gap: 0.375rem;
+  }
+
+  .field label {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .field select {
+    padding: 10px 36px 10px 12px;
+    border: 1px solid var(--line);
     border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 0.875rem;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    cursor: pointer;
+    transition: border-color 0.15s;
   }
 
-  .coming-soon p {
-    margin: 0 0 8px;
-    font-size: 16px;
+  .field select:focus {
+    outline: none;
+    border-color: var(--accent);
   }
 
-  .coming-soon .hint {
-    font-size: 14px;
+  /* Filter */
+  .filter-field select {
+    padding: 6px 32px 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+    align-self: center;
+  }
+
+  .filter-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* Backup table — :global so dynamically-inserted rows get the styles */
+  :global(.backup-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  :global(.backup-table th) {
+    text-align: left;
+    padding: 0.625rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
     color: var(--muted);
-    max-width: 400px;
-    margin: 0 auto;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--line);
   }
 
-  .button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  :global(.backup-table td) {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  :global(.backup-table tbody tr:last-child td) {
+    border-bottom: none;
+  }
+
+  :global(.backup-table tbody tr:hover td) {
+    background: var(--panel-2, rgba(0,0,0,0.02));
+  }
+
+  :global(.slug-cell) {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  :global(.filename-cell) {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8125rem;
+    word-break: break-all;
+  }
+
+  :global(.num-cell) {
+    white-space: nowrap;
+    color: var(--muted);
+  }
+
+  :global(.action-cell) {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  :global(.dl-link) {
+    font-size: 0.8125rem;
+    color: var(--brand, #0066cc);
+    text-decoration: none;
+  }
+
+  :global(.dl-link:hover) {
+    text-decoration: underline;
+  }
+
+  :global(.empty-msg) {
+    padding: 2rem 1.5rem;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .drop-zone:hover,
+  .drop-zone.dragover {
+    border-color: var(--ink);
+    background: var(--panel-2, #f5f5f5);
+  }
+
+  .drop-zone.has-file {
+    border-style: solid;
+    cursor: default;
+    padding: 1.25rem 1.5rem;
+    text-align: left;
+  }
+
+  #importPlaceholder svg {
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .drop-primary {
+    margin: 0 0 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .drop-link {
+    color: var(--brand, #0066cc);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .drop-secondary {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  #importFileInfo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  #importFileInfo svg {
+    flex-shrink: 0;
+    color: var(--muted);
+  }
+
+  .file-meta {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .file-name {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .file-size {
+    margin: 0.125rem 0 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .clear-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--muted);
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .clear-btn:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+
+  /* Overwrite */
+  .overwrite-label {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 0.5rem;
+    row-gap: 0.125rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    align-items: start;
+  }
+
+  .overwrite-label input[type="checkbox"] {
+    margin-top: 3px;
+    grid-row: 1 / 3;
+  }
+
+  .overwrite-label span {
+    font-weight: 500;
+  }
+
+  .overwrite-label small {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  /* Actions */
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .status-msg {
+    font-size: 0.875rem;
   }
 </style>
+
+<script>
+  function fmt(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  }
+
+  function fmtDate(iso: string): string {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function makeRow(b: { filename: string; size: number; created_at: string; workspace_slug?: string }): HTMLTableRowElement {
+    const tr = document.createElement('tr');
+    const dlUrl = `/api/admin/backups/${encodeURIComponent(b.filename)}`;
+    tr.innerHTML = `
+      <td class="slug-cell">${b.workspace_slug ?? ''}</td>
+      <td class="filename-cell">${b.filename}</td>
+      <td class="num-cell">${fmt(b.size)}</td>
+      <td class="num-cell">${fmtDate(b.created_at)}</td>
+      <td class="action-cell"><a href="${dlUrl}" download="${b.filename}" class="dl-link">Download</a></td>
+    `;
+    return tr;
+  }
+
+  // ── Create Backup ──────────────────────────────────────────────────────────
+  const createSelect = document.getElementById('create-workspace') as HTMLSelectElement;
+  const createBtn = document.getElementById('create-btn') as HTMLButtonElement;
+  const createStatus = document.getElementById('create-status') as HTMLElement;
+
+  createSelect?.addEventListener('change', () => {
+    createBtn.disabled = !createSelect.value;
+    createStatus.textContent = '';
+  });
+
+  createBtn?.addEventListener('click', async () => {
+    const id = createSelect.value;
+    if (!id) return;
+
+    createBtn.disabled = true;
+    createBtn.textContent = 'Creating…';
+    createStatus.textContent = '';
+
+    try {
+      const res = await fetch(`/api/admin/backups/workspaces/${id}`, { method: 'POST', credentials: 'include' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.detail || `Server error: ${res.status}`);
+
+      // Remove empty-state message if present
+      document.getElementById('empty-msg')?.remove();
+
+      // Ensure table exists
+      let table = document.getElementById('backup-table') as HTMLTableElement | null;
+      if (!table) {
+        const section = createBtn.closest('.sections')?.querySelectorAll('.card')[1];
+        if (section) {
+          table = document.createElement('table');
+          table.id = 'backup-table';
+          table.className = 'backup-table';
+          table.innerHTML = `
+            <thead><tr>
+              <th>Workspace</th><th>Filename</th><th>Size</th><th>Created</th><th></th>
+            </tr></thead>
+            <tbody id="backup-tbody"></tbody>
+          `;
+          section.appendChild(table);
+        }
+      }
+
+      const tbody = document.getElementById('backup-tbody') as HTMLTableSectionElement | null;
+      tbody?.insertBefore(makeRow(json), tbody.firstChild);
+
+      createStatus.textContent = '✓ Backup created';
+    } catch (err) {
+      createStatus.textContent = '✗ ' + (err instanceof Error ? err.message : 'Failed');
+    } finally {
+      createBtn.disabled = !createSelect.value;
+      createBtn.textContent = 'Create Backup';
+    }
+  });
+
+  // ── Filter by workspace ────────────────────────────────────────────────────
+  const filterSelect = document.getElementById('filter-workspace') as HTMLSelectElement | null;
+
+  filterSelect?.addEventListener('change', async () => {
+    const slug = filterSelect.value;
+    const qs = slug ? `?workspace_slug=${encodeURIComponent(slug)}` : '';
+    try {
+      const res = await fetch(`/api/admin/backups${qs}`, { credentials: 'include' });
+      const list = await res.json() as { filename: string; size: number; created_at: string; workspace_slug: string }[];
+
+      const tbody = document.getElementById('backup-tbody') as HTMLTableSectionElement | null;
+      const emptyMsg = document.getElementById('empty-msg');
+
+      if (!list.length) {
+        if (tbody) tbody.innerHTML = '';
+        if (!emptyMsg) {
+          const p = document.createElement('p');
+          p.id = 'empty-msg';
+          p.className = 'empty-msg';
+          p.textContent = 'No backups for this workspace.';
+          document.getElementById('backup-table')?.after(p);
+          document.getElementById('backup-table')?.remove();
+        } else {
+          emptyMsg.textContent = 'No backups for this workspace.';
+        }
+        return;
+      }
+
+      emptyMsg?.remove();
+
+      let table = document.getElementById('backup-table') as HTMLTableElement | null;
+      if (!table) {
+        const section = filterSelect.closest('.card');
+        table = document.createElement('table');
+        table.id = 'backup-table';
+        table.className = 'backup-table';
+        table.innerHTML = `
+          <thead><tr>
+            <th>Workspace</th><th>Filename</th><th>Size</th><th>Created</th><th></th>
+          </tr></thead>
+          <tbody id="backup-tbody"></tbody>
+        `;
+        section?.appendChild(table);
+      }
+
+      const newTbody = document.getElementById('backup-tbody') as HTMLTableSectionElement | null;
+      if (newTbody) newTbody.innerHTML = list.map(b => {
+        const dlUrl = `/api/admin/backups/${encodeURIComponent(b.filename)}`;
+        return `<tr>
+          <td class="slug-cell">${b.workspace_slug}</td>
+          <td class="filename-cell">${b.filename}</td>
+          <td class="num-cell">${fmt(b.size)}</td>
+          <td class="num-cell">${fmtDate(b.created_at)}</td>
+          <td class="action-cell"><a href="${dlUrl}" download="${b.filename}" class="dl-link">Download</a></td>
+        </tr>`;
+      }).join('');
+    } catch (err) {
+      console.error('Failed to filter backups:', err);
+    }
+  });
+
+  // ── Import ─────────────────────────────────────────────────────────────────
+  const importSelect = document.getElementById('import-workspace') as HTMLSelectElement;
+  const dropZone = document.getElementById('importDropZone') as HTMLElement;
+  const fileInput = document.getElementById('import-file') as HTMLInputElement;
+  const placeholder = document.getElementById('importPlaceholder') as HTMLElement;
+  const fileInfo = document.getElementById('importFileInfo') as HTMLElement;
+  const fileNameEl = document.getElementById('importFileName') as HTMLElement;
+  const fileSizeEl = document.getElementById('importFileSize') as HTMLElement;
+  const clearBtn = document.getElementById('importClearFile') as HTMLButtonElement;
+  const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
+  const importStatus = document.getElementById('import-status') as HTMLElement;
+
+  let selectedFile: File | null = null;
+
+  function syncImportBtn() {
+    importBtn.disabled = !selectedFile || !importSelect.value;
+  }
+
+  function setFile(file: File) {
+    selectedFile = file;
+    if (fileNameEl) fileNameEl.textContent = file.name;
+    if (fileSizeEl) fileSizeEl.textContent = fmt(file.size);
+    placeholder.style.display = 'none';
+    fileInfo.style.display = 'flex';
+    dropZone.classList.add('has-file');
+    importStatus.textContent = '';
+    syncImportBtn();
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    if (fileInput) fileInput.value = '';
+    placeholder.style.display = '';
+    fileInfo.style.display = 'none';
+    dropZone.classList.remove('has-file');
+    syncImportBtn();
+  }
+
+  importSelect?.addEventListener('change', () => { importStatus.textContent = ''; syncImportBtn(); });
+
+  dropZone?.addEventListener('click', (e) => {
+    if (clearBtn && (e.target === clearBtn || clearBtn.contains(e.target as Node))) return;
+    if (!dropZone.classList.contains('has-file')) fileInput?.click();
+  });
+
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => e.preventDefault());
+
+  dropZone?.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone?.addEventListener('dragleave', (e) => {
+    if (!dropZone.contains(e.relatedTarget as Node)) dropZone.classList.remove('dragover');
+  });
+  dropZone?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer?.files[0];
+    if (file) { if (fileInput) fileInput.files = e.dataTransfer!.files; setFile(file); }
+  });
+
+  fileInput?.addEventListener('change', () => { const f = fileInput?.files?.[0]; if (f) setFile(f); });
+  clearBtn?.addEventListener('click', (e) => { e.stopPropagation(); clearFile(); });
+
+  importBtn?.addEventListener('click', async () => {
+    if (!selectedFile || !importSelect.value) return;
+    const workspaceId = importSelect.value;
+    const overwrite = (document.getElementById('import-overwrite') as HTMLInputElement)?.checked ?? false;
+
+    importBtn.disabled = true;
+    importBtn.textContent = 'Importing…';
+    importStatus.textContent = '';
+
+    try {
+      const body = new FormData();
+      body.append('file', selectedFile);
+      const qs = overwrite ? '?overwrite=true' : '';
+      const res = await fetch(`/api/admin/backups/workspaces/${workspaceId}/import${qs}`, {
+        method: 'POST', credentials: 'include', body,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.detail || `Server error: ${res.status}`);
+
+      const counts = (json?.imported ?? {}) as Record<string, number>;
+      const summary = Object.entries(counts).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`).join(', ');
+      importStatus.textContent = `✓ ${summary || 'nothing new'}`;
+      clearFile();
+    } catch (err) {
+      importStatus.textContent = '✗ ' + (err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      importBtn.disabled = !selectedFile || !importSelect.value;
+      importBtn.textContent = 'Import Bundle';
+    }
+  });
+</script>

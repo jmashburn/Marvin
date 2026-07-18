@@ -1,0 +1,339 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+
+const filter = Astro.url.searchParams.get('filter') || 'all';
+
+let logs: any[] = [];
+let tasks: any[] = [];
+let error: string | null = null;
+
+try {
+  const [logsResult, tasksResult] = await Promise.all([
+    sdk.scheduledTasks.log({ limit: 200 }),
+    sdk.scheduledTasks.list(),
+  ]);
+  logs = Array.isArray(logsResult) ? logsResult : ((logsResult as any)?.items ?? []);
+  tasks = Array.isArray(tasksResult) ? tasksResult : ((tasksResult as any)?.items ?? []);
+} catch (e) {
+  console.error('[workspace/scheduled-tasks/log] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const taskMap = new Map(tasks.map((t: any) => [t.id, t]));
+const filteredLogs = filter === 'all' ? logs : logs.filter((l: any) => l.status === filter);
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  // Truncate microseconds to milliseconds for JS Date compatibility
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
+function statusClass(status: string): string {
+  if (status === 'success') return 'success';
+  if (status === 'failed') return 'failed';
+  if (status === 'timeout') return 'timeout';
+  if (status === 'cancelled') return 'cancelled';
+  return 'none';
+}
+---
+
+<AppLayout title="Activity Log" eyebrow="Automation">
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/workspace/scheduled-tasks">Scheduled Tasks</a>
+      <span>›</span>
+      <span>Activity Log</span>
+    </div>
+    <h2>Activity Log</h2>
+    <p>Execution history for all scheduled tasks in this workspace</p>
+  </div>
+
+  <div class="filters">
+    <a href="?filter=all" class:list={['filter-btn', { active: filter === 'all' }]}>All ({logs.length})</a>
+    <a href="?filter=success" class:list={['filter-btn', { active: filter === 'success' }]}>Success</a>
+    <a href="?filter=failed" class:list={['filter-btn', { active: filter === 'failed' }]}>Failed</a>
+    <a href="?filter=timeout" class:list={['filter-btn', { active: filter === 'timeout' }]}>Timeout</a>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : filteredLogs.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <p class="empty-title">No execution logs yet</p>
+      <p class="empty-desc">Logs appear here after tasks have been triggered or run on schedule</p>
+      <a href="/workspace/scheduled-tasks" class="button">View Tasks</a>
+    </div>
+  ) : (
+    <div class="table-wrap">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Executed At</th>
+            <th>Task</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Duration</th>
+            <th>Attempt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredLogs.map((log: any, i: number) => {
+            // API returns camelCase due to _MarvinModel alias_generator — fall back to snake_case for safety
+            const taskId = log.taskId ?? log.task_id;
+            const executedAt = log.executedAt ?? log.executed_at;
+            const durationMs = log.durationMs ?? log.duration_ms;
+            const errorMessage = log.errorMessage ?? log.error_message;
+            const errorTraceback = log.errorTraceback ?? log.error_traceback;
+            const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
+            const output = log.output ?? null;
+            const task = taskMap.get(taskId);
+            const taskType = task ? (task.taskType ?? task.task_type ?? '') : '';
+            const hasDetails = output || errorMessage || errorTraceback;
+            return (
+              <>
+                <tr class:list={['log-row', { 'has-details': hasDetails }]} data-row={i}>
+                  <td class="expand-cell">
+                    {hasDetails && (
+                      <button class="expand-btn" data-target={`details-${i}`} aria-label="Toggle details">▶</button>
+                    )}
+                  </td>
+                  <td class="nowrap">{formatDate(executedAt)}</td>
+                  <td>
+                    {task
+                      ? <a href={`/workspace/scheduled-tasks/${taskId}`} class="task-link">{task.name}</a>
+                      : <span class="muted">{taskId ? taskId.slice(0, 8) + '…' : '—'}</span>}
+                  </td>
+                  <td class="type-cell">{taskType || '—'}</td>
+                  <td>
+                    <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
+                  </td>
+                  <td class="nowrap">{durationMs != null ? `${durationMs}ms` : '—'}</td>
+                  <td>{retryAttempt > 0 ? `#${retryAttempt + 1}` : '1'}</td>
+                </tr>
+                {hasDetails && (
+                  <tr class="detail-row" id={`details-${i}`} style="display:none">
+                    <td colspan="6">
+                      <div class="detail-body">
+                        {output && (
+                          <div class="detail-section">
+                            <div class="detail-label">Output</div>
+                            <div class="detail-output">{output}</div>
+                          </div>
+                        )}
+                        {errorMessage && (
+                          <div class="detail-section">
+                            <div class="detail-label">Error</div>
+                            <div class="detail-message">{errorMessage}</div>
+                          </div>
+                        )}
+                        {errorTraceback && (
+                          <div class="detail-section">
+                            <div class="detail-label">Traceback</div>
+                            <pre class="detail-trace">{errorTraceback}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AppLayout>
+
+<script>
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = (btn as HTMLElement).dataset.target!;
+      const row = document.getElementById(targetId);
+      if (!row) return;
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      (btn as HTMLElement).textContent = open ? '▶' : '▼';
+    });
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .page-header h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    transition: all 0.15s;
+  }
+
+  .filter-btn:hover { color: var(--ink); border-color: var(--ink); }
+  .filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state { padding: 80px 24px; text-align: center; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-desc { margin: 0 0 24px; color: var(--muted); font-size: 14px; }
+
+  .table-wrap { overflow-x: auto; }
+
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .log-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .log-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  .log-row:last-child td { border-bottom: none; }
+  .log-row:hover td { background: var(--panel); }
+
+  .expand-cell { width: 32px; padding: 10px 6px 10px 12px; }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .expand-btn:hover { background: var(--line); color: var(--ink); }
+
+  .detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
+
+  .detail-body {
+    padding: 16px 16px 16px 52px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .detail-section { display: flex; flex-direction: column; gap: 4px; }
+
+  .detail-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .detail-output {
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+    color: var(--ink);
+  }
+
+  .detail-message {
+    font-size: 13px;
+    color: var(--color-error);
+    font-family: ui-monospace, monospace;
+  }
+
+  .detail-trace {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+    color: var(--muted);
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .nowrap { white-space: nowrap; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .type-cell { font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted); white-space: nowrap; }
+
+  .task-link { color: var(--ink); text-decoration: none; font-weight: 500; }
+  .task-link:hover { color: var(--accent); }
+
+  .status-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .status-success { background: rgba(79, 156, 132, 0.1); color: var(--accent); }
+  .status-failed { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
+  .status-timeout { background: rgba(217, 119, 6, 0.1); color: #d97706; }
+  .status-cancelled { background: rgba(128, 128, 128, 0.1); color: var(--muted); }
+  .status-none { color: var(--muted); }
+</style>

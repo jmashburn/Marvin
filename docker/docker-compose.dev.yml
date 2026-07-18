@@ -41,7 +41,7 @@ services:
     container_name: httpbin
     image: docker.io/kennethreitz/httpbin:latest
     ports:
-      - "8080:80"
+      - "8081:80"
     environment:
       GUNICORN_CMD_ARGS: "--capture-output --error-logfile - --access-logfile - --log-level=DEBUG"
 
@@ -118,6 +118,12 @@ services:
     command:
       - --verbose
       - --global-response-templating
+  webhook-tester:
+    image: ghcr.io/tarampampam/webhook-tester:latest
+    container_name: webhook-tester
+    ports:
+      - "8083:8080"
+    restart: always
 
 volumes:
   openldap_data:

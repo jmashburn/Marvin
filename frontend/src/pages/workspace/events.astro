@@ -1,0 +1,528 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const authed = !!authToken;
+
+let events: any[] = [];
+let error: string | null = null;
+
+if (authed) {
+  try {
+    events = await fetchApi<any[]>('/api/platform/events?limit=100', {}, authToken);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error('[events] Failed to load:', error);
+  }
+}
+
+function fld(row: any, camel: string, snake: string) {
+  return row[camel] ?? row[snake];
+}
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
+// Legacy rows stored the enum ordinal; new rows store the name. Prettify both.
+function prettyType(t: any): string {
+  const s = String(t ?? '');
+  if (/^\d+$/.test(s)) return `event #${s}`;
+  return s.replace(/[._]/g, ' ');
+}
+
+// Derive a coarse outcome status from the event type + title. Uses message_title too, so it
+// still works for legacy numeric-coded rows. Order matters: check failed, then removed (so
+// "unpublished" isn't caught by "publish"), then success.
+function statusOf(eventType: any, title: any): string {
+  const s = `${eventType ?? ''} ${title ?? ''}`.toLowerCase();
+  if (/fail|error|denied|reject|quota|exceed/.test(s)) return 'failed';
+  if (/delet|remov|revok|unpublish|archiv|cancel|expir/.test(s)) return 'removed';
+  if (/complet|success|execut|publish|reindex|creat|upload|added|accept|activ|sent|restor|approv/.test(s)) return 'success';
+  return 'info';
+}
+const STATUS_ORDER = ['failed', 'success', 'removed', 'info'];
+const STATUS_LABEL: Record<string, string> = { failed: 'Failed', success: 'Success', removed: 'Removed', info: 'Info' };
+
+// Event types with auditing turned OFF in the backend catalog (CatalogEntry.audited = false).
+// These are never written to this log. KEEP IN SYNC with the `audited=False` entries in
+// src/marvin/services/events/event_catalog.py — there is currently no API that exposes the
+// per-type `audited` flag, so this is a read-only mirror. Surfacing it dynamically (or letting an
+// admin toggle it) would require a backend endpoint. (Precedent for such a mirror: webhooks/[id].astro.)
+const NON_AUDITED_EVENT_TYPES: { type: string; label: string }[] = [
+  { type: 'scheduled_task_triggered', label: 'Scheduled Task Triggered' },
+  { type: 'scheduled_task_started', label: 'Scheduled Task Started' },
+  { type: 'webhook_task', label: 'Webhook Task (internal)' },
+];
+
+// Distinct entity types present, for the filter chips.
+const entityTypes = Array.from(
+  new Set(events.map((e) => fld(e, 'entityType', 'entity_type')).filter(Boolean))
+).sort();
+
+// Statuses actually present (fixed order), for the status filter chips.
+const presentStatuses = STATUS_ORDER.filter((st) =>
+  events.some((e) => statusOf(fld(e, 'eventType', 'event_type'), fld(e, 'messageTitle', 'message_title')) === st)
+);
+---
+
+<AppLayout title="Event Log" eyebrow="Automation">
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/workspace/settings?tab=automation">Automation</a>
+      <span>›</span>
+      <span>Event Log</span>
+    </div>
+    <h2>Event Log</h2>
+    <p>The workspace audit trail — every event: publishes, uploads, AI runs, embeddings, and more</p>
+  </div>
+
+  {!authed ? (
+    <div class="alert alert-error"><strong>Authentication required.</strong> Sign in to view the event log.</div>
+  ) : error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : events.length === 0 ? (
+    <div class="empty-state">
+      <div class="empty-icon">🗂️</div>
+      <p class="empty-title">No events yet</p>
+      <p class="empty-desc">Workspace activity will appear here as it happens</p>
+    </div>
+  ) : (
+    <>
+      <div class="controls">
+        <input id="event-search" class="search" type="search" placeholder="Filter by message or type…" />
+        <div class="chips" id="status-chips">
+          <button class="chip active" data-status="">All</button>
+          {presentStatuses.map((st) => (
+            <button class="chip" data-status={st}><span class={`status-dot s-${st}`}></span>{STATUS_LABEL[st]}</button>
+          ))}
+        </div>
+        <div class="chips" id="entity-chips">
+          <button class="chip active" data-entity="">All</button>
+          {entityTypes.map((t) => <button class="chip" data-entity={t}>{t}</button>)}
+        </div>
+      </div>
+
+      <details class="audit-coverage">
+        <summary>
+          <span class="ac-caret">▶</span>
+          <span class="ac-title">Audit coverage</span>
+          <span class="ac-sub">{NON_AUDITED_EVENT_TYPES.length} event type{NON_AUDITED_EVENT_TYPES.length === 1 ? '' : 's'} excluded from this log</span>
+        </summary>
+        <div class="ac-body">
+          <p class="ac-lead">Auditing is set per event type. The following types have auditing turned <strong>off</strong> in the catalog, so they never appear in this log:</p>
+          <div class="ac-chips">
+            {NON_AUDITED_EVENT_TYPES.map((e) => (
+              <span class="ac-chip">
+                <span class="status-dot s-audit-off"></span>
+                <code>{e.type}</code>
+                <span class="ac-chip-label">{e.label}</span>
+              </span>
+            ))}
+          </div>
+          <p class="ac-note">All other event types are audited. This view is read-only — changing a type's audit setting requires a backend endpoint that isn't available yet.</p>
+        </div>
+      </details>
+
+      <div class="table-wrap">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>When</th>
+              <th>Status</th>
+              <th>Event</th>
+              <th>Details</th>
+              <th>Entity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((ev: any, i: number) => {
+              const eventId = fld(ev, 'eventId', 'event_id');
+              const eventType = fld(ev, 'eventType', 'event_type');
+              const occurredAt = fld(ev, 'occurredAt', 'occurred_at');
+              const entityType = fld(ev, 'entityType', 'entity_type');
+              const entityId = fld(ev, 'entityId', 'entity_id');
+              const title = fld(ev, 'messageTitle', 'message_title');
+              const body = fld(ev, 'messageBody', 'message_body');
+              const isLegacyType = /^\d+$/.test(String(eventType ?? ''));
+              const status = statusOf(eventType, title);
+              const search = `${title ?? ''} ${body ?? ''} ${isLegacyType ? '' : prettyType(eventType)} ${entityType ?? ''}`.toLowerCase();
+              return (
+                <>
+                  <tr class="log-row" data-search={search} data-entity={entityType ?? ''} data-status={status}>
+                    <td class="expand-cell">
+                      <button class="expand-btn" data-target={`detail-${i}`} data-event-id={eventId}>▶</button>
+                    </td>
+                    <td class="nowrap muted">{formatDate(occurredAt)}</td>
+                    <td class="nowrap">
+                      <span class={`status-pill s-${status}`}>
+                        <span class={`status-dot s-${status}`}></span>
+                        {STATUS_LABEL[status]}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="event-cell">
+                        <span class="event-head">
+                          <span class="event-title">{title}</span>
+                        </span>
+                        {!isLegacyType && <code class="ev-badge">{prettyType(eventType)}</code>}
+                      </span>
+                    </td>
+                    <td class="detail-col">{body || '—'}</td>
+                    <td class="nowrap">
+                      {entityType ? (
+                        <span class="entity-cell">
+                          <span class="entity-type">{entityType}</span>
+                          {entityId && <span class="entity-id">{String(entityId).slice(0, 8)}</span>}
+                        </span>
+                      ) : <span class="muted">—</span>}
+                    </td>
+                  </tr>
+                  <tr class="detail-row" id={`detail-${i}`} style="display:none">
+                    <td colspan="6">
+                      <div class="detail-body">
+                        <div class="detail-section">
+                          <div class="detail-label">Payload</div>
+                          <pre class="payload-json" data-payload-for={eventId}>Loading…</pre>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p class="count-note" id="count-note">{events.length} most recent event{events.length === 1 ? '' : 's'}</p>
+    </>
+  )}
+</AppLayout>
+
+<script>
+  import { fetchApi } from '@/lib/api/client';
+
+  const loaded = new Set<string>();
+
+  // Expand / collapse + lazy-load full payload
+  document.querySelectorAll('.expand-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const el = btn as HTMLElement;
+      const row = document.getElementById(el.dataset.target!);
+      if (!row) return;
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      el.textContent = open ? '▶' : '▼';
+
+      const eventId = el.dataset.eventId!;
+      if (open || loaded.has(eventId)) return;
+      loaded.add(eventId);
+      const pre = document.querySelector<HTMLElement>(`[data-payload-for="${eventId}"]`);
+      if (!pre) return;
+      try {
+        const full = await fetchApi<any>(`/api/platform/events/${eventId}`);
+        const payload = full?.eventData ?? full?.event_data ?? full;
+        pre.textContent = JSON.stringify(payload, null, 2);
+      } catch (e: any) {
+        pre.textContent = `Failed to load payload: ${e.message}`;
+      }
+    });
+  });
+
+  // Text + entity-type filtering (client-side over the loaded page)
+  const search = document.getElementById('event-search') as HTMLInputElement | null;
+  const entityChips = Array.from(document.querySelectorAll<HTMLElement>('#entity-chips .chip'));
+  const statusChips = Array.from(document.querySelectorAll<HTMLElement>('#status-chips .chip'));
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('tr.log-row'));
+  const countNote = document.getElementById('count-note');
+  let activeEntity = '';
+  let activeStatus = '';
+
+  function applyFilters() {
+    const q = (search?.value || '').trim().toLowerCase();
+    let shown = 0;
+    rows.forEach((row) => {
+      const matchText = !q || (row.dataset.search || '').includes(q);
+      const matchEntity = !activeEntity || row.dataset.entity === activeEntity;
+      const matchStatus = !activeStatus || row.dataset.status === activeStatus;
+      const visible = matchText && matchEntity && matchStatus;
+      row.style.display = visible ? '' : 'none';
+      // Collapse any open detail row when its parent is hidden
+      const detail = row.nextElementSibling as HTMLElement | null;
+      if (detail?.classList.contains('detail-row') && !visible) detail.style.display = 'none';
+      if (visible) shown++;
+    });
+    if (countNote) countNote.textContent = `${shown} event${shown === 1 ? '' : 's'} shown`;
+  }
+
+  function wireChips(chips: HTMLElement[], onPick: (v: string) => void) {
+    chips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        chips.forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        onPick(chip.dataset.status ?? chip.dataset.entity ?? '');
+        applyFilters();
+      });
+    });
+  }
+
+  search?.addEventListener('input', applyFilters);
+  wireChips(statusChips, (v) => { activeStatus = v; });
+  wireChips(entityChips, (v) => { activeEntity = v; });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .page-header h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state { padding: 80px 24px; text-align: center; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-desc { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .search {
+    flex: 1;
+    min-width: 220px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .search:focus { border-color: var(--accent); outline: none; }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: capitalize;
+    cursor: pointer;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    transition: all 0.15s;
+  }
+
+  .chip:hover { color: var(--ink); border-color: var(--ink); }
+  .chip.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .table-wrap { overflow-x: auto; }
+
+  .log-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+  .log-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .log-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .log-row:hover td { background: var(--panel); }
+
+  .expand-cell { width: 32px; padding: 10px 6px 10px 12px; }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .expand-btn:hover { background: var(--line); color: var(--ink); }
+
+  .detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
+
+  .detail-body {
+    padding: 16px 16px 16px 52px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .detail-section { display: flex; flex-direction: column; gap: 4px; }
+
+  .detail-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .detail-message { font-size: 13px; color: var(--ink); }
+
+  .payload-json {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 0;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre;
+    color: var(--ink);
+  }
+
+  .nowrap { white-space: nowrap; }
+  .muted { color: var(--muted); }
+
+  .ev-badge {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .event-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .event-head { display: flex; align-items: center; gap: 8px; }
+  .event-title { font-size: 14px; color: var(--ink); font-weight: 500; }
+  .detail-col { color: var(--muted); font-size: 13px; max-width: 520px; }
+
+  /* Outcome status dot (also used inside the status filter chips) */
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+  .chip .status-dot { margin-right: 6px; vertical-align: middle; }
+  .s-failed  { background: #ef4444; }
+  .s-success { background: var(--accent); }
+  .s-removed { background: #d97706; }
+  .s-info    { background: #9ca3af; }
+  .s-audit-off { background: #9ca3af; }
+
+  /* Dedicated status/outcome column pill */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+  }
+  .status-pill.s-failed  { color: #ef4444; border-color: rgba(239, 68, 68, 0.32); }
+  .status-pill.s-success { color: var(--accent); border-color: rgba(79, 156, 132, 0.35); }
+  .status-pill.s-removed { color: #d97706; border-color: rgba(217, 119, 6, 0.32); }
+  .status-pill.s-info    { color: var(--muted); }
+  /* Reset dot background so the pill's own color classes don't override it */
+  .status-pill .status-dot.s-failed  { background: #ef4444; }
+  .status-pill .status-dot.s-success { background: var(--accent); }
+  .status-pill .status-dot.s-removed { background: #d97706; }
+  .status-pill .status-dot.s-info    { background: #9ca3af; }
+
+  /* Audit coverage disclosure (read-only per-type audit status) */
+  .audit-coverage {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    margin-bottom: 16px;
+  }
+  .audit-coverage > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 13px;
+  }
+  .audit-coverage > summary::-webkit-details-marker { display: none; }
+  .ac-caret { font-size: 9px; color: var(--muted); transition: transform 0.15s; }
+  .audit-coverage[open] .ac-caret { transform: rotate(90deg); }
+  .ac-title { font-weight: 600; color: var(--ink); }
+  .ac-sub { color: var(--muted); font-size: 12px; }
+  .ac-body { padding: 0 14px 14px 32px; }
+  .ac-lead { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+  .ac-note { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+  .ac-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ac-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .ac-chip code {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .ac-chip-label { color: var(--ink); }
+
+  .entity-cell { display: flex; flex-direction: column; gap: 1px; }
+  .entity-type { font-size: 13px; color: var(--ink); text-transform: capitalize; }
+  .entity-id { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
+
+  .count-note { margin: 14px 2px 0; font-size: 12px; color: var(--muted); }
+</style>

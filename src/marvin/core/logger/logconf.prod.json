@@ -69,6 +69,9 @@
         ],
         "level": "${LOG_LEVEL}",
         "propagate": false
-      }
+      },
+      "httpx": { "level": "WARNING" },
+      "httpcore": { "level": "WARNING" },
+      "openai": { "level": "WARNING" }
     }
   }

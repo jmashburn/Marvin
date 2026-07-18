@@ -19,6 +19,12 @@ if TYPE_CHECKING:
 
 # Import all necessary DB models
 from marvin.db.models.events import EventNotifierOptionsModel
+from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
+from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
+from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+from marvin.db.models.groups.secrets import WorkspaceSecret
+from marvin.db.models.groups.variables import WorkspaceVariable
 from marvin.db.models.groups import (
     GroupEventNotifierModel,
     # GroupEventNotifierOptionsModel, # This seems unused directly here, group_event_notifier uses it
@@ -34,24 +40,26 @@ from marvin.db.models.users.password_reset import PasswordResetModel
 
 # Import all necessary Pydantic schemas for repository typing
 from marvin.schemas.event.event import EventNotifierOptionsRead
+from marvin.schemas.group.ai_settings import WorkspaceAISettingsRead
+from marvin.schemas.group.email_event_subscription import EmailEventSubscriptionRead
 from marvin.schemas.group import GroupRead
 from marvin.schemas.group.event import (
     GroupEventNotifierRead,
+    NotificationExecutionLogRead,
     # GroupEventNotifierOptionsRead, # Also seems unused directly
 )
 from marvin.schemas.group.invite_token import InviteTokenRead
 from marvin.schemas.group.preferences import GroupPreferencesRead
 from marvin.schemas.group.report import ReportEntryRead, ReportRead
-from marvin.schemas.group.webhook import WebhookRead
+from marvin.schemas.group.secret import WorkspaceSecretRead
+from marvin.schemas.group.variable import WorkspaceVariableRead
+from marvin.schemas.group.webhook import WebhookExecutionLogRead, WebhookRead
 from marvin.schemas.user import LongLiveTokenRead, PrivateUser
 from marvin.schemas.user.password import PrivatePasswordResetToken
 
 # Import base repository types and specialized repositories
 from ._utils import NOT_SET, NotSet  # Sentinel for optional group_id
 from .groups import RepositoryGroup  # Specialized group repository
-from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
-from .users import RepositoryUsers  # Specialized user repository
-from .workspace_members import RepositoryWorkspaceMembers  # Workspace member management
 from .platform import (
     APIClientsRepository,
     AssetsRepository,
@@ -61,10 +69,15 @@ from .platform import (
     EventLogRepository,
     FormsRepository,
     FormSubmissionsRepository,
+    # CODE_GEN_ID: FACTORY_REPO_IMPORTS
+    # END: FACTORY_REPO_IMPORTS
     ResourcesRepository,
     ScheduledTaskExecutionLogRepository,
     ScheduledTasksRepository,
 )
+from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
+from .users import RepositoryUsers  # Specialized user repository
+from .workspace_members import RepositoryWorkspaceMembers  # Workspace member management
 
 # Constants for primary key / lookup key names used in repositories
 PK_ID = "id"  # Standard primary key
@@ -167,6 +180,13 @@ class AllRepositories:
         return RepositoryGroup(self.session, PK_ID, Groups, GroupRead)
 
     @cached_property
+    def workspace_ai_settings(self) -> GroupRepositoryGeneric[WorkspaceAISettingsRead, WorkspaceAISettingsModel]:
+        """Provides access to workspace AI workflow policy settings."""
+        return GroupRepositoryGeneric(
+            self.session, PK_GROUP_ID, WorkspaceAISettingsModel, WorkspaceAISettingsRead, group_id=self.group_id
+        )
+
+    @cached_property
     def group_preferences(self) -> GroupRepositoryGeneric[GroupPreferencesRead, GroupPreferencesModel]:
         """
         Provides access to the repository for `GroupPreferencesModel` entities.
@@ -246,6 +266,29 @@ class AllRepositories:
         return GroupRepositoryGeneric(self.session, PK_ID, GroupWebhooksModel, WebhookRead, group_id=self.group_id)
 
     @cached_property
+    def email_event_subscriptions(self) -> GroupRepositoryGeneric[EmailEventSubscriptionRead, EmailEventSubscriptionModel]:
+        """Provides access to email event subscription records scoped by group."""
+        return GroupRepositoryGeneric(
+            self.session, PK_ID, EmailEventSubscriptionModel, EmailEventSubscriptionRead, group_id=self.group_id
+        )
+
+    def workspace_variables(self) -> GroupRepositoryGeneric[WorkspaceVariableRead, WorkspaceVariable]:
+        """Provides access to workspace-scoped plain-text variables."""
+        return GroupRepositoryGeneric(self.session, PK_ID, WorkspaceVariable, WorkspaceVariableRead, group_id=self.group_id)
+
+    def workspace_secrets(self) -> GroupRepositoryGeneric[WorkspaceSecretRead, WorkspaceSecret]:
+        """Provides access to workspace-scoped secrets (metadata only — no values)."""
+        return GroupRepositoryGeneric(self.session, PK_ID, WorkspaceSecret, WorkspaceSecretRead, group_id=self.group_id)
+
+    def webhook_logs(self) -> GroupRepositoryGeneric[WebhookExecutionLogRead, WebhookExecutionLogModel]:
+        """Provides access to webhook execution logs scoped by group."""
+        return GroupRepositoryGeneric(self.session, PK_ID, WebhookExecutionLogModel, WebhookExecutionLogRead, group_id=self.group_id)
+
+    def notification_logs(self) -> GroupRepositoryGeneric[NotificationExecutionLogRead, NotificationExecutionLogModel]:
+        """Provides access to notification execution logs scoped by group."""
+        return GroupRepositoryGeneric(self.session, PK_ID, NotificationExecutionLogModel, NotificationExecutionLogRead, group_id=self.group_id)
+
+    @cached_property
     def entry_types(self) -> EntryTypesRepository:
         """Provides access to workspace-scoped entry type records."""
         return EntryTypesRepository(self.session, self.group_id)
@@ -308,6 +351,9 @@ class AllRepositories:
     def scheduled_task_executions(self) -> ScheduledTaskExecutionLogRepository:
         """Provides access to workspace-scoped scheduled task execution logs."""
         return ScheduledTaskExecutionLogRepository(self.session, self.group_id)
+
+    # CODE_GEN_ID: FACTORY_REPO_PROPERTIES
+    # END: FACTORY_REPO_PROPERTIES
 
     @cached_property
     def forms(self) -> FormsRepository:

@@ -80,21 +80,24 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
           </div>
 
           <div id="table-view" class="view-section">
+            <p class="reorder-hint">Drag the <span class="grip-inline">⠿</span> handle to reorder. Order is saved automatically.</p>
             <table class="table">
               <thead>
                 <tr>
+                  <th class="drag-col"></th>
                   <th>Icon</th>
                   <th>Name</th>
                   <th>Slug</th>
                   <th>Description</th>
                   <th>Type</th>
-                  <th>Sort Order</th>
+                  <th>Entries</th>
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="reorderable">
                 {sortedCollections.map((collection) => (
-                  <tr class="collection-row" data-type={collection.isSmart ? 'smart' : 'manual'}>
+                  <tr class="collection-row" data-type={collection.isSmart ? 'smart' : 'manual'} data-id={collection.id} draggable="true">
+                    <td class="drag-col"><span class="grip" title="Drag to reorder">⠿</span></td>
                     <td>
                       {collection.icon ? (
                         <span style={`font-size:1.5rem;${collection.color ? `color:${collection.color}` : ''}`}>
@@ -104,22 +107,27 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                         <span class="empty-value">EMPTY</span>
                       )}
                     </td>
-                    <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
+                    <td class="collection-name">{collection.name ? <a href={`/workspace/collections/${collection.id}`} class="name-link"><strong>{collection.name}</strong></a> : <span class="empty-value">EMPTY</span>}</td>
                     <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                     <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
                     <td>
                       <span class="pill">{collection.isSmart ? 'Smart' : 'Manual'}</span>
+                      {collection.isSystem && <span class="pill system-pill">System</span>}
                     </td>
-                    <td>{collection.sortOrder}</td>
+                    <td class="count-cell">{collection.entryCount ?? 0}</td>
                     <td>
-                      <div class="actions">
-                        <a href={`/workspace/collections/${collection.id}`} class="button secondary small">Edit</a>
-                        <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
-                          <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
-                            Delete
-                          </button>
-                        </form>
-                      </div>
+                      {collection.isSystem ? (
+                        <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
+                      ) : (
+                        <div class="actions">
+                          <a href={`/workspace/collections/${collection.id}/edit`} class="button secondary small">Edit</a>
+                          <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
+                            <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
+                              Delete
+                            </button>
+                          </form>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -144,7 +152,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                       <th>Name</th>
                       <th>Slug</th>
                       <th>Description</th>
-                      <th>Sort Order</th>
+                      <th>Entries</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -160,19 +168,23 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                             <span class="empty-value">EMPTY</span>
                           )}
                         </td>
-                        <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
+                        <td class="collection-name">{collection.name ? <a href={`/workspace/collections/${collection.id}`} class="name-link"><strong>{collection.name}</strong></a> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
-                        <td>{collection.sortOrder}</td>
+                        <td class="count-cell">{collection.entryCount ?? 0}</td>
                         <td>
-                          <div class="actions">
-                            <a href={`/workspace/collections/${collection.id}`} class="button secondary small">Edit</a>
-                            <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
-                              <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
-                                Delete
-                              </button>
-                            </form>
-                          </div>
+                          {collection.isSystem ? (
+                            <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
+                          ) : (
+                            <div class="actions">
+                              <a href={`/workspace/collections/${collection.id}/edit`} class="button secondary small">Edit</a>
+                              <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
+                                <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
+                                  Delete
+                                </button>
+                              </form>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -197,7 +209,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                       <th>Name</th>
                       <th>Slug</th>
                       <th>Description</th>
-                      <th>Sort Order</th>
+                      <th>Entries</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -213,19 +225,23 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
                             <span class="empty-value">EMPTY</span>
                           )}
                         </td>
-                        <td class="collection-name">{collection.name ? <strong>{collection.name}</strong> : <span class="empty-value">EMPTY</span>}</td>
+                        <td class="collection-name">{collection.name ? <a href={`/workspace/collections/${collection.id}`} class="name-link"><strong>{collection.name}</strong></a> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.slug ? <code>{collection.slug}</code> : <span class="empty-value">EMPTY</span>}</td>
                         <td>{collection.description || <span class="empty-value">EMPTY</span>}</td>
-                        <td>{collection.sortOrder}</td>
+                        <td class="count-cell">{collection.entryCount ?? 0}</td>
                         <td>
-                          <div class="actions">
-                            <a href={`/workspace/collections/${collection.id}`} class="button secondary small">Edit</a>
-                            <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
-                              <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
-                                Delete
-                              </button>
-                            </form>
-                          </div>
+                          {collection.isSystem ? (
+                            <span class="locked-note" title="System workflow collection — managed by Marvin">🔒 Locked</span>
+                          ) : (
+                            <div class="actions">
+                              <a href={`/workspace/collections/${collection.id}/edit`} class="button secondary small">Edit</a>
+                              <form method="POST" action={`/api/collections/${collection.id}/delete`} style="display:inline;">
+                                <button type="submit" class="button secondary small danger" onclick="return confirm('Delete this collection?')">
+                                  Delete
+                                </button>
+                              </form>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -290,6 +306,65 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
 
   searchInput?.addEventListener('input', filterCollections);
   typeFilter?.addEventListener('change', filterCollections);
+
+  // Drag-and-drop reordering (table view). Persists sort_order via /api/collections/reorder.
+  const reorderable = document.getElementById('reorderable');
+  if (reorderable) {
+    let dragging: HTMLElement | null = null;
+
+    reorderable.querySelectorAll('.collection-row').forEach((row) => {
+      const el = row as HTMLElement;
+      el.addEventListener('dragstart', (e) => {
+        dragging = el;
+        el.classList.add('dragging');
+        (e as DragEvent).dataTransfer!.effectAllowed = 'move';
+      });
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        dragging = null;
+        persistOrder();
+      });
+    });
+
+    reorderable.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!dragging) return;
+      const after = rowAfterCursor(reorderable, (e as DragEvent).clientY);
+      if (after == null) reorderable.appendChild(dragging);
+      else reorderable.insertBefore(dragging, after);
+    });
+  }
+
+  function rowAfterCursor(container: HTMLElement, y: number): HTMLElement | null {
+    const rows = Array.from(
+      container.querySelectorAll('.collection-row:not(.dragging)')
+    ) as HTMLElement[];
+    let closest: { offset: number; el: HTMLElement | null } = { offset: -Infinity, el: null };
+    for (const row of rows) {
+      const box = row.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) closest = { offset, el: row };
+    }
+    return closest.el;
+  }
+
+  let saveTimer: ReturnType<typeof setTimeout>;
+  function persistOrder() {
+    const rows = Array.from(document.querySelectorAll('#reorderable .collection-row')) as HTMLElement[];
+    const order = rows
+      .map((r, i) => ({ id: r.dataset.id, sortOrder: i }))
+      .filter((o) => o.id);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      fetch('/api/collections/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+      })
+        .then((r) => { if (!r.ok) console.error('[collections] reorder failed', r.status); })
+        .catch((e) => console.error('[collections] reorder error', e));
+    }, 300);
+  }
 </script>
 
 <style>
@@ -460,5 +535,63 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
     background: var(--panel-2);
     padding: 0.125rem 0.5rem;
     border-radius: 10px;
+  }
+
+  .reorder-hint {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .drag-col {
+    width: 28px;
+    text-align: center;
+  }
+
+  .grip,
+  .grip-inline {
+    color: var(--muted);
+    font-size: 1rem;
+    letter-spacing: -2px;
+  }
+
+  .grip {
+    cursor: grab;
+    user-select: none;
+  }
+
+  .grip:active {
+    cursor: grabbing;
+  }
+
+  .collection-row.dragging {
+    opacity: 0.5;
+    background: var(--panel-2);
+  }
+
+  .system-pill {
+    margin-left: 0.35rem;
+    background: var(--panel-2);
+    color: var(--muted);
+  }
+
+  .locked-note {
+    font-size: 0.8125rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .count-cell {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+
+  .name-link {
+    color: inherit;
+    text-decoration: none;
+  }
+  .name-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 </style>

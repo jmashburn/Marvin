@@ -1,5 +1,8 @@
 """Workspace exporter for dumping workspace data to JSON format."""
 
+import json
+import zipfile
+from pathlib import Path
 from typing import Any
 
 from marvin.core.root_logger import get_logger
@@ -58,6 +61,52 @@ class WorkspaceExporter:
         )
 
         return export_data
+
+    def export_workspace_bundle(self, include_system_types: bool = False, temp_dir: Path | None = None) -> Path:
+        """Export workspace metadata + all asset binaries into a zip bundle.
+
+        Args:
+            include_system_types: Whether to include system entry types
+            temp_dir: Directory to write the zip file into (defaults to system temp)
+
+        Returns:
+            Path to the created zip file
+        """
+        import secrets
+        from datetime import date
+
+        from marvin.services.storage.provider_factory import get_storage_provider
+
+        export_data = self.export_workspace(include_system_types=include_system_types)
+
+        workspace = self.repos.groups.get_one(self.repos.group_id)
+        workspace_slug = workspace.slug if workspace else "workspace"
+
+        if temp_dir is None:
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir())
+
+        token = secrets.token_hex(8)
+        basename = f"{workspace_slug}-backup-{date.today().isoformat()}-{token}"
+        zip_path = temp_dir / f"{basename}.zip"
+        storage_provider = get_storage_provider()
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            json_content = json.dumps(export_data, indent=2, ensure_ascii=False)
+            zf.writestr(f"{basename}.json", json_content)
+
+            for asset in export_data["assets"]:
+                storage_key = asset["storageKey"]
+                try:
+                    file_data = storage_provider.get(storage_key)
+                    zf.writestr(f"files/{storage_key}", file_data.read())
+                except FileNotFoundError:
+                    self.logger.warning(f"Asset binary missing from storage, skipping binary: {storage_key}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to read asset {storage_key}: {e}")
+
+        self.logger.info(f"Bundle exported to: {zip_path}")
+        return zip_path
 
     def _export_workspace_metadata(self) -> dict[str, Any]:
         """Export workspace metadata.
@@ -185,6 +234,9 @@ class WorkspaceExporter:
                     "description": et.description,
                     "sortOrder": et.sort_order,
                     "schemaJson": et.content_schema,
+                    "renderingJson": et.rendering,
+                    "capabilitiesJson": et.capabilities,
+                    "recipeJson": et.recipe,
                 }
             )
 
@@ -293,10 +345,8 @@ class WorkspaceExporter:
                 entry_asset = {"slug": asset.slug, "position": assignment.position}
                 if assignment.role:
                     entry_asset["role"] = assignment.role
-                if assignment.caption:
-                    entry_asset["caption"] = assignment.caption
-                if assignment.focal_point:
-                    entry_asset["focalPoint"] = assignment.focal_point
+                if assignment.metadata_json:
+                    entry_asset["metadataJson"] = assignment.metadata_json
                 assets_data.append(entry_asset)
 
         return assets_data
@@ -321,10 +371,8 @@ class WorkspaceExporter:
                 entry_resource = {"slug": resource.slug, "position": assignment.position}
                 if assignment.role:
                     entry_resource["role"] = assignment.role
-                if assignment.quantity:
-                    entry_resource["quantity"] = assignment.quantity
-                if assignment.unit:
-                    entry_resource["unit"] = assignment.unit
+                if assignment.metadata_json:
+                    entry_resource["metadataJson"] = assignment.metadata_json
                 resources_data.append(entry_resource)
 
         return resources_data
@@ -364,8 +412,8 @@ class WorkspaceExporter:
                 asset_dict["altText"] = asset.alt_text
             if asset.description:
                 asset_dict["description"] = asset.description
-            if asset.metadata_:
-                asset_dict["metadataJson"] = asset.metadata_
+            if asset.metadata_json:
+                asset_dict["metadataJson"] = asset.metadata_json
 
             exported.append(asset_dict)
 
@@ -396,8 +444,8 @@ class WorkspaceExporter:
                 resource_dict["url"] = resource.url
             if resource.external_id:
                 resource_dict["externalId"] = resource.external_id
-            if resource.metadata_:
-                resource_dict["metadataJson"] = resource.metadata_
+            if resource.metadata_json:
+                resource_dict["metadataJson"] = resource.metadata_json
 
             exported.append(resource_dict)
 

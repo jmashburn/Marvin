@@ -3,13 +3,14 @@
 from datetime import datetime
 from typing import Annotated, TYPE_CHECKING
 
-from pydantic import ConfigDict, StringConstraints, UUID4, field_validator, field_serializer, Field, AliasChoices
+from pydantic import BaseModel, ConfigDict, StringConstraints, UUID4, field_validator, field_serializer, model_validator, Field, AliasChoices
 
 from marvin.schemas._marvin import _MarvinModel
 
 if TYPE_CHECKING:
     from .assets import EntryAssetRead
-    from .resources import ResourceSummary
+    from .collections import EntryCollectionRead
+    from .resources import EntryResourceRead
 
 ENTRY_STATUSES = {
     "inbox",
@@ -20,6 +21,26 @@ ENTRY_STATUSES = {
     "published",
     "archived",
 }
+
+
+class AssetAttachment(BaseModel):
+    asset_id: UUID4
+    role: str | None = None
+    position: int | None = None
+    metadata: dict | None = None
+
+
+class ResourceAttachment(BaseModel):
+    resource_id: UUID4
+    role: str | None = None
+    position: int | None = None
+    metadata: dict | None = None
+
+
+class CollectionAttachment(BaseModel):
+    collection_id: UUID4
+    role: str | None = None
+    metadata: dict | None = None
 
 
 class EntryCreate(_MarvinModel):
@@ -49,8 +70,11 @@ class EntryCreate(_MarvinModel):
         serialization_alias="metadataJson",
     )
     collection_ids: list[UUID4] | None = None
+    collection_attachments: list[CollectionAttachment] | None = None
     asset_ids: list[UUID4] | None = None
     resource_ids: list[UUID4] | None = None
+    asset_attachments: list[AssetAttachment] | None = None
+    resource_attachments: list[ResourceAttachment] | None = None
 
     @field_validator("status")
     @classmethod
@@ -58,6 +82,16 @@ class EntryCreate(_MarvinModel):
         if value not in ENTRY_STATUSES:
             raise ValueError(f"status must be one of: {', '.join(sorted(ENTRY_STATUSES))}")
         return value
+
+    @model_validator(mode="after")
+    def check_no_ambiguous_attachments(self):
+        if self.asset_ids and self.asset_attachments:
+            raise ValueError("Provide asset_ids or asset_attachments, not both")
+        if self.resource_ids and self.resource_attachments:
+            raise ValueError("Provide resource_ids or resource_attachments, not both")
+        if self.collection_ids and self.collection_attachments:
+            raise ValueError("Provide collection_ids or collection_attachments, not both")
+        return self
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -89,8 +123,15 @@ class EntryUpdate(_MarvinModel):
         serialization_alias="metadataJson",
     )
     collection_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("collection_ids", "collectionIds"))
+    collection_attachments: list[CollectionAttachment] | None = Field(
+        default=None, validation_alias=AliasChoices("collection_attachments", "collectionAttachments")
+    )
     asset_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("asset_ids", "assetIds"))
     resource_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("resource_ids", "resourceIds"))
+    asset_attachments: list[AssetAttachment] | None = Field(default=None, validation_alias=AliasChoices("asset_attachments", "assetAttachments"))
+    resource_attachments: list[ResourceAttachment] | None = Field(
+        default=None, validation_alias=AliasChoices("resource_attachments", "resourceAttachments")
+    )
 
     @field_validator("status")
     @classmethod
@@ -106,6 +147,16 @@ class EntryUpdate(_MarvinModel):
         if value == "":
             return None
         return value
+
+    @model_validator(mode="after")
+    def check_no_ambiguous_attachments(self):
+        if self.asset_ids and self.asset_attachments:
+            raise ValueError("Provide asset_ids or asset_attachments, not both")
+        if self.resource_ids and self.resource_attachments:
+            raise ValueError("Provide resource_ids or resource_attachments, not both")
+        if self.collection_ids and self.collection_attachments:
+            raise ValueError("Provide collection_ids or collection_attachments, not both")
+        return self
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -138,19 +189,36 @@ class EntryRead(_MarvinModel):
         description="Custom non-schema metadata",
         serialization_alias="metadataJson",
     )
+    suggestion_json: dict | None = Field(
+        default=None,
+        description="Pending AI-proposed changes staged for review (write-back)",
+        serialization_alias="suggestionJson",
+    )
     created_by: UUID4 | None = None
     created_at: datetime | None = None
     update_at: datetime | None = None
-    resources: list["ResourceSummary"] = []
-    """Resources referenced by this entry."""
+    resources: list["EntryResourceRead"] = []
+    """Resources referenced by this entry with placement info."""
     assets: list["EntryAssetRead"] = []
     """Assets included in this entry with placement info."""
-    collections: list[UUID4] = []
-    """Collection IDs this entry belongs to."""
+    collections: list["EntryCollectionRead"] = []
+    """Collections this entry belongs to, with placement info."""
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def loader_options(cls):
+        from sqlalchemy.orm import joinedload
+
+        from marvin.db.models.platform import Entries, EntryAssets, EntryCollections, EntryResources
+
+        return [
+            joinedload(Entries.entry_collections).joinedload(EntryCollections.collection),
+            joinedload(Entries.entry_assets).joinedload(EntryAssets.asset),
+            joinedload(Entries.entry_resources).joinedload(EntryResources.resource),
+        ]
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
@@ -162,6 +230,26 @@ class EntryRead(_MarvinModel):
                 data["collections"] = [c.id for c in obj.collections]
 
         if hasattr(obj, "entry_collections") and obj.entry_collections:
+            from marvin.schemas.platform.collections import EntryCollectionRead
+
+            collections = []
+            for junction in obj.entry_collections:
+                if hasattr(junction, "collection") and junction.collection:
+                    c = junction.collection
+                    collections.append(
+                        EntryCollectionRead(
+                            id=c.id,
+                            name=c.name,
+                            slug=c.slug,
+                            icon=c.icon,
+                            color=c.color,
+                            role=junction.role,
+                            placement_metadata=junction.metadata_json,
+                            sort_order=junction.sort_order,
+                        )
+                    )
+            data["collections"] = collections
+
             if obj.entry_collections and hasattr(obj.entry_collections[0], "sort_order"):
                 data["order"] = obj.entry_collections[0].sort_order
 
@@ -175,12 +263,25 @@ class EntryRead(_MarvinModel):
                         **{k: getattr(junction.asset, k, None) for k in EntryAssetRead.model_fields if hasattr(junction.asset, k)},
                         "role": junction.role,
                         "position": junction.position,
-                        "focal_point": junction.focal_point,
-                        "caption": junction.caption,
-                        "placement_metadata": junction.metadata_,
+                        "placement_metadata": junction.metadata_json,
                     }
                     assets.append(asset_data)
             data["assets"] = assets
+
+        if hasattr(obj, "entry_resources") and obj.entry_resources:
+            from marvin.schemas.platform.resources import EntryResourceRead
+
+            resources = []
+            for junction in obj.entry_resources:
+                if hasattr(junction, "resource") and junction.resource:
+                    resource_data = {
+                        **{k: getattr(junction.resource, k, None) for k in EntryResourceRead.model_fields if hasattr(junction.resource, k)},
+                        "role": junction.role,
+                        "position": junction.position,
+                        "placement_metadata": junction.metadata_json,
+                    }
+                    resources.append(resource_data)
+            data["resources"] = resources
 
         return super().model_validate(data, **kwargs)
 

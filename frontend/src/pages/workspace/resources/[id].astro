@@ -124,16 +124,16 @@ if (!id) {
               rows="6"
               placeholder='{"key": "value"}'
               class="metadata-editor"
-            >{resource.metadata ? JSON.stringify(resource.metadata, null, 2) : ""}</textarea>
+            >{resource.metadataJson ? JSON.stringify(resource.metadataJson, null, 2) : ""}</textarea>
             <small style="font-size: 11px; color: var(--muted);">
               Must be valid JSON. Example: {`{"supplier_code": "ABC123", "contact": "john@example.com"}`}
             </small>
 
-            {resource.metadata && Object.keys(resource.metadata).length > 0 && (
+            {resource.metadataJson && Object.keys(resource.metadataJson).length > 0 && (
               <div class="metadata-preview">
                 <p class="metadata-preview-title">Current Metadata:</p>
                 <dl class="metadata-preview-list">
-                  {Object.entries(resource.metadata).map(([key, value]) => (
+                  {Object.entries(resource.metadataJson).map(([key, value]) => (
                     <div class="metadata-preview-item">
                       <dt>{key}</dt>
                       <dd>{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</dd>
@@ -244,7 +244,7 @@ if (!id) {
           url: url?.trim() || null,
           externalId: externalId?.trim() || null,
           description: description?.trim() || null,
-          metadata: metadata,
+          metadataJson: metadata,
         });
 
         // Redirect back to resources list

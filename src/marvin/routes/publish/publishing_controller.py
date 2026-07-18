@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from marvin.core.config import get_app_settings
+from marvin.services.storage.provider_factory import get_storage_provider
 from marvin.core.dependencies import get_publishing_context
 from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
@@ -36,6 +37,7 @@ from marvin.schemas.publishing import (
     PublishedCollectionSummary,
     PublishedEntriesResponse,
     PublishedEntryAsset,
+    PublishedEntryCollection,
     PublishedEntryListItem,
     PublishedEntryRead,
     PublishedEntryResource,
@@ -105,10 +107,10 @@ def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAss
         file_size=ea.asset.file_size,
         width=ea.asset.width,
         height=ea.asset.height,
-        alt_text=ea.asset.alt_text or ea.caption,
+        alt_text=ea.asset.alt_text,
         description=ea.asset.description,
-        public_url=ea.asset.public_url or f"/api/publish/{workspace_slug}/assets/{ea.asset.slug}/file",
-        metadata=ea.asset.metadata_,
+        public_url=get_storage_provider().get_public_url(ea.asset.storage_key),
+        metadata=ea.asset.metadata_json,
     )
 
 
@@ -138,7 +140,22 @@ def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool
     Returns:
         PublishedEntryListItem with populated relationships
     """
-    collection_slugs = [ec.collection.slug for ec in entry.entry_collections if ec.collection]
+    collections = [
+        PublishedEntryCollection(
+            role=ec.role,
+            position=ec.sort_order,
+            metadata=ec.metadata_json,
+            collection=PublishedCollectionSummary(
+                slug=ec.collection.slug,
+                name=ec.collection.name,
+                description=ec.collection.description,
+                metadata=ec.collection.metadata_json,
+                sort_order=ec.collection.sort_order,
+            ),
+        )
+        for ec in entry.entry_collections
+        if ec.collection and ec.collection.is_public
+    ]
     asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
     resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
 
@@ -149,7 +166,7 @@ def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool
         "entry_type_info": _build_entry_type_info(entry),
         "summary": entry.summary,
         "published_at": entry.published_at,
-        "collections": collection_slugs,
+        "collections": collections,
         "assets": asset_slugs,
         "resources": resource_slugs,
         "metadata": entry.metadata_json,
@@ -476,30 +493,33 @@ async def get_published_entry(
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
 
-    # Get collections with full details
+    # Get collections with junction context + collection data
     collections = [
-        PublishedCollectionSummary(
-            slug=ec.collection.slug,
-            name=ec.collection.name,
-            description=ec.collection.description,
-            is_smart=ec.collection.is_smart,
-            smart_rules=ec.collection.smart_rules,
-            metadata=ec.collection.metadata_json,
-            entry_count=0,  # Not needed in entry context
-            sort_order=ec.collection.sort_order,
-            icon=ec.collection.icon,
-            color=ec.collection.color,
+        PublishedEntryCollection(
+            role=ec.role,
+            position=ec.sort_order,
+            metadata=ec.metadata_json,
+            collection=PublishedCollectionSummary(
+                slug=ec.collection.slug,
+                name=ec.collection.name,
+                description=ec.collection.description,
+                is_smart=ec.collection.is_smart,
+                smart_rules=ec.collection.smart_rules,
+                metadata=ec.collection.metadata_json,
+                entry_count=0,
+                sort_order=ec.collection.sort_order,
+                icon=ec.collection.icon,
+                color=ec.collection.color,
+            ),
         )
         for ec in entry.entry_collections
-        if ec.collection
+        if ec.collection and ec.collection.is_public
     ]
 
     # Get resources for this entry (wrapped with relationship context)
     resources = [
         PublishedEntryResource(
             role=er.role,
-            quantity=er.quantity,
-            unit=er.unit,
             position=er.position,
             metadata=er.metadata_json,
             resource=PublishedResourceSummary(
@@ -509,7 +529,7 @@ async def get_published_entry(
                 description=er.resource.description,
                 url=er.resource.url,
                 external_id=er.resource.external_id,
-                metadata=er.resource.metadata_,
+                metadata=er.resource.metadata_json,
             ),
         )
         for er in entry.entry_resources
@@ -521,9 +541,7 @@ async def get_published_entry(
         PublishedEntryAsset(
             role=ea.role,
             position=ea.position,
-            focal_point=ea.focal_point,
-            caption=ea.caption,
-            metadata=ea.metadata_,
+            metadata=ea.metadata_json,
             asset=_build_published_asset(ea, group.slug),
         )
         for ea in entry.entry_assets
@@ -571,13 +589,17 @@ async def list_published_collections(
     # Require permission to read collections
     perms.require_permission(Permissions.READ_COLLECTIONS, "collections")
 
-    # Get total count
-    total = session.query(Collections).filter(Collections.group_id == group.id).count()
+    # Get total count (public collections only — system/internal collections are never published)
+    total = (
+        session.query(Collections)
+        .filter(Collections.group_id == group.id, Collections.is_public == True)  # noqa: E712
+        .count()
+    )
 
-    # Get paginated collections for this workspace
+    # Get paginated collections for this workspace (public only)
     collections = (
         session.query(Collections)
-        .filter(Collections.group_id == group.id)
+        .filter(Collections.group_id == group.id, Collections.is_public == True)  # noqa: E712
         .order_by(Collections.sort_order, Collections.name)
         .limit(limit)
         .offset(offset)
@@ -668,12 +690,13 @@ async def get_published_collection(
     # Require permission to read collections
     perms.require_permission(Permissions.READ_COLLECTIONS, "collection")
 
-    # Get collection
+    # Get collection (public only — system/internal collections are not published)
     collection = (
         session.query(Collections)
         .filter(
             Collections.group_id == group.id,
             Collections.slug == collection_slug,
+            Collections.is_public == True,  # noqa: E712
         )
         .first()
     )
@@ -768,6 +791,7 @@ async def list_published_assets(
     assets = query.order_by(Assets.name).offset(offset).limit(limit).all()
 
     # Convert to response schema
+    provider = get_storage_provider()
     data = []
     for asset in assets:
         # Get published entry slugs that use this asset
@@ -784,8 +808,8 @@ async def list_published_assets(
                 height=asset.height,
                 alt_text=asset.alt_text,
                 description=asset.description,
-                public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
-                metadata=asset.metadata_,
+                public_url=provider.get_public_url(asset.storage_key),
+                metadata=asset.metadata_json,
                 entries=entry_slugs,
             )
         )
@@ -859,8 +883,8 @@ async def get_published_asset(
         height=asset.height,
         alt_text=asset.alt_text,
         description=asset.description,
-        public_url=asset.public_url or f"/api/publish/{group.slug}/assets/{asset.slug}/file",
-        metadata=asset.metadata_,
+        public_url=get_storage_provider().get_public_url(asset.storage_key),
+        metadata=asset.metadata_json,
         entries=entry_slugs,
     )
 
@@ -908,16 +932,7 @@ async def serve_asset_file(
     if not asset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
-    # For local storage, redirect to the static file URL
-    if asset.storage_provider == "local":
-        return RedirectResponse(url=f"/assets/{asset.storage_key}")
-
-    # For S3 or other providers, use the public_url if available
-    if asset.public_url:
-        return RedirectResponse(url=asset.public_url)
-
-    # Fallback error
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Asset file URL not available")
+    return RedirectResponse(url=get_storage_provider().get_public_url(asset.storage_key))
 
 
 @router.get(
@@ -981,7 +996,7 @@ async def list_published_resources(
                 description=resource.description,
                 url=resource.url,
                 external_id=resource.external_id,
-                metadata=resource.metadata_,
+                metadata=resource.metadata_json,
                 entries=entry_slugs,
             )
         )
@@ -1049,7 +1064,7 @@ async def get_published_resource(
         description=resource.description,
         url=resource.url,
         external_id=resource.external_id,
-        metadata=resource.metadata_,
+        metadata=resource.metadata_json,
         entries=entry_slugs,
     )
 

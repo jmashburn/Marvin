@@ -1,9 +1,10 @@
 """Email template management controller for workspace-scoped email templates."""
 
 from functools import cached_property
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import UUID4
+from pydantic import UUID4, BaseModel, EmailStr
 
 from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
@@ -14,7 +15,6 @@ from marvin.schemas.group.email_template import (
     EmailTemplateSummary,
     EmailTemplateUpdate,
 )
-from pydantic import BaseModel, EmailStr
 from marvin.services.event_bus_service.event_types import EventOperation, EventTypes
 
 router = APIRouter(prefix="/platform/workspaces/{group_id}/email-templates", route_class=MarvinCrudRoute)
@@ -69,14 +69,99 @@ class EmailTemplateController(BaseUserController):
         from marvin.db.models.groups.email_templates import EmailTemplateModel
         from sqlalchemy import or_
 
-        # Query workspace templates + system templates in one query
-        templates = (
+        all_templates = (
             self.repos.session.query(EmailTemplateModel)
             .filter(or_(EmailTemplateModel.group_id == group_id, EmailTemplateModel.group_id.is_(None)))
+            .order_by(EmailTemplateModel.template_type, EmailTemplateModel.group_id.nullslast())
             .all()
         )
 
-        return [EmailTemplateSummary.model_validate(t) for t in templates]
+        # Show all — system + workspace overrides. User enables the one they want active.
+        # If a workspace override exists, auto-disable the system template visually
+        # (the email service already prefers workspace templates over system ones).
+        return [EmailTemplateSummary.model_validate(t) for t in all_templates]
+
+    @router.get("/event-connections", summary="Get System Email Event Connections")
+    def get_event_connections(self, group_id: UUID4) -> list[dict]:
+        """Return the event connection state for all system email template types.
+
+        For each entry in SYSTEM_TEMPLATE_EVENT_MAP, returns whether the system template
+        exists, whether a workspace template override is active, and the subscription ID
+        (if any) for the workspace template.
+        """
+        self._check_workspace_access(group_id)
+
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
+        from marvin.services.email.system_email_events import SYSTEM_TEMPLATE_EVENT_MAP
+        from sqlalchemy import and_
+
+        session = self.repos.session
+        result = []
+
+        for template_type, mapping in SYSTEM_TEMPLATE_EVENT_MAP.items():
+            # Find system template (group_id IS NULL)
+            system_tmpl = (
+                session.query(EmailTemplateModel)
+                .filter(
+                    EmailTemplateModel.template_type == template_type,
+                    EmailTemplateModel.group_id.is_(None),
+                )
+                .first()
+            )
+
+            # Find workspace template (group_id = this workspace)
+            workspace_tmpl = (
+                session.query(EmailTemplateModel)
+                .filter(
+                    EmailTemplateModel.template_type == template_type,
+                    EmailTemplateModel.group_id == group_id,
+                )
+                .first()
+            )
+
+            # Find active subscription for the workspace template (if any)
+            subscription = None
+            if workspace_tmpl:
+                subscription = (
+                    session.query(EmailEventSubscriptionModel)
+                    .filter(
+                        EmailEventSubscriptionModel.template_id == workspace_tmpl.id,
+                        EmailEventSubscriptionModel.event_type == mapping["event_type"],
+                    )
+                    .first()
+                )
+
+            import uuid as _uuid
+
+            def _fmt(raw) -> str | None:
+                """Return UUID with dashes to match Pydantic UUID4 serialisation."""
+                if raw is None:
+                    return None
+                s = str(raw).replace("-", "")
+                try:
+                    return str(_uuid.UUID(s))
+                except ValueError:
+                    return str(raw)
+
+            result.append({
+                "template_type": template_type,
+                "event_type": mapping["event_type"],
+                "recipient_type": mapping["recipient_type"],
+                "recipient_field": mapping.get("recipient_field"),
+                "system_template": (
+                    {"id": _fmt(system_tmpl.id), "name": system_tmpl.name}
+                    if system_tmpl else None
+                ),
+                "workspace_template": (
+                    {"id": _fmt(workspace_tmpl.id), "name": workspace_tmpl.name}
+                    if workspace_tmpl else None
+                ),
+                "subscription_id": _fmt(subscription.id) if subscription else None,
+                "has_workspace_override": subscription is not None,
+            })
+
+        return result
 
     @router.get("/{template_id}", response_model=EmailTemplateRead, summary="Get Email Template")
     def get_template(self, group_id: UUID4, template_id: UUID4) -> EmailTemplateRead:
@@ -130,16 +215,13 @@ class EmailTemplateController(BaseUserController):
         from marvin.db.models.groups.email_templates import EmailTemplateModel
 
         # Create model instance - id and timestamps will auto-generate
-        template = EmailTemplateModel()
+        template = EmailTemplateModel(session=self.repos.session)
         template.group_id = group_id
         template.template_type = data.template_type
         template.name = data.name
         template.subject = data.subject
         template.description = data.description
-        template.header_text = data.header_text
-        template.message_top = data.message_top
-        template.message_bottom = data.message_bottom
-        template.button_text = data.button_text
+        template.body_markdown = data.body_markdown
         template.custom_html = data.custom_html
         template.available_variables = data.available_variables
         template.enabled = data.enabled if data.enabled is not None else True
@@ -147,6 +229,37 @@ class EmailTemplateController(BaseUserController):
         self.repos.session.add(template)
         self.repos.session.commit()
         self.repos.session.refresh(template)
+
+        # Auto-connect only if no workspace template of this type is already connected
+        from marvin.services.email.system_email_events import SYSTEM_TEMPLATE_EVENT_MAP
+        from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
+        from marvin.db.models.groups.email_templates import EmailTemplateModel as _ETM
+        from sqlalchemy import and_
+
+        sys_mapping = SYSTEM_TEMPLATE_EVENT_MAP.get(template.template_type)
+        if sys_mapping:
+            already_connected = (
+                self.repos.session.query(EmailEventSubscriptionModel)
+                .join(_ETM, EmailEventSubscriptionModel.template_id == _ETM.id)
+                .filter(
+                    EmailEventSubscriptionModel.group_id == group_id,
+                    EmailEventSubscriptionModel.event_type == sys_mapping["event_type"],
+                    _ETM.template_type == template.template_type,
+                    _ETM.group_id == group_id,
+                )
+                .first()
+            )
+            if not already_connected:
+                sub = EmailEventSubscriptionModel(session=self.repos.session)
+                sub.group_id = group_id
+                sub.template_id = template.id
+                sub.event_type = sys_mapping["event_type"]
+                sub.recipient_type = sys_mapping["recipient_type"]
+                sub.recipient_field = sys_mapping.get("recipient_field")
+                sub.recipient_email = sys_mapping.get("recipient_email")
+                sub.enabled = True
+                self.repos.session.add(sub)
+                self.repos.session.commit()
 
         # Dispatch event
         self.event_bus.dispatch(
@@ -289,11 +402,21 @@ class EmailTemplateController(BaseUserController):
 
         email_service = EmailService()
 
-        # Build test variables
+        # Build test variables covering all system template types
         test_variables = {
             "workspace_name": "Test Workspace",
-            "button_link": self.settings.BASE_URL,
-            "invitation_url": str(self.settings.BASE_URL),
+            "inviter_name": "A Teammate",
+            "invitee_email": data.recipient_email,
+            "invitation_url": f"{self.settings.BASE_URL}/register?token=test",
+            "reset_url": f"{self.settings.BASE_URL}/reset-password/?token=test",
+            "login_url": str(self.settings.BASE_URL),
+            "button_link": str(self.settings.BASE_URL),
+            "username": "testuser",
+            "first_name": "Test",
+            "email": data.recipient_email,
+            "email_address": data.recipient_email,
+            "message_title": "Test Email",
+            "message_body": "This is a test email from Marvin.",
         }
 
         try:

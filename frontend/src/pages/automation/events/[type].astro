@@ -1,0 +1,1377 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { listEmailTemplates } from "@/lib/api/emailTemplates";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+const { type } = Astro.params;
+
+let eventInfo: any = null;
+let emailTemplates: any[] = [];
+let emailSubscriptions: any[] = [];
+let eventConnections: any[] = [];
+let webhooks: any[] = [];
+let notifications: any[] = [];
+let error: string | null = null;
+let wsId: string | null = null;
+
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+
+try {
+  const allTypes = await sdk.events.getOptions() as any[];
+  eventInfo = allTypes.find((e: any) => e.value === type) || null;
+
+  if (!eventInfo) {
+    return Astro.redirect('/automation/events');
+  }
+
+  const workspace = await getCurrentWorkspace(authToken!);
+  wsId = workspace?.id ?? null;
+
+  const emailSubsRes = await fetchApi<any[]>('/api/groups/email-event-subscriptions', {}, authToken).catch(() => []);
+  emailSubscriptions = Array.isArray(emailSubsRes) ? emailSubsRes : [];
+
+  const [emailRes, webhookRes, notifRes] = await Promise.all([
+    wsId ? listEmailTemplates(wsId, authToken).catch(() => []) : Promise.resolve([]),
+    sdk.webhooks.list().catch(() => []),
+    sdk.notifications.list().catch(() => ({ items: [] })),
+  ]);
+  emailTemplates = Array.isArray(emailRes) ? emailRes : (emailRes as any)?.items ?? [];
+  webhooks = Array.isArray(webhookRes) ? webhookRes : (webhookRes as any)?.items ?? [];
+  notifications = Array.isArray(notifRes) ? notifRes : (notifRes as any)?.items ?? [];
+
+  // Fetch event-connections to show system template row
+  if (wsId) {
+    try {
+      const connRes = await fetchApi<any[]>(`/api/platform/workspaces/${wsId}/email-templates/event-connections`, {}, authToken).catch(() => []);
+      if (Array.isArray(connRes)) {
+        (eventConnections as any[]).push(...connRes);
+      }
+    } catch { /* non-fatal */ }
+  }
+} catch (e) {
+  console.error('[events/type] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+function buildExamplePayload(eventType: string, variables: any[]): object {
+  const varExamples: Record<string, string> = {};
+  for (const v of variables || []) varExamples[v.slug] = v.example || `<${v.slug}>`;
+  return {
+    eventType,
+    eventId: "evt_a1b2c3d4-...",
+    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    workspaceId: "<workspace-uuid>",
+    message: { title: eventType.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()), body: eventType },
+    documentData: varExamples,
+    userId: "<user-uuid>",
+  };
+}
+
+// Use real payload structure from the API if available, else fall back to client builder
+const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables || []) : {});
+---
+
+<AppLayout title={eventInfo ? eventInfo.label : 'Event'} eyebrow="Events">
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : eventInfo ? (
+    <>
+      <div class="page-header">
+        <div class="breadcrumb">
+          <a href="/automation/events">Events</a>
+          <span>›</span>
+          <span>{eventInfo.label}</span>
+        </div>
+        <div class="event-meta">
+          <h2>{eventInfo.label}</h2>
+          <span class="event-category">{eventInfo.category}</span>
+        </div>
+        {eventInfo.description && (
+          <p class="event-description">{eventInfo.description}</p>
+        )}
+        <code class="event-type-code">{type}</code>
+      </div>
+
+      <div class="subscriptions">
+        <section class="sub-section">
+          <div class="sub-header">
+            <h3>Email Templates</h3>
+            <p>Send an email when this event fires</p>
+          </div>
+          <div class="sub-options">
+            {(() => {
+              const sysCon = eventConnections.find((c: any) => c.event_type === type);
+              return sysCon ? (
+                <div class="sub-option sub-option-connected">
+                  <div class="sub-option-info">
+                    <div class="sub-option-name-row">
+                      <span class="connected-check">&#10003;</span>
+                      <strong>{sysCon.has_workspace_override ? (sysCon.workspace_template?.name ?? sysCon.system_template?.name) : sysCon.system_template?.name}</strong>
+                      {sysCon.has_workspace_override ? (
+                        <span class="badge-inline badge-custom">Custom</span>
+                      ) : (
+                        <span class="badge-inline badge-system-sm">System</span>
+                      )}
+                    </div>
+                    <code class="sub-type">{sysCon.template_type}</code>
+                  </div>
+                  <div class="sub-option-actions">
+                    {sysCon.has_workspace_override ? (
+                      <>
+                        <a href={`/workspace/settings/email/${sysCon.workspace_template?.id}`} class="button small secondary">Edit</a>
+                        <button type="button" class="button small secondary danger disconnect-email-btn" data-subscription-id={sysCon.subscription_id ?? ''}>Disconnect</button>
+                      </>
+                    ) : (
+                      <a href={`/workspace/settings/email?customize=${sysCon.system_template?.id}`} class="button small secondary">Customize</a>
+                    )}
+                  </div>
+                </div>
+              ) : null;
+            })()}
+            {emailTemplates.filter((t: any) => !!(( t as any).groupId ?? t.group_id)).map((t: any) => {
+              const tplType = (t as any).templateType ?? t.template_type;
+
+              // System-typed workspace templates (invitation/password_reset/welcome) only
+              // appear on their specific event page — not on every event's connect list
+              const SYSTEM_EVENT_MAP: Record<string, string> = {
+                invitation: 'invitation_sent',
+                password_reset: 'user_password_reset_requested',
+                welcome: 'user_signup',
+              };
+              const mappedEvent = SYSTEM_EVENT_MAP[tplType];
+              if (mappedEvent && mappedEvent !== type) return null;
+
+              const sub = emailSubscriptions.find((s: any) =>
+                (s.template_id ?? s.templateId) === t.id &&
+                (s.event_type ?? s.eventType) === type
+              );
+              const isConnected = !!sub;
+              const isSysOverride = eventConnections.some((c: any) =>
+                c.event_type === type && c.workspace_template?.id === t.id && c.has_workspace_override
+              );
+              if (isSysOverride) return null;
+              return (
+                <div class:list={['sub-option', { 'sub-option-connected': isConnected }]}>
+                  <div class="sub-option-info">
+                    <div class="sub-option-name-row">
+                      {isConnected && <span class="connected-check">&#10003;</span>}
+                      <strong>{t.name}</strong>
+                      {isConnected && <span class="badge-inline badge-custom">Custom</span>}
+                    </div>
+                    <code class="sub-type">{tplType}</code>
+                  </div>
+                  <div class="sub-option-actions">
+                    {isConnected ? (
+                      <>
+                        <a href={`/workspace/settings/email/${t.id}`} class="button small secondary">Edit</a>
+                        <button
+                          type="button"
+                          class="button small secondary danger disconnect-email-btn"
+                          data-subscription-id={sub?.id ?? ''}
+                        >
+                          Disconnect
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        class="button small connect-email-btn"
+                        data-template-id={t.id}
+                        data-template-name={t.name}
+                        data-event-type={type}
+                        data-subscription-id=""
+                        data-is-connected="false"
+                        data-is-edit="false"
+                      >
+                        Connect
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {emailTemplates.filter((t: any) => !!(( t as any).groupId ?? t.group_id)).length === 0 &&
+              !eventConnections.some((c: any) => c.event_type === type) && (
+              <div class="sub-option" style="color:var(--muted);font-size:13px;">
+                No custom templates yet — create one to connect to this event.
+              </div>
+            )}
+            <a href="/workspace/settings/email" class="sub-option sub-option-create">
+              <span>+ Create or customize an email template</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="sub-section">
+          <div class="sub-header">
+            <h3>Webhooks</h3>
+            <p>Send an HTTP request when this event fires — only Event-Driven webhooks appear here.</p>
+          </div>
+          <div class="sub-options">
+            {webhooks.filter((w: any) => {
+              const webhookType = (w as any).webhookType ?? (w as any).webhook_type;
+              return webhookType === 'event_driven';
+            }).map((w: any) => {
+              const subscribedEvents: string[] = (w as any).subscribedEvents ?? (w as any).subscribed_events ?? [];
+              const isConnected = subscribedEvents.includes(type || '');
+              return (
+                <div class:list={['sub-option', { 'sub-option-connected': isConnected }]}>
+                  <div class="sub-option-info">
+                    <div class="sub-option-name-row">
+                      {isConnected && <span class="connected-check">&#10003;</span>}
+                      <strong>{w.name}</strong>
+                    </div>
+                    <code class="sub-url">{w.url?.toString().slice(0, 48)}{(w.url?.toString().length || 0) > 48 ? '…' : ''}</code>
+                  </div>
+                  <div class="sub-option-actions">
+                    <button
+                      type="button"
+                      class:list={['button', 'small', isConnected ? 'secondary' : '']}
+                      data-open-webhook-modal={w.id}
+                      data-webhook-name={w.name}
+                      data-webhook-url={w.url}
+                      data-webhook-method={w.method || 'POST'}
+                      data-is-connected={isConnected ? 'true' : 'false'}
+                    >
+                      {isConnected ? 'Disconnect' : 'Connect'}
+                    </button>
+                    {isConnected && (
+                      <a href={`/automation/events/${type}/webhook/${w.id}`} class="button secondary small">
+                        Edit
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <a href="/automation/webhooks/new" class="sub-option sub-option-create">
+              <span>+ Create a new webhook</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="sub-section">
+          <div class="sub-header">
+            <h3>Notifications</h3>
+            <p>Send a notification (Slack, email, SMS, etc.) when this event fires</p>
+          </div>
+          <div class="sub-options">
+            {notifications.map((n: any) => {
+              const opts: any[] = (n as any).options ?? [];
+              const isConnected = opts.some((o: any) => (o.option || o.slug) === ('core.' + type));
+              return (
+                <div class="sub-option">
+                  <div class="sub-option-info">
+                    <strong>{n.name}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    class:list={['button', 'small', isConnected ? 'secondary' : '']}
+                    data-notifier-id={n.id}
+                    data-event-type={type}
+                    data-connected={isConnected ? 'true' : 'false'}
+                  >
+                    {isConnected ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+              );
+            })}
+            <a href="/automation/notifications/new" class="sub-option sub-option-create">
+              <span>+ Add notification endpoint</span>
+            </a>
+          </div>
+        </section>
+      </div>
+    </>
+  ) : null}
+<!-- Webhook connection modal -->
+<div id="webhook-modal" class="wh-modal" style="display:none" aria-modal="true">
+  <div class="wh-overlay"></div>
+  <div class="wh-content">
+    <div class="wh-header">
+      <div>
+        <h3 id="wh-title">Connect Webhook</h3>
+        <code id="wh-url" class="wh-url"></code>
+      </div>
+      <button type="button" id="wh-close" class="wh-close">✕</button>
+    </div>
+
+    <div class="wh-body">
+      <p class="wh-label">Your endpoint will receive this JSON via <span id="wh-method">POST</span>:</p>
+      <pre id="wh-payload" class="wh-payload"></pre>
+    </div>
+
+    <div class="wh-footer">
+      <span id="wh-note" class="wh-note"></span>
+      <div class="wh-actions">
+        <button type="button" id="wh-confirm" class="button">Connect</button>
+        <a id="wh-edit-link" href="#" class="button secondary" style="display:none">Full page</a>
+        <button type="button" id="wh-cancel" class="button secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Email connection modal -->
+<div id="email-modal" class="wh-modal" style="display:none" aria-modal="true">
+  <div class="wh-overlay"></div>
+  <div class="wh-content">
+    <div class="wh-header">
+      <div>
+        <h3 id="em-title">Connect Email Template</h3>
+        <code id="em-template-name" class="wh-url"></code>
+      </div>
+      <button type="button" id="em-close" class="wh-close">✕</button>
+    </div>
+    <div class="wh-body em-combined-body">
+      <div class="em-section-divider">Recipient</div>
+      <div class="em-recipient-options">
+        <label class="em-radio-label">
+          <input type="radio" name="em-recipient-type" value="admins" checked />
+          Workspace admins
+        </label>
+        <label class="em-radio-label">
+          <input type="radio" name="em-recipient-type" value="event_field" id="em-event-field-radio" />
+          Field from event data
+          <select id="em-event-field" class="em-field-select" style="display:none"></select>
+          <span id="em-no-email-fields" class="em-hint" style="display:none">— no email fields for this event</span>
+        </label>
+        <label class="em-radio-label">
+          <input type="radio" name="em-recipient-type" value="specific" />
+          Specific email address
+        </label>
+        <input type="text" id="em-specific-email" class="em-email-input" placeholder="user@example.com, other@example.com" style="display:none" />
+      </div>
+
+      <div class="em-section-divider" style="margin-top:20px">Template</div>
+      <div class="form-group">
+        <label class="em-field-label">Subject</label>
+        <input type="text" id="em-subject" class="em-text-input" placeholder="e.g. New entry in {{ workspace_name }}" />
+      </div>
+      <div class="form-group">
+        <label class="em-field-label">Body</label>
+        <div class="em-md-container">
+          <div class="em-md-tabs">
+            <button type="button" class="em-md-tab active" data-em-tab="write">Write</button>
+            <button type="button" class="em-md-tab" data-em-tab="preview">Preview</button>
+          </div>
+          <textarea id="em-md-body" rows="8" class="em-text-input em-md-write" placeholder="Write in markdown — use {{ variable }} for event data"></textarea>
+          <div id="em-md-preview" class="em-md-preview" style="display:none">
+            <span class="em-md-empty">Nothing to preview</span>
+          </div>
+        </div>
+      </div>
+      <div id="em-unresolved-vars" class="em-unresolved" style="display:none"></div>
+      <div id="em-template-vars" class="em-vars"></div>
+      <a id="em-full-editor-link" href="/workspace/settings/email" class="em-subtle-link" target="_blank">Open full editor ↗</a>
+    </div>
+
+    <div class="wh-footer">
+      <span id="em-note" class="wh-note"></span>
+      <div class="wh-actions">
+        <button type="button" id="em-confirm" class="button">Connect</button>
+        <button type="button" id="em-cancel" class="button secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId: wsId ?? null }}>
+  // Webhook modal
+  const modal = document.getElementById('webhook-modal');
+  const whTitle = document.getElementById('wh-title');
+  const whUrl = document.getElementById('wh-url');
+  const whMethod = document.getElementById('wh-method');
+  const whPayload = document.getElementById('wh-payload');
+  const whNote = document.getElementById('wh-note');
+  const whConfirm = document.getElementById('wh-confirm');
+  const whEditLink = document.getElementById('wh-edit-link');
+  let activeWebhookId = null;
+  let activeIsConnected = false;
+
+  function openModal(btn) {
+    activeWebhookId = btn.dataset.openWebhookModal;
+    activeIsConnected = btn.dataset.isConnected === 'true';
+    const name = btn.dataset.webhookName;
+    const url = btn.dataset.webhookUrl;
+    const method = btn.dataset.webhookMethod || 'POST';
+
+    whTitle.textContent = (activeIsConnected ? 'Connected: ' : 'Connect: ') + name;
+    whUrl.textContent = url;
+    whMethod.textContent = method;
+    whPayload.textContent = JSON.stringify(examplePayload, null, 2);
+    whNote.innerHTML = activeIsConnected
+      ? '&#10003; Connected — firing on every <strong>' + type + '</strong> event.'
+      : 'Connect to send a POST to this URL on every <strong>' + type + '</strong> event.';
+    whConfirm.textContent = activeIsConnected ? 'Disconnect' : 'Connect';
+    whConfirm.className = activeIsConnected ? 'button secondary danger' : 'button';
+    // Show "Full page" link for connected webhooks
+    if (whEditLink) {
+      whEditLink.href = '/automation/events/' + type + '/webhook/' + activeWebhookId;
+      whEditLink.style.display = activeIsConnected ? '' : 'none';
+    }
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    activeWebhookId = null;
+  }
+
+  document.querySelectorAll('[data-open-webhook-modal]').forEach(btn => {
+    btn.addEventListener('click', () => openModal(btn));
+  });
+
+  document.getElementById('wh-close')?.addEventListener('click', closeModal);
+  document.getElementById('wh-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('wh-overlay')?.addEventListener('click', closeModal);
+  document.querySelector('.wh-overlay')?.addEventListener('click', closeModal);
+
+  whConfirm?.addEventListener('click', async () => {
+    if (!activeWebhookId) return;
+    whConfirm.disabled = true;
+    whConfirm.textContent = 'Saving…';
+    try {
+      const res = await fetch(`${apiUrl}/api/groups/webhooks/${activeWebhookId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`GET failed: ${res.status}`);
+      const webhook = await res.json();
+      console.log('[webhook-connect] GET response:', webhook);
+      const current = webhook.subscribedEvents ?? webhook.subscribed_events ?? [];
+      console.log('[webhook-connect] current subscribed_events:', current);
+      const updated = activeIsConnected
+        ? current.filter(e => e !== type)
+        : [...new Set([...current, type])];
+      console.log('[webhook-connect] updated subscribed_events:', updated);
+      // Use camelCase key to match Pydantic alias — snake_case gets overridden by the spread
+      const body = { ...webhook, subscribedEvents: updated, subscribed_events: updated };
+      console.log('[webhook-connect] PUT body:', body);
+      const putRes = await fetch(`${apiUrl}/api/groups/webhooks/${activeWebhookId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const putData = await putRes.json().catch(() => ({}));
+      console.log('[webhook-connect] PUT response:', putRes.status, putData);
+      if (!putRes.ok) {
+        console.error('[webhook-connect] PUT failed:', putRes.status, putData);
+        throw new Error(putData.detail || `PUT failed: ${putRes.status}`);
+      }
+      closeModal();
+      window.location.reload();
+    } catch (e) {
+      alert('Error: ' + e.message);
+      whConfirm.disabled = false;
+      whConfirm.textContent = activeIsConnected ? 'Disconnect' : 'Connect';
+    }
+  });
+
+  // ── Markdown parser — inline, block-level, no external dependency ────────
+  function _mdInline(s) {
+    return s
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  }
+
+  function _mdParse(md) {
+    const lines = md.split('\n');
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.startsWith('```')) {
+        const code = []; i++;
+        while (i < lines.length && !lines[i].startsWith('```')) code.push(lines[i++]);
+        out.push('<pre><code>' + code.join('\n') + '</code></pre>'); i++; continue;
+      }
+      const hm = line.match(/^(#{1,3})\s+(.*)/);
+      if (hm) { out.push(`<h${hm[1].length}>${_mdInline(hm[2])}</h${hm[1].length}>`); i++; continue; }
+      if (/^[-*]\s/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^[-*]\s/.test(lines[i])) items.push('<li>' + _mdInline(lines[i++].replace(/^[-*]\s/, '')) + '</li>');
+        out.push('<ul>' + items.join('') + '</ul>'); continue;
+      }
+      if (/^\d+\.\s/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^\d+\.\s/.test(lines[i])) items.push('<li>' + _mdInline(lines[i++].replace(/^\d+\.\s/, '')) + '</li>');
+        out.push('<ol>' + items.join('') + '</ol>'); continue;
+      }
+      if (line.startsWith('> ')) { out.push('<blockquote><p>' + _mdInline(line.slice(2)) + '</p></blockquote>'); i++; continue; }
+      if (/^---+$/.test(line.trim())) { out.push('<hr>'); i++; continue; }
+      if (line.trim()) {
+        const para = [];
+        while (i < lines.length && lines[i].trim()) para.push(lines[i++]);
+        out.push('<p>' + para.map(_mdInline).join('<br>') + '</p>'); continue;
+      }
+      i++;
+    }
+    return out.join('\n');
+  }
+
+  function _mdConvert(md) {
+    if (!md || !md.trim()) return '';
+    const vars = [];
+    const safe = md.replace(/\{\{[^}]+\}\}/g, m => { vars.push(m); return `\x00V${vars.length - 1}\x00`; });
+    let html = _mdParse(safe);
+    vars.forEach((v, i) => { html = html.replaceAll(`\x00V${i}\x00`, v); });
+    return html;
+  }
+
+  function parseMarkdown(md) {
+    return (!md || !md.trim()) ? '<span class="em-md-empty">Nothing to preview</span>' : _mdConvert(md);
+  }
+
+  function markdownToHtml(md) {
+    return _mdConvert(md);
+  }
+
+  // ── Email modal ──────────────────────────────────────────────────────────
+  const emailModal = document.getElementById('email-modal');
+  const emTitle = document.getElementById('em-title');
+  const emTemplateName = document.getElementById('em-template-name');
+  const emConfirm = document.getElementById('em-confirm');
+  const emNote = document.getElementById('em-note');
+  const emEventField = document.getElementById('em-event-field');
+  const emSpecificEmail = document.getElementById('em-specific-email');
+
+  let emTemplateId = null;
+  let emSubscriptionId = null;
+  let emIsEdit = false;
+  let emIsSystemTemplate = false;
+
+  // Populate email field dropdown from catalog
+  const emailVars = (eventVariables || []).filter(v => v.type === 'email');
+  const emEventFieldRadio = document.getElementById('em-event-field-radio');
+  const emNoEmailFields = document.getElementById('em-no-email-fields');
+  if (emailVars.length > 0) {
+    if (emEventField) emEventField.innerHTML = emailVars.map(v => `<option value="${v.slug}">${v.slug}</option>`).join('');
+  } else {
+    if (emEventFieldRadio) emEventFieldRadio.disabled = true;
+    if (emNoEmailFields) emNoEmailFields.style.display = 'inline';
+  }
+
+  // Write/Preview tabs for markdown editor
+  const emMdBody = document.getElementById('em-md-body');
+  const emMdPreview = document.getElementById('em-md-preview');
+  document.querySelectorAll('.em-md-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.em-md-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const isPreview = tab.dataset.emTab === 'preview';
+      if (emMdBody) emMdBody.style.display = isPreview ? 'none' : 'block';
+      if (emMdPreview) {
+        emMdPreview.style.display = isPreview ? 'block' : 'none';
+        if (isPreview) emMdPreview.innerHTML = parseMarkdown(emMdBody?.value || '');
+      }
+    });
+  });
+  // Debounced preview update while on preview tab
+  let mdDebounce;
+  emMdBody?.addEventListener('input', () => {
+    clearTimeout(mdDebounce);
+    mdDebounce = setTimeout(() => {
+      if (emMdPreview?.style.display !== 'none') emMdPreview.innerHTML = parseMarkdown(emMdBody.value);
+      const subj = document.getElementById('em-subject')?.value || '';
+      checkUnresolvedVars(subj + ' ' + emMdBody.value);
+    }, 400);
+  });
+  document.getElementById('em-subject')?.addEventListener('input', () => {
+    const subj = document.getElementById('em-subject')?.value || '';
+    checkUnresolvedVars(subj + ' ' + (emMdBody?.value || ''));
+  });
+
+  // Recipient radio show/hide
+  document.querySelectorAll('input[name="em-recipient-type"]').forEach(radio => {
+    radio.addEventListener('change', e => {
+      const v = e.target.value;
+      if (emEventField) emEventField.style.display = v === 'event_field' ? 'inline-block' : 'none';
+      if (emSpecificEmail) emSpecificEmail.style.display = v === 'specific' ? 'block' : 'none';
+    });
+  });
+
+  // Variable chips — insert at cursor
+  const varsEl = document.getElementById('em-template-vars');
+  if (varsEl && eventVariables?.length) {
+    const chips = eventVariables.filter(v => v.type !== 'uuid');
+    varsEl.innerHTML = `
+      <div class="em-vars-header">
+        <span class="em-vars-title">Variables</span>
+        <span class="em-vars-hint">Click to insert at cursor</span>
+      </div>
+      <div class="em-vars-chips">
+        ${chips.map(v => `<button type="button" class="em-var-chip" data-slug="{{${v.slug}}}" title="${(v.description||v.slug) + ' — click to insert'}"><code>{{${v.slug}}}</code></button>`).join('')}
+      </div>`;
+    // Track last focused editable field in the modal
+    let emLastFocused = document.getElementById('em-md-body');
+    ['em-subject', 'em-md-body'].forEach(id => {
+      document.getElementById(id)?.addEventListener('focus', function() { emLastFocused = this; });
+    });
+
+    varsEl.querySelectorAll('.em-var-chip').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.preventDefault()); // prevent focus steal
+      btn.addEventListener('click', () => {
+        const slug = btn.dataset.slug;
+        const target = emLastFocused || document.getElementById('em-md-body');
+        if (target) {
+          const start = target.selectionStart ?? target.value.length;
+          const end = target.selectionEnd ?? start;
+          target.value = target.value.slice(0, start) + slug + target.value.slice(end);
+          const pos = start + slug.length;
+          target.setSelectionRange(pos, pos);
+          target.focus();
+        }
+        const codeEl = btn.querySelector('code');
+        const orig = codeEl ? codeEl.textContent : btn.textContent;
+        if (codeEl) { codeEl.textContent = '✓'; setTimeout(() => { codeEl.textContent = orig; }, 800); }
+        else { btn.textContent = '✓'; setTimeout(() => { btn.textContent = orig; }, 800); }
+      });
+    });
+  }
+
+  async function openEmailModal(btn) {
+    emTemplateId = btn.dataset.templateId;
+    emSubscriptionId = btn.dataset.subscriptionId || '';
+    emIsEdit = btn.dataset.isEdit === 'true';
+    const name = btn.dataset.templateName || 'Template';
+
+    if (emTitle) emTitle.textContent = (emIsEdit ? 'Edit: ' : 'Connect: ') + name;
+    if (emTemplateName) emTemplateName.textContent = name;
+    if (emNote) emNote.innerHTML = `Fires on every <strong>${type}</strong> event.`;
+    if (emConfirm) { emConfirm.textContent = emIsEdit ? 'Save' : 'Connect'; emConfirm.disabled = false; emConfirm.className = 'button'; }
+
+    // Pre-fill recipient — default admins for new, stored value for edit
+    const rt = emIsEdit ? (btn.dataset.recipientType || 'admins') : 'admins';
+    const radio = document.querySelector(`input[name="em-recipient-type"][value="${rt}"]`);
+    if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
+    if (rt === 'event_field' && emEventField) emEventField.value = btn.dataset.recipientField || '';
+    if (rt === 'specific' && emSpecificEmail) emSpecificEmail.value = btn.dataset.recipientEmail || '';
+
+    if (emailModal) { emailModal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+
+    // Reset Write tab active
+    document.querySelectorAll('.em-md-tab').forEach(t => t.classList.toggle('active', t.dataset.emTab === 'write'));
+    if (emMdBody) { emMdBody.style.display = 'block'; }
+    if (emMdPreview) { emMdPreview.style.display = 'none'; }
+
+    // Fetch and pre-fill template
+    emIsSystemTemplate = false;
+    try {
+      const res = await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, { credentials: 'include' });
+      if (res.ok) {
+        const tpl = await res.json();
+        emIsSystemTemplate = !(tpl.groupId || tpl.group_id);
+        const f = (c, s) => tpl[c] ?? tpl[s] ?? '';
+        const subj = document.getElementById('em-subject');
+        // Use message_top as the markdown source (saved there on previous edits),
+        // fall back to stripping tags from custom_html for first-open of HTML templates
+        const markdownSource = f('bodyMarkdown', 'body_markdown') || f('customHtml', 'custom_html') || '';
+        if (subj) subj.value = f('subject', 'subject');
+        if (emMdBody) emMdBody.value = markdownSource;
+
+        // Check for variables in the template that won't resolve for this event
+        checkUnresolvedVars(f('subject', 'subject') + ' ' + markdownSource);
+      }
+    } catch {}
+  }
+
+  function checkUnresolvedVars(content) {
+    const el = document.getElementById('em-unresolved-vars');
+    if (!el) return;
+    const known = new Set((eventVariables || []).map(v => v.slug));
+    const used = [...content.matchAll(/\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/g)].map(m => m[1]);
+    const unknown = [...new Set(used.filter(s => !known.has(s)))];
+    if (unknown.length) {
+      el.innerHTML = 'Not in this event\'s data (will be empty): ' +
+        unknown.map(s => `<code>{{ ${s} }}</code>`).join(', ');
+      el.style.display = 'block';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  function closeEmailModal() {
+    if (emailModal) emailModal.style.display = 'none';
+    document.body.style.overflow = '';
+    emTemplateId = null; emSubscriptionId = null;
+    const subj = document.getElementById('em-subject');
+    if (subj) subj.value = '';
+    if (emMdBody) emMdBody.value = '';
+    if (emMdPreview) emMdPreview.innerHTML = '<span class="em-md-empty">Nothing to preview</span>';
+    const unresolvedEl = document.getElementById('em-unresolved-vars');
+    if (unresolvedEl) unresolvedEl.style.display = 'none';
+    // Reset to Write tab
+    document.querySelectorAll('.em-md-tab').forEach(t => t.classList.toggle('active', t.dataset.emTab === 'write'));
+    if (emMdBody) emMdBody.style.display = 'block';
+    if (emMdPreview) emMdPreview.style.display = 'none';
+  }
+
+  document.querySelectorAll('.connect-email-btn').forEach(btn => {
+    btn.addEventListener('click', () => openEmailModal(btn));
+  });
+  document.querySelectorAll('.disconnect-email-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Disconnect this email template?')) return;
+      const subId = btn.dataset.subscriptionId;
+      if (!subId) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${subId}`, { method: 'DELETE', credentials: 'include' });
+        if (!res.ok && res.status !== 204) throw new Error(`DELETE failed: ${res.status}`);
+        window.location.reload();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    });
+  });
+  document.getElementById('em-close')?.addEventListener('click', closeEmailModal);
+  document.getElementById('em-cancel')?.addEventListener('click', closeEmailModal);
+  document.querySelector('#email-modal .wh-overlay')?.addEventListener('click', closeEmailModal);
+
+  emConfirm?.addEventListener('click', async () => {
+    if (!emTemplateId) return;
+
+    // Validate recipient
+    const recipientType = document.querySelector('input[name="em-recipient-type"]:checked')?.value || 'admins';
+    if (recipientType === 'specific') {
+      const raw = emSpecificEmail?.value?.trim() || '';
+      if (!raw) { alert('Please enter at least one email address.'); return; }
+      const bad = raw.split(/[,\n]+/).map(s => s.trim()).filter(Boolean).filter(a => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a));
+      if (bad.length) { alert('Invalid email: ' + bad.join(', ')); return; }
+    }
+    if (recipientType === 'event_field' && !emEventField?.value) { alert('No email field available.'); return; }
+
+    emConfirm.disabled = true;
+    emConfirm.textContent = 'Saving…';
+
+    try {
+      // 1. Save template edits
+      const subject = document.getElementById('em-subject')?.value?.trim();
+      const markdownBody = emMdBody?.value?.trim() || '';
+      let finalTemplateId = emTemplateId;
+
+      const tplBody = {
+        subject,
+        body_markdown: markdownBody || null,
+      };
+      // Safety: system templates must never be PATCHed directly — this path
+      // should no longer be reachable since we only show workspace templates,
+      // but guard anyway.
+      if (emIsSystemTemplate) {
+        const res = await fetch(`${apiUrl}/api/platform/workspaces/${wsId}/email-templates`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ template_type: 'custom', name: document.getElementById('em-template-name')?.textContent || 'Custom', enabled: true, ...tplBody }),
+        });
+        if (res.ok) { const t = await res.json().catch(() => null); if (t?.id) finalTemplateId = t.id; }
+      } else {
+        const patchRes = await fetch(`${apiUrl}/api/platform/email/templates/${emTemplateId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify(tplBody),
+        });
+        if (!patchRes.ok) {
+          const d = await patchRes.json().catch(() => ({}));
+          throw new Error(d.detail || `Template update failed: ${patchRes.status}`);
+        }
+      }
+
+      // 2. Delete old subscription if editing
+      if (emIsEdit && emSubscriptionId) {
+        await fetch(`${apiUrl}/api/groups/email-event-subscriptions/${emSubscriptionId}`, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+      }
+
+      // 3. Create new subscription
+      const rawEmails = recipientType === 'specific' ? emSpecificEmail?.value?.trim() : null;
+      const emails = rawEmails ? rawEmails.split(/[,\n]+/).map(s => s.trim()).filter(Boolean) : null;
+      const res = await fetch(`${apiUrl}/api/groups/email-event-subscriptions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({
+          template_id: finalTemplateId,
+          event_type: type,
+          recipient_type: recipientType,
+          recipient_field: recipientType === 'event_field' ? emEventField?.value : null,
+          recipient_email: emails ? emails.join(',') : null,
+          enabled: true,
+        }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || `POST failed: ${res.status}`); }
+      closeEmailModal();
+      window.location.reload();
+    } catch (e) {
+      alert('Error: ' + e.message);
+      emConfirm.disabled = false;
+      emConfirm.textContent = emIsEdit ? 'Save' : 'Connect';
+    }
+  });
+
+  // Notification connect/disconnect
+  document.querySelectorAll('[data-notifier-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const notifierId = btn.dataset.notifierId;
+      const isConnected = btn.dataset.connected === 'true';
+      const optionSlug = 'core.' + type;
+      try {
+        if (isConnected) {
+          alert('To disconnect, edit the notification from the Notifications page.');
+          return;
+        }
+        const res = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const notif = await res.json();
+        const currentOptions = notif.options ?? [];
+        const putRes = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ ...notif, options: [...currentOptions, optionSlug] }),
+        });
+        if (!putRes.ok) throw new Error(`HTTP ${putRes.status}`);
+        window.location.reload();
+      } catch (e) {
+        alert('Failed to update notification subscription');
+      }
+    });
+  });
+</script>
+
+</AppLayout>
+
+
+<style>
+  .alert {
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .page-header {
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .event-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .event-meta h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .event-category {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    background: rgba(79, 156, 132, 0.1);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .event-description {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .event-type-code {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .vars-panel {
+    margin-bottom: 28px;
+    padding: 16px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .vars-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .vars-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .vars-hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .vars-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .var-chip {
+    font-size: 12px;
+    background: rgba(79, 156, 132, 0.08);
+    border: 1px solid rgba(79, 156, 132, 0.2);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: default;
+  }
+
+  .var-chip-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .var-chip code {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    font-weight: 600;
+    background: none;
+    padding: 0;
+  }
+
+  .var-value {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .subscriptions {
+    display: grid;
+    gap: 24px;
+    max-width: 800px;
+  }
+
+  .sub-section {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .sub-header {
+    padding: 16px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sub-header h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .sub-header p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .sub-options {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sub-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line);
+    gap: 16px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .sub-option:last-child { border-bottom: none; }
+  .sub-option:hover { background: var(--panel); }
+
+  .sub-option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .sub-option-info strong {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .sub-type,
+  .sub-url {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+  }
+
+  .sub-option-create {
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  .sub-option-create:hover {
+    color: var(--accent);
+    background: rgba(79, 156, 132, 0.04);
+  }
+
+  .button.small {
+    padding: 5px 12px;
+    font-size: 12px;
+    min-height: 28px;
+    flex-shrink: 0;
+  }
+
+  .sub-option-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tpl-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .tpl-badge-system {
+    background: rgba(128,128,128,0.1);
+    color: var(--muted);
+  }
+
+  .tpl-badge-custom {
+    background: rgba(79,156,132,0.1);
+    color: var(--accent);
+  }
+
+  .badge-inline {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .badge-custom {
+    background: rgba(79,156,132,0.1);
+    color: var(--accent);
+  }
+
+  .badge-system-sm {
+    background: rgba(128,128,128,0.1);
+    color: var(--muted);
+  }
+
+  /* Give the event header more identity */
+  .event-type-code {
+    display: inline-block;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+
+  /* Accent the sub-section headers */
+  .sub-section { border-top: 3px solid var(--line); }
+  .sub-section:first-child { border-top: 3px solid var(--accent); }
+  .sub-header h3 { color: var(--ink); }
+
+  /* Make connected items visually distinct */
+  .sub-option .button.secondary { opacity: 0.7; }
+  .sub-option:has(.button:not(.secondary)) { background: rgba(79,156,132,0.03); }
+
+  /* ── Webhook modal ────────────────────────────────────────────────────── */
+  .wh-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .wh-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+  }
+
+  .wh-content {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.25);
+  }
+
+  .wh-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .wh-header h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .wh-url { font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted); }
+
+  .wh-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; padding: 2px 6px; border-radius: 4px; }
+  .wh-close:hover { background: var(--line); color: var(--ink); }
+
+  .wh-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+  .wh-label { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+  .wh-payload {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    overflow-x: auto;
+    max-height: 360px;
+    overflow-y: auto;
+    white-space: pre;
+    margin: 0;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+
+  .wh-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+
+  .wh-note { font-size: 13px; color: var(--muted); flex: 1; min-width: 160px; }
+  .wh-note strong { color: var(--ink); }
+  .wh-actions { display: flex; gap: 8px; }
+
+  .button.secondary.danger { color: var(--color-error); border-color: var(--color-error); }
+  .button.secondary.danger:hover { background: var(--color-error-bg); }
+
+  /* Connected row */
+  .sub-option-connected {
+    background: rgba(79,156,132,0.04);
+    border-left: 3px solid var(--accent);
+  }
+
+  .sub-option-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .connected-check {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* Email modal recipient options */
+  .em-recipient-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .em-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .em-field-select,
+  .em-email-input {
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .em-email-input { min-width: 220px; }
+
+  .em-template-section { border-top: 1px solid var(--line); padding-top: 16px; }
+
+  .em-section-divider {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .form-group { margin-bottom: 12px; }
+  .em-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+
+  .em-md-container {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .em-md-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .em-md-tab {
+    padding: 6px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .em-md-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .em-md-tab:hover { color: var(--ink); background: var(--bg); }
+
+  .em-md-write {
+    border: none !important;
+    border-radius: 0 !important;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    resize: vertical;
+  }
+
+  .em-md-write:focus { box-shadow: none !important; }
+
+  .em-md-preview {
+    padding: 12px 14px;
+    min-height: 120px;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-y: auto;
+  }
+
+  .em-md-empty { color: var(--muted); font-style: italic; }
+
+  .em-unresolved {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    margin-bottom: 8px;
+  }
+  .em-unresolved code { font-size: 11px; font-family: ui-monospace, monospace; }
+
+  .em-md-preview h1, .em-md-preview h2, .em-md-preview h3 { font-weight: 600; margin: 12px 0 6px; }
+  .em-md-preview p { margin: 6px 0; }
+  .em-md-preview code { font-family: ui-monospace, monospace; font-size: 12px; background: var(--panel); padding: 1px 5px; border-radius: 3px; }
+  .em-md-preview a { color: var(--accent); }
+  .em-md-preview ul, .em-md-preview ol { padding-left: 20px; margin: 6px 0; }
+  .em-md-preview strong { font-weight: 600; }
+  .em-md-preview em { font-style: italic; }
+
+  .em-text-input {
+    width: 100%;
+    font-size: 13px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--ink);
+    font-family: inherit;
+    box-sizing: border-box;
+    resize: vertical;
+  }
+
+  :global(.em-vars) { margin-top: 14px; }
+  :global(.em-vars-header) { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  :global(.em-vars-title) { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  :global(.em-vars-hint) { font-size: 11px; color: var(--muted); }
+  :global(.em-vars-hint code) { font-size: 10px; background: var(--panel); border: 1px solid var(--line); padding: 1px 4px; border-radius: 3px; }
+  :global(.em-vars-chips) { display: flex; flex-wrap: wrap; gap: 4px; }
+  :global(.em-var-chip) {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: border-color 0.1s, color 0.1s;
+  }
+  :global(.em-var-chip:hover) { border-color: var(--accent); color: var(--accent); }
+  :global(.em-var-chip code) { font-family: monospace; font-size: 11px; color: inherit; }
+  .em-subtle-link { font-size: 12px; color: var(--muted); margin-top: 12px; display: inline-block; }
+
+  .em-hint {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+</style>

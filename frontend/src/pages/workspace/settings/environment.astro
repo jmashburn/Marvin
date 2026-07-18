@@ -1,0 +1,682 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+
+let variables: any[] = [];
+let secrets: any[] = [];
+let error: string | null = null;
+
+try {
+  [variables, secrets] = await Promise.all([
+    sdk.variables.list(),
+    sdk.secrets.list(),
+  ]);
+} catch (e) {
+  console.error('[environment] Error loading:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const tab = Astro.url.searchParams.get('tab') || 'variables';
+
+function fmtRelative(isoStr: string | null | undefined): string {
+  if (!isoStr) return '';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1)  return 'Just now';
+  if (mins < 60) return mins === 1 ? '1 minute ago' : `${mins} minutes ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return hrs === 1 ? '1 hour ago' : `${hrs} hours ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7)  return days === 1 ? 'Yesterday' : `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return months === 1 ? '1 month ago' : `${months} months ago`;
+  const years = Math.floor(days / 365);
+  return years === 1 ? '1 year ago' : `${years} years ago`;
+}
+---
+
+<AppLayout title="Environment" eyebrow="Settings">
+  <div class="page-header">
+    <div>
+      <h2>Environment</h2>
+      <p>
+        Variables and Secrets are referenced anywhere with <code>&#123;&#123;SLUG&#125;&#125;</code> —
+        in webhook headers, email templates, and integration configs.
+        Secrets take priority over Variables on slug collision.
+      </p>
+    </div>
+  </div>
+
+  {error && (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  )}
+
+  <div class="tabs">
+    <a href="?tab=variables" class:list={['tab', { active: tab === 'variables' }]}>
+      Variables <span class="count">{variables.length}</span>
+    </a>
+    <a href="?tab=secrets" class:list={['tab', { active: tab === 'secrets' }]}>
+      Secrets <span class="count">{secrets.length}</span>
+    </a>
+  </div>
+
+  {tab === 'variables' && (
+    <div class="panel-content">
+      <div class="panel-header">
+        <p class="panel-desc">Plain-text config values. Readable — use for URLs, names, feature flags, non-sensitive settings.</p>
+        <button id="new-var-btn" class="button">New Variable</button>
+      </div>
+
+      <div id="new-var-form" class="form-card" style="display:none">
+        <h3>New Variable</h3>
+        <form id="create-var-form">
+          <div class="form-row">
+            <label class="form-field">
+              <span class="label">Name *</span>
+              <input type="text" name="name" required placeholder="Site URL" class="input" id="var-name" />
+              <small class="hint">&nbsp;</small>
+            </label>
+            <label class="form-field">
+              <span class="label">Slug *</span>
+              <input type="text" name="slug" required placeholder="SITE_URL" class="input slug-input" id="var-slug" />
+              <small class="hint">Referenced as <code>&#123;&#123;SITE_URL&#125;&#125;</code></small>
+            </label>
+          </div>
+          <label class="form-field">
+            <span class="label">Description</span>
+            <input type="text" name="description" placeholder="The public URL of your site" class="input" />
+          </label>
+          <label class="form-field">
+            <span class="label">Value *</span>
+            <input type="text" name="value" required placeholder="https://mysite.com" class="input" />
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="button">Save Variable</button>
+            <button type="button" id="cancel-var-btn" class="button secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      {variables.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <p class="empty-title">No variables yet</p>
+          <p class="empty-desc">Add config values like <code>SITE_URL</code>, <code>NOTIFY_EMAIL</code>, or <code>WORKSPACE_NAME</code> and reference them anywhere with <code>&#123;&#123;SLUG&#125;&#125;</code></p>
+        </div>
+      ) : (
+        <div class="env-table">
+          <div class="env-header var-header">
+            <span>Name</span>
+            <span>Slug</span>
+            <span>Value</span>
+            <span>Last Updated</span>
+            <span></span>
+          </div>
+          {variables.map((v: any) => {
+            const upd = v.updateAt ?? v.update_at;
+            const updStr = upd ? new Date(upd.replace(/(\.\d{3})\d+/, '$1')).toLocaleDateString() : '—';
+            return (
+            <div class="env-row var-row" data-id={v.id} data-type="variable">
+              <div>
+                <div class="env-name">{v.name}</div>
+                {v.description && <div class="env-subdesc">{v.description}</div>}
+              </div>
+              <div>
+                <div class="slug-copy">
+                  <code class="env-slug">&#123;&#123;{v.slug}&#125;&#125;</code>
+                  <button class="copy-btn" data-copy={`{{${v.slug}}}`} title="Copy to clipboard">⎘</button>
+                </div>
+              </div>
+              <div class="env-value">
+                <input
+                  type="text"
+                  class="inline-input"
+                  value={v.value}
+                  data-original={v.value}
+                  data-id={v.id}
+                />
+              </div>
+              <div class="env-updated">{updStr}</div>
+              <div class="env-actions">
+                <button class="button secondary small save-var-btn" data-id={v.id} style="display:none">Save</button>
+                <button class="button secondary small danger" data-action="delete-var" data-id={v.id} data-name={v.name}>Delete</button>
+              </div>
+            </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  )}
+
+  {tab === 'secrets' && (
+    <div class="panel-content">
+      <div class="panel-header">
+        <p class="panel-desc">Encrypted credentials. Write-only — values are never shown after saving. Use for API keys, tokens, passwords.</p>
+        <button id="new-sec-btn" class="button">New Secret</button>
+      </div>
+
+      <div id="new-sec-form" class="form-card" style="display:none">
+        <h3>New Secret</h3>
+        <form id="create-sec-form">
+          <div class="form-row">
+            <label class="form-field">
+              <span class="label">Name *</span>
+              <input type="text" name="name" required placeholder="Cloudflare API Token" class="input" id="sec-name" />
+              <small class="hint">&nbsp;</small>
+            </label>
+            <label class="form-field">
+              <span class="label">Slug *</span>
+              <input type="text" name="slug" required placeholder="CLOUDFLARE_TOKEN" class="input slug-input" id="sec-slug" />
+              <small class="hint">Referenced as <code>&#123;&#123;CLOUDFLARE_TOKEN&#125;&#125;</code></small>
+            </label>
+          </div>
+          <label class="form-field">
+            <span class="label">Description</span>
+            <input type="text" name="description" placeholder="Used for cache purge webhooks" class="input" />
+          </label>
+          <label class="form-field">
+            <span class="label">Value *</span>
+            <input type="password" name="value" required placeholder="Paste secret value" class="input" autocomplete="new-password" />
+            <small class="hint">Encrypted at rest. Never shown again after saving.</small>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="button">Save Secret</button>
+            <button type="button" id="cancel-sec-btn" class="button secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      {secrets.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon">🔑</div>
+          <p class="empty-title">No secrets yet</p>
+          <p class="empty-desc">Store API keys and tokens. Values are encrypted and never exposed after saving.</p>
+        </div>
+      ) : (
+        <div class="env-table">
+          <div class="env-header sec-header">
+            <span>Name</span>
+            <span>Slug</span>
+            <span>Value</span>
+            <span>Last Rotated</span>
+            <span></span>
+          </div>
+          {secrets.map((s: any) => {
+            const upd = s.updateAt ?? s.update_at;
+            const updStr = upd ? new Date(upd.replace(/(\.\d{3})\d+/, '$1')).toLocaleDateString() : '—';
+            return (
+            <div class="env-row sec-row">
+              <div>
+                <div class="env-name">{s.name}</div>
+                {s.description && <div class="env-subdesc">{s.description}</div>}
+              </div>
+              <div>
+                <div class="slug-copy">
+                  <code class="env-slug env-slug-secret">&#123;&#123;{s.slug}&#125;&#125;</code>
+                  <button class="copy-btn" data-copy={`{{${s.slug}}}`} title="Copy to clipboard">⎘</button>
+                </div>
+              </div>
+              <div class="env-value secret-value">
+                <span class="masked">••••••••</span>
+                <button class="button secondary small rotate-btn" data-id={s.id} data-name={s.name}>Rotate</button>
+              </div>
+              <div class="env-updated">{updStr}</div>
+              <div class="env-actions">
+                <button class="button secondary small danger" data-action="delete-sec" data-id={s.id} data-name={s.name}>Delete</button>
+              </div>
+            </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div id="rotate-card" class="form-card" style="display:none">
+        <h3 id="rotate-title">Rotate Secret</h3>
+        <form id="rotate-form">
+          <input type="hidden" id="rotate-id" />
+          <label class="form-field">
+            <span class="label">New Value *</span>
+            <input type="password" id="rotate-value" required placeholder="Paste new value" class="input" autocomplete="new-password" />
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="button">Save New Value</button>
+            <button type="button" id="cancel-rotate" class="button secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
+</AppLayout>
+
+<script>
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
+
+  function autoSlug(name: string) {
+    return name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+  }
+
+  // ── Variables ──────────────────────────────────────────────────────────────
+  const newVarBtn = document.getElementById('new-var-btn');
+  const newVarForm = document.getElementById('new-var-form');
+  const cancelVarBtn = document.getElementById('cancel-var-btn');
+  const createVarForm = document.getElementById('create-var-form') as HTMLFormElement;
+  const varName = document.getElementById('var-name') as HTMLInputElement;
+  const varSlug = document.getElementById('var-slug') as HTMLInputElement;
+
+  newVarBtn?.addEventListener('click', () => { newVarForm!.style.display = ''; });
+  cancelVarBtn?.addEventListener('click', () => { newVarForm!.style.display = 'none'; });
+
+  varName?.addEventListener('input', () => {
+    if (!varSlug.dataset.manual) varSlug.value = autoSlug(varName.value);
+  });
+  varSlug?.addEventListener('input', () => { varSlug.dataset.manual = 'true'; });
+
+  createVarForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(createVarForm);
+    try {
+      await sdk.variables.create({
+        name: fd.get('name') as string,
+        slug: fd.get('slug') as string,
+        description: (fd.get('description') as string) || null,
+        value: fd.get('value') as string,
+      });
+      window.location.reload();
+    } catch (err: any) { alert(`Failed: ${err?.message || err}`); }
+  });
+
+  // Inline edit
+  document.querySelectorAll('.inline-input').forEach(input => {
+    const inp = input as HTMLInputElement;
+    const row = inp.closest('.env-row')!;
+    const saveBtn = row.querySelector('.save-var-btn') as HTMLElement;
+
+    inp.addEventListener('input', () => {
+      saveBtn.style.display = inp.value !== inp.dataset.original ? '' : 'none';
+    });
+
+    saveBtn?.addEventListener('click', async () => {
+      const id = inp.dataset.id!;
+      try {
+        await sdk.variables.update(id, { value: inp.value });
+        inp.dataset.original = inp.value;
+        saveBtn.style.display = 'none';
+      } catch (err: any) { alert(`Failed: ${err?.message || err}`); }
+    });
+  });
+
+  document.querySelectorAll('[data-action="delete-var"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name!;
+      if (!confirm(`Delete variable "${name}"?`)) return;
+      try { await sdk.variables.delete(id); window.location.reload(); }
+      catch (err: any) { alert(`Failed: ${err?.message || err}`); }
+    });
+  });
+
+  // ── Secrets ────────────────────────────────────────────────────────────────
+  const newSecBtn = document.getElementById('new-sec-btn');
+  const newSecForm = document.getElementById('new-sec-form');
+  const cancelSecBtn = document.getElementById('cancel-sec-btn');
+  const createSecForm = document.getElementById('create-sec-form') as HTMLFormElement;
+  const secName = document.getElementById('sec-name') as HTMLInputElement;
+  const secSlug = document.getElementById('sec-slug') as HTMLInputElement;
+
+  newSecBtn?.addEventListener('click', () => { newSecForm!.style.display = ''; });
+  cancelSecBtn?.addEventListener('click', () => { newSecForm!.style.display = 'none'; });
+
+  secName?.addEventListener('input', () => {
+    if (!secSlug.dataset.manual) secSlug.value = autoSlug(secName.value);
+  });
+  secSlug?.addEventListener('input', () => { secSlug.dataset.manual = 'true'; });
+
+  createSecForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(createSecForm);
+    try {
+      await sdk.secrets.create({
+        name: fd.get('name') as string,
+        slug: fd.get('slug') as string,
+        description: (fd.get('description') as string) || null,
+        value: fd.get('value') as string,
+      });
+      window.location.reload();
+    } catch (err: any) { alert(`Failed: ${err?.message || err}`); }
+  });
+
+  const rotateCard = document.getElementById('rotate-card');
+  const rotateTitle = document.getElementById('rotate-title');
+  const rotateId = document.getElementById('rotate-id') as HTMLInputElement;
+  const rotateValue = document.getElementById('rotate-value') as HTMLInputElement;
+  const rotateForm = document.getElementById('rotate-form') as HTMLFormElement;
+  document.getElementById('cancel-rotate')?.addEventListener('click', () => { rotateCard!.style.display = 'none'; });
+
+  document.querySelectorAll('.rotate-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      rotateId.value = (btn as HTMLElement).dataset.id!;
+      rotateTitle!.textContent = `Rotate: ${(btn as HTMLElement).dataset.name}`;
+      rotateCard!.style.display = '';
+      rotateCard!.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+
+  rotateForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await sdk.secrets.update(rotateId.value, { value: rotateValue.value });
+      rotateCard!.style.display = 'none';
+      rotateValue.value = '';
+      alert('Secret rotated.');
+    } catch (err: any) { alert(`Failed: ${err?.message || err}`); }
+  });
+
+  document.querySelectorAll('[data-action="delete-sec"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name!;
+      if (!confirm(`Delete secret "${name}"?`)) return;
+      try { await sdk.secrets.delete(id); window.location.reload(); }
+      catch (err: any) { alert(`Failed: ${err?.message || err}`); }
+    });
+  });
+
+  // ── Copy-to-clipboard ──────────────────────────────────────────────────────
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const text = (btn as HTMLElement).dataset.copy!;
+      await navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = orig; }, 1200);
+    });
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .page-header h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; max-width: 600px; }
+  .page-header p code { background: var(--panel); padding: 1px 5px; border-radius: 3px; }
+
+  .alert {
+    padding: 16px; margin-bottom: 24px; border-radius: var(--radius);
+    background: var(--color-error-bg); color: var(--color-error); border: 1px solid var(--color-error);
+  }
+
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--line);
+  }
+
+  .tab {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+  .count {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .panel-content { display: flex; flex-direction: column; gap: 20px; }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .panel-desc { margin: 0; font-size: 14px; color: var(--muted); }
+
+  .form-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: grid;
+    gap: 20px;
+  }
+
+  .form-card h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-field { display: grid; gap: 8px; }
+  .label { font-size: 14px; font-weight: 500; padding-top: 4px; }
+  .form-actions { display: flex; gap: 12px; margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--line); }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .hint { font-size: 12px; color: var(--muted); }
+  .hint code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+
+  .empty-state { padding: 60px 24px; text-align: center; }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-title { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+  .empty-desc { margin: 0; color: var(--muted); font-size: 13px; }
+  .empty-desc code { background: var(--panel); padding: 1px 4px; border-radius: 3px; }
+
+  /* ── Table layout ─────────────────────────────────────────────────────── */
+
+  .env-table {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .env-header {
+    display: grid;
+    gap: 16px;
+    padding: 10px 16px;
+    background: var(--panel);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .var-header,
+  .var-row {
+    grid-template-columns: minmax(140px,1fr) minmax(160px,1fr) 1fr minmax(120px,auto) 100px;
+  }
+
+  .sec-header,
+  .sec-row {
+    grid-template-columns: minmax(140px,1fr) minmax(160px,1fr) 1fr minmax(120px,auto) 100px;
+  }
+
+  .env-row {
+    display: grid;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    transition: background 0.1s;
+  }
+
+  .env-row:first-of-type { border-top: none; }
+  .env-row:hover { background: var(--panel); }
+
+  /* ── Cell content ─────────────────────────────────────────────────────── */
+
+  .env-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; line-height: 1.4; }
+  .env-subdesc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .env-updated {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+  }
+
+  .env-ts {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  .env-slug {
+    display: inline-block;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    background: rgba(79, 156, 132, 0.1);
+    border: 1px solid rgba(79, 156, 132, 0.2);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+
+  .env-slug-secret {
+    color: #a855f7;
+    background: rgba(168, 85, 247, 0.08);
+    border-color: rgba(168, 85, 247, 0.2);
+  }
+
+  .env-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .inline-input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    color: var(--ink);
+    transition: border-color 0.15s;
+  }
+
+  .inline-input:focus {
+    border-color: var(--accent);
+    outline: none;
+    background: var(--panel);
+  }
+
+  .masked {
+    font-family: ui-monospace, monospace;
+    color: var(--muted);
+    letter-spacing: 3px;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .secret-value { gap: 10px; }
+
+  .env-desc {
+    font-size: 13px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .env-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
+
+  /* Small size — used throughout action rows */
+  .button.small {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 28px;
+  }
+
+  /* Solid danger — primary destructive action (e.g. delete form button) */
+  .button.danger {
+    background: var(--color-error);
+    border-color: var(--color-error);
+    color: white;
+  }
+
+  .button.danger:hover { opacity: 0.85; }
+
+  /* Outlined danger — secondary destructive in row actions */
+  .button.secondary.danger {
+    background: transparent;
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+
+  .button.secondary.danger:hover {
+    background: var(--color-error-bg);
+    border-color: var(--color-error);
+    color: var(--color-error);
+  }
+
+  /* ── Form cards ───────────────────────────────────────────────────────── */
+
+  .form-card {
+    border-top: 3px solid var(--accent);
+  }
+
+  /* Rotate/new secret form has a warning tone */
+  #rotate-card { border-top-color: #d97706; }
+
+  /* ── Misc ─────────────────────────────────────────────────────────────── */
+
+  .muted { color: var(--muted); }
+
+  /* ── Slug copy button ─────────────────────────────────────────────────── */
+
+  .slug-copy { display: flex; align-items: center; gap: 6px; }
+  .copy-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; padding: 2px 4px; border-radius: 3px; opacity: 0.6; }
+  .copy-btn:hover { opacity: 1; color: var(--accent); background: rgba(79,156,132,0.1); }
+</style>

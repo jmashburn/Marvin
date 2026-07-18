@@ -8,6 +8,7 @@ from pydantic_core.core_schema import ValidationInfo
 
 from marvin.core.root_logger import get_logger
 from marvin.schemas._marvin import _MarvinModel
+from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
 from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
@@ -22,26 +23,36 @@ class EntryTypeCreate(_MarvinModel):
     icon: str | None = None
     color: str | None = None
     description: str | None = None
-    sort_order: int = 0
-    is_system: bool = False
-    is_rendered: bool = False
+    # Nullable with a None default (not `= 0` / `= False`) so the generated OpenAPI/SDK type
+    # marks them optional: openapi-typescript treats a non-null default as "always present"
+    # (→ required in TS). The repo's create() coalesces None back to the real defaults, so
+    # runtime behavior is unchanged. Mirrors EntryTypeUpdate.
+    sort_order: int | None = None
+    is_system: bool | None = None
+    is_rendered: bool | None = None
     content_schema: dict | None = Field(
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
-        validation_alias=AliasChoices("schema_json", "schemaJson"),
+        validation_alias=AliasChoices("schemaJson", "schema_json"),
     )
     rendering: dict | None = Field(
         default=None,
         description="Rendering configuration (RenderingDefinition)",
         serialization_alias="renderingJson",
-        validation_alias=AliasChoices("rendering_json", "renderingJson"),
+        validation_alias=AliasChoices("renderingJson", "rendering_json"),
     )
     capabilities: dict | None = Field(
         default=None,
         description="Behavioral capabilities (CapabilitiesDefinition)",
         serialization_alias="capabilitiesJson",
-        validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
+        validation_alias=AliasChoices("capabilitiesJson", "capabilities_json"),
+    )
+    recipe: dict | None = Field(
+        default=None,
+        description="Authoring recipe (EntryTypeRecipe)",
+        serialization_alias="recipeJson",
+        validation_alias=AliasChoices("recipeJson", "recipe_json"),
     )
 
     @field_validator("content_schema")
@@ -69,6 +80,14 @@ class EntryTypeCreate(_MarvinModel):
         if value is None:
             return None
         CapabilitiesDefinition.model_validate(value)
+        return value
+
+    @field_validator("recipe")
+    @classmethod
+    def validate_recipe(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        EntryTypeRecipe.model_validate(value)
         return value
 
     model_config = ConfigDict(from_attributes=True)
@@ -89,19 +108,25 @@ class EntryTypeUpdate(_MarvinModel):
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
-        validation_alias=AliasChoices("schema_json", "schemaJson"),
+        validation_alias=AliasChoices("schemaJson", "schema_json"),
     )
     rendering: dict | None = Field(
         default=None,
         description="Rendering configuration (RenderingDefinition)",
         serialization_alias="renderingJson",
-        validation_alias=AliasChoices("rendering_json", "renderingJson"),
+        validation_alias=AliasChoices("renderingJson", "rendering_json"),
     )
     capabilities: dict | None = Field(
         default=None,
         description="Behavioral capabilities (CapabilitiesDefinition)",
         serialization_alias="capabilitiesJson",
-        validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
+        validation_alias=AliasChoices("capabilitiesJson", "capabilities_json"),
+    )
+    recipe: dict | None = Field(
+        default=None,
+        description="Authoring recipe (EntryTypeRecipe)",
+        serialization_alias="recipeJson",
+        validation_alias=AliasChoices("recipeJson", "recipe_json"),
     )
 
     @field_validator("content_schema")
@@ -129,6 +154,14 @@ class EntryTypeUpdate(_MarvinModel):
         if value is None:
             return None
         CapabilitiesDefinition.model_validate(value)
+        return value
+
+    @field_validator("recipe")
+    @classmethod
+    def validate_recipe(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        EntryTypeRecipe.model_validate(value)
         return value
 
     model_config = ConfigDict(from_attributes=True)
@@ -155,19 +188,25 @@ class EntryTypeRead(_MarvinModel):
         default=None,
         description="Entry type schema definition (EntryTypeSchemaDefinition)",
         serialization_alias="schemaJson",
-        validation_alias=AliasChoices("schema_json", "schemaJson"),
+        validation_alias=AliasChoices("schemaJson", "schema_json"),
     )
     rendering: dict | None = Field(
         default=None,
         description="Rendering configuration (RenderingDefinition)",
         serialization_alias="renderingJson",
-        validation_alias=AliasChoices("rendering_json", "renderingJson"),
+        validation_alias=AliasChoices("renderingJson", "rendering_json"),
     )
     capabilities: dict | None = Field(
         default=None,
         description="Behavioral capabilities (CapabilitiesDefinition)",
         serialization_alias="capabilitiesJson",
-        validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
+        validation_alias=AliasChoices("capabilitiesJson", "capabilities_json"),
+    )
+    recipe: dict | None = Field(
+        default=None,
+        description="Authoring recipe (EntryTypeRecipe)",
+        serialization_alias="recipeJson",
+        validation_alias=AliasChoices("recipeJson", "recipe_json"),
     )
     created_at: datetime | None = None
     update_at: datetime | None = None

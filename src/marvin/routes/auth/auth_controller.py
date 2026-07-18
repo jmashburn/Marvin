@@ -203,8 +203,7 @@ class PublicAuthenticiationController(BasePublicController):
 
         # Determine the redirect URL for the OIDC provider to send the user back to after authentication
         if not self.settings.PRODUCTION:
-            # For development, allow redirect to a common frontend development server URL
-            redirect_uri = "http://localhost:3000/login"  # TODO: Make this configurable if needed
+            redirect_uri = f"{self.settings.BASE_URL}/api/auth/oauth/callback"
         else:
             # For production, construct the redirect URI based on the current request's base URL
             redirect_uri = str(URLPath("/api/auth/oauth/callback").make_absolute_url(request.base_url))
@@ -216,7 +215,7 @@ class PublicAuthenticiationController(BasePublicController):
         return await oidc_client.authorize_redirect(request, redirect_uri)
 
     @public_router.get("/oauth/callback", summary="OIDC Authentication Callback")
-    async def oauth_callback(self, request: Request, response: Response, session: Session = Depends(generate_session)) -> dict[str, str]:
+    async def oauth_callback(self, request: Request, response: Response, session: Session = Depends(generate_session)):
         """
         Handles the callback from the OIDC provider after user authentication.
 
@@ -282,8 +281,14 @@ class PublicAuthenticiationController(BasePublicController):
         access_token, token_duration = marvin_auth_result
         expires_seconds = token_duration.total_seconds() if token_duration else None
 
-        # Set Marvin access token cookie
-        response.set_cookie(
+        frontend_url = self.settings.FRONTEND_URL
+
+        # Set cookie for same-origin production deployments
+        redirect = RedirectResponse(
+            url=f"{frontend_url}/api/auth/oidc/callback?token={access_token}",
+            status_code=302,
+        )
+        redirect.set_cookie(
             key="marvin.access_token",
             value=access_token,
             httponly=True,
@@ -291,7 +296,7 @@ class PublicAuthenticiationController(BasePublicController):
             secure=self.settings.PRODUCTION,
             samesite="lax",
         )
-        return MarvinAuthToken.respond(access_token)
+        return redirect
 
 
 @controller(user_router)

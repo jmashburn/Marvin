@@ -43,7 +43,7 @@ class TestAuthentication:
     def test_protected_endpoint_requires_authentication(self, client: TestClient):
         """Test that protected endpoints require authentication."""
         # Try to access a protected endpoint without authentication
-        response = client.get("/api/users")
+        response = client.get("/api/admin/users")
 
         # Should return 401 or 403 (unauthorized/forbidden)
         assert response.status_code in [401, 403]

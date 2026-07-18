@@ -1,0 +1,328 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { requireAdmin } from "@/lib/auth";
+import { getAuthToken } from "@/lib/api/client";
+import { getGlobalLog, listAllTasks } from "@/lib/api/admin/scheduledTasks";
+import type { ScheduledTaskExecutionLogRead } from "@/lib/api/admin/scheduledTasks";
+
+await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+const authToken = getAuthToken(Astro.cookies);
+
+const filter = Astro.url.searchParams.get('filter') || 'all';
+
+let logs: ScheduledTaskExecutionLogRead[] = [];
+let error: string | null = null;
+let taskMap = new Map<string, { name: string; task_type: string }>();
+
+try {
+  const [logsResult, tasksResult] = await Promise.all([
+    getGlobalLog(200, authToken),
+    listAllTasks(authToken),
+  ]);
+  logs = Array.isArray(logsResult) ? logsResult : (logsResult as any)?.items ?? [];
+  const tasks = Array.isArray(tasksResult) ? tasksResult : (tasksResult as any)?.items ?? [];
+  taskMap = new Map(tasks.map((t: any) => [t.id, { name: t.name, task_type: t.task_type ?? t.taskType ?? '' }]));
+} catch (e) {
+  console.error('[admin/scheduled-tasks/log] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const filteredLogs = filter === 'all' ? logs : logs.filter(l => l.status === filter);
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
+function statusClass(status: string): string {
+  if (status === 'success') return 'success';
+  if (status === 'failed') return 'failed';
+  if (status === 'timeout') return 'timeout';
+  if (status === 'cancelled') return 'cancelled';
+  return 'none';
+}
+---
+
+<AdminLayout title="Global Execution Log">
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/admin/scheduled-tasks">Scheduled Tasks</a>
+      <span>›</span>
+      <span>Activity Log</span>
+    </div>
+    <h2>Global Execution Log</h2>
+    <p>Execution history across all tasks and workspaces</p>
+  </div>
+
+  <div class="filters">
+    <a href="?filter=all" class:list={['filter-btn', { active: filter === 'all' }]}>All</a>
+    <a href="?filter=success" class:list={['filter-btn', { active: filter === 'success' }]}>Success</a>
+    <a href="?filter=failed" class:list={['filter-btn', { active: filter === 'failed' }]}>Failed</a>
+    <a href="?filter=timeout" class:list={['filter-btn', { active: filter === 'timeout' }]}>Timeout</a>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : filteredLogs.length === 0 ? (
+    <div class="empty-state">
+      <p class="empty-title">No execution logs found</p>
+      <p class="empty-desc">Logs appear here after tasks have been triggered or run on schedule</p>
+    </div>
+  ) : (
+    <div class="table-wrap">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Executed At</th>
+            <th>Task ID</th>
+            <th>Type</th>
+            <th>Workspace</th>
+            <th>Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredLogs.map((log, i) => {
+            const hasDetails = log.output || log.error_message || log.error_traceback;
+            const taskInfo = taskMap.get(log.task_id);
+            return (
+              <>
+                <tr class:list={['log-row', { 'has-details': hasDetails }]}>
+                  <td class="expand-cell">
+                    {hasDetails && (
+                      <button class="expand-btn" data-target={`details-${i}`} aria-label="Toggle details">▶</button>
+                    )}
+                  </td>
+                  <td class="nowrap">{formatDate(log.executed_at)}</td>
+                  <td class="mono task-id">
+                    {log.task_id
+                      ? <a href={`/admin/scheduled-tasks/${log.task_id}`} title={taskInfo?.name}>{log.task_id.slice(0, 8)}…</a>
+                      : <span>—</span>}
+                  </td>
+                  <td class="type-cell">{taskInfo?.task_type || '—'}</td>
+                  <td class="mono">{log.group_id ? log.group_id.slice(0, 8) + '…' : 'System'}</td>
+                  <td>
+                    <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
+                  </td>
+                  <td class="nowrap">{log.duration_ms != null ? `${log.duration_ms}ms` : '—'}</td>
+                </tr>
+                {hasDetails && (
+                  <tr class="detail-row" id={`details-${i}`} style="display:none">
+                    <td colspan="7">
+                      <div class="detail-body">
+                        {log.output && (
+                          <div class="detail-section">
+                            <div class="detail-label">Output</div>
+                            <div class="detail-output">{log.output}</div>
+                          </div>
+                        )}
+                        {log.error_message && (
+                          <div class="detail-section">
+                            <div class="detail-label">Error</div>
+                            <div class="detail-message">{log.error_message}</div>
+                          </div>
+                        )}
+                        {log.error_traceback && (
+                          <div class="detail-section">
+                            <div class="detail-label">Traceback</div>
+                            <pre class="detail-trace">{log.error_traceback}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  )}
+</AdminLayout>
+
+<style>
+  .page-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .page-header h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    transition: all 0.15s;
+  }
+
+  .filter-btn:hover { color: var(--ink); border-color: var(--ink); }
+  .filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .empty-state { padding: 60px 24px; text-align: center; }
+  .empty-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty-desc { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .table-wrap { overflow-x: auto; }
+
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .log-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .log-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  .log-row:last-child td { border-bottom: none; }
+  .log-row:hover td { background: var(--panel); }
+
+  .expand-cell { width: 32px; padding: 10px 6px 10px 12px; }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .expand-btn:hover { background: var(--line); color: var(--ink); }
+
+  .detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
+
+  .detail-body {
+    padding: 16px 16px 16px 52px;
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .detail-section { display: flex; flex-direction: column; gap: 4px; }
+
+  .detail-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .detail-output {
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+    color: var(--ink);
+  }
+
+  .detail-message {
+    font-size: 13px;
+    color: var(--color-error);
+    font-family: ui-monospace, monospace;
+  }
+
+  .detail-trace {
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+    color: var(--muted);
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .nowrap { white-space: nowrap; }
+  .mono { font-family: ui-monospace, monospace; font-size: 13px; }
+  .type-cell { font-size: 12px; font-family: ui-monospace, monospace; color: var(--muted); white-space: nowrap; }
+
+  .task-id a { color: var(--accent); text-decoration: none; }
+  .task-id a:hover { text-decoration: underline; }
+
+  .status-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .status-success { background: rgba(79, 156, 132, 0.1); color: var(--accent); }
+  .status-failed { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
+  .status-timeout { background: rgba(217, 119, 6, 0.1); color: #d97706; }
+  .status-cancelled { background: rgba(128, 128, 128, 0.1); color: var(--muted); }
+  .status-none { color: var(--muted); }
+</style>
+
+<script>
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = (btn as HTMLElement).dataset.target!;
+      const row = document.getElementById(targetId);
+      if (!row) return;
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      (btn as HTMLElement).textContent = open ? '▶' : '▼';
+    });
+  });
+</script>

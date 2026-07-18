@@ -9,16 +9,13 @@ from marvin.schemas._marvin import _MarvinModel
 class EmailTemplateCreate(_MarvinModel):
     """Schema for creating a new email template."""
 
-    template_type: str = Field(..., description="Type of email (invitation, password_reset, notification, test)")
+    template_type: str = Field(..., description="Type of email (invitation, password_reset, welcome, custom, test)")
     group_id: UUID4 | None = Field(None, description="Workspace ID - null for system-wide templates")
     name: str = Field(..., description="Human-readable template name")
     description: str | None = Field(None, description="Description of when this template is used")
     subject: str = Field(..., description="Email subject line - supports Jinja2 variables")
-    header_text: str | None = Field(None, description="Header text (structured mode with default.html)")
-    message_top: str | None = Field(None, description="Top message (structured mode with default.html)")
-    message_bottom: str | None = Field(None, description="Bottom message (structured mode with default.html)")
-    button_text: str | None = Field(None, description="Button text (structured mode with default.html)")
-    custom_html: str | None = Field(None, description="Full custom HTML - if set, overrides structured fields")
+    body_markdown: str | None = Field(None, description="Markdown body rendered via default.html template")
+    custom_html: str | None = Field(None, description="Full custom HTML - if set, overrides body_markdown")
     available_variables: dict | None = Field(None, description="Documentation of available variables")
     enabled: bool = Field(True, description="Whether this template is active")
 
@@ -29,10 +26,7 @@ class EmailTemplateUpdate(_MarvinModel):
     name: str | None = None
     description: str | None = None
     subject: str | None = None
-    header_text: str | None = None
-    message_top: str | None = None
-    message_bottom: str | None = None
-    button_text: str | None = None
+    body_markdown: str | None = None
     custom_html: str | None = None
     available_variables: dict | None = None
     enabled: bool | None = None
@@ -47,10 +41,7 @@ class EmailTemplateRead(_MarvinModel):
     name: str
     description: str | None
     subject: str
-    header_text: str | None
-    message_top: str | None
-    message_bottom: str | None
-    button_text: str | None
+    body_markdown: str | None
     custom_html: str | None
     available_variables: dict | None
     enabled: bool
@@ -68,5 +59,6 @@ class EmailTemplateSummary(_MarvinModel):
     name: str
     description: str | None
     enabled: bool
+    group_id: UUID4 | None = None  # None = system template, set = workspace customization
 
     model_config = {"from_attributes": True}

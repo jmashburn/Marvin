@@ -33,15 +33,25 @@ def sql_global_init(db_url: str) -> tuple[sessionmaker[Session], sa.engine.Engin
     if "sqlite" in db_url:
         connect_args["check_same_thread"] = False
 
-    engine = sa.create_engine(db_url, echo=False, connect_args=connect_args, pool_pre_ping=True, future=True)
+    engine = sa.create_engine(
+        db_url,
+        echo=False,
+        connect_args=connect_args,
+        pool_pre_ping=True,
+        future=True,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+    )
 
-    # Enable foreign key constraints for SQLite
+    # Enable SQLite pragmas
     if "sqlite" in db_url:
 
         @event.listens_for(engine, "connect")
         def set_sqlite_pragma(dbapi_conn, connection_record):
             cursor = dbapi_conn.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
+            if settings.DB_SQLITE_WAL_MODE:
+                cursor.execute("PRAGMA journal_mode=WAL")
             cursor.close()
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)

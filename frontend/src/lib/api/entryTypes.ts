@@ -17,6 +17,7 @@ export interface EntryTypeCreate {
   schemaJson?: Record<string, unknown>;
   renderingJson?: Record<string, unknown>;
   capabilitiesJson?: Record<string, unknown>;
+  recipeJson?: Record<string, unknown>;
 }
 
 export interface EntryTypeUpdate {
@@ -30,6 +31,7 @@ export interface EntryTypeUpdate {
   schemaJson?: Record<string, unknown>;
   renderingJson?: Record<string, unknown>;
   capabilitiesJson?: Record<string, unknown>;
+  recipeJson?: Record<string, unknown>;
 }
 
 export type EntryTypeRead = PlatformEntryType;

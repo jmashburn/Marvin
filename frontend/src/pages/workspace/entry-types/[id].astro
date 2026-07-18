@@ -26,6 +26,8 @@ const isSystem = entryType?.isSystem ?? false;
 
 const rendering = (entryType?.renderingJson ?? {}) as Record<string, unknown>;
 const capabilities = (entryType?.capabilitiesJson ?? {}) as Record<string, unknown>;
+const recipe = (entryType?.recipeJson ?? {}) as Record<string, unknown>;
+const recipeStr = Object.keys(recipe).length ? JSON.stringify(recipe, null, 2) : '';
 ---
 
 <AppLayout title={entryType ? `Edit ${entryType.name}` : "Edit Entry Type"}>
@@ -180,6 +182,27 @@ const capabilities = (entryType?.capabilitiesJson ?? {}) as Record<string, unkno
               </div>
             </details>
             <input type="hidden" name="capabilities_json" id="capabilities_json" />
+          </div>
+
+          {/* Recipe (authoring) */}
+          <div class="config-section">
+            <details id="recipe-details" open={Object.keys(recipe).length > 0}>
+              <summary class="section-heading">Recipe (authoring)</summary>
+              <div class="config-fields">
+                <p style="margin:0 0 8px;color:var(--muted);font-size:13px;">
+                  What to gather &amp; derive to build one — assets contract (min/max + roles like
+                  hero/gallery, with derive), resource extraction, enrichment. JSON for now.
+                </p>
+                <textarea
+                  name="recipe_json"
+                  id="recipe_json"
+                  rows="12"
+                  spellcheck="false"
+                  style="width:100%;font-family:ui-monospace,monospace;font-size:13px;line-height:1.5;padding:10px;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);color:var(--ink);"
+                  placeholder={'{\n  "assets": { "min": 1, "max": 4, "roles": [{ "role": "hero", "required": true, "derive": ["thumbnail", "palette"] }] },\n  "resources": { "extract": [{ "type": "supplier", "source": "body", "capture": ["name", "url"] }] }\n}'}
+                >{recipeStr}</textarea>
+              </div>
+            </details>
           </div>
 
           {isSystem && (

@@ -1,8 +1,8 @@
 """Resource schemas."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4
+from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -22,7 +22,7 @@ class ResourceCreate(_MarvinModel):
     """External URL (supplier site, GitHub repo, API docs, etc)."""
     external_id: str | None = None
     """External identifier (supplier SKU, ISBN, repo path, etc)."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional metadata as JSON."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -43,7 +43,7 @@ class ResourceUpdate(_MarvinModel):
     """External URL (supplier site, GitHub repo, API docs, etc)."""
     external_id: str | None = None
     """External identifier (supplier SKU, ISBN, repo path, etc)."""
-    metadata_: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_"), serialization_alias="metadata")
+    metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional metadata for additional properties."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
@@ -73,9 +73,37 @@ class ResourceSummary(_MarvinModel):
 class ResourceRead(ResourceSummary):
     """Full schema for reading a resource."""
 
-    metadata_: dict | None = Field(default=None, serialization_alias="metadata")
+    metadata_json: dict | None = None
     """Optional metadata."""
     created_by: UUID4
     """ID of user who created the resource."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ResourcePlacement(_MarvinModel):
+    """How a resource is used by a specific entry."""
+
+    role: str | None = None
+    position: int = 0
+    placement_metadata: dict | None = Field(
+        default=None,
+        validation_alias=AliasChoices("placement_metadata", "metadata_json"),
+    )
+
+    @field_validator("placement_metadata", mode="before")
+    @classmethod
+    def validate_placement_metadata(cls, value: Any) -> dict | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            return None
+        return value
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntryResourceRead(ResourceSummary, ResourcePlacement):
+    """Resource metadata plus entry-specific placement details."""
 
     model_config = ConfigDict(from_attributes=True)

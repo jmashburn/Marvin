@@ -58,9 +58,33 @@ export async function deleteCollection(id: string, authToken: string): Promise<v
 }
 
 /**
+ * Bulk-reorder collections (sets each one's sortOrder). Works for system collections too.
+ */
+export async function reorderCollections(
+  order: Array<{ id: string; sortOrder: number }>,
+  authToken: string
+): Promise<{ updated: number }> {
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.reorder(order);
+}
+
+/**
  * Get entries in a collection
  */
 export async function getCollectionEntries(collectionId: string, authToken: string): Promise<EntryRead[]> {
   const sdk = createSdkClient(authToken);
   return sdk.collections.getEntries(collectionId);
+}
+
+/**
+ * Update junction fields (role, metadata) for an entry in a collection
+ */
+export async function updateCollectionEntry(
+  collectionId: string,
+  entryId: string,
+  data: { role?: string | null; metadataJson?: Record<string, unknown> | null },
+  authToken: string
+): Promise<void> {
+  const sdk = createSdkClient(authToken);
+  return sdk.collections.updateEntryJunction(collectionId, entryId, data);
 }

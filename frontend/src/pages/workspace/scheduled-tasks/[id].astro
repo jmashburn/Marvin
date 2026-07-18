@@ -1,0 +1,622 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
+import type { TaskTypeInfo } from "@inneropen/marvin-sdk/platform";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+const { id } = Astro.params;
+
+let task: any = null;
+let taskTypes: TaskTypeInfo[] = [];
+let history: any[] = [];
+let error: string | null = null;
+
+try {
+  [task, taskTypes] = await Promise.all([
+    sdk.scheduledTasks.get(id!),
+    sdk.scheduledTasks.taskTypes({ detailed: true }) as Promise<TaskTypeInfo[]>,
+  ]);
+} catch (e) {
+  console.error('[scheduled-tasks/edit] Error loading task:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+if (task) {
+  try {
+    history = await sdk.scheduledTasks.history(id!, { limit: 50 });
+  } catch (e) {
+    console.error('[scheduled-tasks/edit] Error loading history:', e);
+  }
+}
+
+function formatDate(isoStr: string): string {
+  if (!isoStr) return '—';
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+}
+
+function statusClass(status: string | null): string {
+  if (status === 'success') return 'success';
+  if (status === 'failed') return 'failed';
+  if (status === 'timeout') return 'timeout';
+  if (status === 'cancelled') return 'cancelled';
+  return 'none';
+}
+
+// Normalize camelCase API response fields (alias_generator=camelize on backend)
+const taskType = task ? (task.taskType ?? task.task_type) : '';
+const scheduleType = task ? (task.scheduleType ?? task.schedule_type) : '';
+const scheduleConfig = task ? (task.scheduleConfig ?? task.schedule_config) : null;
+---
+
+<AppLayout title={task ? `Edit: ${task.name}` : 'Scheduled Task'} eyebrow="Automation">
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/workspace/scheduled-tasks">Scheduled Tasks</a>
+      <span>›</span>
+      <span>{task?.name || 'Edit Task'}</span>
+    </div>
+    <h2>{task?.name || 'Edit Scheduled Task'}</h2>
+    <p>Configure task settings and view execution history</p>
+  </div>
+
+  {error ? (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  ) : task ? (
+    <div class="layout">
+      <div class="form-container">
+        <form id="update-task-form" class="form">
+          <input type="hidden" name="id" value={task.id} />
+
+          <div class="form-section">
+            <h3>Task Details</h3>
+
+            <div class="form-field">
+              <span class="label">What to Run</span>
+              <div class="readonly-field">
+                {taskTypes.find(t => t.task_type === taskType)?.name || taskType}
+                <span class="readonly-tag">locked</span>
+              </div>
+              <small class="hint">
+                {taskTypes.find(t => t.task_type === taskType)?.description || ''}
+              </small>
+            </div>
+
+            <label class="form-field">
+              <span class="label">Name *</span>
+              <input type="text" name="name" required value={task.name} class="input" />
+            </label>
+
+            <label class="form-field">
+              <span class="label">Description</span>
+              <textarea name="description" rows="2" class="input">{task.description || ''}</textarea>
+            </label>
+          </div>
+
+          <div class="form-section">
+            <h3>Schedule</h3>
+
+            <label class="form-field">
+              <span class="label">Repeat *</span>
+              <select name="schedule_type" required class="input" id="schedule-type-select">
+                <option value="interval" selected={scheduleType === 'interval'}>Interval (every N seconds)</option>
+                <option value="cron" selected={scheduleType === 'cron'}>Cron Expression</option>
+                <option value="once" selected={scheduleType === 'once'}>One Time</option>
+              </select>
+            </label>
+
+            <div id="schedule-interval" class="schedule-block" style={scheduleType !== 'interval' ? 'display:none' : ''}>
+              <label class="form-field">
+                <span class="label">Interval (seconds) *</span>
+                <input
+                  type="number"
+                  name="interval_seconds"
+                  min="60"
+                  value={scheduleConfig?.intervalSeconds ?? scheduleConfig?.interval_seconds ?? 3600}
+                  class="input"
+                />
+                <small class="hint">Common: 3600 (hourly), 86400 (daily), 604800 (weekly)</small>
+              </label>
+            </div>
+
+            <div id="schedule-cron" class="schedule-block" style={scheduleType !== 'cron' ? 'display:none' : ''}>
+              <label class="form-field">
+                <span class="label">Cron Expression *</span>
+                <input
+                  type="text"
+                  name="cron_expression"
+                  placeholder="0 * * * *"
+                  value={scheduleConfig?.cronExpression ?? scheduleConfig?.cron_expression ?? ''}
+                  class="input"
+                />
+                <small class="hint">Examples: "0 * * * *" (hourly), "0 0 * * *" (daily midnight)</small>
+              </label>
+              <label class="form-field">
+                <span class="label">Timezone</span>
+                <input
+                  type="text"
+                  name="timezone"
+                  placeholder="UTC"
+                  value={scheduleConfig?.timezone ?? ''}
+                  class="input"
+                />
+              </label>
+            </div>
+
+            <div id="schedule-once" class="schedule-block" style={scheduleType !== 'once' ? 'display:none' : ''}>
+              <label class="form-field">
+                <span class="label">Run At (UTC) *</span>
+                <input
+                  type="datetime-local"
+                  name="run_at"
+                  value={scheduleConfig?.runAt ?? scheduleConfig?.run_at ?? ''}
+                  class="input"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Options</h3>
+            <label class="checkbox-field">
+              <input type="checkbox" name="enabled" checked={task.enabled !== false} />
+              <span>Enabled</span>
+            </label>
+          </div>
+
+          <div class="form-actions" data-task-id={task.id}>
+            <button type="submit" class="button">Save Changes</button>
+            <button type="button" id="run-btn" class="button secondary">Run Now</button>
+            <button type="button" id="delete-btn" class="button danger">Delete</button>
+            <a href="/workspace/scheduled-tasks" class="button secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+
+      <div class="history-section">
+        <h3>Execution History</h3>
+        {history.length === 0 ? (
+          <p class="no-history">No execution history yet.</p>
+        ) : (
+          <div class="history-table-wrap">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Executed At</th>
+                  <th>Status</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((exec, i) => {
+                  const executedAt = exec.executedAt ?? exec.executed_at;
+                  const durationMs = exec.durationMs ?? exec.duration_ms;
+                  const errorMessage = exec.errorMessage ?? exec.error_message;
+                  const errorTraceback = exec.errorTraceback ?? exec.error_traceback;
+                  const output = exec.output ?? null;
+                  const hasDetails = output || errorMessage || errorTraceback;
+                  return (
+                    <>
+                      <tr class:list={['history-row', { 'has-details': hasDetails }]}>
+                        <td class="expand-cell">
+                          {hasDetails && (
+                            <button class="expand-btn" data-target={`hist-${i}`} aria-label="Toggle details">▶</button>
+                          )}
+                        </td>
+                        <td class="nowrap">{formatDate(executedAt)}</td>
+                        <td>
+                          <span class={`run-status status-${statusClass(exec.status)}`}>
+                            {exec.status}
+                          </span>
+                        </td>
+                        <td class="nowrap">{durationMs != null ? `${durationMs}ms` : '—'}</td>
+                      </tr>
+                      {hasDetails && (
+                        <tr class="detail-row" id={`hist-${i}`} style="display:none">
+                          <td colspan="4">
+                            <div class="detail-body">
+                              {output && (
+                                <div class="detail-section">
+                                  <div class="detail-label">Output</div>
+                                  <div class="detail-output">{output}</div>
+                                </div>
+                              )}
+                              {errorMessage && (
+                                <div class="detail-section">
+                                  <div class="detail-label">Error</div>
+                                  <div class="detail-message">{errorMessage}</div>
+                                </div>
+                              )}
+                              {errorTraceback && (
+                                <div class="detail-section">
+                                  <div class="detail-label">Traceback</div>
+                                  <pre class="detail-trace">{errorTraceback}</pre>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null}
+</AppLayout>
+
+<script>
+  import { createSdkClient } from '@/lib/sdk';
+  const sdk = createSdkClient();
+
+  const taskId = (document.querySelector('[data-task-id]') as HTMLElement)?.dataset.taskId!;
+
+  const scheduleTypeSelect = document.getElementById('schedule-type-select');
+
+  function updateScheduleFields() {
+    const val = scheduleTypeSelect?.value;
+    document.getElementById('schedule-interval').style.display = val === 'interval' ? '' : 'none';
+    document.getElementById('schedule-cron').style.display = val === 'cron' ? '' : 'none';
+    document.getElementById('schedule-once').style.display = val === 'once' ? '' : 'none';
+  }
+
+  scheduleTypeSelect?.addEventListener('change', updateScheduleFields);
+
+  document.getElementById('update-task-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const scheduleType = fd.get('schedule_type');
+
+    let scheduleConfig = {};
+    if (scheduleType === 'interval') {
+      scheduleConfig = { interval_seconds: parseInt(fd.get('interval_seconds')) };
+    } else if (scheduleType === 'cron') {
+      scheduleConfig = { cron_expression: fd.get('cron_expression') };
+      const tz = fd.get('timezone');
+      if (tz) scheduleConfig.timezone = tz;
+    } else {
+      scheduleConfig = { run_at: fd.get('run_at') };
+    }
+
+    const payload = {
+      name: fd.get('name'),
+      description: fd.get('description') || null,
+      task_type: fd.get('task_type'),
+      schedule_type: scheduleType,
+      schedule_config: scheduleConfig,
+      enabled: fd.get('enabled') === 'on',
+    };
+
+    try {
+      await sdk.scheduledTasks.update(taskId, payload);
+      window.location.href = '/workspace/scheduled-tasks';
+    } catch (err) {
+      alert('Failed to save changes. Please try again.');
+      console.error(err);
+    }
+  });
+
+  document.getElementById('run-btn')?.addEventListener('click', async () => {
+    if (!confirm('Manually trigger this task now?')) return;
+    try {
+      await sdk.scheduledTasks.execute(taskId);
+      alert('Task triggered! Refresh this page in a moment to see the new history entry.');
+    } catch {
+      alert('Failed to trigger task');
+    }
+  });
+
+  document.getElementById('delete-btn')?.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to delete this task? This cannot be undone.')) return;
+    try {
+      await sdk.scheduledTasks.delete(taskId);
+      window.location.href = '/workspace/scheduled-tasks';
+    } catch {
+      alert('Failed to delete task');
+    }
+  });
+
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = document.getElementById((btn as HTMLElement).dataset.target!);
+      if (!row) return;
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      (btn as HTMLElement).textContent = open ? '▶' : '▼';
+    });
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--ink);
+  }
+
+  .page-header h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+  }
+
+  .alert-error {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 32px;
+    max-width: 900px;
+  }
+
+  .form-container {
+    min-width: 0;
+  }
+
+  .form {
+    display: grid;
+    gap: 24px;
+  }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .schedule-block {
+    display: grid;
+    gap: 16px;
+  }
+
+  .form-field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .checkbox-field input[type="checkbox"] {
+    width: auto;
+  }
+
+  .label {
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .readonly-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--panel);
+    color: var(--ink);
+  }
+
+  .readonly-tag {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .button.danger {
+    background: var(--color-error);
+    color: white;
+  }
+
+  .button.danger:hover {
+    opacity: 0.9;
+  }
+
+  .history-section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .history-section h3 {
+    margin: 0 0 20px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .no-history {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .history-table-wrap {
+    overflow-x: auto;
+  }
+
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .history-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .history-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .history-row:last-child td { border-bottom: none; }
+  .history-row:hover td { background: var(--bg); }
+
+  .expand-cell { width: 28px; padding: 10px 4px 10px 12px; }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .expand-btn:hover { background: var(--line); color: var(--ink); }
+
+  .detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
+
+  .detail-body {
+    padding: 12px 12px 12px 44px;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .detail-section { display: flex; flex-direction: column; gap: 3px; }
+
+  .detail-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  .detail-output {
+    font-size: 13px;
+    font-family: ui-monospace, monospace;
+    color: var(--ink);
+  }
+
+  .detail-message {
+    font-size: 12px;
+    color: var(--color-error);
+    font-family: ui-monospace, monospace;
+  }
+
+  .detail-trace {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+    color: var(--muted);
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .run-status {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .status-success { color: var(--accent); }
+  .status-failed { color: var(--color-error); }
+  .status-timeout { color: #d97706; }
+  .status-cancelled { color: var(--muted); }
+  .status-none { color: var(--muted); }
+</style>

@@ -11,7 +11,7 @@ different field types, following Marvin's existing pattern from scheduled tasks
 
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, StringConstraints
+from pydantic import ConfigDict, Field, StringConstraints
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -116,8 +116,40 @@ class JsonFieldSchema(BaseFieldSchema):
     type: Literal["json"]
 
 
-# Discriminated union of all field types
-# Note: Asset and Resource fields are handled through the entry UI sidebar, not schema
+class AssetFieldSchema(BaseFieldSchema):
+    """A single linked asset (image/file). Value is an asset id."""
+
+    type: Literal["asset"]
+    model_config = ConfigDict(extra="allow")
+
+
+class AssetListFieldSchema(BaseFieldSchema):
+    """Multiple linked assets. Value is a list of asset ids."""
+
+    type: Literal["asset-list"]
+    min: int | None = None
+    max: int | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+class ResourceFieldSchema(BaseFieldSchema):
+    """A single linked resource. Value is a resource id."""
+
+    type: Literal["resource"]
+    model_config = ConfigDict(extra="allow")
+
+
+class ResourceListFieldSchema(BaseFieldSchema):
+    """Multiple linked resources. Value is a list of resource ids."""
+
+    type: Literal["resource-list"]
+    min: int | None = None
+    max: int | None = None
+    model_config = ConfigDict(extra="allow")
+
+
+# Discriminated union of all field types. Asset/resource relationship fields are first-class
+# here (they also render via the entry editor's sidebar pickers).
 FieldSchema = Annotated[
     TextFieldSchema
     | TextareaFieldSchema
@@ -127,7 +159,11 @@ FieldSchema = Annotated[
     | SelectFieldSchema
     | DateFieldSchema
     | DateTimeFieldSchema
-    | JsonFieldSchema,
+    | JsonFieldSchema
+    | AssetFieldSchema
+    | AssetListFieldSchema
+    | ResourceFieldSchema
+    | ResourceListFieldSchema,
     Field(discriminator="type"),
 ]
 """

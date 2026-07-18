@@ -38,17 +38,12 @@ class EmailTemplate(BaseModel):
     """
 
     subject: str
-    """The subject line of the email (can be a localization key)."""
     header_text: str
-    """Text for the header section of the email (can be a localization key)."""
     message_top: str
-    """The primary message content, appearing at the top (can be a localization key)."""
-    message_bottom: str
-    """Additional message content, appearing at the bottom (can be a localization key)."""
-    button_link: str
-    """The URL for the call-to-action button in the email."""
-    button_text: str
-    """The text displayed on the call-to-action button (can be a localization key)."""
+    message_bottom: str = ""
+    button_link: str = ""
+    button_text: str = ""
+    workspace_name: str = ""
 
     def render_html(self, template_file: Path) -> str:  # Renamed `template` to `template_file`
         """
@@ -83,7 +78,7 @@ class EmailService(BaseService):
     specific types of application emails like password resets and invitations.
     """
 
-    def __init__(self, sender: ABCEmailSender | None = None, locale: str | None = None) -> None:
+    def __init__(self, sender: ABCEmailSender | None = None, locale: str | None = None, group_id: str | None = None) -> None:
         """
         Initializes the EmailService.
 
@@ -98,14 +93,20 @@ class EmailService(BaseService):
         self.templates_dir: Path = CWD / "templates"  # Path to the email templates directory
         self.default_template: Path = self.templates_dir / "default.html"  # Path to the default email template
 
-        if Path(self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE).is_file():
+        if Path(self.templates_dir / self.settings.EMAIL_TEMPLATE).is_file():
             self.default_template: Path = (
-                self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE
+                self.templates_dir / self.settings.EMAIL_TEMPLATE
             )  # Path to the default email template per settings
 
-        if Path(self.directories.TEMPLATE_DIR / self.settings._DEFAULT_EMAIL_TEMPLATE).is_file():
+        if Path(self.directories.TEMPLATE_DIR / self.settings.EMAIL_TEMPLATE).is_file():
             self.templates_dir = self.directories.TEMPLATE_DIR
-            self.default_template = self.templates_dir / self.settings._DEFAULT_EMAIL_TEMPLATE
+            self.default_template = self.templates_dir / self.settings.EMAIL_TEMPLATE
+
+        # Workspace-level override — highest priority
+        if group_id:
+            workspace_template = self.directories.TEMPLATE_DIR / str(group_id) / self.settings.EMAIL_TEMPLATE
+            if workspace_template.is_file():
+                self.default_template = workspace_template
 
         self.logger.debug(f"Loading {self.templates_dir} in {self.default_template}")
 
@@ -153,33 +154,44 @@ class EmailService(BaseService):
             self.logger.error(f"Failed to send email '{email_data.subject}' to {email_to}.")
         return success
 
-    def send_forgot_password(self, recipient_address: str, reset_password_url: str) -> bool:  # Renamed params
-        """
-        Sends a "forgot password" email to the user.
-
-        The email contains a unique URL for resetting their password.
-        Content is defined by localization keys (e.g., "emails.password.subject").
-
-        Args:
-            recipient_address (str): The email address of the user who forgot their password.
-            reset_password_url (str): The URL the user will click to reset their password.
-
-        Returns:
-            bool: True if the email was sent successfully, False otherwise.
-        """
-        # Construct the EmailTemplate with content specific to password reset
-        # These string values are presumably localization keys.
+    def send_forgot_password(
+        self,
+        recipient_address: str,
+        reset_password_url: str,
+        username: str = "",
+        group_id: str | None = None,
+    ) -> bool:
+        """Sends a password reset email, using a DB template if available."""
+        db_template = self._get_db_template("password_reset", group_id)
+        if db_template:
+            return self._send_db_template(
+                recipient_address,
+                db_template,
+                {
+                    "reset_url": reset_password_url,
+                    "button_link": reset_password_url,
+                    "username": username,
+                    "expiry_hours": "24",
+                },
+            )
         forgot_password_template = EmailTemplate(
-            subject="Forgot Password",  # Localization key for subject
-            header_text="Forgot Password",
-            message_top="You have requested to reset your password.",
-            message_bottom="Please click the button above to reset your password.",
-            button_link=reset_password_url,  # The actual reset URL
+            subject="Reset your password",
+            header_text="Password Reset Request",
+            message_top=f"We received a request to reset the password for {username or 'your account'}.",
+            message_bottom="If you didn't request this, you can safely ignore this email.",
+            button_link=reset_password_url,
             button_text="Reset Password",
         )
         return self.send_email(recipient_address, forgot_password_template)
 
-    def send_invitation(self, recipient_address: str, invitation_url: str, group_id: str | None = None) -> bool:
+    def send_invitation(
+        self,
+        recipient_address: str,
+        invitation_url: str,
+        group_id: str | None = None,
+        workspace_name: str = "",
+        inviter_name: str = "",
+    ) -> bool:
         """
         Sends a group invitation email to a prospective user.
 
@@ -198,13 +210,14 @@ class EmailService(BaseService):
         db_template = self._get_db_template("invitation", group_id)
 
         if db_template:
-            # Use database template with Jinja2 rendering
             return self._send_db_template(
                 recipient_address,
                 db_template,
                 {
                     "invitation_url": invitation_url,
                     "button_link": invitation_url,
+                    "workspace_name": workspace_name,
+                    "inviter_name": inviter_name,
                 },
             )
 
@@ -273,12 +286,51 @@ class EmailService(BaseService):
             self.logger.warning(f"Failed to load database template '{template_type}': {e}")
             return None
 
+    @staticmethod
+    def _markdown_to_html(text: str) -> str:
+        """Convert markdown to HTML. Handles headings, bold, italic, links, bare URLs, paragraphs."""
+        import re
+
+        # Escape HTML special characters
+        text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        # Headings (must run before paragraph splitting, line-by-line)
+        text = re.sub(r"^### (.+)$", r"<h3>\1</h3>", text, flags=re.MULTILINE)
+        text = re.sub(r"^## (.+)$",  r"<h2>\1</h2>", text, flags=re.MULTILINE)
+        text = re.sub(r"^# (.+)$",   r"<h1>\1</h1>", text, flags=re.MULTILINE)
+
+        # Bold and italic
+        text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+        text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
+
+        # Markdown links [text](url)
+        text = re.sub(r"\[(.+?)\]\((https?://[^\s)]+)\)", r'<a href="\2">\1</a>', text)
+
+        # Bare URLs not already in an href
+        text = re.sub(r'(?<!["\'=>])(https?://[^\s<>"\']+)', r'<a href="\1">\1</a>', text)
+
+        # Split on double newline → paragraphs; wrap non-block lines in <p>
+        paragraphs = re.split(r"\n{2,}", text.strip())
+        html_parts = []
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
+                continue
+            if para.startswith("<h") or para.startswith("<ul") or para.startswith("<ol"):
+                html_parts.append(para)
+            else:
+                html_parts.append(f"<p>{para.replace(chr(10), '<br>')}</p>")
+
+        return "\n".join(html_parts)
+
     def _send_db_template(self, recipient_address: str, db_template, variables: dict) -> bool:
         """Send email using database template.
 
-        Supports two modes:
-        1. Structured: Uses header_text, message_top, etc. with default.html template
-        2. Custom HTML: Uses custom_html field with Jinja2 rendering
+        Supports two modes (custom_html takes priority):
+        1. custom_html: Full HTML rendered with Jinja2 and injected into default.html
+        2. body_markdown: Markdown converted to HTML and injected into default.html
+
+        {{SLUG}} workspace secrets/variables are resolved before Jinja2 rendering.
 
         Args:
             recipient_address: Email recipient
@@ -288,30 +340,67 @@ class EmailService(BaseService):
         Returns:
             bool: True if email sent successfully
         """
+        # Validate required variables BEFORE the rendering try-block so ValueError propagates
+        from marvin.services.email.system_templates import validate_template_content
+        has_custom_html = bool(db_template.custom_html and db_template.custom_html.strip())
+        if not has_custom_html:
+            content_fields = {
+                "subject": db_template.subject or "",
+                "body_markdown": db_template.body_markdown or "",
+            }
+            missing = validate_template_content(db_template.template_type or "", content_fields)
+            if missing:
+                raise ValueError(f"Template is missing required variables: {', '.join('{{' + v + '}}' for v in missing)}")
+
         try:
             from jinja2 import Template
+            from marvin.services.secrets.resolver import resolve
+
+            group_id = getattr(db_template, "group_id", None)
+
+            def _r(text: str | None) -> str:
+                return resolve(text or "", group_id, allow_secrets=False, context=variables)
 
             # Render subject with Jinja2
-            subject_template = Template(db_template.subject)
-            subject = subject_template.render(**variables)
+            try:
+                subject = Template(_r(db_template.subject)).render(**variables)
+            except Exception:
+                subject = db_template.subject or "(no subject)"
+
+            # Shared button_link derivation
+            button_link = (
+                variables.get("invitation_url") or variables.get("reset_url")
+                or variables.get("login_url") or variables.get("action_url")
+                or variables.get("button_link", "")
+            )
+
+            def _render_safe(text: str) -> str:
+                """Render Jinja2 template, falling back to raw text on syntax/render errors."""
+                try:
+                    return Template(_r(text)).render(**variables)
+                except Exception as exc:
+                    self.logger.warning(f"Template render error (sending raw): {exc}")
+                    return text
 
             # Determine rendering mode
-            if db_template.custom_html:
-                # Mode 1: Custom HTML - render the full HTML with variables
-                html_template = Template(db_template.custom_html)
-                html_content = html_template.render(**variables)
+            raw_custom = db_template.custom_html or ""
+            if raw_custom.strip():
+                # Mode 1: custom_html — render Jinja2 variables and send as-is (no chrome wrapper)
+                html_content = _render_safe(raw_custom)
             else:
-                # Mode 2: Structured - use EmailTemplate class with default.html
-                # Build EmailTemplate from database fields
+                # Mode 2: body_markdown — render Jinja2 variables, convert to HTML, inject into default.html chrome
+                raw_markdown = db_template.body_markdown or ""
+                rendered_markdown = _render_safe(raw_markdown)
+                body_html = self._markdown_to_html(rendered_markdown)
                 template_data = EmailTemplate(
                     subject=subject,
-                    header_text=Template(db_template.header_text or "").render(**variables),
-                    message_top=Template(db_template.message_top or "").render(**variables),
-                    message_bottom=Template(db_template.message_bottom or "").render(**variables),
-                    button_link=variables.get("button_link", ""),
-                    button_text=Template(db_template.button_text or "").render(**variables),
+                    header_text=variables.get("message_title", ""),
+                    message_top=body_html,
+                    message_bottom="",
+                    button_link=button_link,
+                    button_text="",
+                    workspace_name=variables.get("workspace_name", ""),
                 )
-                # Render with default.html template
                 html_content = template_data.render_html(self.default_template)
 
             # Send via configured sender

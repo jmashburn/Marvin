@@ -32,6 +32,7 @@ export const POST: APIRoute = async ({ params, request, redirect, cookies }) => 
       schemaJson: parseJson('schema_json'),
       renderingJson: parseJson('rendering_json'),
       capabilitiesJson: parseJson('capabilities_json'),
+      recipeJson: parseJson('recipe_json'),
     }, authToken);
 
     return redirect('/workspace/entry-types', 303);

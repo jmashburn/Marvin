@@ -237,6 +237,7 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                         "content_schema": "schema_json",
                         "rendering": "rendering_json",
                         "capabilities": "capabilities_json",
+                        "recipe": "recipe_json",
                     }
                     for key, value in entry_type_schema.model_dump(exclude_unset=True).items():
                         column_name = field_to_column.get(key, key)
@@ -262,6 +263,7 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                         schema_json=entry_type_schema.content_schema or {},
                         rendering_json=entry_type_schema.rendering,
                         capabilities_json=entry_type_schema.capabilities,
+                        recipe_json=entry_type_schema.recipe,
                     )
                     self.repos.session.execute(insert_stmt)
                     self.repos.session.commit()

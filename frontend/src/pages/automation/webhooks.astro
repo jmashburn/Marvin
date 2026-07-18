@@ -23,12 +23,9 @@ try {
 
 function formatScheduledTime(time: string | null | undefined): string {
   if (!time) return 'Not scheduled';
-  try {
-    const date = new Date(time);
-    return date.toLocaleString();
-  } catch {
-    return time;
-  }
+  const normalized = time.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? time : d.toLocaleString();
 }
 ---
 
@@ -38,7 +35,10 @@ function formatScheduledTime(time: string | null | undefined): string {
       <h2>Webhooks</h2>
       <p>Configure HTTP callbacks for workspace events</p>
     </div>
-    <a href="/automation/webhooks/new" class="button">New Webhook</a>
+    <div class="toolbar-actions">
+      <a href="/automation/webhooks/log" class="button secondary">Activity Log</a>
+      <a href="/automation/webhooks/new" class="button">New Webhook</a>
+    </div>
   </div>
 
   <div class="page-container">
@@ -75,24 +75,28 @@ function formatScheduledTime(time: string | null | undefined): string {
               </div>
               <div class="meta-item">
                 <span class="meta-label">Type</span>
-                <span class="meta-value">{webhook.webhook_type || 'generic'}</span>
+                <span class="meta-value">{(webhook as any).webhookType ?? (webhook as any).webhook_type ?? 'generic'}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Scheduled</span>
-                <span class="meta-value">{formatScheduledTime(webhook.scheduled_time)}</span>
+                <span class="meta-value">{formatScheduledTime((webhook as any).scheduledTime ?? (webhook as any).scheduled_time)}</span>
               </div>
             </div>
             <div class="webhook-actions">
-              <a
-                href={`/automation/webhooks/${webhook.id}`}
-                class="button secondary small"
-              >Edit</a>
+              <a href={`/automation/webhooks/${webhook.id}`} class="button secondary small">Edit</a>
               <button
                 class="button secondary small"
                 data-action="toggle"
                 data-id={webhook.id}
                 data-enabled={webhook.enabled}
               >{webhook.enabled ? 'Disable' : 'Enable'}</button>
+              <button
+                class="button secondary small"
+                data-action="test"
+                data-id={webhook.id}
+                data-name={webhook.name}
+                disabled={!webhook.enabled}
+              >Test</button>
               <button
                 class="button secondary small danger"
                 data-action="delete"
@@ -112,17 +116,40 @@ function formatScheduledTime(time: string | null | undefined): string {
   import { createSdkClient } from '@/lib/sdk';
   const sdk = createSdkClient();
 
-  // Toggle webhook enabled/disabled
+  // Toggle webhook enabled/disabled — must send full payload (PUT, not PATCH)
   document.querySelectorAll('[data-action="toggle"]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-id');
+      const id = btn.getAttribute('data-id')!;
       const currentlyEnabled = btn.getAttribute('data-enabled') === 'true';
 
       try {
-        await sdk.webhooks.update(id!, { enabled: !currentlyEnabled });
+        const webhook = await sdk.webhooks.get(id);
+        await sdk.webhooks.update(id, {
+          name: webhook.name,
+          url: webhook.url,
+          method: webhook.method,
+          webhook_type: webhook.webhookType ?? webhook.webhook_type,
+          scheduled_time: webhook.scheduledTime ?? webhook.scheduled_time,
+          enabled: !currentlyEnabled,
+        } as any);
         window.location.reload();
       } catch (error) {
         alert('Failed to update webhook');
+      }
+    });
+  });
+
+  // Test webhook
+  document.querySelectorAll('[data-action="test"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset.id!;
+      const name = (btn as HTMLElement).dataset.name;
+      if (!confirm(`Send a test request to "${name}"?`)) return;
+      try {
+        await sdk.webhooks.test(id);
+        alert('Test request sent! Check the Activity Log for results.');
+      } catch (error) {
+        alert('Failed to send test request');
       }
     });
   });
@@ -149,9 +176,16 @@ function formatScheduledTime(time: string | null | undefined): string {
   .toolbar {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
     margin-bottom: 32px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
   }
 
   .toolbar h2 {
@@ -299,4 +333,6 @@ function formatScheduledTime(time: string | null | undefined): string {
   .button.danger:hover {
     background: var(--color-error-bg);
   }
+
+  .button:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 </style>

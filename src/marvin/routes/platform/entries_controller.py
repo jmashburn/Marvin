@@ -17,6 +17,19 @@ router = APIRouter(prefix="/entries")
 class EntriesController(BaseUserController):
     """Authenticated CRUD routes for entries."""
 
+    def _resolve_entry_event_names(self, author_id) -> tuple[str | None, str | None]:
+        """Return (workspace_name, author_name) for entry event payloads."""
+        workspace_name = self.group.name if self.group else None
+        author_name = None
+        if author_id:
+            if self.user and author_id == self.user.id:
+                author_name = self.user.full_name
+            else:
+                author = self.repos.users.get_one(author_id)
+                if author:
+                    author_name = author.full_name
+        return workspace_name, author_name
+
     @router.get("", response_model=list[EntryRead], summary="List Entries")
     def list_entries(self) -> list[EntryRead]:
         return self.repos.entries.get_all(order_by="created_at")
@@ -37,6 +50,7 @@ class EntriesController(BaseUserController):
 
         # Emit event
         try:
+            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
             self.event_bus.dispatch(
                 integration_id="entry_management",
                 group_id=self.group_id,
@@ -47,7 +61,9 @@ class EntriesController(BaseUserController):
                     entry_title=entry.title,
                     entry_type=entry_type_slug,
                     workspace_id=entry.group_id,
+                    workspace_name=workspace_name,
                     author_id=entry.created_by,
+                    author_name=author_name,
                 ),
                 message=f"Entry '{entry.title}' created",
                 user_id=self.user.id if self.user else None,
@@ -67,6 +83,53 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
         return entry
 
+    @router.post("/{item_id}/apply-suggestion", response_model=EntryRead, summary="Apply AI Suggestion")
+    def apply_suggestion(self, item_id: UUID4) -> EntryRead:
+        """Apply the entry's staged AI suggestion (suggestion_json) and clear it.
+
+        This is the human-approval half of write-back: an AI op stages proposed changes under
+        suggestion_json (when approval_mode doesn't auto-apply); this endpoint commits them.
+        """
+        existing = self.repos.entries.get_one(item_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
+
+        entry = self.repos.entries.apply_suggestion(item_id)
+
+        # Emit entry_updated so reactions (re-embed, smart collections) fire.
+        try:
+            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
+            self.event_bus.dispatch(
+                integration_id="entry_management",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_updated,
+                document_data=EventEntryData(
+                    operation=EventOperation.update,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    workspace_id=entry.group_id,
+                    workspace_name=workspace_name,
+                    author_id=entry.created_by,
+                    author_name=author_name,
+                ),
+                message=f"AI suggestion applied to '{entry.title}'",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch entry_updated (apply-suggestion): {e}", exc_info=True)
+
+        return entry
+
+    @router.post("/{item_id}/reject-suggestion", response_model=EntryRead, summary="Reject AI Suggestion")
+    def reject_suggestion(self, item_id: UUID4) -> EntryRead:
+        """Discard the entry's staged AI suggestion without applying it."""
+        existing = self.repos.entries.get_one(item_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
+        return self.repos.entries.clear_suggestion(item_id)
+
     @router.patch("/{item_id}", response_model=EntryRead, summary="Update Entry")
     def update_entry(self, item_id: UUID4, data: EntryUpdate) -> EntryRead:
         old_entry = self.repos.entries.get_one(item_id)
@@ -84,6 +147,7 @@ class EntriesController(BaseUserController):
 
         # Emit update event
         try:
+            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
             self.event_bus.dispatch(
                 integration_id="entry_management",
                 group_id=self.group_id,
@@ -94,7 +158,9 @@ class EntriesController(BaseUserController):
                     entry_title=entry.title,
                     entry_type=entry_type_slug,
                     workspace_id=entry.group_id,
+                    workspace_name=workspace_name,
                     author_id=entry.created_by,
+                    author_name=author_name,
                 ),
                 message=f"Entry '{entry.title}' updated",
                 user_id=self.user.id if self.user else None,
@@ -107,6 +173,7 @@ class EntriesController(BaseUserController):
         # Emit status change events if status changed
         if old_entry.status != entry.status:
             try:
+                workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
                 if entry.status == "published":
                     self.event_bus.dispatch(
                         integration_id="entry_management",
@@ -118,7 +185,9 @@ class EntriesController(BaseUserController):
                             entry_title=entry.title,
                             entry_type=entry_type_slug,
                             workspace_id=entry.group_id,
+                            workspace_name=workspace_name,
                             author_id=entry.created_by,
+                            author_name=author_name,
                         ),
                         message=f"Entry '{entry.title}' published",
                         user_id=self.user.id if self.user else None,
@@ -136,7 +205,9 @@ class EntriesController(BaseUserController):
                             entry_title=entry.title,
                             entry_type=entry_type_slug,
                             workspace_id=entry.group_id,
+                            workspace_name=workspace_name,
                             author_id=entry.created_by,
+                            author_name=author_name,
                         ),
                         message=f"Entry '{entry.title}' unpublished",
                         user_id=self.user.id if self.user else None,
@@ -156,7 +227,9 @@ class EntriesController(BaseUserController):
                             entry_title=entry.title,
                             entry_type=entry_type_slug,
                             workspace_id=entry.group_id,
+                            workspace_name=workspace_name,
                             author_id=entry.created_by,
+                            author_name=author_name,
                         ),
                         message=f"Entry '{entry.title}' archived",
                         user_id=self.user.id if self.user else None,
@@ -174,7 +247,9 @@ class EntriesController(BaseUserController):
                             entry_title=entry.title,
                             entry_type=entry_type_slug,
                             workspace_id=entry.group_id,
+                            workspace_name=workspace_name,
                             author_id=entry.created_by,
+                            author_name=author_name,
                         ),
                         message=f"Entry '{entry.title}' restored from archive",
                         user_id=self.user.id if self.user else None,
@@ -201,6 +276,7 @@ class EntriesController(BaseUserController):
 
         # Emit event before deletion
         try:
+            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
             self.event_bus.dispatch(
                 integration_id="entry_management",
                 group_id=self.group_id,
@@ -211,7 +287,9 @@ class EntriesController(BaseUserController):
                     entry_title=entry.title,
                     entry_type=entry_type_slug,
                     workspace_id=entry.group_id,
+                    workspace_name=workspace_name,
                     author_id=entry.created_by,
+                    author_name=author_name,
                 ),
                 message=f"Entry '{entry.title}' deleted",
                 user_id=self.user.id if self.user else None,
@@ -284,6 +362,7 @@ class EntriesController(BaseUserController):
                 entry_type_slug = entry_type.slug
 
         # Emit event
+        workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
         self.event_bus.dispatch(
             integration_id="entry_management",
             group_id=self.group_id,
@@ -294,7 +373,9 @@ class EntriesController(BaseUserController):
                 entry_title=entry.title,
                 entry_type=entry_type_slug,
                 workspace_id=entry.group_id,
+                workspace_name=workspace_name,
                 author_id=entry.created_by,
+                author_name=author_name,
             ),
             message=f"Entry '{entry.title}' added to collection '{collection.name}'",
             user_id=self.user.id if self.user else None,
@@ -332,6 +413,7 @@ class EntriesController(BaseUserController):
                 if entry_type:
                     entry_type_slug = entry_type.slug
 
+            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
             self.event_bus.dispatch(
                 integration_id="entry_management",
                 group_id=self.group_id,
@@ -342,7 +424,9 @@ class EntriesController(BaseUserController):
                     entry_title=entry.title,
                     entry_type=entry_type_slug,
                     workspace_id=entry.group_id,
+                    workspace_name=workspace_name,
                     author_id=entry.created_by,
+                    author_name=author_name,
                 ),
                 message=f"Entry '{entry.title}' removed from collection '{collection.name if collection else collection_id}'",
                 user_id=self.user.id if self.user else None,

@@ -2,11 +2,11 @@
 
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, status
-from pydantic import UUID4, BaseModel, Field, ConfigDict
+from pydantic import UUID4, BaseModel, ConfigDict, Field
 
 from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
-from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate, EntryRead
+from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate, EntryRead, UpdateEntryCollectionRequest
 from marvin.services.event_bus_service.event_types import EventCollectionData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/collections")
@@ -27,13 +27,69 @@ class ReorderEntriesRequest(BaseModel):
     entries: list[EntryOrderItem]
 
 
+class CollectionOrderItem(BaseModel):
+    """Schema for a single collection order update."""
+
+    id: UUID4
+    sort_order: int = Field(validation_alias="sortOrder")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ReorderCollectionsRequest(BaseModel):
+    """Schema for bulk reordering collections in the workspace."""
+
+    collections: list[CollectionOrderItem]
+
+
 @controller(router)
 class CollectionsController(BaseUserController):
     """Authenticated CRUD routes for collections."""
 
     @router.get("", response_model=list[CollectionRead], summary="List Collections")
     def list_collections(self) -> list[CollectionRead]:
-        return self.repos.collections.get_all(order_by="name")
+        # Ordered by sort_order (ascending) so the system workflow collections (negative
+        # sort_order) lead — Inbox first — and drag-and-drop reordering is reflected.
+        collections = self.repos.collections.get_all(order_by="sort_order", order_descending=False)
+
+        # Attach entry counts in one grouped query (avoids N+1).
+        from sqlalchemy import func
+
+        from marvin.db.models.platform import Collections, EntryCollections
+
+        counts = dict(
+            self.session.query(EntryCollections.collection_id, func.count(EntryCollections.entry_id))
+            .join(Collections, Collections.id == EntryCollections.collection_id)
+            .filter(Collections.group_id == self.group_id)
+            .group_by(EntryCollections.collection_id)
+            .all()
+        )
+        for collection in collections:
+            collection.entry_count = counts.get(collection.id, 0)
+        return collections
+
+    @router.patch("/order", summary="Reorder Collections")
+    def reorder_collections(self, data: ReorderCollectionsRequest) -> dict:
+        """Bulk-update collection sort_order for this workspace.
+
+        Writes sort_order directly (not via the repo update), so it works for system
+        collections too — reordering is display-only and doesn't touch their locked content.
+        """
+        from marvin.db.models.platform import Collections
+
+        ids = [item.id for item in data.collections]
+        rows = (
+            self.session.query(Collections)
+            .filter(Collections.group_id == self.group_id, Collections.id.in_(ids))
+            .all()
+        )
+        by_id = {row.id: row for row in rows}
+        for item in data.collections:
+            row = by_id.get(item.id)
+            if row is not None:
+                row.sort_order = item.sort_order
+        self.session.commit()
+        return {"updated": len(rows)}
 
     @router.post("", response_model=CollectionRead, status_code=status.HTTP_201_CREATED, summary="Create Collection")
     def create_collection(self, data: CollectionCreate) -> CollectionRead:
@@ -49,6 +105,7 @@ class CollectionsController(BaseUserController):
                 collection_id=collection.id,
                 collection_name=collection.name,
                 workspace_id=collection.group_id,
+                workspace_name=self.group.name if self.group else None,
             ),
             message=f"Collection '{collection.name}' created",
             user_id=self.user.id if self.user else None,
@@ -82,6 +139,7 @@ class CollectionsController(BaseUserController):
                 collection_id=collection.id,
                 collection_name=collection.name,
                 workspace_id=collection.group_id,
+                workspace_name=self.group.name if self.group else None,
             ),
             message=f"Collection '{collection.name}' updated",
             user_id=self.user.id if self.user else None,
@@ -107,6 +165,7 @@ class CollectionsController(BaseUserController):
                 collection_id=collection.id,
                 collection_name=collection.name,
                 workspace_id=collection.group_id,
+                workspace_name=self.group.name if self.group else None,
             ),
             message=f"Collection '{collection.name}' deleted",
             user_id=self.user.id if self.user else None,
@@ -124,13 +183,13 @@ class CollectionsController(BaseUserController):
         if not collection:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
 
-        # Query entries via junction table, eagerly load entry_collections for the order field
         from marvin.db.models.platform.entries import Entries
 
         entries = (
             self.session.query(Entries)
             .join(EntryCollections, Entries.id == EntryCollections.entry_id)
             .filter(EntryCollections.collection_id == item_id)
+            .options(*EntryRead.loader_options())
             .order_by(
                 sa.case(
                     (EntryCollections.sort_order.is_(None), 1),
@@ -185,6 +244,7 @@ class CollectionsController(BaseUserController):
                 collection_id=collection.id,
                 collection_name=collection.name,
                 workspace_id=collection.group_id,
+                workspace_name=self.group.name if self.group else None,
             ),
             message=f"Collection '{collection.name}' entries reordered",
             user_id=self.user.id if self.user else None,
@@ -193,3 +253,25 @@ class CollectionsController(BaseUserController):
         )
 
         return {"status": "ok", "message": f"Reordered {len(data.entries)} entries"}
+
+    @router.patch("/{item_id}/entries/{entry_id}", summary="Update Entry-Collection Junction")
+    def update_entry_junction(self, item_id: UUID4, entry_id: UUID4, data: UpdateEntryCollectionRequest) -> dict:
+        """Update role and metadata_json on a specific entry-collection junction record."""
+        junction = (
+            self.session.query(EntryCollections).filter(EntryCollections.collection_id == item_id, EntryCollections.entry_id == entry_id).first()
+        )
+        if not junction:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Entry is not in this collection.",
+            )
+
+        if data.role is not None:
+            junction.role = data.role
+        if data.metadata_json is not None:
+            junction.metadata_json = data.metadata_json
+        junction.update_at = sa.func.now()
+
+        self.session.commit()
+
+        return {"status": "ok", "message": "Junction updated"}

@@ -279,23 +279,6 @@ const success = urlParams.get('success') === '1';
         </div>
       </section>
 
-      <section class="settings-section">
-        <h3>Backups</h3>
-        <p>Download your workspace data as JSON for backup or migration purposes.</p>
-
-        <div class="backup-actions">
-          <button
-            type="button"
-            id="export-workspace-btn"
-            class="button"
-            data-workspace-id={workspace.id}
-          >
-            Download Workspace Backup
-          </button>
-          <small>Exports collections, entry types, entries, assets, resources, and site configuration as JSON</small>
-        </div>
-      </section>
-
       <section class="settings-section danger-zone">
         <h3>Danger Zone</h3>
         <p>Irreversible and destructive actions.</p>
@@ -427,38 +410,6 @@ const success = urlParams.get('success') === '1';
         alert('Error: ' + (err instanceof Error ? err.message : 'Failed to update site settings'));
         submitSiteBtn.disabled = false;
         submitSiteBtn.textContent = 'Save Site Settings';
-      }
-    });
-  }
-
-  // Export workspace
-  const exportBtn = document.getElementById('export-workspace-btn') as HTMLButtonElement;
-  if (exportBtn) {
-    exportBtn.addEventListener('click', async () => {
-      exportBtn.disabled = true;
-      exportBtn.textContent = 'Exporting...';
-
-      try {
-        const data = await sdk.workspaces.export({ pretty: true });
-        const jsonStr = JSON.stringify(data, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-
-        const timestamp = new Date().toISOString().split('T')[0];
-        a.download = `workspace-backup-${timestamp}.json`;
-
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } catch (err) {
-        console.error('Export error:', err);
-        alert('Error: ' + (err instanceof Error ? err.message : 'Failed to export workspace'));
-      } finally {
-        exportBtn.disabled = false;
-        exportBtn.textContent = 'Download Workspace Backup';
       }
     });
   }

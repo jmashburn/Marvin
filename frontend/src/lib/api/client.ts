@@ -133,9 +133,22 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
           }
         }
 
-        const errorMessage = typeof errorBody === 'object' && errorBody !== null && 'detail' in errorBody
-          ? String(errorBody.detail)
-          : `API request failed with ${response.status}`;
+        // FastAPI error `detail` may be a string, or an array/object (e.g. 422 validation
+        // errors). Never String() an object — that yields "[object Object]".
+        let detailText: string | undefined;
+        if (typeof errorBody === 'object' && errorBody !== null && 'detail' in errorBody) {
+          const d = (errorBody as { detail: unknown }).detail;
+          if (typeof d === 'string') {
+            detailText = d;
+          } else if (Array.isArray(d)) {
+            detailText = d
+              .map((x) => (x && typeof x === 'object' ? ((x as any).msg ?? JSON.stringify(x)) : String(x)))
+              .join('; ');
+          } else if (d != null) {
+            detailText = JSON.stringify(d);
+          }
+        }
+        const errorMessage = detailText ?? `API request failed with ${response.status}`;
 
         const error = new ApiRequestError(
           errorMessage,

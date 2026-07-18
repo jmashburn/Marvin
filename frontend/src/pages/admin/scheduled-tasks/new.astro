@@ -1,0 +1,250 @@
+---
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { requireAdmin } from "@/lib/auth";
+import { getAuthToken } from "@/lib/api/client";
+import { fetchApi } from "@/lib/api/client";
+
+await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
+const authToken = getAuthToken(Astro.cookies);
+
+let taskTypes: any[] = [];
+let error: string | null = null;
+
+try {
+  taskTypes = await fetchApi<any[]>(
+    '/api/admin/scheduled-tasks/task-types?detailed=true',
+    { method: 'GET' },
+    authToken
+  );
+} catch (e) {
+  console.error('[admin/scheduled-tasks/new] Error:', e);
+  error = e instanceof Error ? e.message : String(e);
+}
+---
+
+<AdminLayout title="New System Task">
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/admin/scheduled-tasks">Scheduled Tasks</a>
+      <span>›</span>
+      <span>New System Task</span>
+    </div>
+    <h2>Create System Task</h2>
+    <p>Create a platform-wide scheduled task (not tied to any workspace)</p>
+  </div>
+
+  {error && (
+    <div class="alert alert-error"><strong>Error:</strong> {error}</div>
+  )}
+
+  <div class="form-container">
+    <form id="create-task-form" class="form">
+      <div class="form-section">
+        <h3>Task Details</h3>
+
+        <label class="form-field">
+          <span class="label">Task Type *</span>
+          <select name="task_type" required class="input" id="task-type-select">
+            <option value="">Select a task type…</option>
+            {taskTypes.map((t: any) => (
+              <option value={t.task_type} data-description={t.description}>{t.name || t.task_type}</option>
+            ))}
+          </select>
+          <small class="hint" id="task-type-hint"></small>
+        </label>
+
+        <label class="form-field">
+          <span class="label">Name *</span>
+          <input type="text" name="name" required placeholder="e.g., Nightly System Cleanup" class="input" />
+        </label>
+
+        <label class="form-field">
+          <span class="label">Description</span>
+          <textarea name="description" rows="2" placeholder="What does this task do?" class="input"></textarea>
+        </label>
+      </div>
+
+      <div class="form-section">
+        <h3>Schedule</h3>
+
+        <label class="form-field">
+          <span class="label">Schedule Type *</span>
+          <select name="schedule_type" required class="input" id="schedule-type-select">
+            <option value="interval">Interval (every N seconds)</option>
+            <option value="cron">Cron Expression</option>
+            <option value="once">One Time</option>
+          </select>
+        </label>
+
+        <div id="schedule-interval" class="schedule-block">
+          <label class="form-field">
+            <span class="label">Interval (seconds) *</span>
+            <input type="number" name="interval_seconds" min="60" value="3600" class="input" />
+            <small class="hint">Common: 3600 (hourly), 86400 (daily), 604800 (weekly)</small>
+          </label>
+        </div>
+
+        <div id="schedule-cron" class="schedule-block" style="display:none">
+          <label class="form-field">
+            <span class="label">Cron Expression *</span>
+            <input type="text" name="cron_expression" placeholder="0 * * * *" class="input" />
+            <small class="hint">Examples: "0 * * * *" (hourly), "0 0 * * *" (daily midnight)</small>
+          </label>
+          <label class="form-field">
+            <span class="label">Timezone</span>
+            <input type="text" name="timezone" placeholder="UTC" class="input" />
+          </label>
+        </div>
+
+        <div id="schedule-once" class="schedule-block" style="display:none">
+          <label class="form-field">
+            <span class="label">Run At (UTC) *</span>
+            <input type="datetime-local" name="run_at" class="input" />
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>Options</h3>
+        <label class="checkbox-field">
+          <input type="checkbox" name="enabled" checked />
+          <span>Enable immediately</span>
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="button">Create Task</button>
+        <a href="/admin/scheduled-tasks" class="button secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</AdminLayout>
+
+<script>
+  const scheduleTypeSelect = document.getElementById('schedule-type-select') as HTMLSelectElement;
+  const taskTypeSelect = document.getElementById('task-type-select') as HTMLSelectElement;
+  const taskTypeHint = document.getElementById('task-type-hint')!;
+
+  function updateScheduleFields() {
+    const val = scheduleTypeSelect.value;
+    document.getElementById('schedule-interval')!.style.display = val === 'interval' ? '' : 'none';
+    document.getElementById('schedule-cron')!.style.display = val === 'cron' ? '' : 'none';
+    document.getElementById('schedule-once')!.style.display = val === 'once' ? '' : 'none';
+  }
+
+  scheduleTypeSelect.addEventListener('change', updateScheduleFields);
+  taskTypeSelect.addEventListener('change', () => {
+    taskTypeHint.textContent = taskTypeSelect.selectedOptions[0]?.dataset.description || '';
+  });
+
+  document.getElementById('create-task-form')!.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target as HTMLFormElement);
+    const scheduleType = fd.get('schedule_type') as string;
+
+    let scheduleConfig: Record<string, any> = {};
+    if (scheduleType === 'interval') {
+      scheduleConfig = { interval_seconds: parseInt(fd.get('interval_seconds') as string) };
+    } else if (scheduleType === 'cron') {
+      scheduleConfig = { cron_expression: fd.get('cron_expression') as string };
+      const tz = fd.get('timezone') as string;
+      if (tz) scheduleConfig.timezone = tz;
+    } else {
+      scheduleConfig = { run_at: fd.get('run_at') as string };
+    }
+
+    const payload = {
+      name: fd.get('name') as string,
+      description: (fd.get('description') as string) || null,
+      task_type: fd.get('task_type') as string,
+      schedule_type: scheduleType,
+      schedule_config: scheduleConfig,
+      enabled: fd.get('enabled') === 'on',
+      task_config: {},
+    };
+
+    try {
+      const res = await fetch('/api/admin/scheduled-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      window.location.href = '/admin/scheduled-tasks';
+    } catch (err) {
+      alert('Failed to create task. Please check your inputs and try again.');
+      console.error(err);
+    }
+  });
+</script>
+
+<style>
+  .page-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .breadcrumb a { color: var(--muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--ink); }
+
+  .page-header h2 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .alert {
+    padding: 16px;
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+  }
+
+  .form-container { max-width: 700px; }
+
+  .form { display: grid; gap: 24px; }
+
+  .form-section {
+    display: grid;
+    gap: 16px;
+    padding: 24px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .form-section h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+
+  .schedule-block { display: grid; gap: 16px; }
+
+  .form-field { display: grid; gap: 6px; }
+
+  .checkbox-field { display: flex; align-items: center; gap: 8px; }
+  .checkbox-field input[type="checkbox"] { width: auto; }
+
+  .label { font-size: 14px; font-weight: 500; }
+
+  .input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .hint { font-size: 12px; color: var(--muted); }
+
+  .form-actions { display: flex; gap: 12px; }
+</style>

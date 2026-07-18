@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, Session, mapped_column  # Added Session for __init__
 from sqlalchemy.types import Enum as SqlAlchemyEnum  # Explicit import for sqlalchemy Enum type
 
-from marvin.services.event_bus_service.event_types import EventDocumentType
+from marvin.services.event_bus_service.event_types import WebhookMode
 
 from .. import BaseMixins, SqlAlchemyBase
 from .._model_utils.auto_init import auto_init
@@ -65,21 +65,30 @@ class GroupWebhooksModel(SqlAlchemyBase, BaseMixins):
         doc="HTTP method to use for the webhook request (GET or POST). Defaults to POST.",
     )  # Used SqlAlchemyEnum
 
-    # New Fields for extended functionality
-    webhook_type: Mapped[EventDocumentType | None] = mapped_column(
-        SqlAlchemyEnum(EventDocumentType),
-        default=EventDocumentType.generic,
-        doc="Type of the webhook, influencing payload or trigger. Defaults to 'generic'.",
-    )  # Used SqlAlchemyEnum and updated default
+    webhook_type: Mapped[WebhookMode | None] = mapped_column(
+        SqlAlchemyEnum(WebhookMode),
+        default=WebhookMode.generic,
+        doc="Type of the webhook — determines trigger conditions and payload shape.",
+    )
     scheduled_time: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        doc="Scheduled datetime (UTC) for the webhook to run, if it's a scheduled webhook. Defaults to current UTC datetime on creation.",
+        nullable=True,
+        doc="Scheduled datetime (UTC) for the webhook to run. None for event_driven webhooks.",
     )
     subscribed_events: Mapped[list[str] | None] = mapped_column(
         sa.JSON,
         nullable=True,
-        doc="List of event types this webhook subscribes to (e.g., ['entry.published', 'asset.uploaded']). None means no event subscriptions.",
+        doc="Event types this webhook subscribes to for event_driven mode.",
+    )
+    headers_json: Mapped[dict | None] = mapped_column(
+        sa.JSON,
+        nullable=True,
+        doc="Custom HTTP headers. Values support {{SLUG}} secret interpolation.",
+    )
+    custom_payload: Mapped[dict | None] = mapped_column(
+        sa.JSON,
+        nullable=True,
+        doc="User-defined payload merged into every outgoing POST. Supports {{var}} substitution.",
     )
 
     @auto_init()

@@ -49,7 +49,7 @@ class Assets(SqlAlchemyBase, BaseMixins):
 
     alt_text: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", sa.JSON, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     uploaded_by: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
 
     # Relationships

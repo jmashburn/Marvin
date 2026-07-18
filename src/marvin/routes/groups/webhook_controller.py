@@ -9,30 +9,44 @@ for re-running all scheduled webhooks for the day and testing individual webhook
 from datetime import UTC, datetime, time  # Added time for type hint
 from functools import cached_property  # For lazy-loading properties
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status  # Added status for HTTP_201_CREATED
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status  # Added status for HTTP_201_CREATED
 from pydantic import UUID4  # For UUID type validation
 
 # Marvin base controllers, schemas, services, and utilities
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
 from marvin.routes._base.mixins import HttpRepo
-from marvin.schemas.group.webhook import (  # Pydantic schemas for webhooks
+from marvin.schemas.group.webhook import (
     WebhookCreate,
+    WebhookExecutionLogRead,
+    WebhookMode,
     WebhookPagination,
-    WebhookRead,  # WebhookUpdate is available but HttpRepo mixin is typed with WebhookCreate for updates
+    WebhookRead,
     WebhookSave,
 )
-from marvin.schemas.mapper import cast  # Utility for casting between schema types
-from marvin.schemas.response.pagination import PaginationQuery  # Pagination query parameters
-
-# Services for webhook execution logic
+from marvin.schemas.mapper import cast
+from marvin.schemas.response.pagination import PaginationQuery
+from marvin.services.event_bus_service.event_types import WEBHOOK_MODE_DESCRIPTIONS
 from marvin.services.scheduler.tasks.post_webhooks import post_group_webhooks, post_single_webhook
 
 # EventDocumentType was imported but not used in the current code.
 # from marvin.services.event_bus_service.event_types import EventDocumentType
 
-# APIRouter for group webhooks. All routes will be under /groups/webhooks.
 router = APIRouter(prefix="/groups/webhooks")
+
+
+def _validate_webhook_mode(data: WebhookCreate) -> None:
+    """Enforce scheduling constraints based on webhook_type.
+
+    event_driven webhooks fire on subscribed events (connected via the Events page),
+    so they don't need a scheduled_time. All other types require one.
+    """
+    if data.webhook_type != WebhookMode.event_driven:
+        if not data.scheduled_time:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{data.webhook_type.value} webhooks must have a scheduled_time.",
+            )
 
 
 @controller(router)
@@ -71,6 +85,14 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
             # Assuming registered_exceptions is available from BaseUserController
             # self.registered_exceptions
         )
+
+    @router.get("/types", summary="List available webhook types with descriptions")
+    def get_types(self) -> list[dict]:
+        """Return webhook modes and their descriptions (source of truth is event_types.py)."""
+        return [
+            {"value": mode.value, "description": WEBHOOK_MODE_DESCRIPTIONS.get(mode.value, "")}
+            for mode in WebhookMode
+        ]
 
     @router.get("", response_model=WebhookPagination, summary="List Webhooks for Group")
     def get_all(self, q: PaginationQuery = Depends(PaginationQuery)) -> WebhookPagination:
@@ -114,17 +136,9 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         # and `group_id` needs to be added, it's better to create a new `WebhookCreate` instance
         # or modify a dict representation.
         # Assuming the goal is to ensure group_id is set:
+        _validate_webhook_mode(data)
         save_data_dict = data.model_dump()
-        save_data_dict["group_id"] = self.group_id  # Ensure group_id is set for the current user's group
-
-        # Use WebhookCreate as the input type for create_one as per mixin typing.
-        # If the repository expects a model with group_id already set, this is correct.
-        # The original `mapper.cast(data, WebhookUpdate, group_id=self.group_id)` was unusual.
-        # A more direct approach if `WebhookCreate` can take `group_id`:
-        # save_payload = WebhookCreate(**data.model_dump(), group_id=self.group_id)
-        # For now, matching the spirit of ensuring group_id is part of the data sent to repo.create:
-        # The mixin is HttpRepo[WebhookCreate, WebhookRead, WebhookCreate], so C is WebhookCreate.
-        # The repo's create method will expect a WebhookCreate compatible dict or object.
+        save_data_dict["group_id"] = self.group_id
         create_payload = WebhookCreate(**save_data_dict)
         save_data = cast(create_payload, WebhookSave, group_id=self.group_id)
         return self.mixins.create_one(save_data)
@@ -152,6 +166,11 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         post_group_webhooks(start_dt=start_datetime_utc, group_id=self.group.id)
         self.logger.info(f"Manual rerun of webhooks initiated for group ID {self.group.id} for today.")
         return {"message": "Re-running scheduled webhooks for today has been initiated."}
+
+    @router.get("/log", response_model=list[WebhookExecutionLogRead], summary="Get Workspace Webhook Execution Log")
+    def get_workspace_log(self, limit: int = 100) -> list[WebhookExecutionLogRead]:
+        """Get recent webhook execution log entries for the current workspace."""
+        return self.repos.webhook_logs().get_all(limit=limit, order_by="executed_at")
 
     @router.get("/{item_id}", response_model=WebhookRead, summary="Get a Specific Webhook")
     def get_one(self, item_id: UUID4) -> WebhookRead:
@@ -184,10 +203,29 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
             dict[str, str]: A message indicating that the test has been scheduled.
         """
         webhook_to_test = self.mixins.get_one(item_id)  # Fetches WebhookRead schema
+        if not webhook_to_test.enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot test a disabled webhook. Enable it first.",
+            )
         # Add the actual webhook posting as a background task
-        bg_tasks.add_task(post_single_webhook, webhook_to_test, "Test Webhook from Marvin")
+        bg_tasks.add_task(post_single_webhook, webhook_to_test, "Test Webhook from Marvin", self.user.id)
         self.logger.info(f"Test for webhook ID {item_id} scheduled in background.")
         return {"message": f"Test for webhook '{webhook_to_test.name or item_id}' has been scheduled."}
+
+    @router.get("/{item_id}/logs", response_model=list[WebhookExecutionLogRead], summary="Get Execution Logs for a Webhook")
+    def get_webhook_logs(self, item_id: UUID4, limit: int = 50) -> list[WebhookExecutionLogRead]:
+        """Get execution history for a specific webhook."""
+        from sqlalchemy import select, desc
+        from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+        stmt = (
+            select(WebhookExecutionLogModel)
+            .where(WebhookExecutionLogModel.webhook_id == item_id)
+            .order_by(desc(WebhookExecutionLogModel.executed_at))
+            .limit(limit)
+        )
+        results = self.session.execute(stmt).scalars().all()
+        return [WebhookExecutionLogRead.model_validate(r) for r in results]
 
     @router.put("/{item_id}", response_model=WebhookRead, summary="Update a Webhook")
     def update_one(self, item_id: UUID4, data: WebhookCreate) -> WebhookRead:  # data type is WebhookCreate
@@ -195,21 +233,19 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
         Updates an existing webhook configuration.
 
         The webhook must belong to the current user's group.
-        Note: The input data schema is `WebhookCreate`. If partial updates are desired
-        or if `WebhookUpdate` schema exists and is different, this might need adjustment.
-        The mixin is currently typed as `HttpRepo[WebhookCreate, WebhookRead, WebhookCreate]`,
-        meaning `WebhookCreate` is also used as the Update schema type `U` for the mixin.
+        Uses WebhookSave internally to ensure `headers` is mapped to the ORM column
+        `headers_json` before the update is persisted.
 
         Args:
             item_id (UUID4): The ID of the webhook to update.
             data (WebhookCreate): Pydantic schema with the update data.
-                                  (Typically an Update schema like `WebhookUpdate` would be used here).
 
         Returns:
             WebhookRead: The Pydantic schema of the updated webhook.
         """
-        # The mixin's update_one method is called. It expects data of type U, which is WebhookCreate here.
-        return self.mixins.update_one(item_id=item_id, data=data)  # Corrected param order
+        _validate_webhook_mode(data)
+        save_data = cast(data, WebhookSave, group_id=self.group_id)
+        return self.mixins.update_one(item_id=item_id, data=save_data)
 
     @router.delete("/{item_id}", summary="Delete a Webhook")
     def delete_one(self, item_id: UUID4) -> dict:
