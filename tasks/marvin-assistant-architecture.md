@@ -186,7 +186,13 @@ Per-caller scoping isn't a bolt-on; it maps onto which credential the server was
 
 **Steps (map 1:1 to the sequence above):**
 1. Backend: wire `min_role` + `invocation_sources` enforcement (authoritative wall; MCP-side
-   filtering is only UX).
+   filtering is only UX). ✅ **DONE** (09feb42): min_role was already enforced; invocation_sources
+   now gates each call by `source` ∩ (operation sources, workspace policy). Nuance: `source` is
+   *declared by the calling infrastructure* (the endpoint/MCP/agent sets it) — so it's surface
+   gating + feature-flagging, NOT authz against the token holder; min_role stays that wall. For
+   the public-widget case, the agent endpoint must set `source` itself from the authenticated
+   caller, never trust a client-supplied value. Still TODO: a UI to edit the workspace
+   invocation_sources policy dict (the gate reads it; nothing writes it yet).
 2. MarvinMCP: add a `/platform` client behind config (`MARVIN_USER_TOKEN`) + the existing
    `readOnly` flag — the "write authentication" the inventory is waiting on. (`/platform` import
    is available; `composeEntry()` already in the SDK — step is unblocked.)

@@ -4,28 +4,34 @@ Captured from working sessions. Grouped by effort. (The original AI-settings bui
 that lived here is shipped — replaced with the live backlog.)
 
 ## 🍂 Low-hanging
-- [x] **Resync SDK generated types** ✅ — schema regenerated off the live backend (now carries
-      recipe_json + compose-entry), `platform.ai.operations.composeEntry()` added (agent had the
-      type but no method), vitest suite green (89). MarvinSDK dist rebuilt so frontend/CLI symlinks
-      see it. *Remaining follow-up:* drop the `as Parameters<…>` casts in frontend entryTypes.ts
-      now that recipeJson is in the generated create/update body types.
+- [x] **Resync SDK generated types** ✅ — schema regenerated off the live backend (recipe_json +
+      compose-entry), `platform.ai.operations.composeEntry()` added, vitest green (89). Casts in
+      frontend entryTypes.ts **dropped** — required the backend entry-type alias fix (camelCase-first
+      AliasChoices + nullable flags so openapi-typescript marks them optional; repo coalesces
+      None→defaults). entryTypes.ts now type-checks clean. (Marvin c682eec, SDK 6909a74.)
+      *Same-pattern follow-up:* CollectionCreate in collections/new.astro has the identical
+      defaulted-required issue.
 - [ ] **Recipe UI placement** (thought, not mandate) — v1 recipe editor lives in the entry-type
       form. The admin "Custom Fields" / "Templates" placeholders under Entries could become a
       dedicated recipe builder (structured assets/resources/enrichment) instead of raw JSON.
-- [ ] **`AI_ALLOW_WORKSPACE_CREDENTIALS` platform toggle** — let a platform admin
-      allow/disallow workspaces using their own AI keys (credential_mode=workspace).
-      Enforce in the ai-settings PATCH + gate the UI. **← doing now**
+- [x] **`AI_ALLOW_WORKSPACE_CREDENTIALS` platform toggle** ✅ — platform admin can
+      allow/disallow workspaces using their own AI keys (credential_mode=workspace);
+      factory fallback so the Settings form actually enables workspace AI.
 - [ ] **Wire `logging_config`** — honor `log_inputs`/`log_outputs` when persisting
       executions, and add an ai_executions retention prune (mirror the event_log prune;
       `retention_days`). Today executions are always fully logged, never pruned.
-- [ ] **`entry_updated` → re-embed** — extend the auto-embed reaction to re-index on
-      update (watch draft-save noise before enabling).
-- [ ] **Surface the `audited` flag per-event in the Events UI** — toggle audit on/off
-      without editing the catalog.
-- [ ] **Event Log**: optional dedicated status column (vs the inline dot).
+- [x] **`entry_updated` → re-embed** ✅ — extended AIEmbeddingReactionListener; re-embeds only
+      when a *published* entry that's *already indexed* changes (gate avoids draft-save noise and
+      the publish-transition double-embed). 9 tests. (8bde56f)
+- [x] **Surface the `audited` flag per-event in the Events UI** ✅ (read-only) — "Audit coverage"
+      panel lists non-audited types. Toggle deferred: no backend surfaces `audited`. **Backend gap
+      to close:** add `audited` to `GET /api/event/types` + a PATCH to update it (and move the
+      catalog audit policy to persistent storage, it's an in-code list today). (7c7555b)
+- [x] **Event Log**: dedicated status column ✅ — status pill (dot + label) in its own column. (7c7555b)
 - [x] **"Ask Marvin" bubble — v1** — floating capability-registry assistant on every
       page; v1 skill = Ask (RAG) + /help. Add a skill = push a Capability. → grows into ★ Marvin.
-- [ ] Ops: actually create a `prune_event_logs` scheduled task (daily) — handler exists.
+- [x] Ops: create a daily `prune_event_logs` scheduled task ✅ — new system-task seeder wired into
+      startup lifespan (idempotent, group_id=NULL, interval 86400s). (7b514a3)
 
 ## 🌳 Medium / Features
 - [ ] **Compose-entry-from-brief** ⭐ (the flagship demo). An AI op that takes an
@@ -54,8 +60,14 @@ that lived here is shipped — replaced with the live backlog.)
       page** (render asset drop-zones with role/count limits + resource slots from the manifest,
       not just validate) — same manifest, two front doors (human-filled vs AI-composed).
       Sequence: ① manifest+assets contract → ② image derivations → ③ resource extraction → ④ UI.
-- [ ] **Wire `invocation_sources`** — gate operations by source (editor/forms/actions/
-      mcp/scheduled). Currently stored, never checked.
+- [x] **Wire `invocation_sources`** ✅ (the keystone) — gate operations by source. Each call
+      carries a `source`; allowed only if in the INTERSECTION of the operation's declared
+      invocation_sources and the workspace policy (override map: enabled unless explicitly false).
+      Enforced in execute + compose. min_role was **already** enforced (per-user authz wall);
+      together they're the palette gate for MCP/agent. 7 tests. (09feb42)
+      *Remaining (2nd half of "Track A"):* wire `logging_config` (honor log_inputs/log_outputs +
+      ai_executions retention prune) — see the low-hanging item above. UI to edit the per-workspace
+      invocation_sources policy dict is also still needed (the gate reads it; nothing sets it yet).
 - [ ] **Wire `moderation_config`** — add a moderation layer + `block_on_flag`.
 - [ ] **Aesthetic gatekeeping for images** — a vision op that scores an uploaded/derived image
       against the **site aesthetic profile** (from the theme cascade — e.g. "rustic leather &
@@ -133,6 +145,6 @@ rename + dedicated AI settings tab · workspace-AI factory fallback (Settings fo
 
 ## Reference: wired vs cosmetic AI settings
 - **Enforced:** enabled · credential_mode · provider/model/secret_ref · budget (daily
-  requests + monthly cost).
-- **Cosmetic (stored, no effect):** approval_mode · invocation_sources · operation_overrides
-  · logging_config · moderation_config · budget.max_tokens_per_request.
+  requests + monthly cost) · min_role (per-op) · **invocation_sources** (source ∩ policy).
+- **Cosmetic (stored, no effect):** approval_mode · operation_overrides · logging_config
+  · moderation_config · budget.max_tokens_per_request.
