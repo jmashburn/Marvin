@@ -66,6 +66,12 @@ that lived here is shipped — replaced with the live backlog.)
       maybe relational/related-tags), and grow `resources.resourceType` beyond the current set
       into a richer/extensible taxonomy. Ties to the existing `generate-tags` AI op and resource
       extraction from the recipe.
+- [ ] **Asset/Resource as first-class schema field types** — `EntryTypeSchemaDefinition` excludes
+      them today ("handled via the UI sidebar"), but entry types already carry `asset`/`resource`
+      field types in schema_json → strict validation fails (only preserved via a warning). Add
+      AssetFieldSchema / ResourceFieldSchema to the discriminated union so they validate cleanly.
+      Reconcile with recipe asset-roles: recipe = type-level media *contract*; an asset field = a
+      named *slot* in the form. (User: yes, they should be in the schema.)
 - [ ] **Workspace Providers UI** — create/edit `AIProviderModel` rows (base_url, Azure
       api_version, Ollama endpoint). Needed for Ollama/Azure workspace setups.
 
