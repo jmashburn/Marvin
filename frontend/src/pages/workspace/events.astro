@@ -48,6 +48,17 @@ function statusOf(eventType: any, title: any): string {
 const STATUS_ORDER = ['failed', 'success', 'removed', 'info'];
 const STATUS_LABEL: Record<string, string> = { failed: 'Failed', success: 'Success', removed: 'Removed', info: 'Info' };
 
+// Event types with auditing turned OFF in the backend catalog (CatalogEntry.audited = false).
+// These are never written to this log. KEEP IN SYNC with the `audited=False` entries in
+// src/marvin/services/events/event_catalog.py — there is currently no API that exposes the
+// per-type `audited` flag, so this is a read-only mirror. Surfacing it dynamically (or letting an
+// admin toggle it) would require a backend endpoint. (Precedent for such a mirror: webhooks/[id].astro.)
+const NON_AUDITED_EVENT_TYPES: { type: string; label: string }[] = [
+  { type: 'scheduled_task_triggered', label: 'Scheduled Task Triggered' },
+  { type: 'scheduled_task_started', label: 'Scheduled Task Started' },
+  { type: 'webhook_task', label: 'Webhook Task (internal)' },
+];
+
 // Distinct entity types present, for the filter chips.
 const entityTypes = Array.from(
   new Set(events.map((e) => fld(e, 'entityType', 'entity_type')).filter(Boolean))
@@ -96,12 +107,34 @@ const presentStatuses = STATUS_ORDER.filter((st) =>
         </div>
       </div>
 
+      <details class="audit-coverage">
+        <summary>
+          <span class="ac-caret">▶</span>
+          <span class="ac-title">Audit coverage</span>
+          <span class="ac-sub">{NON_AUDITED_EVENT_TYPES.length} event type{NON_AUDITED_EVENT_TYPES.length === 1 ? '' : 's'} excluded from this log</span>
+        </summary>
+        <div class="ac-body">
+          <p class="ac-lead">Auditing is set per event type. The following types have auditing turned <strong>off</strong> in the catalog, so they never appear in this log:</p>
+          <div class="ac-chips">
+            {NON_AUDITED_EVENT_TYPES.map((e) => (
+              <span class="ac-chip">
+                <span class="status-dot s-audit-off"></span>
+                <code>{e.type}</code>
+                <span class="ac-chip-label">{e.label}</span>
+              </span>
+            ))}
+          </div>
+          <p class="ac-note">All other event types are audited. This view is read-only — changing a type's audit setting requires a backend endpoint that isn't available yet.</p>
+        </div>
+      </details>
+
       <div class="table-wrap">
         <table class="log-table">
           <thead>
             <tr>
               <th></th>
               <th>When</th>
+              <th>Status</th>
               <th>Event</th>
               <th>Details</th>
               <th>Entity</th>
@@ -126,10 +159,15 @@ const presentStatuses = STATUS_ORDER.filter((st) =>
                       <button class="expand-btn" data-target={`detail-${i}`} data-event-id={eventId}>▶</button>
                     </td>
                     <td class="nowrap muted">{formatDate(occurredAt)}</td>
+                    <td class="nowrap">
+                      <span class={`status-pill s-${status}`}>
+                        <span class={`status-dot s-${status}`}></span>
+                        {STATUS_LABEL[status]}
+                      </span>
+                    </td>
                     <td>
                       <span class="event-cell">
                         <span class="event-head">
-                          <span class={`status-dot s-${status}`} title={STATUS_LABEL[status]}></span>
                           <span class="event-title">{title}</span>
                         </span>
                         {!isLegacyType && <code class="ev-badge">{prettyType(eventType)}</code>}
@@ -146,7 +184,7 @@ const presentStatuses = STATUS_ORDER.filter((st) =>
                     </td>
                   </tr>
                   <tr class="detail-row" id={`detail-${i}`} style="display:none">
-                    <td colspan="5">
+                    <td colspan="6">
                       <div class="detail-body">
                         <div class="detail-section">
                           <div class="detail-label">Payload</div>
@@ -413,6 +451,74 @@ const presentStatuses = STATUS_ORDER.filter((st) =>
   .s-success { background: var(--accent); }
   .s-removed { background: #d97706; }
   .s-info    { background: #9ca3af; }
+  .s-audit-off { background: #9ca3af; }
+
+  /* Dedicated status/outcome column pill */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+  }
+  .status-pill.s-failed  { color: #ef4444; border-color: rgba(239, 68, 68, 0.32); }
+  .status-pill.s-success { color: var(--accent); border-color: rgba(79, 156, 132, 0.35); }
+  .status-pill.s-removed { color: #d97706; border-color: rgba(217, 119, 6, 0.32); }
+  .status-pill.s-info    { color: var(--muted); }
+  /* Reset dot background so the pill's own color classes don't override it */
+  .status-pill .status-dot.s-failed  { background: #ef4444; }
+  .status-pill .status-dot.s-success { background: var(--accent); }
+  .status-pill .status-dot.s-removed { background: #d97706; }
+  .status-pill .status-dot.s-info    { background: #9ca3af; }
+
+  /* Audit coverage disclosure (read-only per-type audit status) */
+  .audit-coverage {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    margin-bottom: 16px;
+  }
+  .audit-coverage > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 13px;
+  }
+  .audit-coverage > summary::-webkit-details-marker { display: none; }
+  .ac-caret { font-size: 9px; color: var(--muted); transition: transform 0.15s; }
+  .audit-coverage[open] .ac-caret { transform: rotate(90deg); }
+  .ac-title { font-weight: 600; color: var(--ink); }
+  .ac-sub { color: var(--muted); font-size: 12px; }
+  .ac-body { padding: 0 14px 14px 32px; }
+  .ac-lead { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+  .ac-note { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+  .ac-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ac-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .ac-chip code {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .ac-chip-label { color: var(--ink); }
 
   .entity-cell { display: flex; flex-direction: column; gap: 1px; }
   .entity-type { font-size: 13px; color: var(--ink); text-transform: capitalize; }
