@@ -138,3 +138,6 @@ src/dev/data/*
 
 .run/
 .task/*
+
+# Claude Code worktrees (never commit as gitlinks)
+.claude/worktrees/
