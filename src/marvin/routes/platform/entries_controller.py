@@ -122,6 +122,14 @@ class EntriesController(BaseUserController):
 
         return entry
 
+    @router.post("/{item_id}/reject-suggestion", response_model=EntryRead, summary="Reject AI Suggestion")
+    def reject_suggestion(self, item_id: UUID4) -> EntryRead:
+        """Discard the entry's staged AI suggestion without applying it."""
+        existing = self.repos.entries.get_one(item_id)
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
+        return self.repos.entries.clear_suggestion(item_id)
+
     @router.patch("/{item_id}", response_model=EntryRead, summary="Update Entry")
     def update_entry(self, item_id: UUID4, data: EntryUpdate) -> EntryRead:
         old_entry = self.repos.entries.get_one(item_id)

@@ -4,6 +4,7 @@
  */
 
 import { createSdkClient } from '../sdk';
+import { getApiUrl } from './config';
 import type {
   PlatformEntry,
   PlatformEntryCreate,
@@ -55,6 +56,29 @@ export async function updateEntry(id: string, data: EntryUpdate, authToken: stri
 export async function deleteEntry(id: string, authToken: string): Promise<void> {
   const sdk = createSdkClient(authToken);
   return sdk.entries.delete(id);
+}
+
+/**
+ * Apply the entry's staged AI suggestion (suggestion_json) and clear it. Fetches the backend
+ * directly (no dedicated SDK method yet).
+ */
+export async function applyEntrySuggestion(id: string, authToken: string): Promise<EntryRead> {
+  const res = await fetch(getApiUrl(`/api/platform/entries/${id}/apply-suggestion`), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}` },
+  });
+  if (!res.ok) throw new Error(`apply-suggestion failed: ${res.status}`);
+  return res.json();
+}
+
+/** Discard the entry's staged AI suggestion without applying it. */
+export async function rejectEntrySuggestion(id: string, authToken: string): Promise<EntryRead> {
+  const res = await fetch(getApiUrl(`/api/platform/entries/${id}/reject-suggestion`), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}` },
+  });
+  if (!res.ok) throw new Error(`reject-suggestion failed: ${res.status}`);
+  return res.json();
 }
 
 /**

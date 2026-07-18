@@ -169,6 +169,31 @@ if (entry && authToken) {
     aiEditorEnabled = false;
   }
 }
+
+// Pending AI suggestion (write-back): proposed field changes staged for human review.
+const suggestion = (entry as any)?.suggestionJson as Record<string, any> | null | undefined;
+function suggestionCurrent(target: string): any {
+  if (!entry) return undefined;
+  if (target.startsWith('data_json.')) return (entry as any).dataJson?.[target.slice('data_json.'.length)];
+  if (target.startsWith('metadata_json.')) return (entry as any).metadataJson?.[target.slice('metadata_json.'.length)];
+  return (entry as any)[target];
+}
+function suggestionFormat(v: any): string {
+  if (v == null || v === '') return '—';
+  if (Array.isArray(v)) return v.join(', ');
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+const suggestionFields = suggestion
+  ? Object.keys(suggestion)
+      .filter((k) => k !== '_meta')
+      .map((target) => ({
+        label: target.replace(/^data_json\./, '').replace(/^metadata_json\./, ''),
+        current: suggestionFormat(suggestionCurrent(target)),
+        proposed: suggestionFormat(suggestion[target]),
+      }))
+  : [];
+const suggestionOp = suggestion?._meta?.operation as string | undefined;
 ---
 
 <AppLayout title={entry ? entry.title : "Edit Entry"}>
@@ -191,6 +216,30 @@ if (entry && authToken) {
           <a class="button secondary" href="/workspace/entries">Back</a>
         </div>
       </div>
+
+      {suggestionFields.length > 0 && (
+        <div class="suggestion-banner">
+          <div class="suggestion-head">
+            <span class="suggestion-title">✨ AI suggested changes</span>
+            {suggestionOp && <span class="suggestion-op">from <code>{suggestionOp}</code></span>}
+          </div>
+          <ul class="suggestion-list">
+            {suggestionFields.map((f) => (
+              <li class="suggestion-field">
+                <span class="suggestion-label">{f.label}</span>
+                <div class="suggestion-diff">
+                  <div class="diff-row diff-current"><span class="diff-tag">current</span><span class="diff-val">{f.current}</span></div>
+                  <div class="diff-row diff-proposed"><span class="diff-tag">proposed</span><span class="diff-val">{f.proposed}</span></div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div class="suggestion-actions">
+            <button type="button" id="apply-suggestion" class="button">Apply changes</button>
+            <button type="button" id="reject-suggestion" class="button secondary">Reject</button>
+          </div>
+        </div>
+      )}
 
       <div class="editor-layout">
         <section class="main-editor">
@@ -625,6 +674,87 @@ if (entry && authToken) {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+  }
+
+  /* AI suggestion (write-back) banner */
+  .suggestion-banner {
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--accent, #a94d3f);
+    border-left-width: 3px;
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--accent, #a94d3f) 6%, var(--panel));
+    display: grid;
+    gap: 0.75rem;
+  }
+  .suggestion-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .suggestion-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .suggestion-op {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .suggestion-op code {
+    font-size: 0.72rem;
+    background: var(--bg);
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+  .suggestion-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.75rem;
+  }
+  .suggestion-field {
+    display: grid;
+    gap: 0.3rem;
+  }
+  .suggestion-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ink);
+    text-transform: capitalize;
+  }
+  .suggestion-diff {
+    display: grid;
+    gap: 0.2rem;
+  }
+  .diff-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+  .diff-tag {
+    flex: 0 0 auto;
+    width: 4.5rem;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .diff-current .diff-val {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  }
+  .diff-proposed .diff-val {
+    color: var(--ink);
+  }
+  .suggestion-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
   }
 
   .error-banner p {
@@ -1367,6 +1497,27 @@ if (entry && authToken) {
   const sdk = createSdkClient();
   const form = document.getElementById('entry-form') as HTMLFormElement;
   const deleteButton = document.getElementById('delete-entry-button') as HTMLButtonElement;
+
+  // AI suggestion (write-back) apply / reject
+  const applySuggestionBtn = document.getElementById('apply-suggestion') as HTMLButtonElement | null;
+  const rejectSuggestionBtn = document.getElementById('reject-suggestion') as HTMLButtonElement | null;
+  async function suggestionAction(kind: 'apply' | 'reject') {
+    const entryId = window.location.pathname.split('/').pop();
+    if (!entryId) return;
+    applySuggestionBtn?.setAttribute('disabled', 'true');
+    rejectSuggestionBtn?.setAttribute('disabled', 'true');
+    try {
+      const res = await fetch(`/api/entries/${entryId}/${kind}-suggestion`, { method: 'POST' });
+      if (!res.ok) throw new Error(String(res.status));
+      window.location.reload();
+    } catch (e) {
+      alert(`Failed to ${kind} suggestion.`);
+      applySuggestionBtn?.removeAttribute('disabled');
+      rejectSuggestionBtn?.removeAttribute('disabled');
+    }
+  }
+  applySuggestionBtn?.addEventListener('click', () => suggestionAction('apply'));
+  rejectSuggestionBtn?.addEventListener('click', () => suggestionAction('reject'));
 
   // Auto-generate slug from title for unpublished entries
   const titleInput = document.getElementById('title') as HTMLInputElement;

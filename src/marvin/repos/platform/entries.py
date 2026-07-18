@@ -331,6 +331,14 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             self.session.commit()
         return self.get_one(entry_id)
 
+    def clear_suggestion(self, entry_id: Any) -> EntryRead | None:
+        """Discard the staged suggestion_json without applying it."""
+        entry = self.session.get(Entries, entry_id)
+        if entry and entry.suggestion_json is not None:
+            entry.suggestion_json = None
+            self.session.commit()
+        return self.get_one(entry_id)
+
     def _attach_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:
         """Attach collections to an entry."""
         for sort_order, collection_id in enumerate(collection_ids):
