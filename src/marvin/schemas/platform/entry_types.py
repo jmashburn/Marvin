@@ -8,6 +8,7 @@ from pydantic_core.core_schema import ValidationInfo
 
 from marvin.core.root_logger import get_logger
 from marvin.schemas._marvin import _MarvinModel
+from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
 from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
@@ -43,6 +44,12 @@ class EntryTypeCreate(_MarvinModel):
         serialization_alias="capabilitiesJson",
         validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
     )
+    recipe: dict | None = Field(
+        default=None,
+        description="Authoring recipe (EntryTypeRecipe)",
+        serialization_alias="recipeJson",
+        validation_alias=AliasChoices("recipe_json", "recipeJson"),
+    )
 
     @field_validator("content_schema")
     @classmethod
@@ -69,6 +76,14 @@ class EntryTypeCreate(_MarvinModel):
         if value is None:
             return None
         CapabilitiesDefinition.model_validate(value)
+        return value
+
+    @field_validator("recipe")
+    @classmethod
+    def validate_recipe(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        EntryTypeRecipe.model_validate(value)
         return value
 
     model_config = ConfigDict(from_attributes=True)
@@ -103,6 +118,12 @@ class EntryTypeUpdate(_MarvinModel):
         serialization_alias="capabilitiesJson",
         validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
     )
+    recipe: dict | None = Field(
+        default=None,
+        description="Authoring recipe (EntryTypeRecipe)",
+        serialization_alias="recipeJson",
+        validation_alias=AliasChoices("recipe_json", "recipeJson"),
+    )
 
     @field_validator("content_schema")
     @classmethod
@@ -129,6 +150,14 @@ class EntryTypeUpdate(_MarvinModel):
         if value is None:
             return None
         CapabilitiesDefinition.model_validate(value)
+        return value
+
+    @field_validator("recipe")
+    @classmethod
+    def validate_recipe(cls, value: dict | None) -> dict | None:
+        if value is None:
+            return None
+        EntryTypeRecipe.model_validate(value)
         return value
 
     model_config = ConfigDict(from_attributes=True)
@@ -168,6 +197,12 @@ class EntryTypeRead(_MarvinModel):
         description="Behavioral capabilities (CapabilitiesDefinition)",
         serialization_alias="capabilitiesJson",
         validation_alias=AliasChoices("capabilities_json", "capabilitiesJson"),
+    )
+    recipe: dict | None = Field(
+        default=None,
+        description="Authoring recipe (EntryTypeRecipe)",
+        serialization_alias="recipeJson",
+        validation_alias=AliasChoices("recipe_json", "recipeJson"),
     )
     created_at: datetime | None = None
     update_at: datetime | None = None
