@@ -213,6 +213,12 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         if not data_dict.get("slug") and data_dict.get("name"):
             data_dict["slug"] = slugify(data_dict["name"])
 
+        # These columns are NOT NULL; the request schema now defaults them to None (so the
+        # generated SDK type marks them optional), so coalesce back to the real defaults here.
+        for field, default in (("sort_order", 0), ("is_system", False), ("is_rendered", False)):
+            if data_dict.get(field) is None:
+                data_dict[field] = default
+
         # Map Pydantic field names to DB column names
         if "content_schema" in data_dict:
             data_dict["schema_json"] = data_dict.pop("content_schema")
