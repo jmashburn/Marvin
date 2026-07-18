@@ -110,6 +110,9 @@ class AIOperationsController(BaseUserController):
                 builder.with_semantic_search(query, provider, emb_model, limit=top_k, entity_types=["entry", "resource"])
         ctx = builder.build()
 
+        # Workspace logging policy: whether to persist inputs/outputs on the execution.
+        log_inputs, log_outputs = self._logging_policy()
+
         # Create execution record (pending)
         execution = AIExecutionModel(
             session=self.session,
@@ -119,9 +122,10 @@ class AIOperationsController(BaseUserController):
             model_id=model,
             status="pending",
             triggered_by=self.user.id,
-            trigger_type="api",
+            trigger_type=body.source,
             entity_type=body.entity_type,
             entity_id=body.entity_id,
+            input_json=body.input if log_inputs else None,
         )
         self.session.add(execution)
         self.session.commit()
@@ -157,7 +161,7 @@ class AIOperationsController(BaseUserController):
             execution.status = "completed"
             execution.completed_at = datetime.now(UTC)
             execution.duration_ms = elapsed_ms
-            execution.output_json = parsed
+            execution.output_json = parsed if log_outputs else None
             execution.prompt_tokens = completion.prompt_tokens
             execution.completion_tokens = completion.completion_tokens
             execution.total_tokens = completion.total_tokens
@@ -376,10 +380,12 @@ class AIOperationsController(BaseUserController):
         ]
         messages = resolve_prompt_messages(messages, self.group_id, ctx.variables)
 
+        log_inputs, log_outputs = self._logging_policy()
         execution = AIExecutionModel(
             session=self.session, group_id=self.group_id, operation_slug="compose-entry",
             provider_type=provider.provider_type, model_id=model, status="pending",
-            triggered_by=self.user.id, trigger_type="api", entity_type="entry_type", entity_id=entry_type.id,
+            triggered_by=self.user.id, trigger_type=body.source, entity_type="entry_type", entity_id=entry_type.id,
+            input_json={"entry_type": body.entry_type, "brief": body.brief} if log_inputs else None,
         )
         self.session.add(execution)
         self.session.commit()
@@ -420,7 +426,10 @@ class AIOperationsController(BaseUserController):
             execution.duration_ms = elapsed_ms
             execution.entity_type = "entry"
             execution.entity_id = entry.id
-            execution.output_json = {"entry_id": str(entry.id), "title": title, "status": entry.status, "fields": data_json}
+            execution.output_json = (
+                {"entry_id": str(entry.id), "title": title, "status": entry.status, "fields": data_json}
+                if log_outputs else {"entry_id": str(entry.id), "status": entry.status}
+            )
             execution.prompt_tokens = completion.prompt_tokens
             execution.completion_tokens = completion.completion_tokens
             execution.total_tokens = completion.total_tokens
@@ -593,6 +602,16 @@ class AIOperationsController(BaseUserController):
             if r and r.group_id == self.group_id:
                 targets.append(("resource", r.id, resource_text(r)))
         return targets
+
+    def _logging_policy(self) -> tuple[bool, bool]:
+        """(log_inputs, log_outputs) from the workspace logging_config.
+
+        Defaults preserve prior behavior: outputs are logged, inputs are not. A workspace can
+        opt into input logging or out of output logging via ai_settings.logging_config.
+        """
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        cfg = (settings.logging_config if settings else None) or {}
+        return bool(cfg.get("log_inputs", False)), bool(cfg.get("log_outputs", True))
 
     def _check_invocation_source(self, source: str, operation_sources) -> None:
         """Gate a call by its invocation surface.

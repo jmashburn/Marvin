@@ -156,6 +156,10 @@ class AppSettings(BaseSettings):
     """ default retention for the event_log audit trail; the prune_event_logs task deletes
     rows older than this. 0 disables pruning (keep forever). Overridable per-task. """
 
+    AI_EXECUTION_RETENTION_DAYS: int = 90
+    """ default retention for ai_executions; the prune_ai_executions task deletes rows older
+    than this. A workspace's logging_config.retention_days overrides it. 0 disables. """
+
     _logger: logging.Logger | None = None
 
     DAILY_SCHEDULE_TIME: str = "23:47"

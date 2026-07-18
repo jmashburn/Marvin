@@ -280,9 +280,77 @@ class PruneEventLogsHandler(ScheduledTaskHandler):
         return summary
 
 
+class PruneAIExecutionsHandler(ScheduledTaskHandler):
+    """
+    Delete old rows from the ai_executions log (platform-wide, all workspaces).
+
+    Admin-only. Each workspace's retention comes from its `logging_config.retention_days`
+    when set; workspaces without one fall back to the AI_EXECUTION_RETENTION_DAYS app
+    setting (overridable via task_config.retention_days). A retention <= 0 disables pruning
+    for that scope (keep forever).
+    """
+
+    name = "Prune AI Executions"
+    description = "Delete AI execution records older than the retention window (admin only)"
+    admin_only = True
+    config_schema = {
+        "type": "object",
+        "properties": {
+            "retention_days": {
+                "type": "integer",
+                "description": "Fallback retention for workspaces without a logging_config "
+                "value (<=0 disables). Defaults to the AI_EXECUTION_RETENTION_DAYS setting.",
+            },
+        },
+    }
+
+    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
+        if task.group_id:
+            return "Skipped: prune_ai_executions is admin-only and cannot run in a workspace context"
+
+        from marvin.core.config import get_app_settings
+        from marvin.db.models.groups.ai_executions import AIExecutionModel
+        from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+
+        default_days = task.task_config.get(
+            "retention_days", getattr(get_app_settings(), "AI_EXECUTION_RETENTION_DAYS", 90)
+        )
+        now = datetime.now(UTC)
+
+        def _delete_older(session, days: int, group_ids=None, exclude_group_ids=None) -> int:
+            if not days or days <= 0:
+                return 0
+            cutoff = now - timedelta(days=days)
+            q = session.query(AIExecutionModel).filter(AIExecutionModel.created_at < cutoff)
+            if group_ids is not None:
+                q = q.filter(AIExecutionModel.group_id.in_(group_ids))
+            if exclude_group_ids:
+                q = q.filter(AIExecutionModel.group_id.notin_(exclude_group_ids))
+            return q.delete(synchronize_session=False)
+
+        total = 0
+        with session_context() as session:
+            # Per-workspace retention overrides from logging_config.retention_days.
+            overrides: dict = {}
+            for s in session.query(WorkspaceAISettingsModel).all():
+                rd = (s.logging_config or {}).get("retention_days")
+                if rd is not None:
+                    overrides[s.group_id] = rd
+            for gid, days in overrides.items():
+                total += _delete_older(session, days, group_ids=[gid])
+            # Everyone else uses the default retention.
+            total += _delete_older(session, default_days, exclude_group_ids=list(overrides.keys()) or None)
+            session.commit()
+
+        summary = f"Pruned {total} AI execution row{'s' if total != 1 else ''} past retention"
+        logger.info("AI execution prune: %s", summary)
+        return summary
+
+
 # Register handlers
 TaskHandlerRegistry.register("cleanup_temp_files", CleanupTempFilesHandler)
 TaskHandlerRegistry.register("prune_expired_sessions", PruneExpiredSessionsHandler)
 TaskHandlerRegistry.register("prune_expired_invitations", PruneExpiredInvitationsHandler)
 TaskHandlerRegistry.register("remove_orphaned_assets", RemoveOrphanedAssetsHandler)
 TaskHandlerRegistry.register("prune_event_logs", PruneEventLogsHandler)
+TaskHandlerRegistry.register("prune_ai_executions", PruneAIExecutionsHandler)

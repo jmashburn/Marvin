@@ -44,6 +44,17 @@ SYSTEM_SCHEDULED_TASKS: list[SystemTaskDefinition] = [
         schedule_type="interval",
         schedule_config={"interval_seconds": _DAILY_SECONDS},
     ),
+    SystemTaskDefinition(
+        slug="prune_ai_executions",
+        name="Prune AI Executions",
+        task_type="prune_ai_executions",
+        description=(
+            "Delete AI execution records older than the retention window (per-workspace "
+            "logging_config.retention_days, else AI_EXECUTION_RETENTION_DAYS). Admin-only; runs daily."
+        ),
+        schedule_type="interval",
+        schedule_config={"interval_seconds": _DAILY_SECONDS},
+    ),
 ]
 
 
