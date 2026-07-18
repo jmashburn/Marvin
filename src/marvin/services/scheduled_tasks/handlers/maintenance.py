@@ -347,6 +347,39 @@ class PruneAIExecutionsHandler(ScheduledTaskHandler):
         return summary
 
 
+class ResyncSmartCollectionsHandler(ScheduledTaskHandler):
+    """
+    Reconcile smart-collection membership across all workspaces (platform-wide).
+
+    Membership is normally kept live by the SmartCollectionReactionListener on entry changes;
+    this is a safety net that re-materializes every smart collection from its rules, catching
+    drift from missed events, downtime, or bulk imports. Admin-only.
+    """
+
+    name = "Resync Smart Collections"
+    description = "Reconcile smart-collection membership from rules across all workspaces (admin only)"
+    admin_only = True
+
+    def execute(self, task: ScheduledTaskModel, event_bus: EventBusService) -> str | None:
+        if task.group_id:
+            return "Skipped: resync_smart_collections is admin-only and cannot run in a workspace context"
+
+        from marvin.db.models.platform.collections import Collections
+        from marvin.services.collections.smart_collections import sync_collection
+
+        collections = 0
+        changed = 0
+        with session_context() as session:
+            for collection in session.query(Collections).filter_by(is_smart=True).all():
+                collections += 1
+                changed += sync_collection(session, collection.group_id, collection)
+            session.commit()
+
+        summary = f"Reconciled {collections} smart collection(s), {changed} membership change(s)"
+        logger.info("Smart collection resync: %s", summary)
+        return summary
+
+
 # Register handlers
 TaskHandlerRegistry.register("cleanup_temp_files", CleanupTempFilesHandler)
 TaskHandlerRegistry.register("prune_expired_sessions", PruneExpiredSessionsHandler)
@@ -354,3 +387,4 @@ TaskHandlerRegistry.register("prune_expired_invitations", PruneExpiredInvitation
 TaskHandlerRegistry.register("remove_orphaned_assets", RemoveOrphanedAssetsHandler)
 TaskHandlerRegistry.register("prune_event_logs", PruneEventLogsHandler)
 TaskHandlerRegistry.register("prune_ai_executions", PruneAIExecutionsHandler)
+TaskHandlerRegistry.register("resync_smart_collections", ResyncSmartCollectionsHandler)

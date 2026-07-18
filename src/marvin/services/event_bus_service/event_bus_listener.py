@@ -925,6 +925,65 @@ class AIEmbeddingReactionListener(EventListenerBase):
             self.logger.error(f"AIEmbeddingReactionListener: failed to emit reindexed event: {e}")
 
 
+class SmartCollectionReactionListener(EventListenerBase):
+    """
+    Reaction listener that keeps smart-collection membership in sync.
+
+    When an entry's type or status changes (created / updated / published / unpublished /
+    archived / restored), re-evaluate which of the workspace's smart collections it belongs to
+    and add or remove EntryCollections rows accordingly. The read path (renderers-core,
+    publishing) is unchanged — it reads junction rows exactly as for a manually-curated
+    collection. Declarative rules, imperative materialization, unchanged reads.
+
+    entry_deleted is intentionally omitted: EntryCollections has ON DELETE CASCADE, so the DB
+    removes membership automatically. Best-effort — any failure is logged and swallowed, so it
+    can never break entry writes.
+    """
+
+    _TRIGGERS = (
+        EventTypes.entry_created,
+        EventTypes.entry_updated,
+        EventTypes.entry_published,
+        EventTypes.entry_unpublished,
+        EventTypes.entry_archived,
+        EventTypes.entry_restored,
+    )
+
+    def __init__(self, group_id: UUID4) -> None:
+        from .publisher import ConsolePublisher  # We act on the event; we don't publish through it.
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        """Act only on entry lifecycle events; cheap check, no DB access."""
+        return ["smart_collections"] if event.event_type in self._TRIGGERS else []
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        entry_id = getattr(event.document_data, "entry_id", None) or event.entity_id
+        if not entry_id:
+            return
+
+        from marvin.db.models.platform.entries import Entries
+        from marvin.services.collections.smart_collections import sync_entry
+
+        with self.ensure_session() as session:
+            entry = session.get(Entries, entry_id)
+            if not entry or entry.group_id != self.group_id:
+                return
+            try:
+                changed = sync_entry(session, self.group_id, entry)
+                if changed:
+                    session.commit()
+                    self.logger.info(
+                        f"Smart collections: synced entry {entry_id} ({changed} membership change(s))"
+                    )
+            except Exception as e:
+                session.rollback()
+                self.logger.warning(
+                    f"SmartCollectionReactionListener: sync failed for entry {entry_id}: {e}"
+                )
+
+
 class ConsoleEventListener(EventListenerBase):
     """
     Event listener that logs all events to the console for debugging.

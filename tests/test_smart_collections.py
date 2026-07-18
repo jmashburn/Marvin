@@ -1,0 +1,61 @@
+"""Unit tests for the smart-collection rule evaluator.
+
+`entry_matches_rules` decides whether an entry belongs in a smart collection. It's the pure
+core of the materialized-membership machinery; the reaction listener and the sync helpers all
+delegate to it.
+"""
+
+from types import SimpleNamespace
+
+from marvin.services.collections.smart_collections import entry_matches_rules
+
+
+def _entry(type_slug="bench-note", status="published", tags=None):
+    return SimpleNamespace(status=status, entry_type=SimpleNamespace(slug=type_slug), tags=tags)
+
+
+def test_empty_rules_match_nothing():
+    assert entry_matches_rules(_entry(), None) is False
+    assert entry_matches_rules(_entry(), {}) is False
+
+
+def test_rules_with_no_recognized_dimension_match_nothing():
+    # A non-empty rule dict with only `match` (no constraints) must not match everything.
+    assert entry_matches_rules(_entry(), {"match": "all"}) is False
+
+
+def test_entry_type_match():
+    assert entry_matches_rules(_entry(type_slug="article"), {"entry_types": ["article"]}) is True
+    assert entry_matches_rules(_entry(type_slug="bench-note"), {"entry_types": ["article"]}) is False
+
+
+def test_status_match():
+    assert entry_matches_rules(_entry(status="published"), {"statuses": ["published"]}) is True
+    assert entry_matches_rules(_entry(status="inbox"), {"statuses": ["published"]}) is False
+
+
+def test_match_all_requires_every_dimension():
+    rules = {"entry_types": ["bench-note"], "statuses": ["published"]}
+    assert entry_matches_rules(_entry("bench-note", "published"), rules) is True
+    assert entry_matches_rules(_entry("bench-note", "inbox"), rules) is False  # wrong status
+    assert entry_matches_rules(_entry("article", "published"), rules) is False  # wrong type
+
+
+def test_match_any_requires_only_one_dimension():
+    rules = {"entry_types": ["bench-note"], "statuses": ["published"], "match": "any"}
+    assert entry_matches_rules(_entry("bench-note", "inbox"), rules) is True   # type matches
+    assert entry_matches_rules(_entry("article", "published"), rules) is True  # status matches
+    assert entry_matches_rules(_entry("article", "inbox"), rules) is False     # neither
+
+
+def test_tags_dimension_is_forward_compatible():
+    # entry carrying tags → matches on overlap
+    assert entry_matches_rules(_entry(tags=["leather", "waxed"]), {"tags": ["waxed"]}) is True
+    assert entry_matches_rules(_entry(tags=["leather"]), {"tags": ["waxed"]}) is False
+    # entry with no tags attribute value → inert, no crash
+    assert entry_matches_rules(_entry(tags=None), {"tags": ["waxed"]}) is False
+
+
+def test_entry_without_entry_type_relationship_does_not_crash():
+    entry = SimpleNamespace(status="published", entry_type=None, tags=None)
+    assert entry_matches_rules(entry, {"entry_types": ["article"]}) is False

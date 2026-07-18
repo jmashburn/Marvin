@@ -55,6 +55,17 @@ SYSTEM_SCHEDULED_TASKS: list[SystemTaskDefinition] = [
         schedule_type="interval",
         schedule_config={"interval_seconds": _DAILY_SECONDS},
     ),
+    SystemTaskDefinition(
+        slug="resync_smart_collections",
+        name="Resync Smart Collections",
+        task_type="resync_smart_collections",
+        description=(
+            "Reconcile smart-collection membership from rules across all workspaces (safety net "
+            "for the live reaction). Admin-only; runs daily."
+        ),
+        schedule_type="interval",
+        schedule_config={"interval_seconds": _DAILY_SECONDS},
+    ),
 ]
 
 

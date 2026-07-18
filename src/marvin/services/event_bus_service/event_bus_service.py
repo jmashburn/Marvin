@@ -24,6 +24,7 @@ from marvin.services import BaseService  # Base service class for common functio
 # Event listener implementations
 from marvin.services.event_bus_service.event_bus_listener import (
     AIEmbeddingReactionListener,
+    SmartCollectionReactionListener,
     AppriseEventListener,
     AuditLogListener,
     ConsoleEventListener,
@@ -150,6 +151,7 @@ class EventBusService(BaseService):
             AuditLogListener(group_id),  # Persists all events to event_log table (MUST BE FIRST).
             ScheduledTaskListener(group_id),  # Executes scheduled tasks when triggered.
             AIEmbeddingReactionListener(group_id),  # Auto-embeds an entry into the RAG index on publish.
+            SmartCollectionReactionListener(group_id),  # Materializes smart-collection membership on entry changes.
             ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
             AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.
