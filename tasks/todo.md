@@ -17,9 +17,10 @@ that lived here is shipped — replaced with the live backlog.)
 - [x] **`AI_ALLOW_WORKSPACE_CREDENTIALS` platform toggle** ✅ — platform admin can
       allow/disallow workspaces using their own AI keys (credential_mode=workspace);
       factory fallback so the Settings form actually enables workspace AI.
-- [ ] **Wire `logging_config`** — honor `log_inputs`/`log_outputs` when persisting
-      executions, and add an ai_executions retention prune (mirror the event_log prune;
-      `retention_days`). Today executions are always fully logged, never pruned.
+- [x] **Wire `logging_config`** ✅ — `_logging_policy()` honors log_inputs/log_outputs (defaults
+      preserve behavior: outputs logged, inputs not) in execute + compose; input_json now stored
+      only when opted in. Daily `prune_ai_executions` task (per-workspace retention_days, else
+      AI_EXECUTION_RETENTION_DAYS). Bonus: trigger_type now records the real source. (eabf648)
 - [x] **`entry_updated` → re-embed** ✅ — extended AIEmbeddingReactionListener; re-embeds only
       when a *published* entry that's *already indexed* changes (gate avoids draft-save noise and
       the publish-transition double-embed). 9 tests. (8bde56f)
@@ -34,6 +35,24 @@ that lived here is shipped — replaced with the live backlog.)
       startup lifespan (idempotent, group_id=NULL, interval 86400s). (7b514a3)
 
 ## 🌳 Medium / Features
+- [ ] **Route composed entries into a collection** ⭐ — compose (and the AI-off skeleton) creates
+      an entry but never adds it to a collection, so it's orphaned. Two coexisting mechanisms:
+      (a) **imperative** — declare target collection slug(s) on the recipe (or entry_type); compose
+      writes EntryCollections rows after create — deterministic, works AI-off, doubles as the human
+      create-entry default. (b) **declarative/smart** — implement smart-collection membership:
+      `collections.is_smart`/`smart_rules` are COLUMNS THAT NOTHING EVALUATES today (confirmed), so a
+      "Bench Notes" smart collection including all published bench-note entries is vaporware. Wiring
+      smart_rules (match by entry_type/status/tag) makes type→collection routing automatic; imperative
+      pins remain the escape hatch (like manual + smart playlists). Near-term: do (a) via recipe;
+      backlog (b) as its own feature. Ties: recipe · capabilities_json · the write-back step.
+- [ ] **Schema-driven typing for resources? (assets: probably not)** — TODAY: only *entries* use
+      entry_types. **Assets** have no type (mime_type + metadata blob) — leave as-is; a lightweight
+      asset-kind + metadata schema is low value. **Resources** carry a plain `resource_type` STRING
+      (supplier/tool/…) with no per-type fields — the real candidate. Options: (a) give resources
+      their own schema-driven ResourceTypes mirroring entry_types (supplier→{url,contact}, tool→{brand});
+      (b) unify — a resource becomes an entry of a resource-ish entry_type (ties to "forms fold into
+      entry_types"). Decision deferred; leaning (a) for structured resources without collapsing the
+      simpler model. Feeds recipe resource-extraction (entities→typed Resources).
 - [ ] **Compose-entry-from-brief** ⭐ (the flagship demo). An AI op that takes an
       `entry_type` + image(s) + a short brief, uses the **entry_type's field schema as the
       LLM output schema**, and creates a **draft** entry (image attached, not generated).
