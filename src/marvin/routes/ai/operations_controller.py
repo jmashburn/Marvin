@@ -419,6 +419,7 @@ class AIOperationsController(BaseUserController):
                 "created_by": self.user.id,
             })
             self.session.commit()
+            self._emit_entry_created(entry, entry_type)
 
             elapsed_ms = int((time.monotonic() - start) * 1000)
             execution.status = "completed"
@@ -517,6 +518,7 @@ class AIOperationsController(BaseUserController):
             "created_by": self.user.id,
         })
         self.session.commit()
+        self._emit_entry_created(entry, entry_type)
         return {
             "entryId": str(entry.id),
             "status": entry.status,
@@ -714,6 +716,36 @@ class AIOperationsController(BaseUserController):
         return None
 
     # ── Event emission ─────────────────────────────────────────────────
+
+    def _emit_entry_created(self, entry, entry_type) -> None:
+        """Dispatch entry_created for a composed entry.
+
+        Compose creates entries via the repo directly (not the entries controller), so without
+        this the entry would skip the lifecycle event and miss reactions like smart-collection
+        routing (e.g. a composed draft landing in a "Drafts" smart collection). Best-effort.
+        """
+        from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
+        try:
+            self.event_bus.dispatch(
+                integration_id="entry_management",
+                group_id=self.group_id,
+                event_type=EventTypes.entry_created,
+                document_data=EventEntryData(
+                    operation=EventOperation.create,
+                    entry_id=entry.id,
+                    entry_title=entry.title,
+                    entry_type=getattr(entry_type, "slug", None),
+                    workspace_id=self.group_id,
+                    workspace_name=self.group.name if self.group else None,
+                    author_id=self.user.id if self.user else None,
+                ),
+                message=f"Entry '{entry.title}' composed",
+                user_id=self.user.id if self.user else None,
+                entity_id=entry.id,
+                entity_type="entry",
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to dispatch entry_created for composed entry: {e}", exc_info=True)
 
     def _emit_ai_event(self, execution, status: str, error_message: str | None) -> None:
         """Dispatch ai_operation_executed / ai_operation_failed to the event bus."""
