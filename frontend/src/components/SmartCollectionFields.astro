@@ -1,0 +1,165 @@
+---
+/**
+ * Smart-collection fields — a self-contained toggle + rules editor with inline instructions.
+ *
+ * Shared by the create and edit collection forms. A "smart" collection fills itself from
+ * `smartRules` instead of being curated by hand; membership is materialized server-side and
+ * kept in sync as entries are created / published / edited.
+ *
+ * Emits two form fields: `is_smart` (checkbox) and `smartRules` (JSON textarea).
+ */
+interface Props {
+  checked?: boolean;
+  rules?: Record<string, unknown> | null;
+}
+const { checked = false, rules = null } = Astro.props;
+const rulesText = rules ? JSON.stringify(rules, null, 2) : "";
+---
+
+<fieldset class="smart-panel">
+  <label class="smart-toggle">
+    <input type="checkbox" name="is_smart" id="is_smart" value="true" checked={checked} />
+    <span class="smart-toggle-text">
+      <strong>Smart Collection</strong>
+      <span class="form-help">Fill this collection automatically from rules — no adding entries by hand.</span>
+    </span>
+  </label>
+
+  <div class="smart-rules" id="smart-rules-field" hidden={!checked}>
+    <label for="smartRules">Rules (JSON)</label>
+    <textarea
+      id="smartRules"
+      name="smartRules"
+      rows="6"
+      spellcheck="false"
+      placeholder={'{\n  "entry_types": ["article"],\n  "statuses": ["published"]\n}'}
+    >{rulesText}</textarea>
+    <div class="smart-help">
+      <p>
+        Entries that match these rules are added automatically and kept in sync as they're created,
+        published, or edited. Every field is optional; combine them with <code>match</code>. An empty
+        rule set matches nothing.
+      </p>
+      <ul>
+        <li><code>entry_types</code> — entry-type slugs, e.g. <code>["article", "bench-note"]</code></li>
+        <li><code>statuses</code> — e.g. <code>["published"]</code>, or <code>["inbox"]</code> for a Drafts collection</li>
+        <li><code>tags</code> — reserved; active once entries carry tags</li>
+        <li><code>match</code> — <code>"all"</code> (default, every rule must hold) or <code>"any"</code></li>
+      </ul>
+      <p class="smart-help-example">
+        Example — published articles &amp; bench notes:
+        <code>{'{"entry_types": ["article", "bench-note"], "statuses": ["published"]}'}</code>
+      </p>
+    </div>
+  </div>
+</fieldset>
+
+<script>
+  const checkbox = document.getElementById("is_smart") as HTMLInputElement | null;
+  const rulesField = document.getElementById("smart-rules-field") as HTMLElement | null;
+  if (checkbox && rulesField) {
+    const sync = () => {
+      rulesField.hidden = !checkbox.checked;
+    };
+    checkbox.addEventListener("change", sync);
+    sync();
+  }
+</script>
+
+<style>
+  .smart-panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin: 0;
+    display: grid;
+    gap: 0.75rem;
+    min-inline-size: 0;
+  }
+
+  /* Scoped styles don't inherit the page's .form-help — define the same small-grey helper here. */
+  .form-help {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .smart-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    font-weight: 400;
+    cursor: pointer;
+    margin: 0;
+  }
+
+  .smart-toggle input[type="checkbox"] {
+    margin: 0.15rem 0 0;
+    flex: 0 0 auto;
+  }
+
+  .smart-toggle-text {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .smart-toggle-text strong {
+    font-size: 0.9rem;
+    color: var(--ink);
+  }
+
+  .smart-rules {
+    display: grid;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .smart-rules[hidden] {
+    display: none;
+  }
+
+  /* Match the page's textareas (scoped styles don't reach into the component). */
+  .smart-panel textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 0.875rem;
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  .smart-help {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .smart-help p {
+    margin: 0 0 0.4rem;
+  }
+
+  .smart-help ul {
+    margin: 0.4rem 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .smart-help-example {
+    margin-top: 0.5rem;
+  }
+
+  .smart-help code {
+    font-size: 0.72rem;
+    background: var(--bg);
+    padding: 0.05rem 0.35rem;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    word-break: break-word;
+  }
+</style>

@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import EmojiPicker from "@/components/EmojiPicker.astro";
+import SmartCollectionFields from "@/components/SmartCollectionFields.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCollection, getCollectionEntries } from "@/lib/api/collections";
 import { listEntries } from "@/lib/api/entries";
@@ -117,30 +118,7 @@ if (!authToken) {
             <p class="form-help">Lower numbers appear first</p>
           </div>
 
-          <div class="form-group">
-            <label>
-              <input
-                type="checkbox"
-                name="is_smart"
-                id="is_smart"
-                value="true"
-                checked={collection.isSmart === true}
-              />
-              Smart Collection
-            </label>
-            <p class="form-help">Smart collections automatically populate based on query criteria</p>
-          </div>
-
-          <div class="form-group" id="query-field" style={collection.isSmart ? '' : 'display: none;'}>
-            <label for="smartRules">Smart Rules (JSON)</label>
-            <textarea
-              id="smartRules"
-              name="smartRules"
-              rows="8"
-              placeholder='&#123;"type": "blog", "status": "published"&#125;'
-            >{collection.smartRules ? JSON.stringify(collection.smartRules, null, 2) : ''}</textarea>
-            <p class="form-help">JSON rules for filtering entries. Example: &#123;"type": "blog", "status": "published"&#125;</p>
-          </div>
+          <SmartCollectionFields checked={collection.isSmart === true} rules={collection.smartRules} />
 
           <div class="form-group">
             <label for="metadata">Metadata (JSON)</label>
@@ -263,15 +241,7 @@ if (!authToken) {
   const form = document.getElementById('collection-form') as HTMLFormElement;
   const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
 
-  // Toggle query field visibility based on smart collection checkbox
-  const smartCheckbox = document.getElementById('is_smart') as HTMLInputElement;
-  const queryField = document.getElementById('query-field');
-
-  if (smartCheckbox && queryField) {
-    smartCheckbox.addEventListener('change', () => {
-      queryField.style.display = smartCheckbox.checked ? 'grid' : 'none';
-    });
-  }
+  // Smart-collection field toggling lives in the SmartCollectionFields component.
 
   // Handle form submission via SDK
   if (form) {
