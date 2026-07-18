@@ -63,6 +63,9 @@ class AIOperationsController(BaseUserController):
             if role < operation.min_role:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role for this operation.")
 
+        # Invocation-source gate: operation's declared sources ∩ workspace policy.
+        self._check_invocation_source(body.source, operation.invocation_sources)
+
         # Budget check from workspace settings
         self._check_budget()
 
@@ -299,6 +302,10 @@ class AIOperationsController(BaseUserController):
                     break
             if role < ROLE_AUTHOR:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
+
+        # Compose is an authoring verb: reachable from the editor, MCP, the agent, and the API
+        # (not forms/scheduled). Gated against the workspace invocation_sources policy.
+        self._check_invocation_source(body.source, ("editor", "mcp", "agent", "api"))
 
         # Resolve entry type by slug (workspace or system), then by id.
         entry_type = (
@@ -586,6 +593,36 @@ class AIOperationsController(BaseUserController):
             if r and r.group_id == self.group_id:
                 targets.append(("resource", r.id, resource_text(r)))
         return targets
+
+    def _check_invocation_source(self, source: str, operation_sources) -> None:
+        """Gate a call by its invocation surface.
+
+        Effective allow-list = the operation's declared sources ∩ the workspace's
+        invocation_sources policy. `source` is set by the calling infrastructure (the admin
+        editor sends "editor", MarvinMCP sends "mcp", the agent endpoint sends "agent", …), so
+        this is surface/feature gating — the per-user authorization wall is min_role. The
+        workspace policy is an override map: a source is enabled unless explicitly set false,
+        so an unset/None policy allows everything (back-compat).
+        """
+        from marvin.services.ai.operations.base import INVOCATION_SOURCES
+
+        if source not in INVOCATION_SOURCES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown invocation source '{source}'. Valid: {', '.join(INVOCATION_SOURCES)}.",
+            )
+        if source not in operation_sources:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This operation cannot be invoked from the '{source}' source.",
+            )
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        policy = settings.invocation_sources if settings else None
+        if isinstance(policy, dict) and policy.get(source, True) is False:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This workspace has disabled AI from the '{source}' source.",
+            )
 
     def _check_budget(self) -> None:
         from sqlalchemy import func

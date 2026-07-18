@@ -37,6 +37,10 @@ class AIOperationExecuteRequest(_MarvinModel):
     entity_id: UUID4 | None = None
     input: dict = {}
     model_override: str | None = None  # override the workspace default model
+    # Invocation surface (editor/forms/actions/mcp/scheduled/agent/api). Set by the calling
+    # infrastructure (e.g. MarvinMCP sends "mcp"); gated against the workspace policy ∩ the
+    # operation's declared sources. Defaults to the admin editor.
+    source: str = "editor"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -56,5 +60,6 @@ class AIComposeEntryRequest(_MarvinModel):
     brief: str                               # what the entry should be about
     asset_ids: list[UUID4] | None = None     # image assets to see (vision) + attach
     model_override: str | None = None
+    source: str = "editor"                   # invocation surface; gated by workspace policy
 
     model_config = ConfigDict(from_attributes=True)

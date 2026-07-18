@@ -12,6 +12,12 @@ ROLE_EDITOR = 3
 ROLE_ADMIN = 4
 ROLE_OWNER = 5
 
+# Invocation surfaces an AI operation can be reached from. The effective allow-list for a
+# call is the INTERSECTION of the operation's declared sources and the per-workspace
+# invocation_sources policy (ai_settings). This gates *which surfaces* may run AI; min_role
+# is the separate per-user authorization wall.
+INVOCATION_SOURCES = ("editor", "forms", "actions", "mcp", "scheduled", "agent", "api")
+
 OPERATION_REGISTRY: dict[str, "AIOperation"] = {}
 
 
@@ -63,6 +69,9 @@ class AIOperation(ABC):
     entity_types: list[str] = []   # which entity types this operation supports
     requires_vision: bool = False
     requires_retrieval: bool = False  # RAG: retrieve workspace chunks before prompting
+    # Surfaces this operation may be invoked from (default: all). Intersected with the
+    # workspace's invocation_sources policy at execute time.
+    invocation_sources: tuple[str, ...] = INVOCATION_SOURCES
 
     @abstractmethod
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
@@ -79,4 +88,5 @@ class AIOperation(ABC):
             "min_role": self.min_role,
             "entity_types": self.entity_types,
             "requires_vision": self.requires_vision,
+            "invocation_sources": list(self.invocation_sources),
         }
