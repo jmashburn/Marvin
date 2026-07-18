@@ -4,10 +4,11 @@ Captured from working sessions. Grouped by effort. (The original AI-settings bui
 that lived here is shipped — replaced with the live backlog.)
 
 ## 🍂 Low-hanging
-- [ ] **Resync SDK generated types** — `cd MarvinSDK && npm run generate:types && npm run build`
-      (openapi-typescript off the running backend). Picks up this session's backend surface
-      (recipe_json, compose-entry, AI stats fields, event-log fix, …) and lets the frontend drop
-      the `as Parameters<…>` casts in entryTypes.ts. Its own task — big generated diff + rebuild.
+- [x] **Resync SDK generated types** ✅ — schema regenerated off the live backend (now carries
+      recipe_json + compose-entry), `platform.ai.operations.composeEntry()` added (agent had the
+      type but no method), vitest suite green (89). MarvinSDK dist rebuilt so frontend/CLI symlinks
+      see it. *Remaining follow-up:* drop the `as Parameters<…>` casts in frontend entryTypes.ts
+      now that recipeJson is in the generated create/update body types.
 - [ ] **Recipe UI placement** (thought, not mandate) — v1 recipe editor lives in the entry-type
       form. The admin "Custom Fields" / "Templates" placeholders under Entries could become a
       dedicated recipe builder (structured assets/resources/enrichment) instead of raw JSON.
@@ -76,6 +77,11 @@ that lived here is shipped — replaced with the live backlog.)
       api_version, Ollama endpoint). Needed for Ollama/Azure workspace setups.
 
 ## ★ North star: "Marvin" — the expandable workspace assistant
+> 📐 Full architecture & capability strategy: **`tasks/marvin-assistant-architecture.md`**
+> (three planes: system owns / MCP projects / assistant chooses · manifest-as-contract ·
+> `min_role`+`invocation_sources` as the palette gate · server-side brain → thin client
+> anywhere · public-widget risks). Wire the gate FIRST — it's what makes it safe.
+
 Persona: **Marvin the Paranoid Android** (Hitchhiker's Guide) — brilliant, world-weary,
 deadpan. "Here I am, brain the size of a planet, and they ask me to reindex embeddings."
 The "Ask Marvin" bubble is his v1 shell. Not just RAG — a command surface that can *do* things:
