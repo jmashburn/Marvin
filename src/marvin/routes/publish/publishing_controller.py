@@ -154,7 +154,7 @@ def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool
             ),
         )
         for ec in entry.entry_collections
-        if ec.collection
+        if ec.collection and ec.collection.is_public
     ]
     asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
     resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
@@ -513,7 +513,7 @@ async def get_published_entry(
             ),
         )
         for ec in entry.entry_collections
-        if ec.collection
+        if ec.collection and ec.collection.is_public
     ]
 
     # Get resources for this entry (wrapped with relationship context)
@@ -589,13 +589,17 @@ async def list_published_collections(
     # Require permission to read collections
     perms.require_permission(Permissions.READ_COLLECTIONS, "collections")
 
-    # Get total count
-    total = session.query(Collections).filter(Collections.group_id == group.id).count()
+    # Get total count (public collections only — system/internal collections are never published)
+    total = (
+        session.query(Collections)
+        .filter(Collections.group_id == group.id, Collections.is_public == True)  # noqa: E712
+        .count()
+    )
 
-    # Get paginated collections for this workspace
+    # Get paginated collections for this workspace (public only)
     collections = (
         session.query(Collections)
-        .filter(Collections.group_id == group.id)
+        .filter(Collections.group_id == group.id, Collections.is_public == True)  # noqa: E712
         .order_by(Collections.sort_order, Collections.name)
         .limit(limit)
         .offset(offset)
@@ -686,12 +690,13 @@ async def get_published_collection(
     # Require permission to read collections
     perms.require_permission(Permissions.READ_COLLECTIONS, "collection")
 
-    # Get collection
+    # Get collection (public only — system/internal collections are not published)
     collection = (
         session.query(Collections)
         .filter(
             Collections.group_id == group.id,
             Collections.slug == collection_slug,
+            Collections.is_public == True,  # noqa: E712
         )
         .first()
     )

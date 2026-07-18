@@ -292,6 +292,12 @@ class WorkspaceBootstrapService:
             )
             repos.session.add(collection)
 
+        # System workflow collections (Inbox/Drafts/Needs Review/Approved) — smart, locked,
+        # internal. Idempotent; membership materializes as entries are created.
+        from marvin.services.collections.system_collections import seed_system_workflow_collections
+
+        seed_system_workflow_collections(repos.session, workspace.id)
+
         # 3. Add creator as OWNER
         repos.workspace_members.add_member(
             user_id=creator_id,

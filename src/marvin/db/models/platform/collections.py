@@ -33,6 +33,10 @@ class Collections(SqlAlchemyBase, BaseMixins):
     color: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     is_smart: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     smart_rules: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    # System workflow collections (Inbox/Drafts/…) are seeded, locked from edit/delete, and
+    # internal-only (not exposed via the publish API).
+    is_system: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    is_public: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     # Relationships

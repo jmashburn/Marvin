@@ -27,6 +27,8 @@ class CollectionCreate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    is_public: bool = True
+    """Whether this collection is exposed via the publish API."""
     metadata_json: dict | None = None
     """Custom metadata for this collection."""
     entry_ids: list[UUID4] | None = None
@@ -54,6 +56,8 @@ class CollectionUpdate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    is_public: bool | None = None
+    """Whether this collection is exposed via the publish API."""
     metadata_json: dict | None = None
     """Custom metadata for this collection."""
     entry_ids: list[UUID4] | None = None
@@ -81,6 +85,10 @@ class CollectionSummary(_MarvinModel):
     """Optional color code."""
     is_smart: bool
     """Whether this is a smart collection."""
+    is_system: bool = False
+    """System workflow collection — locked from edit/delete and internal-only."""
+    is_public: bool = True
+    """Whether this collection is exposed via the publish API."""
     created_at: datetime | None = None
     """Timestamp when the collection was created."""
     update_at: datetime | None = None

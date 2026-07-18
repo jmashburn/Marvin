@@ -100,6 +100,17 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]:  # Renamed a
     except Exception as e:
         logger.exception(f"Scheduled task seeder failed: {e}")
 
+    logger.info("Starting: System collections seeder...")
+    try:
+        from marvin.db.db_setup import session_context
+        from marvin.services.collections.system_collections import seed_all_workspaces
+        with session_context() as session:
+            count = seed_all_workspaces(session)
+            if count:
+                logger.info(f"System collections seeder: created {count} collection(s).")
+    except Exception as e:
+        logger.exception(f"System collections seeder failed: {e}")
+
     logger.info("Starting: Scheduler service...")
     try:
         await start_scheduler()  # Register and start scheduled tasks

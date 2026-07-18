@@ -56,6 +56,14 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
         return self.get_one(new_collection.id)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> CollectionRead:
+        # System workflow collections are locked (managed by Marvin).
+        target = self.session.get(Collections, match_value)
+        if target is not None and target.is_system:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="System collections are managed by Marvin and cannot be modified.",
+            )
+
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
 
         # Don't auto-regenerate slug on update - slugs should remain stable once created
@@ -99,6 +107,12 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
 
     def delete(self, value: Any, match_key: str | None = None) -> CollectionRead:
         collection = self.session.get(Collections, value)
+        # System workflow collections cannot be deleted.
+        if collection is not None and collection.is_system:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="System collections cannot be deleted.",
+            )
         # Smart collections own their membership — rows are auto-materialized from rules, not
         # curated — so the "in use by entries" guard doesn't apply; the FK cascade clears the
         # junction rows on delete.
