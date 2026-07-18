@@ -17,6 +17,7 @@ export interface EntryTypeCreate {
   schemaJson?: Record<string, unknown>;
   renderingJson?: Record<string, unknown>;
   capabilitiesJson?: Record<string, unknown>;
+  recipeJson?: Record<string, unknown>;
 }
 
 export interface EntryTypeUpdate {
@@ -30,6 +31,7 @@ export interface EntryTypeUpdate {
   schemaJson?: Record<string, unknown>;
   renderingJson?: Record<string, unknown>;
   capabilitiesJson?: Record<string, unknown>;
+  recipeJson?: Record<string, unknown>;
 }
 
 export type EntryTypeRead = PlatformEntryType;
@@ -55,7 +57,9 @@ export async function getEntryType(id: string, authToken: string): Promise<Entry
  */
 export async function createEntryType(data: EntryTypeCreate, authToken: string): Promise<EntryTypeRead> {
   const sdk = createSdkClient(authToken);
-  return sdk.entryTypes.create(data);
+  // recipeJson passes through to the API (backend accepts it); the generated SDK type lags
+  // until schema regen, so widen at the boundary. TODO: regenerate SDK schema for recipe_json.
+  return sdk.entryTypes.create(data as Parameters<typeof sdk.entryTypes.create>[0]);
 }
 
 /**
@@ -63,7 +67,8 @@ export async function createEntryType(data: EntryTypeCreate, authToken: string):
  */
 export async function updateEntryType(id: string, data: EntryTypeUpdate, authToken: string): Promise<EntryTypeRead> {
   const sdk = createSdkClient(authToken);
-  return sdk.entryTypes.update(id, data);
+  // See createEntryType — recipeJson passes through; widen until SDK schema regen.
+  return sdk.entryTypes.update(id, data as Parameters<typeof sdk.entryTypes.update>[1]);
 }
 
 /**
