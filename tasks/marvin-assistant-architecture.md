@@ -76,6 +76,58 @@ connected)* — a union **discovered at runtime**, never a hardcoded list. The f
 `capabilities.ts` registry pattern stays; only the *source of the list* moves from
 compiled → fetched.
 
+## ★★ The conversational authoring loop (the destination)
+
+The lived goal: **freeform-talk to Marvin, it does the work, and hands back a draft for approval.**
+
+> "Create an entry — here's the image, do the things, schedule it to publish on the 20th."
+> Marvin composes a draft, replies *"how's this look?"*, you say *"change the title, warmer tone"*,
+> it revises, you say *"approved"* — and it schedules. Later: *"make an Instagram post from this."*
+
+Always **draft-first, human-in-the-loop**. The agent never publishes unreviewed; it proposes and
+waits. This is one conversation over a create → revise → approve → schedule cycle.
+
+**Most of the substrate already exists (built this session):**
+- **compose-entry** — the "create an entry from image + brief" primitive (image attached, not
+  generated; lands as a draft). ✅
+- **System workflow collections** (Inbox/Drafts/Needs Review/Approved) — the approval pipeline made
+  *visible*: the agent's draft appears in Needs Review; approving moves it along by changing status,
+  and smart-collection routing files it automatically. ✅
+- **invocation_sources ∩ min_role gate** — the safety wall; the agent runs as `source="agent"` and
+  can only wield tools the caller's role allows. ✅
+- **Scheduling primitives** — `entries.publish_at` / `expire_at` columns + the scheduled-publish
+  handler already exist. ✅ (needs an agent tool wrapper)
+- **entry_created emitted by compose** — composed drafts are first-class to reactions. ✅
+
+**Lifecycle ≠ recipe (important):** `status` · `publish_at` · `expire_at` are **per-entry lifecycle
+fields on the entry**, NOT part of the `recipe`. The recipe is the *authoring* contract
+(assets/resources/enrichment for a type); lifecycle is a per-entry, per-request decision the agent
+sets ("publish on the 20th", "expire after the sale"). Compose today sets none of them — it just
+creates an `inbox` draft. So lifecycle belongs in a **`schedule`/lifecycle tool + the write-back
+step** (per entry), not in `recipe_json`. The recipe *may* later hold optional type-level lifecycle
+*defaults/policy* (e.g. "new entries of this type start in needs_review", "auto-expire after N days"),
+but the authoring contract and the lifecycle controls stay separate layers.
+
+**What's left to reach the vision (build order):**
+1. **`/api/ai/agent` — the loop/brain** (server-side; see below). NL → pick tool(s) → run → reply.
+   The single biggest missing piece.
+2. **Conversation state** — multi-turn memory so "change the title" refers to the draft just made.
+   (reuse executions vs a conversations/messages store — open question below.)
+3. **Write-back + `approval_mode` made real** — the agent proposes output; a field-map applies it to
+   the entry gated by approval_mode × status; emits an event; editor sees an accept/diff. This is the
+   "how's this look? → change X → approved" handshake. (Already a backlog item; it's the keystone of
+   the loop.)
+4. **A `revise` capability** — targeted edit of an existing draft from NL ("warmer tone", "shorter
+   title") vs a full recompose — so iteration is cheap and preserves the rest.
+5. **A `schedule` tool** — set `publish_at` from NL; the existing scheduled-publish task does the rest.
+6. **Multi-channel operations** — "Instagram post", "newsletter blurb", … as *new operations* that
+   plug into the registry + invocation_sources. The pluggable-capability design pays off here: each
+   channel is an op, not core surgery. (Likely a different entry_type or a render target per channel.)
+
+Sequencing: agent loop → conversation state → write-back/approval → revise → schedule → channels.
+Steps 3–5 are small given the primitives; step 1 is the real build. Ship the loop over compose first
+(create → review → approve → schedule for entries), then add channels as ops.
+
 ## Server-side brain → thin client anywhere
 
 Decision: **the brain runs server-side** (`POST /api/ai/agent`), NOT in the client.
