@@ -85,17 +85,20 @@ class AIOperationsController(BaseUserController):
         # Validate the selected model can satisfy the operation's capability requirements (§7)
         self._validate_model_capabilities(operation, model)
 
+        # Accept either a UUID or a slug for entity_id — MCP/CLI callers work in slugs.
+        entity_id = self._resolve_entity_id(body.entity_type, body.entity_id)
+
         # Build context via ContextBuilder
         from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
         builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
-        if body.entity_type == "entry" and body.entity_id:
-            builder.with_entry(body.entity_id).with_assets(body.entity_id).with_resources(body.entity_id)
-        elif body.entity_type == "asset" and body.entity_id:
-            builder.with_asset(body.entity_id)
-        elif body.entity_type == "resource" and body.entity_id:
-            builder.with_resource(body.entity_id)
-        elif body.entity_type == "form_submission" and body.entity_id:
-            builder.with_form_submission(body.entity_id)
+        if body.entity_type == "entry" and entity_id:
+            builder.with_entry(entity_id).with_assets(entity_id).with_resources(entity_id)
+        elif body.entity_type == "asset" and entity_id:
+            builder.with_asset(entity_id)
+        elif body.entity_type == "resource" and entity_id:
+            builder.with_resource(entity_id)
+        elif body.entity_type == "form_submission" and entity_id:
+            builder.with_form_submission(entity_id)
         # Vision operations need the raw image bytes loaded into context.
         if operation.requires_vision:
             builder.with_asset_images()
@@ -124,7 +127,7 @@ class AIOperationsController(BaseUserController):
             triggered_by=self.user.id,
             trigger_type=body.source,
             entity_type=body.entity_type,
-            entity_id=body.entity_id,
+            entity_id=entity_id,
             input_json=body.input if log_inputs else None,
         )
         self.session.add(execution)
@@ -614,6 +617,42 @@ class AIOperationsController(BaseUserController):
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         cfg = (settings.logging_config if settings else None) or {}
         return bool(cfg.get("log_inputs", False)), bool(cfg.get("log_outputs", True))
+
+    def _resolve_entity_id(self, entity_type: str | None, entity_id):
+        """Accept a UUID or a slug for entity_id so MCP/CLI callers can work in slugs.
+
+        Returns the entity's UUID (resolving a slug for entry/asset/resource within this
+        workspace), or the input unchanged when it's already a UUID or can't be resolved
+        (downstream loaders then 404 exactly as before).
+        """
+        if not entity_id:
+            return entity_id
+
+        import uuid as _uuid
+        try:
+            return _uuid.UUID(str(entity_id))  # already a UUID — normalize
+        except (ValueError, TypeError):
+            pass
+
+        model = None
+        if entity_type == "entry":
+            from marvin.db.models.platform.entries import Entries
+            model = Entries
+        elif entity_type == "resource":
+            from marvin.db.models.platform.resources import Resources
+            model = Resources
+        elif entity_type == "asset":
+            from marvin.db.models.platform.assets import Assets
+            model = Assets
+        if model is None:
+            return entity_id
+
+        row = (
+            self.session.query(model)
+            .filter_by(group_id=self.group_id, slug=str(entity_id))
+            .first()
+        )
+        return row.id if row else entity_id
 
     def _check_invocation_source(self, source: str, operation_sources) -> None:
         """Gate a call by its invocation surface.

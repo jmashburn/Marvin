@@ -34,7 +34,7 @@ class AIExecutionRead(_MarvinModel):
 
 class AIOperationExecuteRequest(_MarvinModel):
     entity_type: str | None = None
-    entity_id: UUID4 | None = None
+    entity_id: str | None = None  # UUID or slug — resolved server-side (MCP/CLI work in slugs)
     input: dict = {}
     model_override: str | None = None  # override the workspace default model
     # Invocation surface (editor/forms/actions/mcp/scheduled/agent/api). Set by the calling
