@@ -281,11 +281,12 @@ class AIOperationsController(BaseUserController):
 
         from marvin.core.config import get_app_settings
         from marvin.db.models.platform.entry_types import EntryTypes
+        from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
         from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
         from marvin.services.ai.base import CompletionOptions, ImagePart, Message
         from marvin.services.ai.compose import entry_type_to_output_schema
         from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
-        from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+        from marvin.services.ai.factory import get_workspace_ai_provider
         from marvin.services.ai.operations.base import ROLE_AUTHOR
         from marvin.services.ai.pricing import estimate_cost
 
@@ -298,19 +299,6 @@ class AIOperationsController(BaseUserController):
                     break
             if role < ROLE_AUTHOR:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
-
-        self._check_budget()
-
-        try:
-            provider = get_workspace_ai_provider(self.session, self.group_id)
-        except AIDisabledError as e:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}")
-
-        model = body.model_override or self._default_model()
-        if not model:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No model configured.")
 
         # Resolve entry type by slug (workspace or system), then by id.
         entry_type = (
@@ -330,7 +318,24 @@ class AIOperationsController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Entry type '{body.entry_type}' not found.")
 
         schema_def = EntryTypeSchemaDefinition.model_validate(entry_type.schema_json or {})
+        recipe = EntryTypeRecipe.model_validate(entry_type.recipe_json or {})
         output_schema = entry_type_to_output_schema(schema_def, entry_type.name)
+
+        # Assign asset roles from the recipe (hero → first) so rendering (getFeaturedAsset) lights up.
+        asset_attachments = self._recipe_asset_attachments(body.asset_ids or [], recipe)
+
+        # Degrade gracefully: if AI is off / unconfigured / erroring, still create a blank
+        # skeleton draft of this type so the flow works "at a very dumb level".
+        provider = None
+        try:
+            provider = get_workspace_ai_provider(self.session, self.group_id)
+        except Exception:
+            provider = None
+        model = (body.model_override or self._default_model()) if provider else None
+        if not provider or not model:
+            return self._compose_skeleton(body, entry_type, schema_def, asset_attachments)
+
+        self._check_budget()
 
         # Context + vision images.
         builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
@@ -351,11 +356,15 @@ class AIOperationsController(BaseUserController):
             img = a.get("image_data")
             if img:
                 parts.append(ImagePart(data=img, mime_type=a.get("mime_type") or "image/png"))
+        voice = recipe.enrichment.get("voice") if isinstance(recipe.enrichment, dict) else None
+        system_content = (
+            f"You are a content author. Produce a complete, publish-ready '{entry_type.name}'. "
+            f"Return ONLY the requested fields."
+        )
+        if voice:
+            system_content += f" Voice/tone: {voice}"
         messages = [
-            Message(role="system", content=(
-                f"You are a content author. Produce a complete, publish-ready '{entry_type.name}'. "
-                f"Return ONLY the requested fields and write in the workspace's voice."
-            )),
+            Message(role="system", content=system_content),
             Message(role="user", content=parts if len(parts) > 1 else instruction),
         ]
         messages = resolve_prompt_messages(messages, self.group_id, ctx.variables)
@@ -393,7 +402,7 @@ class AIOperationsController(BaseUserController):
                 "entry_type_id": entry_type.id,
                 "status": "inbox",  # draft — review before publishing
                 "data_json": data_json,
-                "asset_ids": [str(a) for a in (body.asset_ids or [])] or None,
+                "asset_attachments": asset_attachments or None,
                 "created_by": self.user.id,
             })
             self.session.commit()
@@ -436,6 +445,72 @@ class AIOperationsController(BaseUserController):
             "totalTokens": execution.total_tokens,
             "estimatedCostUsd": execution.estimated_cost_usd,
             "generated": data_json,
+        }
+
+    # ── Compose helpers ────────────────────────────────────────────────
+
+    def _recipe_asset_attachments(self, asset_ids: list, recipe) -> list[dict]:
+        """Map provided assets to the recipe's roles (first → hero, then declared order)."""
+        roles = [r.role for r in recipe.assets.roles] if (recipe.assets and recipe.assets.roles) else []
+        out: list[dict] = []
+        for i, aid in enumerate(asset_ids):
+            role = roles[i] if i < len(roles) else (roles[-1] if roles else None)
+            out.append({"asset_id": str(aid), "role": role, "position": i})
+        return out
+
+    def _skeleton_data(self, schema_def, brief: str) -> dict:
+        """Minimal valid data_json for a no-AI draft: required fields filled with type-appropriate
+        placeholders, and the brief stashed into the first free-text field so it isn't lost."""
+        from datetime import UTC, datetime
+
+        def placeholder(f):
+            t = f.type
+            if t == "number":
+                return 0
+            if t == "boolean":
+                return False
+            if t == "select":
+                opts = getattr(f, "options", []) or []
+                return opts[0] if opts else ""
+            if t == "date":
+                return datetime.now(UTC).date().isoformat()
+            if t == "datetime":
+                return datetime.now(UTC).isoformat()
+            if t == "json":
+                return {}
+            return ""  # text / textarea / markdown
+
+        data: dict = {f.key: placeholder(f) for f in schema_def.get_required_fields()}
+        for f in schema_def.fields:
+            if f.type in ("markdown", "textarea", "text"):
+                data[f.key] = brief
+                break
+        return data
+
+    def _compose_skeleton(self, body, entry_type, schema_def, asset_attachments) -> dict:
+        """No-AI fallback: create a blank draft of the type so /compose still works when AI is off."""
+        brief = (body.brief or "").strip()
+        first_line = brief.splitlines()[0].strip() if brief else ""
+        title = (first_line[:120] or f"New {entry_type.name}")
+        entry = self.repos.entries.create({
+            "title": title,
+            "entry_type_id": entry_type.id,
+            "status": "inbox",
+            "data_json": self._skeleton_data(schema_def, brief),
+            "asset_attachments": asset_attachments or None,
+            "created_by": self.user.id,
+        })
+        self.session.commit()
+        return {
+            "entryId": str(entry.id),
+            "status": entry.status,
+            "title": title,
+            "editUrl": f"/workspace/entries/{entry.id}",
+            "executionId": None,
+            "totalTokens": None,
+            "estimatedCostUsd": None,
+            "generated": entry.data_json,
+            "aiSkipped": True,
         }
 
     # ── Helpers ────────────────────────────────────────────────────────
