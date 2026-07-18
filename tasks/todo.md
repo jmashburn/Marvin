@@ -39,10 +39,10 @@ that lived here is shipped — replaced with the live backlog.)
       collections are now REAL (materialized-via-reactions): `smart_rules` (entry_types + statuses,
       match all|any) evaluated by a reaction on entry create/update/publish/… → EntryCollections
       rows; reads/renderers-core unchanged; daily reconcile safety net. `tags` reserved as a
-      forward-compatible rule dimension. (7c3abe1) **Remaining follow-ups:**
-      · **compose should emit `entry_created`** — it creates entries via the repo directly, so
-        composed DRAFTS aren't synced at creation (they file on publish / next reconcile). Making
-        compose emit the event makes composed entries first-class to ALL reactions.
+      forward-compatible rule dimension. (7c3abe1) SDK: `collections.createSmart` + typed
+      `SmartCollectionRules` (d141bbe). **Remaining follow-ups:**
+      · [x] **compose emits `entry_created`** ✅ (cc4fb0c) — composed entries first-class to all
+        reactions; verified a composed draft lands in a smart "Drafts" (statuses:[inbox]) collection.
       · **smart-rule builder UI** (rules are set via the collections API; no editor yet).
       · **mixed smart+manual** collections (MVP is smart XOR manual — smart membership is fully derived).
       · optional **imperative recipe.collections** pins as an escape hatch (superseded for the
@@ -124,6 +124,15 @@ The "Ask Marvin" bubble is his v1 shell. Not just RAG — a command surface that
 - **Ask** — RAG Q&A over workspace content (one skill among many)
 - **Actions** — Review, Publish, Test, Rebuild, … dispatched to existing endpoints
   (publishing, scheduled tasks, the operations registry)
+- **Per-page context ("what am I looking at?")** — the thin bubble captures the current page's
+  grounding (route + the entity it's rendering: type, id, title) and sends it with each ask. Two
+  answers: (a) *explain the page* — static route→purpose help, no AI; (b) *explain the data* —
+  summarize/describe the entity in context (AI, scoped to that id). Mechanism: pages declare a
+  small context object (e.g. `window.marvinContext = {entityType, entityId, title}` or a body
+  data-attr) with a route fallback — NOT DOM scraping. Same context also grounds future actions
+  ("publish this", "review this"). In the server-brain model the client just forwards the context;
+  the agent uses it to scope tools. Grounding only — it does not change permissions (min_role stays
+  the wall).
 - **Expandable** — a skill/tool registry so capabilities plug in rather than hardcode
 - **MCP as the plugin layer** — host our operations as tools *and* connect external MCP
   servers, so Marvin's abilities grow without core changes
