@@ -136,16 +136,62 @@ mode of the *same* endpoint.
 4. **Thin clients** — admin bubble switches `capabilities.ts` to render discovered tools;
    later, a scoped public widget as a read-only mode of the same endpoint.
 
-## Current state of MarvinMCP (to review once added to the workspace)
+## MarvinMCP: current state & evolution path (reviewed)
 
-- Lives beside Marvin / MarvinSDK / MarvinCLI.
-- **Read-only today** — only wraps the *publish* endpoints, and only reads. (Contrast: the
-  **CLI** already covers the full endpoint surface.)
-- Implication: MarvinMCP is currently a narrow slice, not yet the auto-projection bridge
-  described here. Turning it into "the bridge" = generalize it from hand-wired publish reads
-  to the discovery loop over the operations manifest, gated by `invocation_sources`.
-- TODO when the repo is added: read it, confirm auth model (user token), and decide whether
-  to evolve it in place or rebuild around the projection loop.
+Read the repo (beside Marvin / SDK / CLI). It is **better than "read-only publish wrapper"** —
+a well-architected MCP server whose own design already anticipates this plan.
+
+**What's there:**
+- A `Capability` abstraction (`src/capabilities/types.ts`) — 7 capabilities (`meta`, `workspace`,
+  `entries`, `entry-types`, `collections`, `assets`, `resources`), each a module with
+  `register(context)`, looped by `registerCapabilities()`. Each registers MCP tools + resources
+  (`marvin://entries/{slug}`) + prompts.
+- Prompts already encode **"never publish automatically / draft only"** — matches `approval_mode`.
+- `MarvinClientLike` interface + fakes + vitest suite; serializers normalize SDK shapes.
+- A `readOnly` config flag already exists (`src/config.ts`).
+- **`docs/CAPABILITY_INVENTORY.md` already states the deferral**: platform/write capabilities
+  *"intentionally not exposed until write authentication, permission-aware discovery, and mutation
+  safety are designed."* — i.e. it independently reached the same `min_role` +
+  `invocation_sources` gate conclusion and stopped at the safe line on purpose.
+
+**The gap vs this doc is exactly two things:**
+1. **Auth plane** — uses the SDK `/publish` client (**site token, read-only**; `MarvinClientLike`
+   is all `get*`). Operations, compose, and the agent loop need the `/platform` client (**user
+   token**). So today it *structurally* cannot reach the operations registry or `composeEntry` —
+   the "read-only" ceiling is an auth boundary, not a missing-tool problem.
+2. **Projection** — tools are **hand-wired per domain**; no connection to `/api/ai/operations`,
+   no auto-projection loop yet.
+
+**Verdict: evolve in place, do NOT rebuild.** The `Capability` interface + `registerCapabilities`
+loop IS the seam. Auto-projection becomes *one new capability*:
+
+```ts
+// operationsCapability.register({ platform, server, caller })
+for (const op of await platform.ai.operations.list())
+  if (caller.role >= op.min_role && op.invocation_sources.includes('mcp'))   // palette gate
+    server.registerTool(op.slug, toZod(op.input_schema),
+                        (a) => platform.ai.operations.execute(op.slug, a));
+// + verbs: compose_entry (SDK method now exists), ask (RAG)
+```
+
+It sits **alongside** the hand-wired read capabilities (which stay — the site-token read path is
+already the "anonymous/public" palette).
+
+**Neat realization — two tokens = two trust levels, natively.** Site token (public read) vs user
+token (authoring) *is* this doc's "caller identity picks the palette," expressed at the MCP layer:
+- site-token session → read-only palette (current 7 capabilities)
+- user-token session → authoring palette (operations + compose)
+
+Per-caller scoping isn't a bolt-on; it maps onto which credential the server was handed.
+
+**Steps (map 1:1 to the sequence above):**
+1. Backend: wire `min_role` + `invocation_sources` enforcement (authoritative wall; MCP-side
+   filtering is only UX).
+2. MarvinMCP: add a `/platform` client behind config (`MARVIN_USER_TOKEN`) + the existing
+   `readOnly` flag — the "write authentication" the inventory is waiting on. (`/platform` import
+   is available; `composeEntry()` already in the SDK — step is unblocked.)
+3. MarvinMCP: add `operationsCapability` (the projection loop) + `compose_entry`/`ask` verbs,
+   gated by the palette filter.
 
 ## Open questions
 
