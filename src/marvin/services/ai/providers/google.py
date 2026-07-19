@@ -9,6 +9,10 @@ class GoogleProvider(AIProvider):
     supports_vision = True
     supports_structured_output = True
     supports_embeddings = True
+    # supports_tool_calls stays False (inherited): Gemini function-calling uses a different
+    # request/response model (function_declarations + function_call/function_response parts) and
+    # this adapter's message handling is a lossy flatten (_to_parts). Wiring it correctly is a
+    # dedicated task; until then the agent loop simply won't select Gemini.
 
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
