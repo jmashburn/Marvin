@@ -44,13 +44,69 @@ function entityHref(type: string, id: string): string | null {
   return null;
 }
 
+// ── Built-in skill: Agent (tool-calling loop) ────────────────────────────────
+// The default free-text handler. Give Marvin a goal; it decides which of its tools to use
+// (search, browse, list types, compose a draft), chaining as many as needed, then answers.
+const agent: Capability = {
+  id: 'agent',
+  label: 'Agent',
+  hint: 'Give Marvin a goal — it searches, browses, and drafts to get it done.',
+  commands: ['agent', 'do'],
+  isDefault: true,
+  async run(arg: string): Promise<MarvinResult> {
+    let res: any;
+    try {
+      res = await fetchApi<any>('/api/ai/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: arg, source: 'editor' }),
+      });
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      // The agent needs a tool-capable provider; degrade to a helpful hint rather than snark.
+      if (/tool.?call|tool-capable|does not support/i.test(msg)) {
+        return {
+          html: `<div class="mv-answer">This workspace's AI provider can't run the full agent (no tool-calling). Try <code>/ask</code> for a quick answer from your content instead.</div>`,
+        };
+      }
+      throw err; // let the bubble show its standard error
+    }
+
+    const answer = res?.answer ?? '(no answer — the void stares back)';
+    let html = `<div class="mv-answer">${esc(answer)}</div>`;
+
+    const steps: any[] = res?.steps ?? [];
+
+    // Surface any drafts the agent composed as clickable links.
+    const drafts: string[] = [];
+    for (const s of steps) {
+      if (s.tool !== 'compose_entry') continue;
+      try {
+        const r = typeof s.result === 'string' ? JSON.parse(s.result) : s.result;
+        if (r?.editUrl) drafts.push(`<a href="${esc(r.editUrl)}">${esc(r.title || 'New draft')}</a>`);
+      } catch {
+        /* ignore unparseable tool result */
+      }
+    }
+    if (drafts.length) {
+      html += `<div class="mv-sources"><span>Drafts:</span> ${drafts.join(' · ')}</div>`;
+    }
+
+    // Show which tools were used, as a subtle trace of the agent's work.
+    if (steps.length) {
+      const tools = [...new Set(steps.map((s) => s.tool))];
+      html += `<div class="mv-sources"><span>Used:</span> ${tools.map((t) => `<code>${esc(t)}</code>`).join(' ')}</div>`;
+    }
+    return { html };
+  },
+};
+
 // ── Built-in skill: Ask (RAG) ────────────────────────────────────────────────
 const ask: Capability = {
   id: 'ask',
   label: 'Ask',
-  hint: 'Answer a question from your workspace content, with sources.',
+  hint: 'Quick answer from your workspace content, with sources (read-only, no tools).',
   commands: ['ask'],
-  isDefault: true,
   async run(arg: string): Promise<MarvinResult> {
     const exec = await fetchApi<any>('/api/ai/operations/answer-workspace-question/execute', {
       method: 'POST',
@@ -80,7 +136,7 @@ const ask: Capability = {
 };
 
 // ── Registry ─────────────────────────────────────────────────────────────────
-export const CAPABILITIES: Capability[] = [ask];
+export const CAPABILITIES: Capability[] = [agent, ask];
 
 /** Register a new skill at runtime (e.g. from a plugin bundle). */
 export function registerCapability(cap: Capability): void {
