@@ -680,10 +680,32 @@ class AIOperationsController(BaseUserController):
         """Build the v1 agent tool set as closures over this controller (reusing repos + gating)."""
         import json
 
+        from sqlalchemy import func
+
+        from marvin.db.models.platform import EntryCollections
         from marvin.db.models.platform.collections import Collections
         from marvin.db.models.platform.entries import Entries
         from marvin.db.models.platform.entry_types import EntryTypes
         from marvin.services.ai.agent import AgentTool
+
+        def _resolve_collection(ident: str):
+            ident = (ident or "").strip()
+            if not ident:
+                return None
+            col = (
+                self.session.query(Collections)
+                .filter(Collections.group_id == self.group_id)
+                .filter((Collections.slug == ident) | (Collections.name.ilike(ident)))
+                .first()
+            )
+            if col:
+                return col
+            try:
+                import uuid as _uuid
+                col = self.session.get(Collections, _uuid.UUID(ident))
+            except (ValueError, TypeError):
+                return None
+            return col if (col and col.group_id == self.group_id) else None
 
         def search_content(args: dict) -> str:
             query = str(args.get("query") or "").strip()
@@ -761,11 +783,47 @@ class AIOperationsController(BaseUserController):
 
         def list_collections(_args: dict) -> str:
             rows = self.session.query(Collections).filter(Collections.group_id == self.group_id).all()
+            counts = dict(
+                self.session.query(EntryCollections.collection_id, func.count(EntryCollections.entry_id))
+                .join(Collections, Collections.id == EntryCollections.collection_id)
+                .filter(Collections.group_id == self.group_id)
+                .group_by(EntryCollections.collection_id)
+                .all()
+            )
             out = [
-                {"id": str(c.id), "name": c.name, "slug": c.slug, "isSmart": c.is_smart, "isSystem": c.is_system}
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "slug": c.slug,
+                    "isSmart": c.is_smart,
+                    "isSystem": c.is_system,
+                    "entryCount": counts.get(c.id, 0),
+                }
                 for c in rows
             ]
             return json.dumps({"collections": out, "count": len(out)})
+
+        def get_collection_entries(args: dict) -> str:
+            col = _resolve_collection(str(args.get("collection") or args.get("id_or_slug") or args.get("slug") or ""))
+            if not col:
+                return json.dumps({"error": "collection not found — pass its name or slug (e.g. 'inbox')"})
+            rows = (
+                self.session.query(Entries)
+                .join(EntryCollections, EntryCollections.entry_id == Entries.id)
+                .filter(EntryCollections.collection_id == col.id)
+                .all()
+            )
+            out = [
+                {
+                    "id": str(e.id),
+                    "title": e.title,
+                    "slug": e.slug,
+                    "status": e.status,
+                    "entryType": e.entry_type.slug if e.entry_type else None,
+                }
+                for e in rows
+            ]
+            return json.dumps({"collection": col.slug, "entries": out, "count": len(out)})
 
         def list_entry_types(_args: dict) -> str:
             rows = (
@@ -816,9 +874,15 @@ class AIOperationsController(BaseUserController):
             ),
             AgentTool(
                 name="list_collections",
-                description="List the workspace's collections (name, slug, smart/system flags). Use for questions about collections or how content is organized.",
+                description="List the workspace's collections with their entryCount (name, slug, smart/system flags). Use for questions about collections, how content is organized, or how many entries a collection holds.",
                 input_schema={"type": "object", "properties": {}},
                 run=list_collections,
+            ),
+            AgentTool(
+                name="get_collection_entries",
+                description="List the entries in one collection by name or slug (e.g. 'inbox', 'drafts'). Returns each entry and the total count. Use this for 'what/how many is in <collection>' — collections like Inbox/Drafts are how entries are organized, not entry statuses.",
+                input_schema={"type": "object", "properties": {"collection": {"type": "string", "description": "collection name or slug"}}, "required": ["collection"]},
+                run=get_collection_entries,
             ),
             AgentTool(
                 name="list_entry_types",
