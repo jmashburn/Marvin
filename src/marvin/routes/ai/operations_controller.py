@@ -680,6 +680,7 @@ class AIOperationsController(BaseUserController):
         """Build the v1 agent tool set as closures over this controller (reusing repos + gating)."""
         import json
 
+        from marvin.db.models.platform.collections import Collections
         from marvin.db.models.platform.entries import Entries
         from marvin.db.models.platform.entry_types import EntryTypes
         from marvin.services.ai.agent import AgentTool
@@ -758,6 +759,14 @@ class AIOperationsController(BaseUserController):
                 "data": entry.data_json,
             })
 
+        def list_collections(_args: dict) -> str:
+            rows = self.session.query(Collections).filter(Collections.group_id == self.group_id).all()
+            out = [
+                {"id": str(c.id), "name": c.name, "slug": c.slug, "isSmart": c.is_smart, "isSystem": c.is_system}
+                for c in rows
+            ]
+            return json.dumps({"collections": out, "count": len(out)})
+
         def list_entry_types(_args: dict) -> str:
             rows = (
                 self.session.query(EntryTypes)
@@ -804,6 +813,12 @@ class AIOperationsController(BaseUserController):
                 description="Get one entry in full (fields, status, summary) by id or slug.",
                 input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string"}}, "required": ["id_or_slug"]},
                 run=get_entry,
+            ),
+            AgentTool(
+                name="list_collections",
+                description="List the workspace's collections (name, slug, smart/system flags). Use for questions about collections or how content is organized.",
+                input_schema={"type": "object", "properties": {}},
+                run=list_collections,
             ),
             AgentTool(
                 name="list_entry_types",
