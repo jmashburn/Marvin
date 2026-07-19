@@ -209,6 +209,30 @@ const presentStatuses = STATUS_ORDER.filter((st) =>
 
   const loaded = new Set<string>();
 
+  // Tiny USD amounts (e.g. AI cost) serialize as scientific notation (5.175e-05) in the raw
+  // payload. Render cost fields as friendly dollars for display without touching stored values.
+  const COST_KEYS = new Set(['estimatedCostUsd', 'estimated_cost_usd']);
+
+  function formatCostUsd(value: number): string {
+    if (value === 0) return '$0.00';
+    return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+  }
+
+  function humanizePayload(node: any): any {
+    if (Array.isArray(node)) return node.map(humanizePayload);
+    if (node && typeof node === 'object') {
+      const out: Record<string, any> = {};
+      for (const [key, val] of Object.entries(node)) {
+        out[key] =
+          COST_KEYS.has(key) && typeof val === 'number' && isFinite(val)
+            ? formatCostUsd(val)
+            : humanizePayload(val);
+      }
+      return out;
+    }
+    return node;
+  }
+
   // Expand / collapse + lazy-load full payload
   document.querySelectorAll('.expand-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -227,7 +251,7 @@ const presentStatuses = STATUS_ORDER.filter((st) =>
       try {
         const full = await fetchApi<any>(`/api/platform/events/${eventId}`);
         const payload = full?.eventData ?? full?.event_data ?? full;
-        pre.textContent = JSON.stringify(payload, null, 2);
+        pre.textContent = JSON.stringify(humanizePayload(payload), null, 2);
       } catch (e: any) {
         pre.textContent = `Failed to load payload: ${e.message}`;
       }
