@@ -12,6 +12,7 @@ from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
 from marvin.schemas.group.ai_execution import (
+    AIAgentRequest,
     AIComposeEntryRequest,
     AIExecutionRead,
     AIOperationExecuteRequest,
@@ -536,6 +537,289 @@ class AIOperationsController(BaseUserController):
             "generated": entry.data_json,
             "aiSkipped": True,
         }
+
+    # ── Agent (tool-calling loop) ──────────────────────────────────────
+
+    @router.post("/agent", summary="Run the Marvin agent (tool-calling loop)")
+    def run_agent(self, body: AIAgentRequest) -> dict:
+        """Run the server-side agent: an iterative tool-calling loop over Marvin's capabilities.
+
+        v1 tools are Marvin's own read/authoring surfaces — search, browse, list types, and compose
+        a draft. The model decides which to call; the loop runs them and feeds results back until it
+        answers. Requires a tool-capable provider (OpenAI/Azure/Anthropic/Ollama). Composing still
+        creates an `inbox` draft for human review; the agent never publishes.
+        """
+        import time
+        from datetime import UTC, datetime
+
+        from marvin.core.config import get_app_settings
+        from marvin.services.ai.agent import DEFAULT_MAX_STEPS, run_agent_loop
+        from marvin.services.ai.base import CompletionOptions, Message
+        from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+        from marvin.services.ai.operations.base import ROLE_AUTHOR
+        from marvin.services.ai.pricing import estimate_cost
+
+        # AUTHOR or higher — the agent can create/modify content.
+        if not self.user.admin:
+            role = 0
+            for m in self.user.workspace_memberships:
+                if m.group_id == self.group_id:
+                    role = m.workspace_role.value
+                    break
+            if role < ROLE_AUTHOR:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
+
+        self._check_invocation_source(body.source, ("agent", "editor", "api", "mcp"))
+        self._check_budget()
+
+        try:
+            provider = get_workspace_ai_provider(self.session, self.group_id)
+        except AIDisabledError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}")
+
+        model = body.model_override or self._default_model()
+        if not model:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No model configured. Set a default model on the provider.")
+        self._require_tool_capable(provider, model)
+
+        entity_id = self._resolve_entity_id(body.entity_type, body.entity_id)
+        tools = self._build_agent_tools(provider)
+
+        _app = get_app_settings()
+        max_steps = min(body.max_steps or getattr(_app, "AI_AGENT_MAX_STEPS", DEFAULT_MAX_STEPS), 12)
+
+        system = (
+            "You are Marvin, the assistant for this headless CMS workspace. Use the provided tools to "
+            "search, browse, and (only when asked) compose content. Prefer tools over guessing and ground "
+            "your answer in what they return. Composing creates a DRAFT for human review — never claim "
+            "anything is published. Be concise."
+        )
+        user_msg = body.message
+        if body.entity_type and entity_id:
+            user_msg += f"\n\n(Context: the user is currently looking at {body.entity_type} {entity_id}.)"
+        messages = [Message(role="system", content=system), Message(role="user", content=user_msg)]
+
+        log_inputs, log_outputs = self._logging_policy()
+        execution = AIExecutionModel(
+            session=self.session, group_id=self.group_id, operation_slug="agent",
+            provider_type=provider.provider_type, model_id=model, status="running",
+            triggered_by=self.user.id, trigger_type=body.source,
+            entity_type=body.entity_type, entity_id=entity_id,
+            input_json={"message": body.message} if log_inputs else None,
+        )
+        execution.started_at = datetime.now(UTC)
+        self.session.add(execution)
+        self.session.commit()
+
+        start = time.monotonic()
+        try:
+            opts = CompletionOptions(
+                temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
+                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+            )
+            result = run_agent_loop(provider, model, messages, tools, opts, max_steps=max_steps)
+        except HTTPException:
+            raise
+        except Exception as e:
+            self._fail_execution(execution, str(e), start)
+            self._emit_ai_event(execution, "failed", str(e))
+            self._maybe_emit_quota(execution, str(e))
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Agent failed: {e}")
+
+        execution.status = "completed"
+        execution.completed_at = datetime.now(UTC)
+        execution.duration_ms = int((time.monotonic() - start) * 1000)
+        execution.prompt_tokens = result.prompt_tokens
+        execution.completion_tokens = result.completion_tokens
+        execution.total_tokens = result.total_tokens
+        execution.estimated_cost_usd = estimate_cost(
+            provider.provider_type, model, result.prompt_tokens, result.completion_tokens,
+        )
+        execution.output_json = (
+            {"answer": result.answer, "steps": [{"tool": s.tool, "arguments": s.arguments} for s in result.steps]}
+            if log_outputs else {"steps": len(result.steps)}
+        )
+        self.session.commit()
+        self.session.refresh(execution)
+        self._emit_ai_event(execution, "completed", None)
+        self._emit_budget_thresholds(execution)
+
+        return {
+            "answer": result.answer,
+            "steps": [{"tool": s.tool, "arguments": s.arguments, "result": s.result} for s in result.steps],
+            "stoppedReason": result.stopped_reason,
+            "executionId": str(execution.id),
+            "totalTokens": result.total_tokens,
+            "estimatedCostUsd": execution.estimated_cost_usd,
+        }
+
+    def _require_tool_capable(self, provider, model: str) -> None:
+        """Gate the agent to a tool-capable provider/model. Consumes AIModelModel.supports_tools
+        when the model is registered (else trusts the provider-level capability)."""
+        if not getattr(provider, "supports_tool_calls", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(f"The '{provider.provider_type}' provider does not support tool calling. The agent "
+                        "needs a tool-capable provider (OpenAI, Azure, Anthropic, or Ollama)."),
+            )
+        from marvin.db.models.groups.ai_providers import AIModelModel
+        row = (
+            self.session.query(AIModelModel)
+            .filter(AIModelModel.group_id == self.group_id, AIModelModel.model_id == model)
+            .first()
+        )
+        if row is not None and not row.supports_tools:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model '{model}' is configured as not supporting tools. Choose a tool-capable model.",
+            )
+
+    def _build_agent_tools(self, provider) -> list:
+        """Build the v1 agent tool set as closures over this controller (reusing repos + gating)."""
+        import json
+
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.entry_types import EntryTypes
+        from marvin.services.ai.agent import AgentTool
+
+        def search_content(args: dict) -> str:
+            query = str(args.get("query") or "").strip()
+            if not query:
+                return json.dumps({"error": "query is required"})
+            from marvin.core.config import get_app_settings
+            from marvin.services.ai.context import ContextBuilder
+            from marvin.services.ai.embeddings import default_embedding_model
+            emb_model = default_embedding_model(provider.provider_type)
+            if not emb_model:
+                return json.dumps({"error": "semantic search unavailable (no embedding model configured)"})
+            top_k = getattr(get_app_settings(), "AI_RAG_TOP_K", 5)
+            ctx = (
+                ContextBuilder(self.session, self.group_id)
+                .with_semantic_search(query, provider, emb_model, limit=top_k, entity_types=["entry", "resource"])
+                .build()
+            )
+            retrieved = ctx.retrieved or []
+            sources = self._resolve_retrieved_sources(retrieved)
+            results = []
+            for i, chunk in enumerate(retrieved):
+                src = sources[i] if i < len(sources) else {}
+                text = chunk.get("text") or chunk.get("content") or ""
+                results.append({
+                    "title": src.get("title"),
+                    "entityType": src.get("entity_type"),
+                    "entityId": src.get("entity_id"),
+                    "snippet": text[:400],
+                    "score": src.get("score"),
+                })
+            return json.dumps({"results": results, "count": len(results)})
+
+        def find_entries(args: dict) -> str:
+            q = self.session.query(Entries).filter(Entries.group_id == self.group_id)
+            etype = args.get("entry_type")
+            if etype:
+                q = q.join(EntryTypes, Entries.entry_type_id == EntryTypes.id).filter(EntryTypes.slug == etype)
+            st = args.get("status")
+            if st:
+                q = q.filter(Entries.status == st)
+            text = args.get("query")
+            if text:
+                q = q.filter(Entries.title.ilike(f"%{text}%"))
+            limit = min(int(args.get("limit") or 10), 50)
+            rows = q.limit(limit).all()
+            out = [
+                {
+                    "id": str(e.id),
+                    "title": e.title,
+                    "slug": e.slug,
+                    "status": e.status,
+                    "entryType": e.entry_type.slug if e.entry_type else None,
+                }
+                for e in rows
+            ]
+            return json.dumps({"entries": out, "count": len(out)})
+
+        def get_entry(args: dict) -> str:
+            ident = str(args.get("id_or_slug") or args.get("id") or args.get("slug") or "").strip()
+            if not ident:
+                return json.dumps({"error": "id_or_slug is required"})
+            eid = self._resolve_entity_id("entry", ident)
+            entry = self.session.get(Entries, eid) if eid else None
+            if not entry or entry.group_id != self.group_id:
+                return json.dumps({"error": f"entry '{ident}' not found"})
+            return json.dumps({
+                "id": str(entry.id),
+                "title": entry.title,
+                "slug": entry.slug,
+                "status": entry.status,
+                "summary": entry.summary,
+                "entryType": entry.entry_type.slug if entry.entry_type else None,
+                "data": entry.data_json,
+            })
+
+        def list_entry_types(_args: dict) -> str:
+            rows = (
+                self.session.query(EntryTypes)
+                .filter((EntryTypes.group_id == self.group_id) | (EntryTypes.group_id.is_(None)))
+                .all()
+            )
+            out = []
+            for t in rows:
+                fields = [f.get("key") for f in (t.schema_json or {}).get("fields", []) if isinstance(f, dict)]
+                out.append({"slug": t.slug, "name": t.name, "fields": fields})
+            return json.dumps({"entryTypes": out, "count": len(out)})
+
+        def compose_entry(args: dict) -> str:
+            etype = str(args.get("entry_type") or "").strip()
+            brief = str(args.get("brief") or "").strip()
+            if not etype or not brief:
+                return json.dumps({"error": "entry_type and brief are required"})
+            res = self.compose_entry(AIComposeEntryRequest(entry_type=etype, brief=brief, source="agent"))
+            return json.dumps({
+                "entryId": res.get("entryId"),
+                "title": res.get("title"),
+                "status": res.get("status"),
+                "editUrl": res.get("editUrl"),
+            })
+
+        return [
+            AgentTool(
+                name="search_content",
+                description="Semantic search over workspace entries and resources. Returns the most relevant snippets with their entity ids/titles. Use this to ground answers.",
+                input_schema={"type": "object", "properties": {"query": {"type": "string", "description": "what to search for"}}, "required": ["query"]},
+                run=search_content,
+            ),
+            AgentTool(
+                name="find_entries",
+                description="List entries, optionally filtered by entry_type (slug), status, or a title substring (query). Returns id/title/slug/status/type.",
+                input_schema={"type": "object", "properties": {
+                    "entry_type": {"type": "string"}, "status": {"type": "string"},
+                    "query": {"type": "string"}, "limit": {"type": "integer"},
+                }},
+                run=find_entries,
+            ),
+            AgentTool(
+                name="get_entry",
+                description="Get one entry in full (fields, status, summary) by id or slug.",
+                input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string"}}, "required": ["id_or_slug"]},
+                run=get_entry,
+            ),
+            AgentTool(
+                name="list_entry_types",
+                description="List the workspace's entry types and their field keys. Use before composing to pick a type.",
+                input_schema={"type": "object", "properties": {}},
+                run=list_entry_types,
+            ),
+            AgentTool(
+                name="compose_entry",
+                description="Compose a DRAFT entry of entry_type (slug) from a short brief. Creates an inbox draft for human review; does not publish. Returns the new entry id + edit url.",
+                input_schema={"type": "object", "properties": {
+                    "entry_type": {"type": "string"}, "brief": {"type": "string"},
+                }, "required": ["entry_type", "brief"]},
+                run=compose_entry,
+            ),
+        ]
 
     # ── Helpers ────────────────────────────────────────────────────────
 

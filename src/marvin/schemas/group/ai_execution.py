@@ -63,3 +63,15 @@ class AIComposeEntryRequest(_MarvinModel):
     source: str = "editor"                   # invocation surface; gated by workspace policy
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AIAgentRequest(_MarvinModel):
+    """Run the Marvin agent — an iterative tool-calling loop over Marvin's own capabilities."""
+    message: str                             # the user's request / question
+    entity_type: str | None = None           # optional grounding: what the caller is looking at
+    entity_id: str | None = None             # UUID or slug — resolved server-side
+    model_override: str | None = None
+    max_steps: int | None = None             # tool-dispatch budget (server clamps)
+    source: str = "agent"                    # invocation surface; gated by workspace policy
+
+    model_config = ConfigDict(from_attributes=True)
