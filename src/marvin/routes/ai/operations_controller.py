@@ -683,9 +683,13 @@ class AIOperationsController(BaseUserController):
         from sqlalchemy import func
 
         from marvin.db.models.platform import EntryCollections
+        from marvin.db.models.platform.assets import Assets
         from marvin.db.models.platform.collections import Collections
         from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.entry_assets import EntryAssets
+        from marvin.db.models.platform.entry_resources import EntryResources
         from marvin.db.models.platform.entry_types import EntryTypes
+        from marvin.db.models.platform.resources import Resources
         from marvin.services.ai.agent import AgentTool
 
         def _resolve_collection(ident: str):
@@ -749,6 +753,16 @@ class AIOperationsController(BaseUserController):
             text = args.get("query")
             if text:
                 q = q.filter(Entries.title.ilike(f"%{text}%"))
+            # Asset filters: entries that have any attached asset, or specifically an image.
+            if args.get("has_images") or args.get("has_assets"):
+                q = q.join(EntryAssets, EntryAssets.entry_id == Entries.id)
+                if args.get("has_images"):
+                    q = q.join(Assets, Assets.id == EntryAssets.asset_id).filter(Assets.asset_type == "image")
+                q = q.distinct()
+            # Resource filter: entries that have an attached reusable resource.
+            if args.get("has_resources"):
+                q = q.join(EntryResources, EntryResources.entry_id == Entries.id).distinct()
+            total = q.count()  # true total, independent of the row cap below
             limit = min(int(args.get("limit") or 10), 50)
             rows = q.limit(limit).all()
             out = [
@@ -761,7 +775,8 @@ class AIOperationsController(BaseUserController):
                 }
                 for e in rows
             ]
-            return json.dumps({"entries": out, "count": len(out)})
+            # `count` is the full match count; `entries` is a sample capped at `limit`.
+            return json.dumps({"entries": out, "count": total, "returned": len(out)})
 
         def get_entry(args: dict) -> str:
             ident = str(args.get("id_or_slug") or args.get("id") or args.get("slug") or "").strip()
@@ -771,6 +786,26 @@ class AIOperationsController(BaseUserController):
             entry = self.session.get(Entries, eid) if eid else None
             if not entry or entry.group_id != self.group_id:
                 return json.dumps({"error": f"entry '{ident}' not found"})
+            # Return the FULL object — attached assets (with type/mime), resources, and collections —
+            # so the model can reason ("which asset types?", "is it in Inbox?") without a bespoke tool.
+            assets = (
+                self.session.query(Assets)
+                .join(EntryAssets, EntryAssets.asset_id == Assets.id)
+                .filter(EntryAssets.entry_id == entry.id)
+                .all()
+            )
+            resources = (
+                self.session.query(Resources)
+                .join(EntryResources, EntryResources.resource_id == Resources.id)
+                .filter(EntryResources.entry_id == entry.id)
+                .all()
+            )
+            collections = (
+                self.session.query(Collections)
+                .join(EntryCollections, EntryCollections.collection_id == Collections.id)
+                .filter(EntryCollections.entry_id == entry.id)
+                .all()
+            )
             return json.dumps({
                 "id": str(entry.id),
                 "title": entry.title,
@@ -779,6 +814,15 @@ class AIOperationsController(BaseUserController):
                 "summary": entry.summary,
                 "entryType": entry.entry_type.slug if entry.entry_type else None,
                 "data": entry.data_json,
+                "assets": [
+                    {"id": str(a.id), "filename": a.original_filename or a.filename,
+                     "assetType": a.asset_type, "mimeType": a.mime_type}
+                    for a in assets
+                ],
+                "resources": [
+                    {"id": str(r.id), "name": r.name, "resourceType": r.resource_type} for r in resources
+                ],
+                "collections": [{"slug": c.slug, "name": c.name} for c in collections],
             })
 
         def list_collections(_args: dict) -> str:
@@ -825,6 +869,19 @@ class AIOperationsController(BaseUserController):
             ]
             return json.dumps({"collection": col.slug, "entries": out, "count": len(out)})
 
+        def list_resources(args: dict) -> str:
+            q = self.session.query(Resources).filter(Resources.group_id == self.group_id)
+            rtype = args.get("resource_type")
+            if rtype:
+                q = q.filter(Resources.resource_type == rtype)
+            total = q.count()
+            rows = q.limit(min(int(args.get("limit") or 20), 50)).all()
+            out = [
+                {"id": str(r.id), "name": r.name, "slug": r.slug, "resourceType": r.resource_type}
+                for r in rows
+            ]
+            return json.dumps({"resources": out, "count": total, "returned": len(out)})
+
         def list_entry_types(_args: dict) -> str:
             rows = (
                 self.session.query(EntryTypes)
@@ -859,16 +916,28 @@ class AIOperationsController(BaseUserController):
             ),
             AgentTool(
                 name="find_entries",
-                description="List entries, optionally filtered by entry_type (slug), status, or a title substring (query). Returns id/title/slug/status/type.",
+                description="Find entries with filters: entry_type (slug), status, a title substring (query), has_images (entries with an image asset), has_assets (any attachment), or has_resources (a linked resource). Returns `count` (the true total match) plus a sample of entries. Use `count` to answer 'how many'.",
                 input_schema={"type": "object", "properties": {
                     "entry_type": {"type": "string"}, "status": {"type": "string"},
-                    "query": {"type": "string"}, "limit": {"type": "integer"},
+                    "query": {"type": "string"},
+                    "has_images": {"type": "boolean", "description": "only entries that have an image asset"},
+                    "has_assets": {"type": "boolean", "description": "only entries that have any attached asset"},
+                    "has_resources": {"type": "boolean", "description": "only entries that have a linked resource"},
+                    "limit": {"type": "integer"},
                 }},
                 run=find_entries,
             ),
             AgentTool(
+                name="list_resources",
+                description="List the workspace's reusable resources (materials, tools, suppliers, …), optionally filtered by resource_type. Returns `count` (true total) plus a sample. Use for questions about resources.",
+                input_schema={"type": "object", "properties": {
+                    "resource_type": {"type": "string"}, "limit": {"type": "integer"},
+                }},
+                run=list_resources,
+            ),
+            AgentTool(
                 name="get_entry",
-                description="Get one entry in full (fields, status, summary) by id or slug.",
+                description="Get one entry in full by id or slug: its fields, status, summary, plus its attached assets (each with assetType + mimeType), linked resources, and collections. Use this to answer questions about an entry's media/resources/membership.",
                 input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string"}}, "required": ["id_or_slug"]},
                 run=get_entry,
             ),
