@@ -3,6 +3,56 @@
 Captured from working sessions. Grouped by effort. (The original AI-settings build plan
 that lived here is shipped — replaced with the live backlog.)
 
+---
+
+## 📍 STATE OF PLAY (updated 2026-07-20)
+
+**Where we stand: the platform is built; the frontier is capability depth + polish.**
+67 backlog items shipped, 41 open. The open ones are mostly *depth* (make Marvin do more) and
+*correctness debt* (settings that store-but-don't-enforce), not missing foundations.
+
+### Solid ground — shipped & verified
+- **AI core:** provider abstraction · operations registry · **agent loop with tools** · RAG · embeddings.
+- **Context-aware assistant (A–E, all this week):** per-page grounding · real context block into
+  the agent (proven: reviews cite real content with 0 tool calls) · conversation memory · entry
+  AI menu + per-field improve · **tone register** (persona vs work-product split) · agent timeout budget.
+- **Automation engine (Flavor B):** triggers T1–T5 (event · schedule · chat/chained/on-error ·
+  MCP · incoming webhook) · entry actions (publish/unpublish/archive/restore) · set-based target
+  selector + dry-run · execution audit tables.
+- **External MCP servers:** end-to-end, agent-wired, allowlist-gated.
+- **The safety keystone:** `invocation_sources` (source ∩ workspace policy) + per-op `min_role`.
+- **Migration workflow (this session):** autogenerate un-broken (was JSONB, not the tool) ·
+  all 44 models visible to alembic · `AUTO_MIGRATE` review gate · timestamp/NOW() portability.
+
+### The frontier — the genuinely interesting open work (biggest leverage first)
+1. **Attach/create write tools** — the top capability gap. Blocked by 4 *structural* things
+   (junction write-back grammar · replace-all repo semantics · context can't see candidates ·
+   banner can't render attachments). See "Deferred to next pass" below. This is what makes
+   "add a hero image" / "create and attach a resource" possible.
+2. **Cascading prompts (Site→Collection→Entry-type→Entry)** ⭐ — the *voice* backbone (Phase 8).
+   Fixes "drafts sound generic," and is the substrate for user-authored operations. Note axis-C
+   of the three-tone model — distinct from the register (axis-B) already shipped.
+3. **Autonomous scheduled agent** ⭐ — the same agent loop the bubble uses, driven by cron. The
+   pieces exist (agent loop + scheduled tasks + `run_workflow`); this wires them.
+4. **Tagging system** — one shared vocabulary across entries/assets/resources (generate-tags
+   already stages into `metadata_json.tags` as a placeholder awaiting this).
+5. **Compose-entry-from-brief** ⭐ — the flagship demo, now that grounding + register exist.
+
+### Correctness / trust debt — "looks done, isn't"
+- **Cosmetic AI settings** (stored, no effect): `moderation_config`, `operation_overrides`,
+  `budget.max_tokens_per_request`. `approval_mode` is now *mostly* real (writeback outcome is
+  surfaced) but still not enforced everywhere.
+- **54 of 122 `EventTypes` are never emitted** — the catalog over-advertises. Cheap test would pin it.
+- **Content-model data quality** (from the 2026-07-20 audit, not yet actioned) — see new item below.
+- **gemma4 agent returns empty at 4096 tokens** — local models not yet viable for the agent (see E).
+
+### Papercuts worth a sweep
+axis-B has no per-workspace default/UI · Workspace Providers UI missing · per-model tool
+capability (allow chat-only models to degrade gracefully) · OAuth for MCP servers · `/run`
+ignores `enabled`.
+
+---
+
 ## ▶ ACTIVE PLAN — Context-aware Marvin bubble + broader entry AI actions
 > Implements the **"Per-page context"** bullet of the ★ North star (below, ~L463) using the
 > mechanism it prescribes: pages *declare* a context object, no DOM scraping, route fallback.
@@ -339,13 +389,14 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       trigger on it · emit `automation_failed` + on-failure trigger.
 - [x] **T4 · MCP tool DONE (2026-07-19)** ✅ — `mcp` trigger type (opt-in) in builder; MarvinMCP `workflowsCapability` projects each enabled trigger.type=="mcp" workflow as `marvin_wf_<slug>` → `automations.run(id)`. MCP build + 126 vitest green. Admin-scoped token required to project.
       external MCP hosts can invoke it.
-- [ ] **T5 · Incoming webhook** — new subsystem: tokened inbound endpoint
-      `POST /api/automations/hooks/{token}` mapping the request payload into `$event`.
-      *(In flight 2026-07-19 — Model 2 / ingress, see memory [[incoming-webhooks-ingress-model]]:
-      `POST /api/hooks/{token}` drops an `incoming_webhook` event on the bus and fans out to any
-      subscriber rather than binding one automation. Model + migration + schema + controller landed,
-      router registered. Remaining: `incoming_webhook` isn't in `_TRIGGERS` yet — folded into the
-      ⭐ generalize-event-triggers item above.)*
+- [x] **T5 · Incoming webhook DONE (2026-07-20)** ✅ — Model 2 / ingress (memory
+      [[incoming-webhooks-ingress-model]]): `POST /api/hooks/{token}` (path token OR Bearer, 512KB
+      cap, 202 + `?wait=1`) drops an `incoming_webhook` event on the bus → fans out to ANY subscriber,
+      not bound to one automation. Full stack shipped + verified live: model/migration, public
+      receiver + ADMIN CRUD `/api/incoming-webhooks` with mint/rotate/revoke token, `incoming_webhook`
+      trigger (`_TRIGGERS` + `_trigger_matches` + `$event.payload.*`), SDK `client.incomingWebhooks`,
+      management page (Settings→Automation→Incoming Webhooks) with editable **test payload**, builder
+      trigger option. (Marvin ba79f73/b1b67f2, SDK 85e139b/5cc4981.)
 
 ### Flavor B — hardening backlog (from `docs/WORKFLOW_STATE_REVIEW.md`, 2026-07-19)
 > Review of the built engine against `docs/WORKFLOW_SUGGESTIONS.md`. The skeleton is
@@ -353,33 +404,41 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
 > Ordered by unlock, not by feature area.
 
 **H0 · Foundation — do before any new action types**
-- [ ] **⭐⭐ Extract `services/entries/`** — THE structural blocker. There is no entries service;
-      all entry lifecycle logic (which status transition emits which event) lives in
-      `routes/platform/entries_controller.py:173-260`. So the "Flavor B actions call the same
-      domain service as API/UI/SDK/MCP" hierarchy has nothing to point at. Already biting:
-      `runner.py:184-205` hand-duplicates the controller's emit for AI write-back. Every new entry
-      action would duplicate it again, and each copy is a place a chained automation silently stops
-      firing. Extract `create/update/publish/unpublish/archive/restore` owning mutation **+** emit.
-- [ ] **⭐ `changed_fields` / `before` / `after` on `EventEntryData`** — the single biggest matching
-      gap. `update_entry` loads `old_entry` and throws the old values away, so "status changed
-      draft → review" is inexpressible. Changed-field names + **scalar** before/after only; rich
-      fields and relationships by reference (id+type), never by value — bounds payload size and
-      avoids persisting content into `event_log` the user may later delete. Natural to land inside H0.
-- [ ] **Validate `definition` with a Pydantic discriminated union** — today it's a bare `dict`
-      (`schemas/group/automation.py`), so malformed automations are accepted by the API and fail
-      silently at run time. See H4 for why this one is worth more than it looks.
+- [x] **⭐⭐ Extract `services/entries/` DONE (2026-07-20)** ✅ — `services/entries/EntryService`
+      owns `create/update/apply_fields/apply_suggestion/delete` (+ `set_status`) **and** the emit.
+      Status transitions (published/unpublished/archived/restored) now fire by construction from any
+      caller, in the `entry_updated`-first order the embedding reaction relies on; `reaction_depth`
+      threaded. Controller delegates its write methods (−~230 lines); `runner._apply_writeback` routes
+      through it — **which fixed the latent bug**: the old write-back emitted a bare `entry_updated`,
+      so a write-back that flipped status silently skipped `entry_published` and chained automations
+      stopped firing. Verified live: write-back publish now fires entry_published → automation_ran.
+      (Marvin 7102908.)
+- [x] **⭐ `changed_fields` / `before` / `after` on `EventEntryData` DONE (2026-07-20)** ✅ —
+      EntryService computes the diff on update (it already had old + new from the extraction) over the
+      tracked scalars (status/title/slug); before/after carry **only the changed fields**, so
+      `event.after.status == needs_review` reads as "status changed to needs_review". Exposed in the
+      engine context ($event.changed_fields/before/after) + advertised in the condition catalog;
+      works with existing operators. Verified live. (Marvin 2cac535.)
+- [~] **Validate `definition` with a Pydantic discriminated union** — PARTIAL: shipped an advisory
+      `validate_definition()` + `POST /api/automations/validate` + per-trigger condition-field catalog
+      + live warning banner (catches the entry.*-under-webhook silent no-op). NOT the full
+      discriminated-union-as-source-of-truth (H4). (Marvin 04447cc, SDK d39396c.)
 
 **H1 · Observability — makes the thing debuggable**
-- [ ] **⭐ `automation_executions` + `automation_action_executions` tables** — there is no execution
-      history at all. Only the `operation` action leaves a trace (an `AIExecutionModel` row);
-      `webhook`, `handler`, and `emit_event` leave nothing, so a misbehaving automation is a black
-      box. Also the prerequisite for most of the UI story (history view, execution detail, retry).
-      Truncate input/output snapshots at a fixed byte cap; never persist resolved secrets.
+- [x] **⭐ `automation_executions` + `automation_action_executions` tables DONE (2026-07-20)** ✅ —
+      every run + every step (per target×action across a fan-out) recorded. `ExecutionRecorder`
+      (NullRecorder default keeps the engine unit-testable) wired at the 3 run sites (listener, /run,
+      scheduled handler); truncated output snapshots, no secrets. Read endpoints + SDK
+      `automations.executions()/execution()` + a "Runs" history panel on each workflow card (status,
+      targets, N✓/M✗, duration → expand to per-step records). Also **lifted the target cap 25→250**
+      now that runs are inspectable. Verified live. (Marvin 9ea65fa, SDK 8bc932a.)
 - [ ] **Correlation id threaded through `dispatch`**, promoted to a real column on `event_log`
       (it currently exists only as `reaction_depth` buried in the `event_data` JSON blob).
       Causation id + parent-execution id can wait — correlation alone makes a chain readable.
-- [ ] **Snapshot the automation `definition` onto the execution row** — one column buys full
-      auditability without any versioning/revision infrastructure.
+      *(PARTIAL: each execution row carries a per-run `correlation_id`; NOT yet threaded through
+      dispatch / promoted to an event_log column.)*
+- [x] **Snapshot the automation `definition` onto the execution row DONE (2026-07-20)** ✅ —
+      `definition_snapshot` JSON column on `automation_executions` (part of the tables above).
 
 **H2 · Honesty pass — cheap, removes user-visible lies**
 - [ ] **54 of 122 `EventTypes` members are never emitted**, yet the catalog advertises ~100
@@ -388,10 +447,9 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       declared and dead. Delete them or gate the catalog to events with a real emitter.
 - [ ] **Add `test_every_catalog_entry_has_an_emitter`** — would have caught all 54. Cheap, and stops
       the drift recurring.
-- [ ] **Fix the false comment at `runner.py:203`** — it claims the automation listener ignores its
-      own writes via `integration_id`. No listener reads `integration_id` (it's only ever *set*, 5
-      sites). Only the depth-3 counter bounds the loop. Fix the comment or implement the check;
-      as written it's a trap for whoever touches loop-prevention next.
+- [x] **Fix the false comment at `runner.py:203` DONE (2026-07-20)** ✅ — moot: `_apply_writeback`
+      was rewritten to route through EntryService (H0), and its new docstring states the loop-guard
+      is the depth counter (not integration_id). The false claim is gone.
 - [ ] **`/run` doesn't check `enabled`** — an admin can manually run a disabled automation.
 
 **H3 · Expression ergonomics — the sharp edges users will hit**
@@ -426,8 +484,27 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       handlers and webhooks under full workspace authority.
 
 **H5 · Entry action surface** *(thin once H0 lands — deliberately sequenced last)*
-- [ ] `entry.publish` · `entry.unpublish` · `entry.archive` · `entry.restore` ·
-      `entry.add_to_collection` · `entry.remove_from_collection`. Keep `entry.delete` out for now.
+- [x] **`entry` action kind DONE (2026-07-20)** ✅ — `publish` / `unpublish` / `archive` / `restore`
+      via `EntryService.set_status` (right transition events fire, chains reliable). Targets the
+      triggering entry by default or one by slug (`entity_slug`); pairs with the target selector
+      ("publish all inbox entries matching X"). Builder op+target fields, validation, recorder label.
+      Verified live. `entry.delete` deliberately omitted. (Marvin 153dbd5, SDK 26cbaa4.)
+- [ ] `entry.add_to_collection` · `entry.remove_from_collection` — still open; needs collection
+      membership extracted into EntryService first (currently in the controller).
+
+**H6 · Also shipped this session (2026-07-20) — beyond the review's list**
+- [x] **⭐ Set-based target selector ("FROM" clause) + dry-run preview** ✅ — a workflow can carry a
+      `target` selector (query: entry_type/status/text/collection/has_*) that SELECTS the entities to
+      act on instead of only the trigger's one; the engine fans the pipeline over each match (capped
+      MAX_TARGET_ENTITIES, now 250), and conditions become a true WHERE over the set. Query values may
+      be `$event.*` templates. `POST /api/automations/preview` resolves the target (total/capped/
+      WHERE-matched) WITHOUT running anything; builder "Run on a query of entries" section + Preview
+      matches. This is the H4 `dry_run` idea, delivered target-first. (Marvin 8e927bb, SDK 4715a42.)
+- [x] **Target entries by slug in actions (`entity_slug`)** ✅ — operation + entry actions can target
+      an entry by human-readable slug (resolved at run time), not just id/`$event.entry_id`. (Marvin
+      0b6b780, SDK 1aa26a0.)
+- [x] **Context-aware condition builder + coherence validation** ✅ — see the PARTIAL note in H0
+      (validate_definition + per-trigger field catalog + live warning banner).
 
 **Explicitly NOT doing** (agreeing with the suggestions doc, emphatically): branching, loops,
 `delay`/`wait_until`/`wait_for_event`, approval gates, native Slack, an internal notification system,
@@ -538,6 +615,22 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       [[marvin-agent-capability-architecture]].
 
 ## 🍂 Low-hanging
+- [ ] **Content-model data quality** (from the 2026-07-20 audit of Mash & Burn Co. — never actioned).
+      Concrete defects, not model design: **`value-bane` entry-type is a typo of `value-band`**
+      (the collection is `value-band`) affecting 8 value entries · **15 entries have
+      `status=published` but `publishedAt=NULL`** (breaks date sorting / feeds — likely a publish
+      path that never stamped the timestamp; check the workflow, don't just backfill) · a leftover
+      `Test` collection holding a stray `hero`-typed entry with placeholder metadata · content typos
+      ("HSow shipping", "AA long-skirted"). Also observed: page-type sprawl (`page` vs
+      `page-with-navigation` vs `about`) and navigation modeled two ways. Worth a cleanup pass +
+      possibly a guard so published-without-timestamp can't happen again.
+- [ ] **axis-B register: per-workspace default + UI** — the tone `register` (auto/professional/
+      playful) is currently **code-driven only**: the entry editor's "Review & suggest" hard-codes
+      `professional`, everything else defaults to `auto`. There's no way for a workspace to change
+      it. Natural home: a "Default register" select under the persona textarea in
+      `settings/ai-workflow.astro`, with per-action overrides still winning. Needs a
+      `workspace_ai_settings` column (now that autogenerate works, this is a clean `task py:migrate`).
+      Also decide whether `/chat` (still applies persona unscoped) should respect it.
 - [x] **Marvin session memory** ✅ — the Ask Marvin bubble transcript now PERSISTS across page
       navigations. `sessionStorage` per tab (`marvin.transcript`), restored on load; only committed
       turns are stored (never the transient "thinking…" placeholder — committed via `commitReply`
@@ -657,6 +750,12 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       named *slot* in the form. (User: yes, they should be in the schema.)
 - [ ] **Workspace Providers UI** — create/edit `AIProviderModel` rows (base_url, Azure
       api_version, Ollama endpoint). Needed for Ollama/Azure workspace setups.
+- [x] **Ollama in-app model pull DONE (2026-07-20)** ✅ — AI Settings → "Ollama model library":
+      installed-model chips + pull a model on demand with a live progress bar (`POST
+      /api/ai/models/pull` runs a background thread streaming `/api/pull`; `GET /installed-models`).
+      SDK `client.ai.models`. Also fixed the `OLLAMA_BASE_URL=…/api` double-`/api` bug (normalized in
+      OllamaProvider) and made the installed list Ollama-specific (was showing the wrong provider's
+      catalogue). (Marvin b48e250, SDK 5cc4981.)
 - [x] **Ollama no-tools 400 → clear message** ✅ (2026-07-19) — `OllamaProvider._chat` now unwraps
       Ollama's error body; a text-only model (gemma/phi) asked to tool-call raises a clear "pick a
       tool-capable model (qwen3-coder/qwen2.5/llama3.1)" instead of a bare `400 Bad Request`. See
@@ -746,6 +845,19 @@ RAG Ask page + clickable citations · AI usage stats (month-to-date) · auto-emb
 reaction · Event Log viewer + outcome status dots + filters · nolog via catalog `audited`
 flag · event_log prune task + retention setting · quiet httpx/openai logging · "AI Settings"
 rename + dedicated AI settings tab · workspace-AI factory fallback (Settings form now works).
+
+**2026-07-20 session** — Context-aware Marvin (A–E, above) + infra hardening:
+- **Provider settings completeness** — every provider now declares `*_API_KEY` + `*_BASE_URL`
+  (was silently `None` for ollama/azure via undeclared getattr); fixed the `.env` src-symlink
+  footgun and the `OLLAMA_BASE_URL` `/api` suffix.
+- **Migration workflow un-broken** — `postgresql.JSONB`→`sa.JSON` (6 models) + `INET`→`sa.String`
+  made `--autogenerate` work on SQLite for the first time; `alembic/env.py` now imports all
+  models (was 41/44 visible); `AUTO_MIGRATE` review gate for the reload-applies-migrations
+  footgun; timestamp columns made nullable + `NOW()` defaults dropped (portable, backend-owned).
+- **CI** — stopped auto-releasing SDK/CLI/MCP from `develop` (was minting a public `-next.N` +
+  a `chore(release)` commit every push; packages established, consumers use `npm link`); tests
+  kept; MCP `ci.yml`→`test.yml` + now tests develop. Deleted 81 stale prerelease git tags.
+- **Write-back outcome** now recorded (`execution.metadata_json.writeback`) + surfaced to clients.
 
 ## Reference: wired vs cosmetic AI settings
 - **Enforced:** enabled · credential_mode · provider/model/secret_ref · budget (daily
