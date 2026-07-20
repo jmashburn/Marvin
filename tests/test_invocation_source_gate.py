@@ -66,3 +66,13 @@ def test_intersection_requires_both():
     with pytest.raises(HTTPException) as exc:
         _check({"mcp": True}, "mcp", op_sources=("editor", "api"))
     assert exc.value.status_code == 403
+
+
+def test_source_catalog_matches_invocation_sources():
+    # Drift guard: the policy-editor catalog must cover exactly the real sources, so a new source
+    # can't ship without a UI toggle (and the UI can't show a source the gate never checks).
+    from marvin.services.ai.operations.base import INVOCATION_SOURCES, INVOCATION_SOURCE_CATALOG
+
+    catalog_keys = [s["key"] for s in INVOCATION_SOURCE_CATALOG]
+    assert catalog_keys == list(INVOCATION_SOURCES)  # same set AND order
+    assert all(s.get("label") and s.get("description") for s in INVOCATION_SOURCE_CATALOG)

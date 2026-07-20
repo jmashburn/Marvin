@@ -342,8 +342,15 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     const row = document.createElement("div");
     row.className = "row action-row";
     const selectedKind = a.kind || defaultKind();
+    const aiOpsAvailable = (OPTIONS.operations || []).length > 0;
     const kinds = orderedKinds()
-      .map((k: string) => `<option value="${esc(k)}" ${selectedKind === k ? "selected" : ""}>${esc(KIND_LABELS[k] || k)}</option>`)
+      .map((k: string) => {
+        // Mark the AI-operation kind unavailable when AI/the automation source is off — unless this
+        // step already is an operation (so an existing step still renders + can be fixed).
+        const off = k === "operation" && !aiOpsAvailable && selectedKind !== "operation";
+        const label = KIND_LABELS[k] || k;
+        return `<option value="${esc(k)}" ${selectedKind === k ? "selected" : ""} ${off ? "disabled" : ""}>${esc(label)}${off ? " (needs AI)" : ""}</option>`;
+      })
       .join("");
     row.innerHTML = `
       <div class="action-head">
@@ -365,7 +372,10 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     if (kind === "operation") {
       const ops = (OPTIONS.operations || []);
       if (!ops.length) {
-        wrap.innerHTML = `<p class="muted small">Enable AI to use AI operations here.</p>`;
+        // Empty when AI is off OR the `automation` invocation source is disabled for this workspace.
+        wrap.innerHTML = `<p class="muted small">AI operations aren't available here — AI is off, or the
+          <strong>Automations</strong> AI source is turned off. Turn it on in
+          <a href="/workspace/settings/ai-workflow">AI Settings</a>.</p>`;
         return wrap;
       }
       const optList = ops.map((o: any) => `<option value="${esc(o.op)}" ${a.op === o.op ? "selected" : ""}>${esc(o.name)}</option>`).join("");

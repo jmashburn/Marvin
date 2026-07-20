@@ -363,11 +363,16 @@ notifications, scheduled-tasks, event-log) as **Workflows** — not under AI. So
 - [x] **P6c · Workflows UI** — `/automation/workflows.astro`: guided builder (trigger → conditions →
       actions with the 4 kinds; AI-op dropdown only when AI enabled) + cards/enable/edit/delete +
       raw-JSON fallback + nav card under the Automation section. Runner `estimated_cost_usd` (done).
-- [ ] **P6d · invocation_sources coupling + UI** — the `automation` source ALREADY gates AI-op actions
-      in the runner (policy ∩ op.sources, deny-if-explicitly-false). Add the missing per-workspace
-      **invocation_sources policy editor** to AI Settings (incl. the new `automation` source), and in
-      the Workflows builder show the AI-operation kind as disabled (with a link to AI Settings) when
-      AI is off OR the `automation` source is disabled.
+- [x] **P6d · invocation_sources coupling + UI DONE (2026-07-20)** ✅ — the gate already existed
+      (runner + options: policy ∩ op.sources, deny-if-explicitly-false). Made the **policy editor**
+      real: a source catalog (`INVOCATION_SOURCE_CATALOG`, 8 sources w/ labels+descriptions) +
+      `GET /api/groups/ai-settings/sources`; the AI-Settings editor is now **catalog-driven** (fixes
+      the old hardcoded list that had a wrong `scheduledJobs` key and was missing `scheduled`/`agent`/
+      **`automation`**/`api`) — submit collects whatever's rendered, so it can't drift. Builder: the
+      AI-operation kind shows a linked "turn it on in AI Settings" message when no ops are offered, and
+      its dropdown option is disabled (unless the step already is an operation). Verified: 8 sources
+      render with correct keys; gate returns 8 ops when `automation` on / **0** when off; normal builder
+      path unaffected. SDK `ai.settings.sources()`; drift test. (Marvin, this commit; SDK.)
 
 ### Trigger types (generalize how workflows fire — beyond `entry_published`)
 `trigger` is now typed: `{type, event?, …}` (defaults to `event`). All types funnel into the same

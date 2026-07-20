@@ -7,13 +7,15 @@ const authToken = getAuthToken(Astro.cookies);
 
 let settings: any = null;
 let secrets: any[] = [];
+let sources: any[] = [];
 let error: string | null = null;
 
 try {
   const sdk = createSdkClient(authToken);
-  [settings, secrets] = await Promise.all([
+  [settings, secrets, sources] = await Promise.all([
     sdk.ai.settings.get(),
     sdk.secrets.list(),
+    sdk.ai.settings.sources().catch(() => []),  // catalog for the invocation-sources editor
   ]);
 } catch (e) {
   console.error('[ai-workflow] Error loading settings:', e);
@@ -38,13 +40,19 @@ const s = {
   defaultRegister: settings?.defaultRegister ?? "auto",
 };
 
-const invSrc = s.invocationSources ?? {
-  editor: true,
-  forms: true,
-  actions: true,
-  mcp: false,
-  scheduledJobs: false,
-};
+const invSrc = s.invocationSources ?? {};
+// Catalog-driven so every real source (incl. `automation`) renders and can't drift from the backend.
+// Fallback to the canonical key list if the catalog fetch failed.
+const sourceCatalog = sources.length ? sources : [
+  { key: "editor", label: "Entry editor", description: "Inline AI actions inside the entry editor." },
+  { key: "forms", label: "Forms", description: "AI on form submissions." },
+  { key: "actions", label: "Manual actions", description: "AI actions triggered by hand." },
+  { key: "mcp", label: "External MCP hosts", description: "External assistants calling in over MCP." },
+  { key: "scheduled", label: "Scheduled tasks", description: "AI run by scheduled tasks." },
+  { key: "agent", label: "Ask Marvin", description: "The Ask-Marvin assistant." },
+  { key: "automation", label: "Automations", description: "Workflows running an AI-operation step." },
+  { key: "api", label: "API", description: "Direct calls to the AI operation endpoints." },
+];
 
 const budgetCfg = s.budgetConfig ?? {};
 const logCfg = s.loggingConfig ?? {};
@@ -204,17 +212,11 @@ const modCfg = s.moderationConfig ?? {};
         <p>Which subsystems are allowed to trigger AI calls.</p>
       </div>
       <div class="toggle-grid">
-        {[
-          { key: "editor", label: "Editor", desc: "AI writing and editing tools in the content editor" },
-          { key: "forms", label: "Forms", desc: "AI field suggestions in form entry flows" },
-          { key: "actions", label: "Actions", desc: "AI-powered automation actions" },
-          { key: "mcp", label: "MCP", desc: "Model Context Protocol integrations" },
-          { key: "scheduledJobs", label: "Scheduled Jobs", desc: "AI steps in recurring scheduled tasks" },
-        ].map(({ key, label, desc }) => (
+        {sourceCatalog.map(({ key, label, description }) => (
           <label class="source-toggle">
             <div class="source-info">
               <strong>{label}</strong>
-              <span>{desc}</span>
+              <span>{description}</span>
             </div>
             <input
               type="checkbox"
@@ -472,10 +474,12 @@ const modCfg = s.moderationConfig ?? {};
     e.preventDefault();
     const fd = new FormData(form as HTMLFormElement);
 
-    const invSrc = {};
-    for (const key of ['editor', 'forms', 'actions', 'mcp', 'scheduledJobs']) {
-      invSrc[key] = fd.has(`invocation_sources.${key}`);
-    }
+    // Collect whatever sources were rendered (catalog-driven) — no hardcoded key list to drift.
+    const invSrc: Record<string, boolean> = {};
+    form!.querySelectorAll('input[name^="invocation_sources."]').forEach((el) => {
+      const key = (el as HTMLInputElement).name.slice('invocation_sources.'.length);
+      invSrc[key] = (el as HTMLInputElement).checked;
+    });
 
     const budgetCfg: Record<string, number> = {};
     const maxTokens = fd.get('budget.max_tokens_per_request');

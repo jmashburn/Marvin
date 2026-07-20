@@ -18,6 +18,20 @@ ROLE_OWNER = 5
 # is the separate per-user authorization wall.
 INVOCATION_SOURCES = ("editor", "forms", "actions", "mcp", "scheduled", "agent", "automation", "api")
 
+# User-facing catalog for the invocation_sources policy editor: which surface each source is, in
+# terms people recognize (not how it's wired). Order = INVOCATION_SOURCES. A source is allowed unless
+# the workspace policy explicitly sets it false, so the editor shows every source as on by default.
+INVOCATION_SOURCE_CATALOG: tuple[dict[str, str], ...] = (
+    {"key": "editor", "label": "Entry editor", "description": "Inline AI actions inside the entry editor (summarize, tags, rewrite…)."},
+    {"key": "forms", "label": "Forms", "description": "AI on form submissions — classify and route what comes in."},
+    {"key": "actions", "label": "Manual actions", "description": "AI actions a person triggers by hand from the UI."},
+    {"key": "mcp", "label": "External MCP hosts", "description": "External assistants (Claude Desktop, etc.) calling in over MCP."},
+    {"key": "scheduled", "label": "Scheduled tasks", "description": "AI run by scheduled/recurring tasks."},
+    {"key": "agent", "label": "Ask Marvin", "description": "The Ask-Marvin assistant / agent loop."},
+    {"key": "automation", "label": "Automations", "description": "Flavor B workflows running an AI-operation step."},
+    {"key": "api", "label": "API", "description": "Direct calls to the AI operation endpoints."},
+)
+
 OPERATION_REGISTRY: dict[str, "AIOperation"] = {}
 
 

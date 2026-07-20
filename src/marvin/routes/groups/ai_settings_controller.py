@@ -30,6 +30,14 @@ class AISettingsController(BaseUserController):
         from marvin.core.config import get_app_settings
         return bool(getattr(get_app_settings(), "AI_ALLOW_WORKSPACE_CREDENTIALS", True))
 
+    @router.get("/sources", summary="List invocation sources (for the policy editor)")
+    def list_invocation_sources(self) -> list[dict]:
+        """The catalog of AI invocation surfaces — key + human label/description — so the settings UI
+        can render a toggle per source. A source is allowed unless the workspace policy sets it false."""
+        from marvin.services.ai.operations.base import INVOCATION_SOURCE_CATALOG
+
+        return [dict(s) for s in INVOCATION_SOURCE_CATALOG]
+
     @router.get("", response_model=WorkspaceAISettingsRead, summary="Get AI Workflow Settings")
     def get_ai_settings(self) -> WorkspaceAISettingsRead:
         """Return current settings; returns defaults when no row exists yet."""
