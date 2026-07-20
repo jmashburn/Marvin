@@ -85,3 +85,32 @@ def test_attach_existing_resources_ignores_unknown(db_session, workspace):
     assert _svc(db_session, gid)._attach_existing_resources(entry_id, ["Does Not Exist", ""]) == []
     db_session.commit()
     assert _count(db_session, entry_id, res_id) == 0
+
+
+# ── B2b: recipe-vs-attachment validation ──────────────────────────────────────
+def test_validate_recipe_assets_warns_on_missing_hero_and_too_few(db_session, workspace):
+    from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
+    gid, _, _ = workspace
+    svc = _svc(db_session, gid)
+    recipe = EntryTypeRecipe.model_validate({"assets": {"min": 1, "roles": [{"role": "hero", "required": True}]}})
+
+    warnings = svc._validate_recipe_assets(recipe, [])            # nothing attached
+    assert any("at least 1" in w for w in warnings)               # min unmet
+    assert any("'hero'" in w for w in warnings)                   # required role missing
+
+    assert svc._validate_recipe_assets(recipe, [{"role": "hero", "position": 0}]) == []  # contract satisfied
+    assert svc._validate_recipe_assets(EntryTypeRecipe.model_validate({}), []) == []      # no contract → no noise
+
+
+# ── B2a: apply_fields "resources" target (used when a revise is STAGED for review) ─────
+def test_apply_fields_resources_target_attaches_reuse_only(db_session, workspace):
+    from marvin.repos.all_repositories import get_repositories
+
+    gid, entry_id, res_id = workspace
+    repos = get_repositories(db_session, group_id=gid)
+
+    repos.entries.apply_fields(entry_id, {"resources": ["Waxed Canvas"]})  # by name (as grounding lists them)
+    assert _count(db_session, entry_id, res_id) == 1
+    repos.entries.apply_fields(entry_id, {"resources": ["waxed-canvas", str(res_id), "Nope"]})  # slug/id dup + unknown
+    assert _count(db_session, entry_id, res_id) == 1  # additive + reuse-only: no duplicate, unknown ignored

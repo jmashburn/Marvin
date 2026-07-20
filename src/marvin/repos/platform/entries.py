@@ -298,9 +298,10 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
         """Apply a {target: value} map onto an entry and commit.
 
         Targets: a top-level column ("summary"/"title"/"description"), a "data_json.<key>"
-        path, a "metadata_json.<key>" path, or the special "tags" target (a list of tag names
-        that get find-or-created and linked, unioned with the entry's existing tags). `_meta`
-        keys are ignored.
+        path, a "metadata_json.<key>" path, the special "tags" target (a list of tag names
+        that get find-or-created and linked, unioned with the entry's existing tags), or the
+        special "resources" target (a list of refs — id/slug/name — attached reuse-only, unioned
+        with the entry's existing resources). `_meta` keys are ignored.
         """
         entry = self.session.get(Entries, entry_id)
         if not entry:
@@ -310,6 +311,8 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
                 continue
             if target == "tags":
                 self._apply_tag_names(entry, value)
+            elif target == "resources":
+                self._apply_resource_refs(entry, value)
             elif target.startswith("data_json."):
                 data = dict(entry.data_json or {})
                 data[target.split(".", 1)[1]] = value
@@ -346,6 +349,38 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
                 self.session.flush()
             self.session.add(EntryTags(entry_id=entry.id, tag_id=tag.id))
             have.add(slug)
+
+    def _apply_resource_refs(self, entry: Entries, refs: Any) -> None:
+        """Attach existing resources (reuse-only) referenced by id, slug, OR name — additive.
+
+        The grounding lists resources by name, so a suggestion carries names; matching by name is
+        essential. Unknown refs are ignored (never invents resources). No-op for a non-list value.
+        """
+        if not isinstance(refs, (list, tuple)):
+            return
+        import uuid as _uuid
+
+        from marvin.db.models.platform import Resources
+
+        have = {er.resource_id for er in self.session.query(EntryResources).filter_by(entry_id=entry.id)}
+        for raw in refs:
+            ref = str(raw).strip()
+            if not ref:
+                continue
+            resource = None
+            try:
+                resource = self.session.get(Resources, _uuid.UUID(ref))
+            except (ValueError, TypeError):
+                resource = (
+                    self.session.query(Resources)
+                    .filter(Resources.group_id == entry.group_id)
+                    .filter((Resources.slug == ref) | (Resources.name == ref))
+                    .first()
+                )
+            if not resource or resource.group_id != entry.group_id or resource.id in have:
+                continue
+            self.session.add(EntryResources(entry_id=entry.id, resource_id=resource.id, position=0))
+            have.add(resource.id)
 
     # stage_suggestion / apply_suggestion / clear_suggestion come from SuggestionWritebackMixin.
 

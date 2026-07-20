@@ -101,6 +101,7 @@ class AuthoringService:
         asset_ids = asset_ids or []
         schema_def = EntryTypeSchemaDefinition.model_validate(entry_type.schema_json or {})
         recipe = EntryTypeRecipe.model_validate(entry_type.recipe_json or {})
+        recipe_warnings = self._validate_recipe_assets(recipe, asset_attachments)
         output_schema = entry_type_to_output_schema(schema_def, entry_type.name)
         # Let the model return tags + resources so it can REUSE the existing vocabulary/catalog
         # (both grounded below). Resources are linked reuse-only after create (like revise).
@@ -215,6 +216,7 @@ class AuthoringService:
             "title": title,
             "tags": list(proposed_tags or []),
             "resources": attached_resources,
+            "warnings": recipe_warnings,
             "editUrl": f"/workspace/entries/{entry.id}",
             "executionId": str(execution.id),
             "totalTokens": execution.total_tokens,
@@ -315,33 +317,68 @@ class AuthoringService:
             proposed_resources = fields.pop("resources", None)
             allowed = schema_def.get_field_keys()
             new_fields = {k: v for k, v in fields.items() if k in allowed}
+            tag_list = list(proposed_tags) if isinstance(proposed_tags, (list, tuple)) else []
+            resource_refs = (
+                [str(r).strip() for r in proposed_resources if str(r).strip()]
+                if isinstance(proposed_resources, (list, tuple)) else []
+            )
 
-            # Associations first (they can't fail content validation) so a malformed field
-            # re-emission can never lose the tags/resources the user actually asked for.
-            if isinstance(proposed_tags, (list, tuple)) and proposed_tags:
-                self.repos.entries.apply_fields(entry.id, {"tags": list(proposed_tags)})
-            attached_resources = self._attach_existing_resources(entry.id, proposed_resources)
-            self.session.commit()
+            # Honor the workspace approval policy, exactly like the operations controller's write-back:
+            # suggest-only always stages; allow-draft-update applies to drafts and stages published;
+            # allow-automatic-update always applies. Revise must not bypass the review wall.
+            mode = self._approval_mode()
+            is_draft = entry.status not in ("published", "archived")
+            should_apply = mode == "allow-automatic-update" or (mode == "allow-draft-update" and is_draft)
 
-            update: dict = {}
-            if new_title:
-                update["title"] = new_title
-            if new_summary is not None:
-                update["summary"] = new_summary
-            if new_fields:
-                update["data_json"] = {**(entry.data_json or {}), **new_fields}  # merge, don't clobber
-            if update:
-                try:
-                    self.repos.entries.update(entry.id, update)
-                except Exception as e:  # a bad field value shouldn't sink the whole revise
-                    self.session.rollback()
-                    self.logger.warning(f"AuthoringService.revise: field update skipped (validation): {e}")
+            if should_apply:
+                # Associations first (they can't fail content validation) so a malformed field
+                # re-emission can never lose the tags/resources the user actually asked for.
+                if tag_list:
+                    self.repos.entries.apply_fields(entry.id, {"tags": tag_list})
+                attached_resources = self._attach_existing_resources(entry.id, resource_refs)
+                self.session.commit()
 
-            self._emit_entry_updated(entry)
+                update: dict = {}
+                if new_title:
+                    update["title"] = new_title
+                if new_summary is not None:
+                    update["summary"] = new_summary
+                if new_fields:
+                    update["data_json"] = {**(entry.data_json or {}), **new_fields}  # merge, don't clobber
+                if update:
+                    try:
+                        self.repos.entries.update(entry.id, update)
+                    except Exception as e:  # a bad field value shouldn't sink the whole revise
+                        self.session.rollback()
+                        self.logger.warning(f"AuthoringService.revise: field update skipped (validation): {e}")
 
-            changed = {"fields": list(new_fields), "tags": list(proposed_tags or []), "resources": attached_resources}
+                self._emit_entry_updated(entry)
+                outcome = "applied"
+            else:
+                # Stage the whole revision for review — nothing touches the entry yet. The entries
+                # "apply suggestion" endpoint commits it later (title/summary/fields/tags/resources
+                # via apply_fields' special targets).
+                proposed: dict = {}
+                if new_title:
+                    proposed["title"] = new_title
+                if new_summary is not None:
+                    proposed["summary"] = new_summary
+                for k, v in new_fields.items():
+                    proposed[f"data_json.{k}"] = v
+                if tag_list:
+                    proposed["tags"] = tag_list
+                if resource_refs:
+                    proposed["resources"] = resource_refs
+                self.repos.entries.stage_suggestion(
+                    entry.id, {**proposed, "_meta": {"operation": "revise-entry", "executionId": str(execution.id)}},
+                )
+                self.session.commit()
+                attached_resources = []  # staged, not attached yet
+                outcome = "staged"
+
+            changed = {"fields": list(new_fields), "tags": tag_list, "resources": attached_resources or resource_refs}
             self._complete_execution(execution, completion, start, entity_id=entry.id, output={
-                "entry_id": str(entry.id), **({"changed": changed} if log_outputs else {}),
+                "entry_id": str(entry.id), "outcome": outcome, **({"changed": changed} if log_outputs else {}),
             })
         except Exception as e:
             self._fail_execution(execution, str(e), start)
@@ -350,14 +387,38 @@ class AuthoringService:
         fresh = self.session.get(type(entry), entry.id)
         return {
             "entryId": str(entry.id),
+            "outcome": outcome,  # "applied" (live) | "staged" (pending review per approval_mode)
             "title": fresh.title,
             "tags": list(fresh.tag_names),
             "resources": [r.slug for r in fresh.resources],
+            # When staged the entry is untouched, so echo what the model proposed for the review UI.
+            "proposed": {"tags": tag_list, "resources": resource_refs} if outcome == "staged" else None,
             "editUrl": f"/workspace/entries/{entry.id}",
             "executionId": str(execution.id),
             "totalTokens": execution.total_tokens,
             "estimatedCostUsd": execution.estimated_cost_usd,
         }
+
+    def _validate_recipe_assets(self, recipe, attachments) -> list[str]:
+        """Warn when a composed draft doesn't satisfy the entry type's asset contract — the recipe
+        expects a hero image but none was attached, or fewer images than the declared minimum.
+
+        Advisory only: compose still lands the draft. The warnings ride the result so the author
+        knows what to add before publishing. Empty when the recipe declares no asset requirements.
+        """
+        assets = getattr(recipe, "assets", None)
+        if not assets:
+            return []
+        attachments = attachments or []
+        warnings: list[str] = []
+        n = len(attachments)
+        if assets.min and n < assets.min:
+            warnings.append(f"This type expects at least {assets.min} image(s); {n} attached.")
+        roles_present = {a.get("role") for a in attachments if isinstance(a, dict) and a.get("role")}
+        for r in (assets.roles or []):
+            if (r.required or (r.min and r.min > 0)) and r.role not in roles_present:
+                warnings.append(f"This type expects a '{r.role}' image; none attached.")
+        return warnings
 
     def _recipe_resource_hint(self, recipe) -> str:
         """A prompt fragment for the entry type's recipe.resources.extract rules — tells the model which
@@ -505,6 +566,17 @@ class AuthoringService:
         from marvin.core.config import get_app_settings
 
         return getattr(get_app_settings(), "AI_DEFAULT_TEMPERATURE", 0.7)
+
+    def _approval_mode(self) -> str:
+        """Workspace approval policy: suggest-only | allow-draft-update | allow-automatic-update.
+
+        The same gate the operations controller applies to AI write-back. Defaults to the safest
+        (suggest-only) when unset, so AI edits are staged for review rather than auto-applied.
+        """
+        from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        return settings.approval_mode if settings and settings.approval_mode else "suggest-only"
 
     def _complete_execution(self, execution, completion, start, *, entity_id, output: dict) -> None:
         from marvin.services.ai.pricing import estimate_cost
