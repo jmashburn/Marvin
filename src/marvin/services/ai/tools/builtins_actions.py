@@ -69,11 +69,112 @@ def detach_resource(ctx: ToolContext, args: dict) -> str:
 
 
 # ── Tags (entry / asset / resource — one shared vocabulary) ───────────────────
+# Single OR bulk: name one target (`entity`), several (`entities`), or select assets/resources by
+# `filter` (type/substring). One or many `tag`/`tags`. Every (target × tag) pair is linked through
+# the shared link_tag chokepoint, then asset/resource smart-collection membership is re-materialized
+# (entries sync reactively; assets/resources have no reactive listener, so we resync here — the same
+# thing the HTTP tags endpoint does — otherwise a freshly-tagged asset never joins its collection).
+_BULK_CAP = 1000
 _TAG_SCHEMA = {"type": "object", "properties": {
     "entity_type": {"type": "string", "enum": ["entry", "asset", "resource"], "description": "what to tag (default 'entry')"},
-    "entity": {"type": "string", "description": "the entry/asset/resource by slug or id"},
-    "tag": {"type": "string", "description": "the tag name or slug"},
-}, "required": ["entity", "tag"]}
+    "entity": {"type": "string", "description": "a single entry/asset/resource by slug or id"},
+    "entities": {"type": "array", "items": {"type": "string"}, "description": "several targets by slug or id (bulk)"},
+    "filter": {"type": "object", "description": "select targets in bulk instead of naming them (dimensions mirror smart-collection rules)", "properties": {
+        "entry_types": {"type": "array", "items": {"type": "string"}, "description": "entry type slugs — entries only"},
+        "statuses": {"type": "array", "items": {"type": "string"}, "description": "entry statuses (e.g. ['published']) — entries only"},
+        "asset_types": {"type": "array", "items": {"type": "string"}, "description": "e.g. ['image','svg'] — assets only"},
+        "resource_types": {"type": "array", "items": {"type": "string"}, "description": "resource types — resources only"},
+        "tags": {"type": "array", "items": {"type": "string"}, "description": "select targets already carrying ANY of these tags (slug/name) — all types"},
+        "query": {"type": "string", "description": "title/name/filename substring (all types)"},
+    }},
+    "tag": {"type": "string", "description": "a tag name or slug"},
+    "tags": {"type": "array", "items": {"type": "string"}, "description": "several tags (each applied to every target)"},
+}}
+
+
+def _narrow_by_tags(session, group_id, q, Model, Junction, fk: str, filt: dict):
+    """Narrow `q` to rows carrying ANY of filt['tags'] (by slug or name). Returns (q, ok);
+    ok=False means the filter names only tags that don't exist here → no rows can match."""
+    refs = [str(t) for t in (filt.get("tags") or []) if str(t).strip()]
+    if not refs:
+        return q, True
+    from marvin.db.models.platform.tags import Tags
+
+    tag_ids = [r[0] for r in session.query(Tags.id).filter(
+        Tags.group_id == group_id, Tags.slug.in_(refs) | Tags.name.in_(refs)).all()]
+    if not tag_ids:
+        return q, False
+    sub = session.query(getattr(Junction, fk)).filter(Junction.tag_id.in_(tag_ids))
+    return q.filter(Model.id.in_(sub)), True
+
+
+def _resolve_targets(ctx: ToolContext, entity_type: str, args: dict) -> tuple[list, str | None]:
+    """Resolve the target entity ids from `entity` / `entities` / `filter`. Returns (ids, error)."""
+    import uuid as _uuid
+
+    refs = ([args["entity"]] if args.get("entity") else []) + list(args.get("entities") or [])
+    if refs:
+        ids = [resolve_entity_id(ctx.session, ctx.group_id, entity_type, r) for r in refs]
+        return [i for i in ids if isinstance(i, _uuid.UUID)], None
+
+    s, gid = ctx.session, ctx.group_id
+    filt = args.get("filter") or {}
+    if entity_type == "entry":
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.platform.entry_tags import EntryTags
+        from marvin.db.models.platform.entry_types import EntryTypes
+        q = s.query(Entries.id).filter(Entries.group_id == gid)
+        if filt.get("entry_types"):
+            q = q.join(EntryTypes, Entries.entry_type_id == EntryTypes.id).filter(EntryTypes.slug.in_(list(filt["entry_types"])))
+        if filt.get("statuses"):
+            q = q.filter(Entries.status.in_(list(filt["statuses"])))
+        if filt.get("query"):
+            t = f"%{filt['query']}%"
+            q = q.filter(Entries.title.ilike(t) | Entries.slug.ilike(t))
+        q, ok = _narrow_by_tags(s, gid, q, Entries, EntryTags, "entry_id", filt)
+        return ([r[0] for r in q.limit(_BULK_CAP).all()] if ok else []), None
+    if entity_type == "asset":
+        from marvin.db.models.platform.asset_tags import AssetTags
+        from marvin.db.models.platform.assets import Assets
+        q = s.query(Assets.id).filter(Assets.group_id == gid)
+        if filt.get("asset_types"):
+            q = q.filter(Assets.asset_type.in_(list(filt["asset_types"])))
+        if filt.get("query"):
+            t = f"%{filt['query']}%"
+            q = q.filter(Assets.original_filename.ilike(t) | Assets.name.ilike(t))
+        q, ok = _narrow_by_tags(s, gid, q, Assets, AssetTags, "asset_id", filt)
+        return ([r[0] for r in q.limit(_BULK_CAP).all()] if ok else []), None
+    if entity_type == "resource":
+        from marvin.db.models.platform.resource_tags import ResourceTags
+        from marvin.db.models.platform.resources import Resources
+        q = s.query(Resources.id).filter(Resources.group_id == gid)
+        if filt.get("resource_types"):
+            q = q.filter(Resources.resource_type.in_(list(filt["resource_types"])))
+        if filt.get("query"):
+            t = f"%{filt['query']}%"
+            q = q.filter(Resources.name.ilike(t) | Resources.slug.ilike(t))
+        q, ok = _narrow_by_tags(s, gid, q, Resources, ResourceTags, "resource_id", filt)
+        return ([r[0] for r in q.limit(_BULK_CAP).all()] if ok else []), None
+    return [], None  # entity_type is validated upstream; no target given
+
+
+def _resync_collections(ctx: ToolContext, entity_type: str, ids) -> int:
+    """Re-materialize asset/resource smart-collection membership after tag changes. Entries sync via
+    SmartCollectionReactionListener; assets/resources have no reactive listener, so we do it here."""
+    if entity_type not in ("asset", "resource") or not ids:
+        return 0
+    from marvin.db.models.platform import Assets, Resources
+    from marvin.services.collections.smart_collections import sync_item
+
+    model = {"asset": Assets, "resource": Resources}[entity_type]
+    changed = 0
+    for eid in ids:
+        item = ctx.session.get(model, eid)
+        if item:
+            changed += sync_item(ctx.session, ctx.group_id, item, entity_type)
+    if changed:
+        ctx.session.commit()
+    return changed
 
 
 def _tag_link(ctx: ToolContext, args: dict, *, attach: bool) -> str:
@@ -82,17 +183,54 @@ def _tag_link(ctx: ToolContext, args: dict, *, attach: bool) -> str:
     entity_type = str(args.get("entity_type") or "entry").lower()
     if entity_type not in TAGGABLE:
         return json.dumps({"error": f"entity_type must be one of {list(TAGGABLE)}"})
-    entity_id = resolve_entity_id(ctx.session, ctx.group_id, entity_type, args.get("entity"))
-    result = link_tag(ctx.session, ctx.group_id, entity_type, entity_id, str(args.get("tag") or ""),
-                      attach=attach, actor_id=getattr(ctx.user, "id", None))
-    if result is None:
-        return json.dumps({"error": f"{entity_type} or tag not found in this workspace"})
-    return json.dumps({"entity_type": entity_type, "entity": str(args.get("entity")), "tag": str(args.get("tag")), "result": result})
+
+    tags = [str(t).strip() for t in (([args["tag"]] if args.get("tag") else []) + list(args.get("tags") or [])) if str(t).strip()]
+    if not tags:
+        return json.dumps({"error": "provide a tag (or tags[]) to apply"})
+
+    ids, err = _resolve_targets(ctx, entity_type, args)
+    if err:
+        return json.dumps({"error": err})
+    if not ids:
+        return json.dumps({"error": f"no matching {entity_type}(s) for the given entity/entities/filter"})
+
+    actor_id = getattr(ctx.user, "id", None)
+    changed, unchanged, not_found, touched = 0, 0, 0, set()
+    for eid in ids:
+        for tag in tags:
+            res = link_tag(ctx.session, ctx.group_id, entity_type, eid, tag, attach=attach, actor_id=actor_id)
+            if res in ("attached", "detached"):
+                changed += 1
+                touched.add(eid)
+            elif res in ("exists", "absent"):
+                unchanged += 1
+            else:
+                not_found += 1
+
+    resynced = _resync_collections(ctx, entity_type, touched)
+    verb = "attached" if attach else "detached"
+    out = {
+        "entity_type": entity_type, "tags": tags,
+        "targets": len(ids), verb: changed, "unchanged": unchanged, "not_found": not_found,
+        "collections_resynced": resynced,
+    }
+    # Preserve the simple single-target shape when exactly one entity + one tag was given.
+    if args.get("entity") and not args.get("entities") and not args.get("filter") and len(tags) == 1:
+        out["entity"] = str(args.get("entity"))
+        out["tag"] = tags[0]
+        out["result"] = verb if changed else ("exists" if attach else "absent") if unchanged else "not_found"
+    return json.dumps(out)
 
 
 @register_tool(
     name="attach_tag",
-    description="Attach a tag to an entry, asset, or resource (set entity_type). Find-or-creates the tag in the one shared workspace vocabulary, then links it. Idempotent.",
+    description=(
+        "Attach a tag to entries/assets/resources (set entity_type). Find-or-creates the tag in the one "
+        "shared workspace vocabulary, links it, and updates smart collections. Idempotent. SINGLE or BULK: "
+        "name one target with `entity`, several with `entities`, or select in bulk with `filter` (entries by "
+        "entry_types/statuses, assets by asset_types, resources by resource_types, ALL by tags/query — so you "
+        "can re-tag everything already carrying a tag); apply one `tag` or many `tags`. One call tags the set."
+    ),
     input_schema=_TAG_SCHEMA,
     min_role=ROLE_AUTHOR, read_only=False,
 )
@@ -102,7 +240,10 @@ def attach_tag(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="detach_tag",
-    description="Detach a tag from an entry, asset, or resource (set entity_type). Idempotent (the tag itself stays in the vocabulary).",
+    description=(
+        "Detach a tag from entries/assets/resources (set entity_type). Idempotent (the tag stays in the "
+        "vocabulary). SINGLE or BULK: `entity`, `entities`, or `filter`; one `tag` or many `tags`."
+    ),
     input_schema=_TAG_SCHEMA,
     min_role=ROLE_AUTHOR, read_only=False,
 )
