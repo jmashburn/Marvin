@@ -130,7 +130,7 @@ class AuthoringService:
         instruction = (
             f"Compose a new '{entry_type.name}' for {ctx.workspace_name or 'this workspace'} from the brief below. "
             f"Fill every field you reasonably can"
-            + (", using the attached image(s) as the subject." if asset_ids else ".")
+            + (", using the attached image(s) as the subject — the first is the hero/primary image." if asset_ids else ".")
             + f"\n\nBrief:\n{brief}"
             + grounding
             + self._recipe_resource_hint(recipe)

@@ -61,7 +61,9 @@ class AIComposeEntryRequest(_MarvinModel):
     """Compose a draft entry of `entry_type` from a short brief (+ optional image assets)."""
     entry_type: str                          # entry type slug or id
     brief: str                               # what the entry should be about
-    asset_ids: list[UUID4] | None = None     # image assets to see (vision) + attach
+    # image assets to see (vision) + attach. Order matters: first → hero, and only the first 4 are
+    # sent to the model as vision input, so callers should list the most important images first.
+    asset_ids: list[UUID4] | None = None
     model_override: str | None = None
     source: str = "editor"                   # invocation surface; gated by workspace policy
 

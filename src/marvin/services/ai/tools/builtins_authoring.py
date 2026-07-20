@@ -42,7 +42,7 @@ def _service(ctx: ToolContext):
     input_schema={"type": "object", "properties": {
         "entry_type": {"type": "string", "description": "entry type slug or id"},
         "brief": {"type": "string", "description": "what the entry should be about"},
-        "asset_ids": {"type": "array", "items": {"type": "string"}, "description": "optional existing asset ids to attach (recipe roles applied)"},
+        "asset_ids": {"type": "array", "items": {"type": "string"}, "description": "optional existing asset ids to attach. ORDER MATTERS: the first becomes the hero, and only the first 4 are sent to the model as vision input — put the most important images first."},
     }, "required": ["entry_type", "brief"]},
     min_role=ROLE_AUTHOR, read_only=False, sources=_COMPOSE_SOURCES,
 )
