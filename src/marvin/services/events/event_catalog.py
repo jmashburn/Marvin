@@ -1084,6 +1084,32 @@ CATALOG: list[CatalogEntry] = [
     ),
 ]
 
+# ── Honesty gate: events with NO real emitter ─────────────────────────────────
+# These EventTypes are declared (and had catalog entries) but are NEVER dispatched anywhere in the
+# codebase — so advertising them for subscription is a lie: a user could subscribe and never receive
+# anything. We keep the enum members (removing them risks breaking serialized data / migrations) but
+# force them out of the subscribable catalog. `test_every_catalog_entry_has_an_emitter` verifies this
+# set stays accurate as emitters come and go. Give any of these a real dispatch site → remove it here.
+_NO_EMITTER: frozenset[str] = frozenset({
+    "api_rate_limit_exceeded", "api_token_created", "api_token_revoked", "api_token_rotated",
+    "approval_granted", "approval_rejected", "approval_requested",
+    "asset_attached_to_entry", "asset_detached_from_entry",
+    "backup_completed", "backup_failed", "backup_started",
+    "comment_added", "comment_deleted", "comment_updated",
+    "entry_shared",
+    "form_submission_failed", "form_submission_processed", "form_submission_received",
+    "login_failed_multiple_times", "mention_created", "scheduled_task_cancelled",
+    "site_build_completed", "site_build_failed", "site_build_started",
+    "site_deployment_completed", "site_deployment_failed", "site_deployment_started", "site_published",
+    "storage_quota_exceeded", "storage_quota_warning", "suspicious_activity_detected",
+    "user_deleted", "user_password_reset_completed", "user_updated",
+    "webhook_created", "webhook_deleted", "webhook_delivery_failed", "webhook_delivery_succeeded",
+    "webhook_updated",
+})
+for _e in CATALOG:
+    if _e.event_type in _NO_EMITTER:
+        _e.enabled = False  # not offered for subscription — nothing ever emits it
+
 # Quick lookup
 CATALOG_BY_TYPE: dict[str, CatalogEntry] = {e.event_type: e for e in CATALOG}
 
