@@ -47,9 +47,11 @@ that lived here is shipped — replaced with the live backlog.)
 - **gemma4 agent returns empty at 4096 tokens** — local models not yet viable for the agent (see E).
 
 ### Papercuts worth a sweep
-axis-B has no per-workspace default/UI · Workspace Providers UI missing · per-model tool
-capability (allow chat-only models to degrade gracefully) · OAuth for MCP servers · `/run`
-ignores `enabled`.
+Workspace Providers UI missing · per-model tool capability (allow chat-only models to degrade
+gracefully) · OAuth for MCP servers.
+_(2026-07-20 polish pass cleared: `max_tokens_per_request` now enforced · `/run` enabled-check
+was already fixed · dev-data fixed: 15 legacy `published_at` backfilled, `value-bane`→`value-band`
+slug. axis-B UI = next.)_
 
 ---
 
@@ -450,7 +452,9 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
 - [x] **Fix the false comment at `runner.py:203` DONE (2026-07-20)** ✅ — moot: `_apply_writeback`
       was rewritten to route through EntryService (H0), and its new docstring states the loop-guard
       is the depth counter (not integration_id). The false claim is gone.
-- [ ] **`/run` doesn't check `enabled`** — an admin can manually run a disabled automation.
+- [x] **`/run` checks `enabled` DONE (2026-07-20)** ✅ — `POST /api/automations/{id}/run` now 409s
+      on a disabled workflow (consistent with the scheduled path, which already skips disabled); the
+      builder's Run button is disabled on disabled cards. (Marvin, quick-win commit.)
 
 **H3 · Expression ergonomics — the sharp edges users will hit**
 - [ ] **Embedded `${...}` interpolation** — `interpolate` (`matcher.py:38`) only substitutes a string
@@ -474,11 +478,12 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       `run_automations_for_event`; each executor returns its resolved input instead of executing.
       ~10 lines per action, and it delivers the "evaluate trigger + conditions, resolve inputs, don't
       execute" test mode without a parallel simulation engine.
-- [ ] **Allowlist the `handler` action** — currently the most powerful, least constrained thing in the
-      system: full `TaskHandlerRegistry` with no allowlist, no schema, duck-typed config, reaching
-      maintenance tasks like `remove_orphaned_assets`. Decide deliberately — promote specific handlers
-      to first-class actions with schemas, or keep it as an explicit escape hatch behind an allowlist.
-      The one item in this review I'd call a genuine risk.
+- [x] **Allowlist the `handler` action DONE (2026-07-20)** ✅ — `AUTOMATION_ALLOWED_HANDLERS`
+      (request_site_rebuild / publish_scheduled_entries / unpublish_expired_entries /
+      ai_reindex_embeddings / resync_smart_collections). Anything else — the destructive maintenance
+      jobs (remove_orphaned_assets, prune_*), session/invite pruning, and `run_automation` itself — is
+      rejected even though it's a valid registry entry, with a message naming the allowlist. Builder
+      datalist matches. 4 tests. (Marvin, quick-win commit.) *(New safe handlers must be opted in.)*
 - [ ] **Per-user authorization at execution** — `user_id` is provenance only, never authorization.
       An AUTHOR publishing an entry can trip an admin-authored automation that runs privileged
       handlers and webhooks under full workspace authority.
@@ -861,6 +866,7 @@ rename + dedicated AI settings tab · workspace-AI factory fallback (Settings fo
 
 ## Reference: wired vs cosmetic AI settings
 - **Enforced:** enabled · credential_mode · provider/model/secret_ref · budget (daily
-  requests + monthly cost) · min_role (per-op) · **invocation_sources** (source ∩ policy).
-- **Cosmetic (stored, no effect):** approval_mode · operation_overrides · logging_config
-  · moderation_config · budget.max_tokens_per_request.
+  requests + monthly cost + **max_tokens_per_request** ✅ wired 2026-07-20) · min_role (per-op)
+  · **invocation_sources** (source ∩ policy) · logging_config (via `_logging_policy`) ·
+  approval_mode (apply/stage decision + outcome now surfaced).
+- **Still cosmetic (stored, no effect):** operation_overrides · moderation_config.

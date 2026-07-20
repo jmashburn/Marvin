@@ -246,7 +246,7 @@ class AIOperationsController(BaseUserController):
             _app = get_app_settings()
             opts = CompletionOptions(
                 temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
-                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+                max_tokens=self._max_output_tokens(),
             )
             parsed, completion = provider.execute_operation(messages, model, operation.output_schema, opts)
 
@@ -507,7 +507,7 @@ class AIOperationsController(BaseUserController):
             _app = get_app_settings()
             opts = CompletionOptions(
                 temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
-                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+                max_tokens=self._max_output_tokens(),
             )
             parsed, completion = provider.execute_operation(messages, model, output_schema, opts)
 
@@ -736,7 +736,7 @@ class AIOperationsController(BaseUserController):
         try:
             opts = CompletionOptions(
                 temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
-                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+                max_tokens=self._max_output_tokens(),
             )
             result = run_agent_loop(provider, model, messages, tools, opts, max_steps=max_steps)
         except HTTPException:
@@ -834,7 +834,7 @@ class AIOperationsController(BaseUserController):
         try:
             opts = CompletionOptions(
                 temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
-                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+                max_tokens=self._max_output_tokens(),
             )
             result = provider.complete(messages, model, opts)
         except Exception as e:
@@ -1363,6 +1363,25 @@ class AIOperationsController(BaseUserController):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"This workspace has disabled AI from the '{source}' source.",
             )
+
+    def _max_output_tokens(self) -> int | None:
+        """Per-request output-token cap for this workspace.
+
+        Honours `budget_config.max_tokens_per_request` (a workspace override that was stored but
+        never read — every call used the global AI_DEFAULT_MAX_TOKENS regardless). Falls back to
+        the app default when the workspace hasn't set one. A non-positive/invalid value is ignored
+        rather than clamping every response to zero.
+        """
+        from marvin.core.config import get_app_settings
+
+        default = getattr(get_app_settings(), "AI_DEFAULT_MAX_TOKENS", None)
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        raw = (settings.budget_config or {}).get("max_tokens_per_request") if settings else None
+        try:
+            cap = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return cap if cap > 0 else default
 
     def _check_budget(self) -> None:
         from sqlalchemy import func
