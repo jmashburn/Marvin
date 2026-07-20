@@ -105,6 +105,31 @@ def test_entry_read_exposes_tag_slugs_not_objects(db_session, group):
     assert read.tags == ["waxed-canvas"]  # slug string, not a Tag object
 
 
+def test_apply_fields_tags_target_unions_and_find_or_creates(db_session, group):
+    """The generate-tags write-back (apply_fields with the "tags" target) find-or-creates each
+    suggested name and unions it with the entry's existing tags — additive, deduped by slug."""
+    from marvin.db.models.platform import Entries, EntryTags
+
+    gid, entry_id = group
+    repos = get_repositories(db_session, group_id=gid)
+    leather = repos.tags.create(TagCreate(name="Leather"))
+    repos.entries.update(entry_id, EntryUpdate(tag_ids=[leather.id]))  # pre-existing curated tag
+
+    # Suggest one existing (by display name) + two new — existing must not duplicate, new are created.
+    repos.entries.apply_fields(entry_id, {"tags": ["Leather", "Waxed Canvas", "workwear"]})
+
+    entry = db_session.get(Entries, entry_id)
+    assert set(entry.tag_names) == {"leather", "waxed-canvas", "workwear"}
+    # 'leather' kept its single link (union, not re-added)
+    from sqlalchemy import func
+    dupes = (
+        db_session.query(EntryTags.tag_id, func.count())
+        .filter(EntryTags.entry_id == entry_id)
+        .group_by(EntryTags.tag_id).having(func.count() > 1).all()
+    )
+    assert not dupes
+
+
 def test_attaching_the_same_tag_twice_is_idempotent(db_session, group):
     gid, entry_id = group
     repos = get_repositories(db_session, group_id=gid)

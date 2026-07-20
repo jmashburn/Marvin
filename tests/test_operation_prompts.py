@@ -48,10 +48,12 @@ def test_improve_writing_still_stages_nothing():
     assert not getattr(get_operation("improve-writing"), "writeback", {})
 
 
-# ── generate-tags: staging target ─────────────────────────────────────────────
+# ── generate-tags: write-back target ──────────────────────────────────────────
 
-def test_generate_tags_writes_back_to_metadata_tags():
-    assert get_operation("generate-tags").writeback == {"tags": "metadata_json.tags"}
+def test_generate_tags_writes_back_to_real_tags():
+    # Phase 3: repointed off metadata_json.tags onto the real tag vocabulary. The "tags" target
+    # find-or-creates each suggested name and links it (see EntriesRepository.apply_fields).
+    assert get_operation("generate-tags").writeback == {"tags": "tags"}
 
 
 def test_generate_tags_passes_existing_tags_into_the_prompt():

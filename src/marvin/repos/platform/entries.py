@@ -297,7 +297,9 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         """Apply a {target: value} map onto an entry and commit.
 
         Targets: a top-level column ("summary"/"title"/"description"), a "data_json.<key>"
-        path, or a "metadata_json.<key>" path. `_meta` keys are ignored.
+        path, a "metadata_json.<key>" path, or the special "tags" target (a list of tag names
+        that get find-or-created and linked, unioned with the entry's existing tags). `_meta`
+        keys are ignored.
         """
         entry = self.session.get(Entries, entry_id)
         if not entry:
@@ -305,7 +307,9 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         for target, value in fields.items():
             if target == "_meta":
                 continue
-            if target.startswith("data_json."):
+            if target == "tags":
+                self._apply_tag_names(entry, value)
+            elif target.startswith("data_json."):
                 data = dict(entry.data_json or {})
                 data[target.split(".", 1)[1]] = value
                 entry.data_json = data
@@ -316,6 +320,31 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             else:
                 setattr(entry, target, value)
         self.session.commit()
+
+    def _apply_tag_names(self, entry: Entries, names: Any) -> None:
+        """Find-or-create each tag name (group-scoped, by slug) and link it to the entry.
+
+        Additive (union with existing tags) — generate-tags SUGGESTS tags, it doesn't replace
+        the curated set. No-op for a non-list value.
+        """
+        if not isinstance(names, (list, tuple)):
+            return
+        from slugify import slugify
+
+        from marvin.db.models.platform import Tags
+
+        have = {t.slug for t in entry.tags}
+        for raw in names:
+            slug = slugify(str(raw))
+            if not slug or slug in have:
+                continue
+            tag = self.session.query(Tags).filter(Tags.group_id == entry.group_id, Tags.slug == slug).first()
+            if tag is None:
+                tag = Tags(session=self.session, group_id=entry.group_id, name=str(raw).strip(), slug=slug)
+                self.session.add(tag)
+                self.session.flush()
+            self.session.add(EntryTags(entry_id=entry.id, tag_id=tag.id))
+            have.add(slug)
 
     def stage_suggestion(self, entry_id: Any, fields: dict) -> None:
         """Merge proposed fields into the entry's pending suggestion_json (for later review)."""

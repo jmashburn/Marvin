@@ -68,8 +68,10 @@ class GenerateTagsOperation(AIOperation):
         },
         "required": ["tags"],
     }
-    # No first-class tags column yet — stage onto metadata until the tagging system lands.
-    writeback = {"tags": "metadata_json.tags"}
+    # Write onto the real tag vocabulary: the "tags" target find-or-creates each suggested name
+    # (group-scoped, by slug) and links it, unioning with the entry's existing tags. See
+    # EntriesRepository.apply_fields.
+    writeback = {"tags": "tags"}
 
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
         max_tags = input.get("max_tags", 8)
