@@ -800,8 +800,13 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       (slugified, ANY-match via `Entries.tags.any()` EXISTS — no dup rows). MCP `get_entry`/`find_entries`
       emit `tags` (find_entries batches the lookup); `get_entry` description updated. MarvinMCP
       `serializeEntry` passes `tags` through (build + 126 vitest green). 5 tag tests; backend 230 pass.
-- [ ] **T5. Entry editor chip UI** — token/chip input beside the Metadata field (`entries/[id].astro`),
-      create-on-type; posts `tag_ids`/new names. Replaces the raw-JSON-only path.
+- [x] **T5. Entry editor chip UI** ✅ (2026-07-20) — Tags sidebar-section in `entries/[id].astro`:
+      removable chips + text input with `<datalist>` autocomplete over the workspace vocabulary,
+      create-on-type (Enter/comma). Client keeps a hidden `tags_payload` = JSON `[{name,id?}]`; SSR save
+      resolves it → `tag_ids` (existing chips use their id; bare names go through find-or-create `POST
+      /tags`). SDK: new `TagsModule` (list/get/create/update/delete/attach/detach) + `PlatformTag*` types,
+      schema regenerated from offline OpenAPI (carries `tags`/`tagIds`); built + npm-linked. Frontend
+      `lib/api/tags.ts` wrapper. Page compiles + renders 200. (Create-flow attach stays deferred per ask.)
 - [ ] **T6. Entries list tag filter** — `data-tags` attribute + a tag filter chip, following the
       existing type/status filter pattern (`entries.astro`).
 - [ ] **Verify:** promotion migration idempotent + reversible · smart-collection-by-tag matches ·

@@ -5,6 +5,7 @@ import { getAuthToken } from "@/lib/api/client";
 import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections } from "@/lib/api/collections";
+import { listTags, createTag, type TagRead } from "@/lib/api/tags";
 import { getAssets } from "@/lib/api/platform";
 import { listResources } from "@/lib/api/resources";
 import { createSdkClient } from "@/lib/sdk";
@@ -96,6 +97,27 @@ if (Astro.request.method === 'POST' && id && authToken) {
       }
     }
 
+    // Resolve the tag chips → tag_ids. Each chip is {name, id?}: an id means an existing tag
+    // (use it directly); a bare name is create-on-type — POST /tags is find-or-create by slug,
+    // so it resolves both brand-new names and typos-of-existing to the right id. Field always
+    // present (hidden input), so an empty array clears the entry's tags.
+    let tagIds: string[] | undefined;
+    const tagsPayloadStr = formData.get('tags_payload') as string | null;
+    if (tagsPayloadStr !== null) {
+      tagIds = [];
+      const seen = new Set<string>();
+      let chips: Array<{ name?: string; id?: string }> = [];
+      try { chips = JSON.parse(tagsPayloadStr || '[]'); } catch { chips = []; }
+      for (const chip of chips) {
+        let tagId = chip.id;
+        if (!tagId && chip.name?.trim()) {
+          const tag = await createTag({ name: chip.name.trim() }, authToken);
+          tagId = tag.id;
+        }
+        if (tagId && !seen.has(tagId)) { seen.add(tagId); tagIds.push(tagId); }
+      }
+    }
+
     const updateData: Record<string, any> = {
       entry_type_id: formData.get('entry_type_id') as string,
       title: formData.get('title') as string,
@@ -109,6 +131,7 @@ if (Astro.request.method === 'POST' && id && authToken) {
       asset_attachments: assetAttachments,
       resource_attachments: resourceAttachments,
     };
+    if (tagIds !== undefined) updateData.tag_ids = tagIds;
 
     await updateEntry(id, updateData, authToken);
     return Astro.redirect('/workspace/entries');
@@ -121,6 +144,7 @@ if (Astro.request.method === 'POST' && id && authToken) {
 let entry: EntryRead | null = null;
 let entryTypes: EntryTypeRead[] = [];
 let collections: CollectionRead[] = [];
+let allTags: TagRead[] = [];
 let allAssets: any[] = [];
 let allResources: any[] = [];
 let error: string | null = null;
@@ -131,10 +155,11 @@ if (!id) {
   error = "Authentication required";
 } else {
   try {
-    [entry, entryTypes, collections, allAssets, allResources] = await Promise.all([
+    [entry, entryTypes, collections, allTags, allAssets, allResources] = await Promise.all([
       getEntry(id, authToken),
       listEntryTypes(authToken),
       listCollections(authToken),
+      listTags(authToken),
       getAssets(authToken),
       listResources(authToken),
     ]);
@@ -152,6 +177,13 @@ const attachedAssets = (entry?.assets || []).sort((a: any, b: any) => (a.positio
 const attachedResources = (entry?.resources || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
 const attachedAssetIds = new Set(attachedAssets.map((a: any) => a.id));
 const attachedResourceIds = new Set(attachedResources.map((r: any) => r.id));
+
+// entry.tags is a list of slugs (see EntryRead); resolve each to the full tag (id + display
+// name) via the workspace tag list so the chips can render names and post the right tag_ids.
+const tagBySlug = new Map((allTags || []).map((t) => [t.slug, t]));
+const attachedTags = ((entry?.tags as string[] | undefined) || [])
+  .map((slug) => tagBySlug.get(slug))
+  .filter(Boolean) as TagRead[];
 
 // Get entry type schema for schema-driven form
 const entryType = entry ? entryTypes.find(t => t.id === entry.entryTypeId) : null;
@@ -482,6 +514,33 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
               />
               <p class="form-help">When this entry should expire and be hidden</p>
             </div>
+          </div>
+
+          <div class="sidebar-section">
+            <h3>Tags (<span id="tag-count">{attachedTags.length}</span>)</h3>
+            <p class="section-help">Lightweight labels; smart collections can match on them</p>
+
+            <div id="tag-chips" class="tag-chips">
+              {attachedTags.map((t) => (
+                <span class="tag-chip" data-tag-id={t.id} data-tag-name={t.name}>
+                  <span class="tag-chip-label">{t.name}</span>
+                  <button type="button" class="tag-chip-remove" title="Remove" aria-label={`Remove ${t.name}`}>×</button>
+                </span>
+              ))}
+            </div>
+
+            <div class="tag-input-row">
+              <input type="text" id="tag-input" list="tag-suggestions" placeholder="Add a tag…" autocomplete="off" />
+            </div>
+            <datalist id="tag-suggestions">
+              {allTags.map((t) => (<option value={t.name}></option>))}
+            </datalist>
+            <small class="tag-help">Press Enter or comma to add. New tags are created on save.</small>
+
+            {/* The source of truth the server reads on save: a JSON array of {name, id?}. */}
+            <input type="hidden" name="tags_payload" id="tags-payload" form="entry-form" />
+            {/* Workspace vocabulary for client-side name→id resolution (reuse existing tags). */}
+            <script type="application/json" id="all-tags-data" set:html={JSON.stringify(allTags.map((t) => ({ id: t.id, name: t.name, slug: t.slug })))}></script>
           </div>
 
           <div class="sidebar-section">
@@ -1027,6 +1086,55 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
     color: var(--muted);
   }
 
+  /* Tags chip input. In the is:global block so JS-created chips are styled too. */
+  .tag-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 0.5rem;
+    min-height: 0.5rem;
+  }
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.35rem 0.15rem 0.55rem;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text);
+  }
+  .tag-chip-label { white-space: nowrap; }
+  .tag-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .tag-chip-remove:hover { background: var(--border); color: var(--text); }
+  .tag-input-row input {
+    width: 100%;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
+  }
+  .tag-help {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
   .metadata-editor,
   .data-json-editor {
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
@@ -1488,6 +1596,91 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
   }
   applySuggestionBtn?.addEventListener('click', () => suggestionAction('apply'));
   rejectSuggestionBtn?.addEventListener('click', () => suggestionAction('reject'));
+
+  // ── Tags chip input ───────────────────────────────────────────────────────
+  // Maintains a JSON array of {name, id?} in the hidden #tags-payload field the SSR save reads.
+  // A chip carrying an id is an existing tag; a name-only chip is create-on-type (the server's
+  // find-or-create resolves it). New chips are created client-side, so their styles live in the
+  // is:global <style> block below, not scoped CSS.
+  (() => {
+    const chipsEl = document.getElementById('tag-chips');
+    const inputEl = document.getElementById('tag-input') as HTMLInputElement | null;
+    const payloadEl = document.getElementById('tags-payload') as HTMLInputElement | null;
+    const countEl = document.getElementById('tag-count');
+    const dataEl = document.getElementById('all-tags-data');
+    if (!chipsEl || !inputEl || !payloadEl) return;
+
+    type Chip = { name: string; id?: string };
+    const vocab = new Map<string, { id: string; name: string }>();
+    try {
+      for (const t of JSON.parse(dataEl?.textContent || '[]')) {
+        vocab.set(String(t.name).toLowerCase(), { id: t.id, name: t.name });
+      }
+    } catch { /* no vocabulary — every chip is treated as new */ }
+
+    const keyOf = (c: Chip) => (c.id ? `id:${c.id}` : `name:${c.name.toLowerCase()}`);
+    const chipFromEl = (el: HTMLElement): Chip => ({ name: el.dataset.tagName || '', id: el.dataset.tagId || undefined });
+
+    // Seed from the server-rendered chips.
+    const state: Chip[] = Array.from(chipsEl.querySelectorAll('.tag-chip')).map((el) => chipFromEl(el as HTMLElement));
+
+    function sync() {
+      payloadEl!.value = JSON.stringify(state);
+      if (countEl) countEl.textContent = String(state.length);
+    }
+
+    function makeChip(c: Chip): HTMLElement {
+      const span = document.createElement('span');
+      span.className = 'tag-chip';
+      if (c.id) span.dataset.tagId = c.id;
+      span.dataset.tagName = c.name;
+      span.innerHTML = '<span class="tag-chip-label"></span><button type="button" class="tag-chip-remove" title="Remove">×</button>';
+      (span.querySelector('.tag-chip-label') as HTMLElement).textContent = c.name;
+      span.querySelector('.tag-chip-remove')!.setAttribute('aria-label', `Remove ${c.name}`);
+      return span;
+    }
+
+    function addTag(raw: string) {
+      const name = raw.replace(/,+$/, '').trim();
+      if (!name) return;
+      const match = vocab.get(name.toLowerCase());
+      const chip: Chip = match ? { name: match.name, id: match.id } : { name };
+      if (state.some((c) => keyOf(c) === keyOf(chip))) return; // dedupe
+      state.push(chip);
+      chipsEl!.appendChild(makeChip(chip));
+      sync();
+    }
+
+    // Remove via delegation — covers both server- and JS-rendered chips.
+    chipsEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('.tag-chip-remove');
+      if (!btn) return;
+      const chipEl = btn.closest('.tag-chip') as HTMLElement;
+      const key = keyOf(chipFromEl(chipEl));
+      const idx = state.findIndex((c) => keyOf(c) === key);
+      if (idx >= 0) state.splice(idx, 1);
+      chipEl.remove();
+      sync();
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addTag(inputEl.value);
+        inputEl.value = '';
+      } else if (e.key === 'Backspace' && !inputEl.value && state.length) {
+        state.pop();
+        chipsEl.querySelector('.tag-chip:last-child')?.remove();
+        sync();
+      }
+    });
+    // Picking a datalist suggestion fires 'change' without a keydown.
+    inputEl.addEventListener('change', () => {
+      if (inputEl.value.trim()) { addTag(inputEl.value); inputEl.value = ''; }
+    });
+
+    sync(); // make the hidden payload reflect the initial chips before any edit
+  })();
 
   // Auto-generate slug from title for unpublished entries
   const titleInput = document.getElementById('title') as HTMLInputElement;
