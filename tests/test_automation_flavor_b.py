@@ -1182,3 +1182,49 @@ class TestExecutionRecording:
         engine.run_automation_now(_FakeSession([]), "G", auto, run_action=lambda *a, **k: {}, recorder=spy)
         assert len(spy.started) == 1 and spy.started[0]["targets_matched"] == 1
         assert len(spy.actions) == 1 and spy.finished[0]["targets_run"] == 1
+
+
+# ── Correlation id: one chain, one id ─────────────────────────────────────────
+class TestCorrelationId:
+    def test_scope_mints_inherits_and_overrides(self):
+        from marvin.services.event_bus_service.correlation import correlation_scope, current_correlation_id
+        assert current_correlation_id.get() is None
+        with correlation_scope() as outer:            # no ambient → mint
+            assert outer and current_correlation_id.get() == outer
+            with correlation_scope() as inner:        # ambient set → inherit
+                assert inner == outer
+            with correlation_scope("fixed") as forced:  # explicit → use it
+                assert forced == "fixed"
+            assert current_correlation_id.get() == outer  # restored after inner scopes
+        assert current_correlation_id.get() is None       # fully reset
+
+    def test_engine_threads_the_events_correlation_to_the_execution(self):
+        # The execution row is stamped with the TRIGGERING event's chain id (not a fresh one).
+        auto = _automation(actions=[{"kind": "operation", "op": "generate-summary"}])
+        spy = _SpyRecorder()
+        ctx = {"event_type": "entry_published", "entry_id": None, "user_id": None,
+               "correlation_id": "chain-42"}
+        engine.run_automations_for_event(_FakeSession([auto], entry=_entry()), "G", ctx,
+                                         run_action=lambda *a, **k: {}, recorder=spy)
+        assert spy.started and spy.started[0]["correlation_id"] == "chain-42"
+
+    def test_manual_run_mints_a_correlation_id(self):
+        auto = SimpleNamespace(slug="m", created_by=None, enabled=True, group_id="G",
+                               definition={"trigger": {"type": "manual"}, "actions": [{"kind": "handler", "task": "x"}]})
+        spy = _SpyRecorder()
+        engine.run_automation_now(_FakeSession([]), "G", auto, run_action=lambda *a, **k: {}, recorder=spy)
+        assert spy.started and spy.started[0]["correlation_id"]  # a fresh, non-empty id
+
+    def test_reemitted_events_inside_a_run_inherit_the_chain(self):
+        # A real emit_event executor dispatched inside the engine's scope must carry the run's id.
+        from marvin.services.event_bus_service.correlation import correlation_scope, current_correlation_id
+        seen = {}
+
+        def fake_run(session, group_id, action, context, **_):
+            seen["cid"] = current_correlation_id.get()  # what a dispatch inside here would resolve to
+            return {}
+
+        auto = _automation(actions=[{"kind": "emit_event", "event": "noted"}])
+        ctx = {"event_type": "entry_published", "entry_id": None, "user_id": None, "correlation_id": "chain-9"}
+        engine.run_automations_for_event(_FakeSession([auto], entry=_entry()), "G", ctx, run_action=fake_run)
+        assert seen["cid"] == "chain-9"  # the executor (and its dispatches) see the chain id

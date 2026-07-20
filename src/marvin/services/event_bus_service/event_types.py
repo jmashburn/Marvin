@@ -1172,6 +1172,10 @@ class Event(_MarvinModel):
     """How many automation/reaction hops produced this event. A user/system action starts at 0; an
     automation's `emit_event`/write-back re-dispatches at depth+1. The automation listener refuses to
     react past a cap, so data-defined automations that emit events can't cascade infinitely."""
+    correlation_id: str | None = None
+    """Id shared by every event + execution in one causal chain (see services/event_bus_service/
+    correlation.py). Set by `dispatch` from the ambient correlation scope, so a whole reaction cascade
+    threads under one id. None only for events built outside `dispatch`."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """

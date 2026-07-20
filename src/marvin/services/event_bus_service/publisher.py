@@ -445,6 +445,7 @@ class AuditLogPublisher:
                     entity_type=entity_type,
                     integration_id=event.integration_id,
                     operation=operation,
+                    correlation_id=getattr(event, "correlation_id", None),
                     event_data=jsonable_encoder(event),
                     message_title=event.message.title,
                     message_body=event.message.body if event.message.body != "generic" else None,

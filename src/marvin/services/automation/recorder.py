@@ -13,14 +13,13 @@ is best-effort: a recorder failure is swallowed so it can never break an automat
 """
 
 import json
-import uuid
 from datetime import UTC, datetime
 
+from marvin.services.event_bus_service.correlation import new_correlation_id  # re-export (one generator)
+
+__all__ = ["NullRecorder", "CollectingRecorder", "ExecutionRecorder", "new_correlation_id"]
+
 _SNAPSHOT_CAP = 4096  # bytes; larger outputs are stored as a truncated preview
-
-
-def new_correlation_id() -> str:
-    return uuid.uuid4().hex
 
 
 def _truncate(value) -> dict | None:

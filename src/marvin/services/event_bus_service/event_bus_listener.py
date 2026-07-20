@@ -1050,6 +1050,8 @@ class AutomationReactionListener(EventListenerBase):
             "after": getattr(dd, "after", None) or {},
             "user_id": event.user_id,
             "reaction_depth": getattr(event, "reaction_depth", 0),
+            # Thread the triggering event's chain id so the whole reaction cascade shares it.
+            "correlation_id": getattr(event, "correlation_id", None),
         }
         from marvin.services.automation.engine import run_automations_for_event
         from marvin.services.automation.recorder import ExecutionRecorder

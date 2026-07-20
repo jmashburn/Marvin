@@ -59,6 +59,11 @@ class EventLogModel(SqlAlchemyBase, BaseMixins):
     operation: Mapped[str | None] = mapped_column(String, nullable=True)
     """The operation type (create, update, delete, info)."""
 
+    correlation_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    """Id shared by every event + execution in one causal chain — so a whole reaction cascade
+    (user action → automation → re-emitted event → …) is queryable as one thread. See
+    services/event_bus_service/correlation.py."""
+
     # Full event payload (sa.JSON for queryability)
     event_data: Mapped[dict] = mapped_column(sa.JSON, nullable=False)
     """Complete event payload as JSON for rich queries."""

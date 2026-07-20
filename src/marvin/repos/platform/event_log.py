@@ -115,6 +115,7 @@ class EventLogRepository(GroupRepositoryGeneric):
         event_type: str | None = None,
         entity_type: str | None = None,
         user_id: UUID4 | None = None,
+        correlation_id: str | None = None,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
         limit: int = 50,
@@ -128,6 +129,7 @@ class EventLogRepository(GroupRepositoryGeneric):
             event_type: Optional event type filter (e.g., "entry.published")
             entity_type: Optional entity type filter (e.g., "entry", "asset")
             user_id: Optional user ID filter
+            correlation_id: Optional chain filter — every event in one causal cascade
             start_date: Optional start date filter (UTC)
             end_date: Optional end date filter (UTC)
             limit: Maximum number of events to return
@@ -152,6 +154,9 @@ class EventLogRepository(GroupRepositoryGeneric):
 
         if user_id:
             stmt = stmt.where(EventLogModel.user_id == user_id)
+
+        if correlation_id:
+            stmt = stmt.where(EventLogModel.correlation_id == correlation_id)
 
         if start_date:
             stmt = stmt.where(EventLogModel.occurred_at >= start_date)

@@ -220,26 +220,33 @@ class EntryService:
     def _emit_updated_and_transitions(self, old, entry, verb: str, reaction_depth: int) -> None:
         """Emit `entry_updated` first, then any status-transition events (published/unpublished/
         archived/restored). Each carries the scalar diff (changed_fields/before/after). The
-        updated-then-published ordering is relied on by the embedding reaction — keep it."""
+        updated-then-published ordering is relied on by the embedding reaction — keep it.
+
+        Wrapped in one correlation scope so `entry_updated` and its transition event share a chain id
+        (inheriting the ambient id when this runs inside an automation, minting one from the controller).
+        """
+        from marvin.services.event_bus_service.correlation import correlation_scope
+
         names = self._names(entry)
         diff = _diff(old, entry)
         old_status = getattr(old, "status", None)
-        self._emit(entry, EventTypes.entry_updated, EventOperation.update,
-                   f"Entry '{entry.title}' {verb}", names, reaction_depth=reaction_depth, diff=diff)
-        if old_status == entry.status:
-            return
-        if entry.status == "published":
-            self._emit(entry, EventTypes.entry_published, EventOperation.update,
-                       f"Entry '{entry.title}' published", names, reaction_depth=reaction_depth, diff=diff)
-        elif old_status == "published":
-            self._emit(entry, EventTypes.entry_unpublished, EventOperation.update,
-                       f"Entry '{entry.title}' unpublished", names, reaction_depth=reaction_depth, diff=diff)
-        if entry.status == "archived":
-            self._emit(entry, EventTypes.entry_archived, EventOperation.update,
-                       f"Entry '{entry.title}' archived", names, reaction_depth=reaction_depth, diff=diff)
-        elif old_status == "archived":
-            self._emit(entry, EventTypes.entry_restored, EventOperation.update,
-                       f"Entry '{entry.title}' restored from archive", names, reaction_depth=reaction_depth, diff=diff)
+        with correlation_scope():
+            self._emit(entry, EventTypes.entry_updated, EventOperation.update,
+                       f"Entry '{entry.title}' {verb}", names, reaction_depth=reaction_depth, diff=diff)
+            if old_status == entry.status:
+                return
+            if entry.status == "published":
+                self._emit(entry, EventTypes.entry_published, EventOperation.update,
+                           f"Entry '{entry.title}' published", names, reaction_depth=reaction_depth, diff=diff)
+            elif old_status == "published":
+                self._emit(entry, EventTypes.entry_unpublished, EventOperation.update,
+                           f"Entry '{entry.title}' unpublished", names, reaction_depth=reaction_depth, diff=diff)
+            if entry.status == "archived":
+                self._emit(entry, EventTypes.entry_archived, EventOperation.update,
+                           f"Entry '{entry.title}' archived", names, reaction_depth=reaction_depth, diff=diff)
+            elif old_status == "archived":
+                self._emit(entry, EventTypes.entry_restored, EventOperation.update,
+                           f"Entry '{entry.title}' restored from archive", names, reaction_depth=reaction_depth, diff=diff)
 
     def _names(self, entry) -> tuple[str | None, str | None, str | None]:
         """(entry_type_slug, workspace_name, author_name) for the event payload."""

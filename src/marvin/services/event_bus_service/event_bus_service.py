@@ -202,6 +202,7 @@ class EventBusService(BaseService):
         entity_id: UUID4 | None = None,  # Primary entity the event is about
         entity_type: str | None = None,  # Type of the primary entity
         reaction_depth: int = 0,  # Automation/reaction hop count (loop-guard); 0 for user/system actions
+        correlation_id: str | None = None,  # Causal-chain id; inherits the ambient scope when omitted
     ) -> None:
         """
         Dispatches an event to the event bus.
@@ -225,6 +226,13 @@ class EventBusService(BaseService):
             entity_type (str | None, optional): The type of the primary entity
                                                 (e.g., "entry", "asset"). Defaults to None.
         """
+        # Resolve the causal-chain id: an explicit arg wins, else inherit the ambient correlation
+        # scope (a reaction cascade / an EntryService emit batch), else mint one (a fresh root). Read
+        # synchronously here so it's baked into the Event even if publishing is deferred.
+        from marvin.services.event_bus_service.correlation import current_correlation_id, new_correlation_id
+
+        resolved_correlation_id = correlation_id or current_correlation_id.get() or new_correlation_id()
+
         # Construct the full Event object
         event_payload = Event(
             message=EventBusMessage.from_type(event_type, body=message),  # Standardized message structure
@@ -236,6 +244,7 @@ class EventBusService(BaseService):
             entity_id=entity_id,
             entity_type=entity_type,
             reaction_depth=reaction_depth,
+            correlation_id=resolved_correlation_id,
         )
 
         event_name = event_type.name if hasattr(event_type, "name") else str(event_type)

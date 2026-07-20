@@ -434,11 +434,22 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       `automations.executions()/execution()` + a "Runs" history panel on each workflow card (status,
       targets, N✓/M✗, duration → expand to per-step records). Also **lifted the target cap 25→250**
       now that runs are inspectable. Verified live. (Marvin 9ea65fa, SDK 8bc932a.)
-- [ ] **Correlation id threaded through `dispatch`**, promoted to a real column on `event_log`
-      (it currently exists only as `reaction_depth` buried in the `event_data` JSON blob).
-      Causation id + parent-execution id can wait — correlation alone makes a chain readable.
-      *(PARTIAL: each execution row carries a per-run `correlation_id`; NOT yet threaded through
-      dispatch / promoted to an event_log column.)*
+- [x] **Correlation id threaded through `dispatch` + promoted to an `event_log` column DONE
+      (2026-07-20)** ✅ — one id now ties every event + execution in a causal chain. Done with an
+      **ambient scope** (`services/event_bus_service/correlation.py`: a `ContextVar` +
+      `correlation_scope`), not a param threaded through 6 executor signatures: whoever roots a chain
+      opens a scope and every `dispatch(...)` inside inherits the id (read synchronously at call time,
+      so it's baked in even when publishing defers to a bg task). Roots: the automation engine (per
+      triggering event — a whole reaction cascade shares the triggering event's id; a manual run mints
+      one) and `EntryService`'s multi-event mutations (so `entry_updated` + its transition event share
+      one id). `dispatch` gained a `correlation_id` param (explicit override, else ambient, else mint);
+      `Event.correlation_id`; a real indexed `event_log.correlation_id` column (migration `930f9ab5902d`,
+      +index); publisher persists it; `EventLogRead`/`Summary` expose it; `GET /api/events?correlation_id=`
+      + repo filter returns a whole chain. The execution row already carried it — now it reuses the
+      triggering event's id instead of minting, so events↔executions correlate. Runs panel shows the
+      chain id. Verified live (dispatch → column; A+B in one scope share the id, C outside gets its own).
+      6 tests; full suite 286 green. *(Causation id + parent-execution id still deferred — correlation
+      alone makes the chain readable.)* (Marvin, this commit; SDK `eventLog.correlation_id` filter.)
 - [x] **Snapshot the automation `definition` onto the execution row DONE (2026-07-20)** ✅ —
       `definition_snapshot` JSON column on `automation_executions` (part of the tables above).
 

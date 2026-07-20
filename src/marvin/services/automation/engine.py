@@ -13,10 +13,12 @@ the engine is unit-testable without real executors.
 from datetime import UTC, datetime
 from typing import Callable
 
+from marvin.services.event_bus_service.correlation import correlation_scope, current_correlation_id
+
 from .actions import AutomationActionError, run_action as _registry_run_action
 from .authz import resolve_authorizer_role
 from .matcher import matches
-from .recorder import CollectingRecorder, NullRecorder, new_correlation_id
+from .recorder import CollectingRecorder, NullRecorder
 
 MAX_ACTIONS = 10          # per-automation guardrail against a runaway pipeline
 MAX_REACTION_DEPTH = 3    # how many automation/emit_event hops a single chain may span before we stop
@@ -78,21 +80,24 @@ def run_automations_for_event(
 
     user_id = event_ctx.get("user_id")
     ran = 0
-    for automation in automations:
-        defn = automation.definition or {}
-        trig = defn.get("trigger") or {}
-        if not _trigger_matches(trig, event_ctx):
-            continue
-        ran_this, ok = _run_targets(
-            session, group_id, automation, context,
-            user_id=user_id, authorizer_role=resolve_authorizer_role(session, group_id, getattr(automation, "created_by", None)),
-            logger=logger, run_action=run_action, gate_conditions=True,
-            recorder=recorder, dry_run=dry_run,
-        )
-        if ran_this:
-            if not dry_run:
-                _announce(session, group_id, automation, ok, depth, user_id, context)
-            ran += 1
+    # Open the triggering event's chain (or mint one) so every automation that reacts, and everything
+    # they re-emit, threads under one correlation id.
+    with correlation_scope(event_ctx.get("correlation_id")):
+        for automation in automations:
+            defn = automation.definition or {}
+            trig = defn.get("trigger") or {}
+            if not _trigger_matches(trig, event_ctx):
+                continue
+            ran_this, ok = _run_targets(
+                session, group_id, automation, context,
+                user_id=user_id, authorizer_role=resolve_authorizer_role(session, group_id, getattr(automation, "created_by", None)),
+                logger=logger, run_action=run_action, gate_conditions=True,
+                recorder=recorder, dry_run=dry_run,
+            )
+            if ran_this:
+                if not dry_run:
+                    _announce(session, group_id, automation, ok, depth, user_id, context)
+                ran += 1
 
     return ran
 
@@ -143,7 +148,7 @@ def _run_targets(session, group_id, automation, base_context: dict, *, user_id, 
 
     exec_id = recorder.start(
         automation, trigger_type, targets_matched=total, capped=capped,
-        user_id=user_id, correlation_id=new_correlation_id(),
+        user_id=user_id, correlation_id=current_correlation_id.get(),
     )
 
     ran, ok_all, steps_ok, steps_failed = 0, True, 0, 0
@@ -293,15 +298,19 @@ def run_automation_now(session, group_id, automation, *, user_id=None, logger=No
     # A dry run captures the resolved plan in memory and persists nothing; a real run uses the caller's
     # recorder (or none).
     dry_recorder = CollectingRecorder() if dry_run else None
-    # Manual run skips conditions when acting on the single (implicit) context — the human asked for
-    # it. But when a `target` selects a set, its conditions are the WHERE over that set and DO apply.
-    ran, ok = _run_targets(
-        session, group_id, automation, context,
-        user_id=user_id, authorizer_role=resolve_authorizer_role(session, group_id, getattr(automation, "created_by", None)),
-        logger=logger, run_action=run_action, gate_conditions=False,
-        recorder=dry_recorder or recorder or NullRecorder(), dry_run=dry_run,
-    )
-    if dry_run:
-        return {"ok": ok, "ran": ran, "dry_run": True, "plan": dry_recorder.plan}
-    _announce(session, group_id, automation, ok, 0, user_id, context)
-    return {"ok": ok, "ran": ran, "result": context.get("previous", {})}
+    # A manual run roots a fresh chain (no triggering event) so its execution + any re-emitted events
+    # share one correlation id.
+    with correlation_scope():
+        # Manual run skips conditions when acting on the single (implicit) context — the human asked
+        # for it. But when a `target` selects a set, its conditions are the WHERE over that set and
+        # DO apply.
+        ran, ok = _run_targets(
+            session, group_id, automation, context,
+            user_id=user_id, authorizer_role=resolve_authorizer_role(session, group_id, getattr(automation, "created_by", None)),
+            logger=logger, run_action=run_action, gate_conditions=False,
+            recorder=dry_recorder or recorder or NullRecorder(), dry_run=dry_run,
+        )
+        if dry_run:
+            return {"ok": ok, "ran": ran, "dry_run": True, "plan": dry_recorder.plan}
+        _announce(session, group_id, automation, ok, 0, user_id, context)
+        return {"ok": ok, "ran": ran, "result": context.get("previous", {})}

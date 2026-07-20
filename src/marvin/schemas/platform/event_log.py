@@ -20,6 +20,7 @@ class EventLogRead(_MarvinModel):
     entity_type: str | None = None
     integration_id: str
     operation: str | None = None
+    correlation_id: str | None = None  # chain id — group an event with its whole causal cascade
     event_data: dict
     message_title: str
     message_body: str | None = None
@@ -40,6 +41,7 @@ class EventLogSummary(_MarvinModel):
     user_id: UUID4 | None = None
     entity_id: UUID4 | None = None
     entity_type: str | None = None
+    correlation_id: str | None = None  # chain id — follow a cascade across events
     message_title: str
     message_body: str | None = None
 
