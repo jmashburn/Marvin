@@ -98,6 +98,12 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
           <span class="hint" id="wf-chained-hint">Runs after the selected workflow completes.</span>
         </div>
 
+        <div class="form-field" id="wf-webhook-field" hidden>
+          <label class="label" for="wf-webhook-target">Incoming webhook</label>
+          <select class="input" id="wf-webhook-target"></select>
+          <span class="hint">Runs when this webhook receives a POST. Read the payload with <code>$event.payload.*</code>. Manage webhooks under <a href="/automation/incoming-webhooks">Incoming Webhooks</a>.</span>
+        </div>
+
         <div class="form-field">
           <label class="label">Only if <span class="muted">(all conditions must match — optional)</span></label>
           <div id="wf-conditions" class="rows"></div>
@@ -166,8 +172,14 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   const TRIGGER_TYPE_LABELS: Record<string, string> = {
     event: "Event", manual: "Manual (Run button)", schedule: "Schedule",
     chained: "After another workflow", on_error: "When a workflow fails",
+    incoming_webhook: "Incoming webhook (external POST)",
     mcp: "MCP tool (external hosts)",
   };
+  function webhookName(ref: string | undefined): string {
+    if (!ref || ref === "any") return "any incoming webhook";
+    const w = (OPTIONS.incomingWebhooks || []).find((x: any) => x.slug === ref || x.id === ref);
+    return w ? w.name : ref;
+  }
   function automationName(ref: string | undefined): string {
     if (!ref || ref === "any") return "any workflow";
     const a = (OPTIONS.automations || []).find((x: any) => x.slug === ref || x.id === ref);
@@ -193,6 +205,10 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     const chSel = $("wf-chained-target") as HTMLSelectElement;
     chSel.innerHTML = `<option value="any">Any workflow</option>` +
       (OPTIONS.automations || []).map((a: any) => `<option value="${esc(a.slug)}">${esc(a.name)}</option>`).join("");
+    const whSel = $("wf-webhook-target") as HTMLSelectElement;
+    whSel.innerHTML = `<option value="any">Any incoming webhook</option>` +
+      (OPTIONS.incomingWebhooks || []).map((w: any) =>
+        `<option value="${esc(w.slug)}">${esc(w.name)}${w.hasToken ? "" : " (no token yet)"}</option>`).join("");
   }
   function syncTriggerType() {
     const t = ($("wf-trigger-type") as HTMLSelectElement).value;
@@ -202,6 +218,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     $("wf-mcp-hint").toggleAttribute("hidden", t !== "mcp");
     $("wf-schedule-field").toggleAttribute("hidden", t !== "schedule");
     $("wf-chained-field").toggleAttribute("hidden", !isChain);
+    $("wf-webhook-field").toggleAttribute("hidden", t !== "incoming_webhook");
     if (isChain) {
       $("wf-chained-hint").textContent = t === "on_error"
         ? "Runs when the selected workflow fails."
@@ -329,6 +346,9 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     } else if (ttype === "chained" || ttype === "on_error") {
       const target = ($("wf-chained-target") as HTMLSelectElement).value;
       trigger = { type: ttype, ...(target && target !== "any" ? { automation: target } : {}) };
+    } else if (ttype === "incoming_webhook") {
+      const wh = ($("wf-webhook-target") as HTMLSelectElement).value;
+      trigger = { type: ttype, ...(wh && wh !== "any" ? { webhook: wh } : {}) };
     } else {
       trigger = { type: ttype };
     }
@@ -354,6 +374,9 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     }
     if (trig.type === "chained" || trig.type === "on_error") {
       ($("wf-chained-target") as HTMLSelectElement).value = trig.automation || "any";
+    }
+    if (trig.type === "incoming_webhook") {
+      ($("wf-webhook-target") as HTMLSelectElement).value = trig.webhook || "any";
     }
     syncTriggerType();
 
@@ -427,6 +450,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       : t.type === "schedule" ? `every ${humanInterval(t.schedule_config?.interval_seconds)}`
       : t.type === "chained" ? `after ${automationName(t.automation)}`
       : t.type === "on_error" ? `if ${automationName(t.automation)} fails`
+      : t.type === "incoming_webhook" ? `${webhookName(t.webhook)} received`
       : prettyEvent(t.event || "—");
     const trigChip = `<span class="chip trigger">${esc(trigText)}</span>`;
     return `<div class="flow">

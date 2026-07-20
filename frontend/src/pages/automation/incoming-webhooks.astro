@@ -1,0 +1,277 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { API_BASE_URL } from "@/lib/api/config";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+
+let workspace: any = null;
+let webhooks: any[] = [];
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+  if (workspace) webhooks = await sdk.incomingWebhooks.list();
+} catch (e) {
+  console.error("[incoming-webhooks] Error loading:", e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const listJson = JSON.stringify(webhooks).replace(/</g, "\\u003c");
+const hookBase = `${API_BASE_URL}/api/hooks`;
+---
+
+<AppLayout title="Incoming Webhooks" eyebrow="Automation">
+ <div class="iw-page" data-hook-base={hookBase}>
+  <script type="application/json" id="iw-list-data" is:inline set:html={listJson}></script>
+  <div class="toolbar">
+    <div>
+      <h2>Incoming Webhooks</h2>
+      <p>Give an external system a secret URL. When it POSTs, Marvin fires an event your workflows can react to.</p>
+    </div>
+    <button id="iw-new" class="button">New webhook</button>
+  </div>
+
+  <div class="page-container">
+    {error && <div class="banner error">{error}</div>}
+
+    <!-- Create form (hidden until New) -->
+    <section id="iw-create" class="create-card" hidden>
+      <div class="form-row">
+        <label class="form-field grow">
+          <span class="label">Name</span>
+          <input class="input" id="iw-name" placeholder="e.g. Stripe payments" />
+        </label>
+        <label class="form-field">
+          <span class="label">Enabled</span>
+          <label class="switch"><input type="checkbox" id="iw-enabled" checked /><span class="track"></span></label>
+        </label>
+      </div>
+      <label class="form-field">
+        <span class="label">Description <span class="muted">(optional)</span></span>
+        <input class="input" id="iw-desc" placeholder="What sends to this webhook?" />
+      </label>
+      <div class="create-actions">
+        <button id="iw-create-btn" class="button">Create</button>
+        <button id="iw-cancel" class="button ghost" type="button">Cancel</button>
+        <span id="iw-create-status" class="hint"></span>
+      </div>
+    </section>
+
+    <div id="iw-list" class="iw-list"></div>
+    <div id="iw-empty" class="empty" hidden>No incoming webhooks yet. Create one to get a URL.</div>
+  </div>
+ </div>
+</AppLayout>
+
+<script>
+  import { createSdkClient } from "@/lib/sdk";
+
+  const sdk = () => createSdkClient();
+  const $ = (id: string): any => document.getElementById(id);
+  const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+
+  const hookBase = (document.querySelector(".iw-page") as HTMLElement).dataset.hookBase || "";
+  let webhooks: any[] = JSON.parse($("iw-list-data").textContent || "[]");
+
+  function hookUrl(token) { return `${hookBase}/${token}`; }
+  function fmtWhen(iso) {
+    if (!iso) return "never";
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? "never" : d.toLocaleString();
+  }
+
+  function card(w) {
+    const tokenBlock = w.token
+      ? `<div class="token-live">
+           <input class="input url" readonly value="${esc(hookUrl(w.token))}" data-url />
+           <button class="button ghost sm" data-act="copy">Copy</button>
+           <button class="button ghost sm" data-act="test">Send test</button>
+           <button class="button ghost sm" data-act="rotate">Rotate</button>
+           <button class="button ghost sm danger" data-act="revoke">Revoke</button>
+         </div>
+         <span class="hint" data-status></span>`
+      : `<div class="token-none">
+           <span class="hint">No token yet — the endpoint is inactive.</span>
+           <button class="button sm" data-act="mint">Create token</button>
+           <span class="hint" data-status></span>
+         </div>`;
+
+    return `<div class="iw-card" data-id="${esc(w.id)}">
+      <div class="iw-head">
+        <div>
+          <strong>${esc(w.name)}</strong>
+          <code class="slug">${esc(w.slug)}</code>
+          ${w.description ? `<span class="desc">${esc(w.description)}</span>` : ""}
+        </div>
+        <div class="iw-head-actions">
+          <label class="switch" title="Enabled"><input type="checkbox" data-act="toggle" ${w.enabled ? "checked" : ""} /><span class="track"></span></label>
+          <button class="button ghost sm danger" data-act="delete" title="Delete">Delete</button>
+        </div>
+      </div>
+      ${tokenBlock}
+      <div class="iw-meta">
+        <span>${w.receivedCount || 0} received</span>
+        <span>·</span>
+        <span>last: ${esc(fmtWhen(w.lastReceivedAt))}</span>
+        ${!w.enabled ? `<span class="pill">disabled</span>` : ""}
+      </div>
+    </div>`;
+  }
+
+  function render() {
+    const list = $("iw-list");
+    list.innerHTML = webhooks.map(card).join("");
+    $("iw-empty").toggleAttribute("hidden", webhooks.length > 0);
+  }
+
+  function upsert(w) {
+    const i = webhooks.findIndex((x) => x.id === w.id);
+    if (i >= 0) webhooks[i] = w; else webhooks.push(w);
+    render();
+  }
+
+  // ── Create ────────────────────────────────────────────────────────────────
+  $("iw-new").addEventListener("click", () => $("iw-create").toggleAttribute("hidden"));
+  $("iw-cancel").addEventListener("click", () => $("iw-create").setAttribute("hidden", ""));
+  $("iw-create-btn").addEventListener("click", async () => {
+    const name = ($("iw-name")).value.trim();
+    const status = $("iw-create-status");
+    if (!name) { status.textContent = "Name is required."; return; }
+    status.textContent = "Creating…";
+    try {
+      const w = await sdk().incomingWebhooks.create({
+        name,
+        description: ($("iw-desc")).value.trim() || undefined,
+        enabled: ($("iw-enabled")).checked,
+      });
+      upsert(w);
+      ($("iw-name")).value = ""; ($("iw-desc")).value = "";
+      $("iw-create").setAttribute("hidden", "");
+      status.textContent = "";
+    } catch (e) { status.textContent = `Error: ${e?.message ?? e}`; }
+  });
+
+  // ── Per-card actions (event delegation) ─────────────────────────────────────
+  $("iw-list").addEventListener("click", async (ev: Event) => {
+    const btn: any = (ev.target as HTMLElement).closest("[data-act]");
+    if (!btn) return;
+    const cardEl: any = btn.closest(".iw-card");
+    const id = cardEl?.dataset.id;
+    const w = webhooks.find((x) => x.id === id);
+    if (!w) return;
+    const act = btn.dataset.act;
+    const status = cardEl.querySelector("[data-status]");
+    const setStatus = (t: string, err?: boolean) => { if (status) { status.textContent = t; status.classList.toggle("error", !!err); } };
+
+    try {
+      if (act === "toggle") {
+        const enabled = btn.checked;
+        upsert(await sdk().incomingWebhooks.update(id, { enabled }));
+      } else if (act === "mint" || act === "rotate") {
+        if (act === "rotate" && !confirm("Rotate the token? The current URL will stop working immediately.")) return;
+        setStatus(act === "mint" ? "Creating token…" : "Rotating…");
+        upsert(await sdk().incomingWebhooks.mintToken(id));
+        setStatus("");
+      } else if (act === "revoke") {
+        if (!confirm("Revoke the token? The endpoint will reject all requests until you mint a new one.")) return;
+        upsert(await sdk().incomingWebhooks.revokeToken(id));
+      } else if (act === "delete") {
+        if (!confirm(`Delete “${w.name}”? This can't be undone.`)) return;
+        await sdk().incomingWebhooks.delete(id);
+        webhooks = webhooks.filter((x) => x.id !== id);
+        render();
+      } else if (act === "copy") {
+        await navigator.clipboard.writeText(hookUrl(w.token));
+        setStatus("Copied.");
+        setTimeout(() => setStatus(""), 1500);
+      } else if (act === "test") {
+        // Simulate an external caller: POST the public receiver with ?wait=1 to run inline.
+        setStatus("Sending test…");
+        const res = await fetch(`${hookUrl(w.token)}?wait=1`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ test: true, source: "marvin-ui", at: new Date().toISOString() }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setStatus(`Fired (${body.status ?? "ok"}). Refreshing counts…`);
+          upsert(await sdk().incomingWebhooks.get(id));
+          setTimeout(() => setStatus(""), 2500);
+        } else {
+          setStatus(`Test failed: ${body.detail ?? res.status}`, true);
+        }
+      }
+    } catch (e) { setStatus(`Error: ${e?.message ?? e}`, true); }
+  });
+
+  render();
+</script>
+
+<style>
+  .iw-page { max-width: 900px; }
+  .toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+  .toolbar h2 { margin: 0 0 4px; font-size: 22px; }
+  .toolbar p { margin: 0; color: var(--muted); font-size: 14px; max-width: 60ch; }
+  .page-container { display: flex; flex-direction: column; gap: 16px; }
+
+  .banner { padding: 12px 14px; border-radius: var(--radius); font-size: 14px; }
+  .banner.error { background: var(--color-error-bg, rgba(192,57,43,.1)); color: var(--color-error, #c0392b); border: 1px solid var(--color-error, #c0392b); }
+
+  .button { padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--accent); background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .button.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .button.sm { padding: 4px 10px; font-size: 12px; }
+  .button.danger { color: var(--color-error, #c0392b); border-color: var(--color-error, #c0392b); }
+  .button.ghost.danger { background: transparent; }
+
+  .create-card, .iw-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .create-card[hidden] { display: none; }
+  .form-row { display: flex; gap: 14px; align-items: flex-end; }
+  .form-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .form-field.grow { flex: 1; }
+  .label { font-size: 13px; font-weight: 600; }
+  .muted { color: var(--muted); font-weight: 400; }
+  .input { padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; }
+  .input:focus { border-color: var(--accent); outline: none; }
+  .create-actions { display: flex; align-items: center; gap: 10px; }
+
+  .switch { position: relative; display: inline-block; width: 38px; height: 22px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .track { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: .2s; }
+  .switch .track::before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::before { transform: translateX(16px); }
+
+  .iw-list { display: flex; flex-direction: column; gap: 12px; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .hint.error { color: var(--color-error, #c0392b); }
+  .empty { color: var(--muted); font-size: 14px; padding: 24px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+  /* Card internals are rendered in JS → style via :global(). */
+  .iw-list :global(.iw-card) { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .iw-list :global(.iw-head) { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .iw-list :global(.iw-head strong) { font-size: 15px; }
+  .iw-list :global(.slug) { margin-left: 8px; font-size: 12px; color: var(--muted); background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+  .iw-list :global(.desc) { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .iw-list :global(.iw-head-actions) { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .iw-list :global(.button) { padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .iw-list :global(.button.sm) { padding: 4px 10px; font-size: 12px; }
+  .iw-list :global(.button.danger) { color: var(--color-error, #c0392b); border-color: var(--color-error, #c0392b); }
+  .iw-list :global(.token-live) { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .iw-list :global(.token-live .url) { flex: 1; min-width: 240px; font-family: var(--mono, monospace); font-size: 12px; }
+  .iw-list :global(.token-none) { display: flex; gap: 10px; align-items: center; }
+  .iw-list :global(.iw-meta) { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+  .iw-list :global(.pill) { padding: 1px 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font-size: 11px; }
+  .iw-list :global(.switch) { position: relative; display: inline-block; width: 38px; height: 22px; }
+  .iw-list :global(.switch input) { opacity: 0; width: 0; height: 0; }
+  .iw-list :global(.switch .track) { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: .2s; }
+  .iw-list :global(.switch .track::before) { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  .iw-list :global(.switch input:checked + .track) { background: var(--accent); }
+  .iw-list :global(.switch input:checked + .track::before) { transform: translateX(16px); }
+  .iw-list :global(.hint) { font-size: 12px; color: var(--muted); }
+  .iw-list :global(.hint.error) { color: var(--color-error, #c0392b); }
+</style>
