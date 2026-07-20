@@ -235,9 +235,17 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       .map((t: string) => `<option value="${esc(t)}">${esc(TRIGGER_TYPE_LABELS[t] || t)}</option>`)
       .join("");
     const evSel = $("wf-trigger") as HTMLSelectElement;
-    evSel.innerHTML = (OPTIONS.triggers || [])
-      .map((t: string) => `<option value="${esc(t)}">${esc(prettyEvent(t))}</option>`)
-      .join("");
+    const groups = OPTIONS.triggerGroups as Record<string, string[]> | undefined;
+    if (groups && Object.keys(groups).length) {
+      // Grouped by family (Entries/Assets/Forms/…) — 26 events read better as optgroups.
+      evSel.innerHTML = Object.entries(groups)
+        .map(([label, evs]) => `<optgroup label="${esc(label)}">${
+          evs.map((t) => `<option value="${esc(t)}">${esc(prettyEvent(t))}</option>`).join("")
+        }</optgroup>`).join("");
+    } else {
+      evSel.innerHTML = (OPTIONS.triggers || [])
+        .map((t: string) => `<option value="${esc(t)}">${esc(prettyEvent(t))}</option>`).join("");
+    }
     const chSel = $("wf-chained-target") as HTMLSelectElement;
     chSel.innerHTML = `<option value="any">Any workflow</option>` +
       (OPTIONS.automations || []).map((a: any) => `<option value="${esc(a.slug)}">${esc(a.name)}</option>`).join("");

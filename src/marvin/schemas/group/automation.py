@@ -94,7 +94,8 @@ class AutomationConditionField(_MarvinModel):
 class AutomationOptions(_MarvinModel):
     """The builder's vocabulary — so the UI doesn't hardcode triggers/ops/operators."""
     trigger_types: list[str] = []        # event | manual (schedule/webhook/chat/mcp/… as they land)
-    triggers: list[str] = []             # event names, for trigger_type="event"
+    triggers: list[str] = []             # event names, for trigger_type="event" (flat, all groups)
+    trigger_groups: dict[str, list[str]] = {}  # same event names grouped (Entries/Assets/…) for the picker
     condition_ops: list[str] = []        # eq | neq | contains | exists
     # Suggested condition fields per trigger type — so the builder offers the right fields and can't
     # silently pair an entry.* condition with a trigger that has no entry.

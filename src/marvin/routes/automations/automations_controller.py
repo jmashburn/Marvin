@@ -86,9 +86,9 @@ class AutomationsController(BaseUserController):
         from marvin.services.automation.actions import available_kinds
         from marvin.services.automation.matcher import _OPS
         from marvin.services.automation.runner import AUTOMATION_SOURCE
-        from marvin.services.event_bus_service.event_bus_listener import AutomationReactionListener
+        from marvin.services.automation.triggers import TRIGGER_EVENT_GROUPS, TRIGGER_EVENT_NAMES
 
-        triggers = [t.name for t in AutomationReactionListener._TRIGGERS]
+        triggers = list(TRIGGER_EVENT_NAMES)
 
         # AI operations are available only when AI is enabled AND the automation source isn't disabled.
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
@@ -154,6 +154,7 @@ class AutomationsController(BaseUserController):
         return AutomationOptions(
             trigger_types=["event", "manual", "schedule", "chained", "on_error", "incoming_webhook", "mcp"],
             triggers=triggers,
+            trigger_groups=TRIGGER_EVENT_GROUPS,
             condition_ops=list(_OPS),
             condition_fields=condition_fields,
             action_kinds=available_kinds(),

@@ -477,6 +477,67 @@ class TestValidateDefinition:
         assert issues == []
 
 
+# ── Generalized triggers: any curated event, flattened $event.* ───────────────
+class TestGeneralizedTriggers:
+    def test_listener_reacts_to_non_entry_families(self):
+        listener = AutomationReactionListener(group_id=uuid4())
+        for et in (EventTypes.asset_uploaded, EventTypes.resource_created, EventTypes.form_published,
+                   EventTypes.collection_updated, EventTypes.entry_type_created):
+            ev = SimpleNamespace(event_type=et, reaction_depth=0)
+            assert listener.get_subscribers(ev) == ["automation"]
+
+    def test_listener_ignores_internal_noise(self):
+        listener = AutomationReactionListener(group_id=uuid4())
+        for et in (EventTypes.ai_operation_executed, EventTypes.ai_embeddings_reindexed,
+                   EventTypes.scheduled_task_completed, EventTypes.webhook_task):
+            ev = SimpleNamespace(event_type=et, reaction_depth=0)
+            assert listener.get_subscribers(ev) == []
+
+    def test_listener_flattens_document_data_into_event(self, monkeypatch):
+        import contextlib
+
+        from marvin.services.event_bus_service.event_types import (
+            Event, EventAssetData, EventBusMessage, EventOperation, EventTypes as ET,
+        )
+
+        captured = {}
+
+        def _fake_run(session, group_id, event_ctx, **kw):
+            captured.update(event_ctx)
+            return 0
+
+        monkeypatch.setattr("marvin.services.automation.engine.run_automations_for_event", _fake_run)
+        listener = AutomationReactionListener(group_id=uuid4())
+        monkeypatch.setattr(listener, "ensure_session", lambda: contextlib.nullcontext(None))
+
+        dd = EventAssetData(operation=EventOperation.info, asset_id=uuid4(), slug="hero", name="Hero",
+                            mime_type="image/png", asset_type="image", storage_key="k",
+                            workspace_id=uuid4())
+        ev = Event(message=EventBusMessage.from_type(ET.asset_uploaded), event_type=ET.asset_uploaded,
+                   integration_id="test", document_data=dd)
+        listener.publish_to_subscribers(ev, ["automation"])
+        # $event.asset_type is reachable → an asset trigger can condition on it
+        assert captured.get("asset_type") == "image"
+        assert captured.get("mime_type") == "image/png"
+        assert captured.get("event_type") == "asset_uploaded"
+
+    def test_condition_on_flattened_field_matches(self):
+        auto = _automation(trigger="asset_uploaded",
+                           conditions=[{"field": "event.asset_type", "op": "eq", "value": "image"}],
+                           actions=[{"kind": "emit_event", "event": "noted"}])
+        runner = _recording_runner()
+        ctx = {"event_type": "asset_uploaded", "asset_type": "image", "user_id": None}
+        assert engine.run_automations_for_event(_FakeSession([auto]), "G", ctx, run_action=runner) == 1
+
+    def test_curated_catalog_excludes_noise(self):
+        from marvin.services.automation.triggers import TRIGGER_EVENT_NAMES_SET
+        assert "asset_uploaded" in TRIGGER_EVENT_NAMES_SET
+        assert "entry_published" in TRIGGER_EVENT_NAMES_SET
+        for noise in ("ai_operation_executed", "ai_embeddings_reindexed", "webhook_task",
+                      "scheduled_task_completed", "automation_ran"):
+            assert noise not in TRIGGER_EVENT_NAMES_SET
+
+
 # ── Entry actions (publish/unpublish/archive/restore) ─────────────────────────
 class TestEntryAction:
     def _spy_service(self, monkeypatch):

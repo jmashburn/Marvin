@@ -996,18 +996,8 @@ class AutomationReactionListener(EventListenerBase):
     refuse to react once depth reaches `MAX_REACTION_DEPTH`, so data-defined chains stay finite.
     """
 
-    # Events that can trigger an event-type automation (the automation self-filters by its exact
-    # trigger.event). Entry lifecycle for now; asset/form/resource families can join with their own
-    # context mapping later.
-    _TRIGGERS = (
-        EventTypes.entry_created,
-        EventTypes.entry_updated,
-        EventTypes.entry_published,
-        EventTypes.entry_deleted,
-        EventTypes.incoming_webhook,
-    )
-    # Automation lifecycle events drive the chained / on-error trigger types.
-    _AUTOMATION_EVENTS = (EventTypes.automation_ran, EventTypes.automation_failed)
+    # Automation lifecycle events drive the chained / on-error trigger types (not the event dropdown).
+    _AUTOMATION_EVENT_NAMES = ("automation_ran", "automation_failed")
 
     def __init__(self, group_id: UUID4) -> None:
         from .publisher import ConsolePublisher  # We act on the event; we don't publish through it.
@@ -1016,18 +1006,35 @@ class AutomationReactionListener(EventListenerBase):
 
     def get_subscribers(self, event: Event) -> list[str]:
         from marvin.services.automation.engine import MAX_REACTION_DEPTH
+        from marvin.services.automation.triggers import TRIGGER_EVENT_NAMES_SET
 
         if getattr(event, "reaction_depth", 0) >= MAX_REACTION_DEPTH:
             return []  # loop-guard: a chain has gone deep enough — stop reacting
-        if event.event_type in self._TRIGGERS or event.event_type in self._AUTOMATION_EVENTS:
+        name = event.event_type.name
+        if (name in TRIGGER_EVENT_NAMES_SET or name == "incoming_webhook"
+                or name in self._AUTOMATION_EVENT_NAMES):
             return ["automation"]
         return []
 
     def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        from fastapi.encoders import jsonable_encoder
+
         dd = event.document_data
+        # Flatten the event's document_data into the match context so `$event.<field>` works for ANY
+        # event family (asset_type, resource_type, form_name, …) — not just entries. snake_case field
+        # names (model_dump default) match how conditions are written. The curated explicit keys below
+        # override, so they can't be shadowed by a document_data field of the same name.
+        dd_fields: dict = {}
+        if dd is not None:
+            try:
+                dd_fields = jsonable_encoder(dd, by_alias=False)
+            except Exception:
+                dd_fields = {}
+
         entry_id = getattr(dd, "entry_id", None) or event.entity_id
         automation_id = getattr(dd, "automation_id", None)
         event_ctx = {
+            **dd_fields,
             "event_type": event.event_type.name,
             "entry_id": entry_id,
             "automation_id": str(automation_id) if automation_id else None,
