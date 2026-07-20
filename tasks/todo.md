@@ -773,9 +773,12 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
 - [x] **T2. `entry.tags` association** returning tag names (association_proxy over `secondary=entry_tags`,
       like `entries.py:63-106`) — this is what makes smart collections work. Verify a tag smart-rule
       matches with no matcher change.
-- [ ] **T3. Tag CRUD + attach API** — copy the Collections controller/repo/schema pattern:
-      `GET/POST/PATCH/DELETE /api/tags`, `find-or-create` on attach, `POST/DELETE /entries/{id}/tags/{tag}`,
-      and `tag_ids` accepted on entry create/update (beside `collection_ids`/`asset_ids`).
+- [x] **T3. Tag CRUD + attach API** ✅ (2026-07-20) — `TagsRepository` (find-or-create by slug, stable
+      slug on rename), `TagsController` at `/api/platform/tags`: `GET/POST/PATCH/DELETE` + attach/detach
+      `POST|DELETE /tags/{tag_id}/entries/{entry_id}` (idempotent, resyncs tag-based smart collections).
+      `tag_ids` on `EntryCreate`/`EntryUpdate` → `_attach_tags`/`_replace_tags` (replace semantics, empty
+      clears). Registered in schemas/repos/factory __init__s + platform router. 4 DB-backed repo tests;
+      230 pass. Note: `POST /tags` is find-or-create so the chip UI resolves a typed name → id in one call.
 - [ ] **T4. Expose tags where they must be wired explicitly** (nothing but `EntryRead` auto-propagates):
       `EntryRead` (auto — verify) · publish `Published*` schemas + builders (`publishing_controller.py`) ·
       MCP `builtins.py` `get_entry`/`find_entries` handlers · MarvinMCP `serializeEntry` pick-list ·

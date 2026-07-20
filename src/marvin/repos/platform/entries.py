@@ -7,7 +7,7 @@ from pydantic import UUID4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from marvin.db.models.platform import Entries, EntryTypes, EntryCollections, EntryAssets, EntryResources
+from marvin.db.models.platform import Entries, EntryTypes, EntryCollections, EntryAssets, EntryResources, EntryTags
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryRead
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
@@ -161,6 +161,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         resource_ids = data_dict.pop("resource_ids", None)
         asset_attachments = data_dict.pop("asset_attachments", None)
         resource_attachments = data_dict.pop("resource_attachments", None)
+        tag_ids = data_dict.pop("tag_ids", None)
 
         new_entry = self.model(session=self.session, **data_dict)
         self.session.add(new_entry)
@@ -178,6 +179,8 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             self._attach_resource_attachments(new_entry.id, resource_attachments)
         elif resource_ids:
             self._attach_resources(new_entry.id, resource_ids)
+        if tag_ids:
+            self._attach_tags(new_entry.id, tag_ids)
 
         self.session.commit()
 
@@ -251,6 +254,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
         resource_ids = data_dict.pop("resource_ids", None)
         asset_attachments = data_dict.pop("asset_attachments", None)
         resource_attachments = data_dict.pop("resource_attachments", None)
+        tag_ids = data_dict.pop("tag_ids", None)
 
         # Update the entry
         entry = super().update(match_value, data_dict, match_key=match_key)
@@ -275,6 +279,9 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             has_rel_changes = True
         elif resource_ids is not None:
             self._replace_resources(entry.id, resource_ids)
+            has_rel_changes = True
+        if tag_ids is not None:
+            self._replace_tags(entry.id, tag_ids)
             has_rel_changes = True
 
         if has_rel_changes:
@@ -359,6 +366,25 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             junction = EntryResources(entry_id=entry_id, resource_id=resource_id, position=position)
             self.session.add(junction)
         self.session.flush()
+
+    def _attach_tags(self, entry_id: UUID4, tag_ids: list[UUID4]) -> None:
+        """Attach tags to an entry, skipping any already present (idempotent)."""
+        existing = {
+            row.tag_id
+            for row in self.session.query(EntryTags.tag_id).filter(EntryTags.entry_id == entry_id).all()
+        }
+        for tag_id in tag_ids:
+            if tag_id in existing:
+                continue
+            existing.add(tag_id)
+            self.session.add(EntryTags(entry_id=entry_id, tag_id=tag_id))
+        self.session.flush()
+
+    def _replace_tags(self, entry_id: UUID4, tag_ids: list[UUID4]) -> None:
+        """Replace all tags on an entry (empty list clears them)."""
+        self.session.query(EntryTags).filter(EntryTags.entry_id == entry_id).delete()
+        if tag_ids:
+            self._attach_tags(entry_id, tag_ids)
 
     def _replace_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:
         """Replace all collections for an entry."""

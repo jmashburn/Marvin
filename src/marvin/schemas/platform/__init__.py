@@ -56,6 +56,12 @@ from .scheduled_tasks import (
     ScheduledTaskSummary,
     ScheduledTaskUpdate,
 )
+from .tags import (
+    TagCreate,
+    TagRead,
+    TagSummary,
+    TagUpdate,
+)
 
 # isort: split
 # CODE_GEN_ID: PLATFORM_SCHEMA_IMPORTS
@@ -105,6 +111,10 @@ __all__ = [
     "ScheduledTaskRead",
     "ScheduledTaskSummary",
     "ScheduledTaskUpdate",
+    "TagCreate",
+    "TagRead",
+    "TagSummary",
+    "TagUpdate",
     # CODE_GEN_ID: PLATFORM_SCHEMA_ALL
     # END: PLATFORM_SCHEMA_ALL
     # Legacy aliases for backward compatibility

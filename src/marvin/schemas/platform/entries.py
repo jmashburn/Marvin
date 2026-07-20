@@ -75,6 +75,8 @@ class EntryCreate(_MarvinModel):
     resource_ids: list[UUID4] | None = None
     asset_attachments: list[AssetAttachment] | None = None
     resource_attachments: list[ResourceAttachment] | None = None
+    tag_ids: list[UUID4] | None = None
+    """Existing tag IDs to apply to this entry (resolve typed names via POST /tags first)."""
 
     @field_validator("status")
     @classmethod
@@ -132,6 +134,8 @@ class EntryUpdate(_MarvinModel):
     resource_attachments: list[ResourceAttachment] | None = Field(
         default=None, validation_alias=AliasChoices("resource_attachments", "resourceAttachments")
     )
+    tag_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("tag_ids", "tagIds"))
+    """Existing tag IDs to replace this entry's tags (resolve typed names via POST /tags first)."""
 
     @field_validator("status")
     @classmethod

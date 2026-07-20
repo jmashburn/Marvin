@@ -29,6 +29,7 @@ from . import (
     resources_controller,
     scheduled_tasks_controller,
     stats_controller,
+    tags_controller,
     workspace_controller,
     workspace_members_controller,
 )
@@ -38,6 +39,7 @@ router = UserAPIRouter()
 router.include_router(entry_types_controller.router, tags=["Platform: Entry Types"])
 router.include_router(entries_controller.router, tags=["Platform: Entries"])
 router.include_router(collections_controller.router, tags=["Platform: Collections"])
+router.include_router(tags_controller.router, tags=["Platform: Tags"])
 router.include_router(api_clients_controller.router, tags=["Platform: API Clients"])
 router.include_router(resources_controller.router, tags=["Platform: Resources"])
 router.include_router(assets_controller.router, tags=["Platform: Assets"])

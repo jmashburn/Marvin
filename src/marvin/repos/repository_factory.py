@@ -74,6 +74,7 @@ from .platform import (
     ResourcesRepository,
     ScheduledTaskExecutionLogRepository,
     ScheduledTasksRepository,
+    TagsRepository,
 )
 from .repository_generic import GroupRepositoryGeneric, RepositoryGeneric  # Base generic repositories
 from .users import RepositoryUsers  # Specialized user repository
@@ -302,6 +303,11 @@ class AllRepositories:
     def collections(self) -> CollectionsRepository:
         """Provides access to workspace-scoped collection records."""
         return CollectionsRepository(self.session, self.group_id)
+
+    @cached_property
+    def tags(self) -> TagsRepository:
+        """Provides access to the workspace's shared tag vocabulary."""
+        return TagsRepository(self.session, self.group_id)
 
     @cached_property
     def api_clients(self) -> APIClientsRepository:
