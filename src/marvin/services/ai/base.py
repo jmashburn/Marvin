@@ -85,10 +85,20 @@ class AIProvider(ABC):
     supports_structured_output: bool = False
     supports_embeddings: bool = False
     supports_tool_calls: bool = False
+    # Can this provider download models on demand (e.g. Ollama's /api/pull)? Hosted APIs can't.
+    supports_model_pull: bool = False
 
     def embed(self, texts: list[str], model: str) -> list[list[float]]:
         """Return one embedding vector per input text. Providers with embeddings override."""
         raise NotImplementedError(f"{self.provider_type} does not support embeddings")
+
+    def pull_model(self, name: str, on_progress=None) -> None:
+        """Download a model into the provider, reporting progress.
+
+        `on_progress` is called with a dict ``{status, completed, total}`` per update. Only local
+        providers that host their own weights (Ollama) override this.
+        """
+        raise NotImplementedError(f"{self.provider_type} does not support pulling models")
 
     def complete_with_tools(
         self,

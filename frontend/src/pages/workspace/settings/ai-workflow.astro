@@ -132,6 +132,25 @@ const modCfg = s.moderationConfig ?? {};
             <input type="text" name="model" class="input" value={s.model ?? ""} placeholder="e.g. gpt-4o, claude-sonnet-5" />
           </label>
         </div>
+
+        <!-- Ollama-only: what's installed locally + pull new models on demand -->
+        <div class="ollama-models" id="ollama-models" hidden={s.provider !== "ollama"}>
+          <div class="ollama-head">
+            <span class="label">Ollama model library</span>
+            <button type="button" class="link-btn" id="ollama-refresh">Refresh</button>
+          </div>
+          <div class="installed-list" id="installed-list">
+            <span class="hint">Loading installed models…</span>
+          </div>
+          <div class="pull-row">
+            <input type="text" class="input" id="pull-name" placeholder="Pull a model, e.g. qwen3-coder, nomic-embed-text" />
+            <button type="button" class="button secondary" id="pull-btn">Pull</button>
+          </div>
+          <div class="pull-progress" id="pull-progress" hidden>
+            <div class="pull-bar"><div class="pull-bar-fill" id="pull-bar-fill"></div></div>
+            <span class="hint" id="pull-status"></span>
+          </div>
+        </div>
         <label class="form-field">
           <span class="label">Secret Reference</span>
           <select name="secret_ref" class="input">
@@ -333,6 +352,95 @@ const modCfg = s.moderationConfig ?? {};
 
   modeInputs?.forEach(inp => inp.addEventListener('change', syncMode));
   syncMode();
+
+  // ── Ollama model library: show installed models + pull new ones ────────────
+  const providerSelect = document.getElementById('provider-select') as HTMLSelectElement | null;
+  const ollamaBlock = document.getElementById('ollama-models');
+  const installedList = document.getElementById('installed-list');
+  const pullName = document.getElementById('pull-name') as HTMLInputElement | null;
+  const pullBtn = document.getElementById('pull-btn') as HTMLButtonElement | null;
+  const pullProgress = document.getElementById('pull-progress');
+  const pullBarFill = document.getElementById('pull-bar-fill');
+  const pullStatus = document.getElementById('pull-status');
+  let installedLoaded = false;
+
+  function isOllama() { return providerSelect?.value === 'ollama'; }
+
+  function syncOllamaVisibility() {
+    if (!ollamaBlock) return;
+    (ollamaBlock as HTMLElement).hidden = !isOllama();
+    if (isOllama() && !installedLoaded) loadInstalled();
+  }
+
+  async function loadInstalled() {
+    if (!installedList) return;
+    installedLoaded = true;
+    installedList.innerHTML = '<span class="hint">Loading installed models…</span>';
+    try {
+      const res = await createSdkClient().ai.models.installed();
+      const models = res.models ?? [];
+      if (!models.length) {
+        installedList.innerHTML = '<span class="hint">No models installed yet — pull one below.</span>';
+        return;
+      }
+      installedList.innerHTML = '';
+      for (const m of models) {
+        const chip = document.createElement('span');
+        chip.className = 'model-chip';
+        chip.textContent = m;
+        installedList.appendChild(chip);
+      }
+    } catch (err: any) {
+      installedList.innerHTML = `<span class="hint error">Couldn't reach the provider: ${err?.message ?? err}</span>`;
+    }
+  }
+
+  async function pollPull(jobId: string) {
+    try {
+      const s = await createSdkClient().ai.models.pullStatus(jobId);
+      if (pullBarFill) (pullBarFill as HTMLElement).style.width = `${s.percent}%`;
+      if (pullStatus) pullStatus.textContent = s.status === 'error'
+        ? `Failed: ${s.error ?? 'unknown error'}`
+        : `${s.detail}${s.total ? ` — ${s.percent}%` : ''}`;
+      if (s.done) {
+        pullBtn && (pullBtn.disabled = false);
+        if (s.status === 'success') {
+          if (pullStatus) pullStatus.textContent = `Installed ${s.name}.`;
+          installedLoaded = false;
+          loadInstalled();
+          if (pullName) pullName.value = '';
+          setTimeout(() => { if (pullProgress) (pullProgress as HTMLElement).hidden = true; }, 2500);
+        }
+        return;
+      }
+      setTimeout(() => pollPull(jobId), 900);
+    } catch (err: any) {
+      pullBtn && (pullBtn.disabled = false);
+      if (pullStatus) pullStatus.textContent = `Error: ${err?.message ?? err}`;
+    }
+  }
+
+  async function startPull() {
+    const name = pullName?.value.trim();
+    if (!name) { pullName?.focus(); return; }
+    if (pullBtn) pullBtn.disabled = true;
+    if (pullProgress) (pullProgress as HTMLElement).hidden = false;
+    if (pullBarFill) (pullBarFill as HTMLElement).style.width = '0%';
+    if (pullStatus) { pullStatus.textContent = 'Starting…'; pullStatus.className = 'hint'; }
+    try {
+      const job = await createSdkClient().ai.models.pull({ name });
+      pollPull(job.id);
+    } catch (err: any) {
+      if (pullBtn) pullBtn.disabled = false;
+      if (pullStatus) { pullStatus.textContent = `Error: ${err?.message ?? err}`; pullStatus.className = 'hint error'; }
+    }
+  }
+
+  providerSelect?.addEventListener('change', syncOllamaVisibility);
+  pullBtn?.addEventListener('click', startPull);
+  pullName?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); startPull(); } });
+  document.getElementById('ollama-refresh')?.addEventListener('click', () => { installedLoaded = false; loadInstalled(); });
+  syncOllamaVisibility();
 
   // Radio card selected style
   form?.querySelectorAll('.radio-group').forEach(group => {
@@ -581,6 +689,40 @@ const modCfg = s.moderationConfig ?? {};
   .form-field { display: grid; gap: 8px; }
   .label { font-size: 13px; font-weight: 500; }
   .hint { font-size: 12px; color: var(--muted); }
+  .hint.error { color: var(--color-error, #c0392b); }
+
+  /* Ollama model library */
+  .ollama-models {
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .ollama-models[hidden] { display: none; }
+  .ollama-head { display: flex; align-items: center; justify-content: space-between; }
+  .link-btn {
+    background: none; border: none; padding: 0; cursor: pointer;
+    color: var(--accent); font-size: 12px; font-weight: 600;
+  }
+  .installed-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 22px; align-items: center; }
+  /* Chips + status text are created in JS, so they lack Astro's scope attribute — style via :global(). */
+  .installed-list :global(.model-chip) {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    background: rgba(79,156,132,0.10); border: 1px solid var(--line);
+    font-size: 12px; font-family: var(--mono, monospace); color: var(--ink);
+  }
+  .installed-list :global(.hint) { font-size: 12px; color: var(--muted); }
+  .installed-list :global(.hint.error) { color: var(--color-error, #c0392b); }
+  .pull-row { display: flex; gap: 8px; }
+  .pull-row .input { flex: 1; }
+  .pull-progress { display: flex; flex-direction: column; gap: 6px; }
+  .pull-progress[hidden] { display: none; }
+  .pull-bar { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .pull-bar-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.3s ease; }
 
   .input {
     width: 100%;

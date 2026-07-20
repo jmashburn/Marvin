@@ -24,9 +24,18 @@ class OllamaProvider(AIProvider):
     # Provider CAN pass tools to /api/chat; whether a call actually yields tool_calls depends on
     # the loaded model (llama3.1+, qwen2.5, …). The agent loop still gates on model support.
     supports_tool_calls = True
+    # Ollama can download models on demand via /api/pull.
+    supports_model_pull = True
 
     def __init__(self, base_url: str = "http://localhost:11434", api_key: str | None = None) -> None:
-        self._base_url = base_url.rstrip("/")
+        # Ollama's REST API lives at {host}/api/*. We append "/api/..." to the base ourselves, so the
+        # base must be the host root. Tolerate a base that already includes a trailing "/api" (a
+        # common misconfig, e.g. OLLAMA_BASE_URL=http://host:11434/api) instead of doubling it into
+        # ".../api/api/tags".
+        base = base_url.rstrip("/")
+        if base.endswith("/api"):
+            base = base[: -len("/api")]
+        self._base_url = base
         # api_key unused for local Ollama but kept for interface consistency
 
     def _to_api_messages(self, messages: list[Message]) -> list[dict]:
@@ -199,6 +208,29 @@ class OllamaProvider(AIProvider):
         resp = httpx.get(f"{self._base_url}/api/tags", timeout=10)
         resp.raise_for_status()
         return [m["name"] for m in resp.json().get("models", [])]
+
+    def pull_model(self, name: str, on_progress=None) -> None:
+        """Download `name` via Ollama's streaming /api/pull, forwarding progress line by line.
+
+        Ollama streams NDJSON: `{"status": "...", "completed": N, "total": M}` while pulling layers,
+        ending with `{"status": "success"}`. A `{"error": "..."}` line means the pull failed
+        (e.g. no such model in the registry) — we raise so the caller marks the job failed.
+        """
+        with httpx.stream(
+            "POST", f"{self._base_url}/api/pull", json={"model": name, "stream": True}, timeout=None
+        ) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                try:
+                    update = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if update.get("error"):
+                    raise RuntimeError(update["error"])
+                if on_progress:
+                    on_progress(update)
 
     def test_connection(self) -> tuple[bool, str]:
         try:
