@@ -98,6 +98,17 @@ class ImproveWritingOperation(AIOperation):
         "type": "object",
         "properties": {
             "tone": {"type": "string", "description": "Desired tone override (e.g. formal, casual)"},
+            "text": {
+                "type": "string",
+                "description": (
+                    "The prose to improve. Strongly preferred: without it this falls back to the "
+                    "entry's serialized data_json, which is a structured blob, not prose."
+                ),
+            },
+            "field": {
+                "type": "string",
+                "description": "Label of the field `text` came from — echoed back so callers can route the result.",
+            },
         },
     }
     output_schema = {
@@ -111,7 +122,12 @@ class ImproveWritingOperation(AIOperation):
 
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
         tone = input.get("tone") or ctx.variables.get("AI_TONE", "professional")
-        content = ctx.entry.get("content", "") if ctx.entry else ""
+        # Prefer caller-supplied prose. ctx.entry["content"] is str(data_json) — a structured
+        # blob — so improving it produces text with nowhere sensible to go. The fallback is kept
+        # only so existing API/MCP callers don't break.
+        content = (input.get("text") or "").strip()
+        if not content:
+            content = ctx.entry.get("content", "") if ctx.entry else ""
         return [
             Message(role="system", content=(
                 f"You are a writing assistant for {ctx.workspace_name or 'this workspace'}. "

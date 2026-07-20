@@ -63,8 +63,12 @@ class AIOperation(ABC):
     slug: str
     name: str
     description: str
-    input_schema: dict = field(default_factory=dict)
-    output_schema: dict = field(default_factory=dict)
+    # NOTE: plain class-level defaults, NOT dataclasses.field() — AIOperation is a plain ABC, so
+    # field(default_factory=...) would never resolve to {} here; it would leave a truthy Field
+    # object on every subclass that doesn't override it (breaking `getattr(op, "writeback") or {}`).
+    # Matches the existing `entity_types: list[str] = []` convention. Treat these as read-only.
+    input_schema: dict = {}
+    output_schema: dict = {}
     min_role: int = ROLE_AUTHOR
     entity_types: list[str] = []   # which entity types this operation supports
     requires_vision: bool = False
@@ -75,7 +79,7 @@ class AIOperation(ABC):
     # Write-back field map for entries: {output_field: entry_target}. entry_target is a
     # top-level column ("summary"/"title"/"description") or a "data_json.<key>" /
     # "metadata_json.<key>" path. Empty → this op only proposes (never applies).
-    writeback: dict = field(default_factory=dict)
+    writeback: dict = {}
 
     @abstractmethod
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:

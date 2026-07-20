@@ -41,7 +41,12 @@ const isImage = (asset as any)?.mimeType?.startsWith('image/') ?? false;
 const showAiPanel = aiEnabled && isImage;
 ---
 
-<AppLayout title={asset ? asset.name : "Edit Asset"}>
+<AppLayout
+  title={asset ? asset.name : "Edit Asset"}
+  entityType="asset"
+  entityId={id}
+  entityLabel={asset?.name}
+>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading asset:</strong> {error}</p>

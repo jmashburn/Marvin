@@ -65,7 +65,9 @@ class ContextBuilder:
         from marvin.db.models.platform.entries import Entries
         from marvin.db.models.platform.entry_types import EntryTypes
         entry = self._session.get(Entries, entry_id)
-        if not entry:
+        # Scope to the caller's workspace, exactly as with_asset/with_resource do. Without this
+        # a caller-supplied UUID from another workspace would be loaded into the AI context.
+        if not entry or entry.group_id != self._group_id:
             return self
         entry_type = self._session.get(EntryTypes, entry.entry_type_id) if entry.entry_type_id else None
         self._ctx.entry = {

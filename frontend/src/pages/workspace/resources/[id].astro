@@ -21,7 +21,12 @@ if (!id) {
 }
 ---
 
-<AppLayout title={resource ? resource.name : "Edit Resource"}>
+<AppLayout
+  title={resource ? resource.name : "Edit Resource"}
+  entityType="resource"
+  entityId={id}
+  entityLabel={resource?.name}
+>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading resource:</strong> {error}</p>

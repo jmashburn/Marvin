@@ -9,9 +9,28 @@ import { createSdkClient } from "@/lib/sdk";
 interface Props {
   title: string;
   eyebrow?: string;
+  /**
+   * Optional page grounding for the Marvin bubble — what entity this page is rendering.
+   * Detail pages declare it; it's stamped onto <body> as data-entity-* and read back by
+   * @/lib/marvin/context. Grounding only: it does not widen permissions.
+   */
+  /**
+   * Only declare a type the agent can actually resolve with a tool (get_entry, get_asset,
+   * get_resource, get_collection, get_entry_type). Grounding a page whose entity the agent
+   * cannot fetch invites hallucination rather than preventing it.
+   */
+  entityType?: "entry" | "asset" | "resource" | "collection" | "entry_type";
+  entityId?: string;
+  entityLabel?: string;
 }
 
-const { title, eyebrow = "Marvin Platform" } = Astro.props;
+const {
+  title,
+  eyebrow = "Marvin Platform",
+  entityType,
+  entityId,
+  entityLabel,
+} = Astro.props;
 const path = Astro.url.pathname;
 
 // Check if user is admin and get platform role
@@ -101,7 +120,11 @@ function isActive(itemPath: string, currentPath: string): boolean {
     <meta name="description" content="Marvin platform admin frontend" />
     <title>{title} | Marvin</title>
   </head>
-  <body>
+  <body
+    data-entity-type={entityType}
+    data-entity-id={entityId}
+    data-entity-label={entityLabel}
+  >
     <div class="app-shell">
       <aside class="sidebar">
         <div class="sidebar-header">

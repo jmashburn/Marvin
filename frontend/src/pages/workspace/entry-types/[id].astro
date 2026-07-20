@@ -30,7 +30,12 @@ const recipe = (entryType?.recipeJson ?? {}) as Record<string, unknown>;
 const recipeStr = Object.keys(recipe).length ? JSON.stringify(recipe, null, 2) : '';
 ---
 
-<AppLayout title={entryType ? `Edit ${entryType.name}` : "Edit Entry Type"}>
+<AppLayout
+  title={entryType ? `Edit ${entryType.name}` : "Edit Entry Type"}
+  entityType="entry_type"
+  entityId={id}
+  entityLabel={entryType?.name}
+>
   <Breadcrumb items={[
     { label: "Workspace Settings", href: "/workspace/settings?tab=entry-types" },
     { label: "Entry Types", href: "/workspace/entry-types" },

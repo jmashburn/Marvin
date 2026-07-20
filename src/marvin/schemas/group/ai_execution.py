@@ -25,6 +25,9 @@ class AIExecutionRead(_MarvinModel):
     estimated_cost_usd: float | None = None
     duration_ms: int | None = None
     error_message: str | None = None
+    # Execution metadata — carries `writeback: "applied" | "staged"` so a client can report
+    # honestly whether the entity was changed or a suggestion is waiting for review.
+    metadata_json: dict | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime | None = None
@@ -65,11 +68,23 @@ class AIComposeEntryRequest(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AIAgentTurn(_MarvinModel):
+    """One prior turn of the conversation, replayed to give the agent short-term memory."""
+    role: str                                # "user" | "assistant" (anything else is dropped)
+    content: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AIAgentRequest(_MarvinModel):
     """Run the Marvin agent — an iterative tool-calling loop over Marvin's own capabilities."""
     message: str                             # the user's request / question
     entity_type: str | None = None           # optional grounding: what the caller is looking at
     entity_id: str | None = None             # UUID or slug — resolved server-side
+    # Prior turns, oldest first, EXCLUDING the current message. The client is stateless as far as
+    # the model is concerned — it replays what it has. Bounded server-side (turn count + chars) so
+    # a long transcript can't blow the context window or the token budget.
+    history: list[AIAgentTurn] = []
     model_override: str | None = None
     max_steps: int | None = None             # tool-dispatch budget (server clamps)
     source: str = "agent"                    # invocation surface; gated by workspace policy

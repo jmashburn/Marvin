@@ -53,7 +53,12 @@ function fmtDate(d?: string | null): string {
 }
 ---
 
-<AppLayout title={collection ? collection.name : "Collection"}>
+<AppLayout
+  title={collection ? collection.name : "Collection"}
+  entityType="collection"
+  entityId={id}
+  entityLabel={collection?.name}
+>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading collection:</strong> {error}</p>

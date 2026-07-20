@@ -271,7 +271,13 @@ class AIOperationsController(BaseUserController):
             self.session.commit()
 
             # Write-back: apply or stage the output onto the entity per approval_mode.
-            self._write_back(operation, body.entity_type, entity_id, parsed, execution.id)
+            # Record the outcome — without it a client cannot tell whether the entity was
+            # changed ("applied") or a suggestion is waiting ("staged"), and so cannot report
+            # honestly to the user. Also makes the distinction auditable after the fact.
+            outcome = self._write_back(operation, body.entity_type, entity_id, parsed, execution.id)
+            if outcome:
+                execution.metadata_json = {**(execution.metadata_json or {}), "writeback": outcome}
+                self.session.commit()
 
         except Exception as e:
             execution.status = "failed"
@@ -693,11 +699,38 @@ class AIOperationsController(BaseUserController):
             "anything is published. Be concise."
         )
         if persona_prompt:
-            system += f"\n\nVoice and tone: {persona_prompt}"
+            # Persona governs how the assistant ADDRESSES the user — never the work product.
+            # A review, critique, or piece of suggested copy is an artifact the user acts on; if
+            # the voice colours it, the voice has distorted the substance. Scope it explicitly, or
+            # "review this entry" comes back in character and is useless to act on.
+            system += (
+                f"\n\nVoice and tone: {persona_prompt}"
+                "\nThat voice applies ONLY to how you address the user — greetings, framing, brief "
+                "asides. Work product itself — reviews, critiques, findings, summaries, suggested "
+                "copy — must be written plainly, specifically, and professionally. Never let the "
+                "persona soften, exaggerate, or obscure a finding, and never write generated "
+                "content in that voice unless the user explicitly asks for it."
+            )
+        # Ground the run in what the user is looking at. Prefer a pre-assembled context block
+        # (title/status/fields/attachments) so the agent can answer immediately; fall back to the
+        # bare id hint when we can't assemble one, so it can still fetch the entity itself.
+        context_block = self._agent_context_block(body.entity_type, entity_id)
         user_msg = body.message
-        if body.entity_type and entity_id:
+        if context_block:
+            system += (
+                "\n\n## What the user is currently looking at\n"
+                f"{context_block}\n"
+                "This is a summary, not the whole record — use the tools when you need more "
+                "detail, related content, or anything not shown above. When the user says "
+                '"this"/"it" without naming something, they mean this.'
+            )
+        elif body.entity_type and entity_id:
             user_msg += f"\n\n(Context: the user is currently looking at {body.entity_type} {entity_id}.)"
-        messages = [Message(role="system", content=system), Message(role="user", content=user_msg)]
+        messages = [
+            Message(role="system", content=system),
+            *self._bounded_history(body.history),
+            Message(role="user", content=user_msg),
+        ]
 
         log_inputs, log_outputs = self._logging_policy()
         execution = AIExecutionModel(
@@ -1051,6 +1084,147 @@ class AIOperationsController(BaseUserController):
         name = (settings.assistant_name if settings and settings.assistant_name else None) or "Marvin"
         persona = (settings.persona_prompt if settings and settings.persona_prompt else "") or ""
         return name, persona
+
+    # Caps for replayed conversation history. The client sends what it has; the server decides
+    # what's affordable. Keeps the newest turns — recency is what "do #2" depends on.
+    _HISTORY_MAX_TURNS = 10
+    _HISTORY_MAX_CHARS = 6000
+    _HISTORY_TURN_CHARS = 2000
+
+    def _bounded_history(self, turns) -> "list":
+        """Newest-first trim of prior turns, returned oldest-first as provider Messages.
+
+        Bounded three ways: per-turn length, total characters, and turn count. Anything not a
+        user/assistant turn is dropped — history is a replay of the conversation, not a channel
+        for injecting system instructions.
+        """
+        if not turns:
+            return []
+
+        # Imported locally, as elsewhere in this module — marvin.services.ai.base is not a
+        # module-level import here, so a class-body annotation referencing it would NameError.
+        from marvin.services.ai.base import Message
+
+        out: list = []
+        budget = self._HISTORY_MAX_CHARS
+        for turn in reversed(turns[-self._HISTORY_MAX_TURNS:]):  # newest first while spending budget
+            role = (getattr(turn, "role", "") or "").lower()
+            if role not in ("user", "assistant"):
+                continue
+            content = (getattr(turn, "content", "") or "").strip()
+            if not content:
+                continue
+            if len(content) > self._HISTORY_TURN_CHARS:
+                content = content[: self._HISTORY_TURN_CHARS - 1].rstrip() + "…"
+            if len(content) > budget:
+                break  # older turns beyond the budget are dropped wholesale, not half-quoted
+            budget -= len(content)
+            out.append(Message(role=role, content=content))
+        out.reverse()  # back to chronological order for the model
+        return out
+
+    # Caps for the agent's pre-assembled context block. Grounding should orient the model, not
+    # dominate the context window (or the token budget) — the tools are there for the long tail.
+    _CTX_TEXT_CHARS = 400
+    _CTX_FIELD_CHARS = 1200
+    _CTX_LIST_CAP = 8
+
+    @staticmethod
+    def _ctx_truncate(text: str, limit: int) -> str:
+        text = " ".join(str(text).split())  # collapse whitespace so the block stays compact
+        return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+    def _agent_context_block(self, entity_type: str | None, entity_id) -> str | None:
+        """Pre-assemble what the user is looking at, for the agent's system prompt.
+
+        Without this the agent learns only the entity's UUID and must spend a tool call to
+        discover anything about it — which weaker models often skip, answering from nothing.
+        Bounded on purpose; the agent still has get_entry/get_asset/... for full detail.
+
+        Returns None when there's nothing to assemble (unknown/absent entity), in which case
+        the caller falls back to the plain one-line hint.
+        """
+        if not entity_type or not entity_id:
+            return None
+
+        from marvin.services.ai.context import ContextBuilder
+
+        builder = ContextBuilder(self.session, self.group_id)
+        if entity_type == "entry":
+            builder.with_entry(entity_id).with_assets(entity_id).with_resources(entity_id)
+        elif entity_type == "asset":
+            builder.with_asset(entity_id)
+        elif entity_type == "resource":
+            builder.with_resource(entity_id)
+        else:
+            # collection / entry_type have no ContextBuilder loader yet; the agent's own
+            # get_collection / get_entry_type tools cover them.
+            return None
+
+        try:
+            ctx = builder.build()
+        except Exception as e:  # never let grounding break the run — degrade to the hint
+            self.logger.warning("agent context assembly failed: %s", e)
+            return None
+
+        lines: list[str] = []
+
+        if entity_type == "entry":
+            if not ctx.entry:
+                return None  # not found, or not this workspace's entry
+            e = ctx.entry
+            lines.append(f'The user is looking at the entry "{e.get("title") or "Untitled"}" (id: {entity_id}).')
+            for label, key in (("Type", "entry_type"), ("Status", "status")):
+                if (val := (e.get(key) or "").strip()):
+                    lines.append(f"- {label}: {val}")
+            for label, key in (("Summary", "summary"), ("Description", "description")):
+                if (val := (e.get(key) or "").strip()):
+                    lines.append(f"- {label}: {self._ctx_truncate(val, self._CTX_TEXT_CHARS)}")
+            content = (e.get("content") or "").strip()
+            if content and content not in ("{}", "None"):
+                lines.append(f"- Fields: {self._ctx_truncate(content, self._CTX_FIELD_CHARS)}")
+
+        elif entity_type == "asset":
+            if not ctx.assets:
+                return None
+            a = ctx.assets[0]
+            lines.append(f'The user is looking at the asset "{a.get("name") or "Untitled"}" (id: {entity_id}).')
+            if a.get("mime_type"):
+                lines.append(f"- Type: {a['mime_type']}")
+            if a.get("width") and a.get("height"):
+                lines.append(f"- Dimensions: {a['width']}×{a['height']}")
+
+        elif entity_type == "resource":
+            if not ctx.resources:
+                return None
+            r = ctx.resources[0]
+            lines.append(f'The user is looking at the resource "{r.get("name") or "Untitled"}" (id: {entity_id}).')
+            if r.get("type"):
+                lines.append(f"- Type: {r['type']}")
+            if (desc := (r.get("description") or "").strip()):
+                lines.append(f"- Description: {self._ctx_truncate(desc, self._CTX_TEXT_CHARS)}")
+            if r.get("url"):
+                lines.append(f"- URL: {r['url']}")
+
+        # Attachments only make sense as "what's on this entry"; for a primary asset/resource
+        # the lists above already are the entity itself.
+        if entity_type == "entry":
+            if ctx.assets:
+                shown = ctx.assets[: self._CTX_LIST_CAP]
+                names = ", ".join(f"{a.get('name')} ({a.get('mime_type') or 'unknown'})" for a in shown)
+                more = f" (+{len(ctx.assets) - len(shown)} more)" if len(ctx.assets) > len(shown) else ""
+                lines.append(f"- Attached assets ({len(ctx.assets)}): {names}{more}")
+            else:
+                lines.append("- Attached assets: none")
+            if ctx.resources:
+                shown = ctx.resources[: self._CTX_LIST_CAP]
+                names = ", ".join(f"{r.get('name')} ({r.get('type') or 'untyped'})" for r in shown)
+                more = f" (+{len(ctx.resources) - len(shown)} more)" if len(ctx.resources) > len(shown) else ""
+                lines.append(f"- Linked resources ({len(ctx.resources)}): {names}{more}")
+            else:
+                lines.append("- Linked resources: none")
+
+        return "\n".join(lines)
 
     def _write_back(self, operation, entity_type, entity_id, output_json, execution_id) -> str | None:
         """Apply or stage an operation's output onto an entry, gated by approval_mode.

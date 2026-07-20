@@ -196,7 +196,12 @@ const suggestionFields = suggestion
 const suggestionOp = suggestion?._meta?.operation as string | undefined;
 ---
 
-<AppLayout title={entry ? entry.title : "Edit Entry"}>
+<AppLayout
+  title={entry ? entry.title : "Edit Entry"}
+  entityType="entry"
+  entityId={id}
+  entityLabel={entry?.title}
+>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading entry:</strong> {error}</p>
@@ -210,6 +215,26 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
           <p style="margin:4px 0 0;color:var(--muted);">Update entry details and content</p>
         </div>
         <div style="display:flex;gap:0.75rem;">
+          {aiEditorEnabled && (
+            <div class="ai-menu-wrap">
+              <button type="button" id="ai-menu-btn" class="button secondary"
+                aria-haspopup="menu" aria-expanded="false">✨ AI</button>
+              <div id="ai-menu" class="ai-menu" role="menu" hidden>
+                <button type="button" role="menuitem" class="ai-menu-item" data-ai-action="summary">
+                  Generate summary
+                  <span class="ai-menu-hint">Fills the Summary field for review</span>
+                </button>
+                <button type="button" role="menuitem" class="ai-menu-item" data-ai-action="tags">
+                  Generate tags
+                  <span class="ai-menu-hint">Staged for review, per your approval mode</span>
+                </button>
+                <button type="button" role="menuitem" class="ai-menu-item" data-ai-action="review">
+                  Review &amp; suggest
+                  <span class="ai-menu-hint">Opens Marvin with this entry in context</span>
+                </button>
+              </div>
+            </div>
+          )}
           <button type="button" id="delete-entry-button" class="button secondary">
             Delete
           </button>
@@ -217,6 +242,9 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
         </div>
       </div>
 
+      {/* Always mounted (even when empty) so a staged suggestion can be rendered in place
+          after an AI action, without reloading and discarding unsaved form edits. */}
+      <div id="suggestion-mount">
       {suggestionFields.length > 0 && (
         <div class="suggestion-banner">
           <div class="suggestion-head">
@@ -240,6 +268,7 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
           </div>
         </div>
       )}
+      </div>
 
       <div class="editor-layout">
         <section class="main-editor">
@@ -676,86 +705,27 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
     gap: 1rem;
   }
 
-  /* AI suggestion (write-back) banner */
-  .suggestion-banner {
-    margin: 0 0 1.25rem;
-    padding: 1rem 1.25rem;
-    border: 1px solid var(--accent, #a94d3f);
-    border-left-width: 3px;
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--accent, #a94d3f) 6%, var(--panel));
-    display: grid;
-    gap: 0.75rem;
+  /* Entry-level AI menu */
+  .ai-menu-wrap { position: relative; }
+  .ai-menu {
+    position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
+    min-width: 260px; padding: 4px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+    display: flex; flex-direction: column;
   }
-  .suggestion-head {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
+  .ai-menu[hidden] { display: none; }
+  .ai-menu-item {
+    display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+    padding: 8px 10px; border: none; border-radius: 6px;
+    background: none; color: var(--ink); text-align: left; cursor: pointer;
+    font-size: 0.85rem;
   }
-  .suggestion-title {
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-  .suggestion-op {
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-  .suggestion-op code {
-    font-size: 0.72rem;
-    background: var(--bg);
-    padding: 0.05rem 0.3rem;
-    border-radius: 4px;
-    border: 1px solid var(--line);
-  }
-  .suggestion-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 0.75rem;
-  }
-  .suggestion-field {
-    display: grid;
-    gap: 0.3rem;
-  }
-  .suggestion-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--ink);
-    text-transform: capitalize;
-  }
-  .suggestion-diff {
-    display: grid;
-    gap: 0.2rem;
-  }
-  .diff-row {
-    display: flex;
-    gap: 0.5rem;
-    align-items: baseline;
-    font-size: 0.8rem;
-    line-height: 1.4;
-  }
-  .diff-tag {
-    flex: 0 0 auto;
-    width: 4.5rem;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted);
-  }
-  .diff-current .diff-val {
-    color: var(--muted);
-    text-decoration: line-through;
-    text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent);
-  }
-  .diff-proposed .diff-val {
-    color: var(--ink);
-  }
-  .suggestion-actions {
-    display: flex;
-    gap: 0.5rem;
-    padding-top: 0.25rem;
-  }
+  .ai-menu-item:hover { background: var(--bg); }
+  .ai-menu-hint { font-size: 0.72rem; color: var(--muted); }
+
+  /* AI suggestion banner styles live in src/styles/global.css — the banner is
+     rendered by JS, and Astro drops rules whose selector is entirely :global(). */
 
   .error-banner p {
     margin: 0;
@@ -1502,7 +1472,7 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
   const applySuggestionBtn = document.getElementById('apply-suggestion') as HTMLButtonElement | null;
   const rejectSuggestionBtn = document.getElementById('reject-suggestion') as HTMLButtonElement | null;
   async function suggestionAction(kind: 'apply' | 'reject') {
-    const entryId = window.location.pathname.split('/').pop();
+    const entryId = document.body.dataset.entityId || window.location.pathname.split('/').pop();
     if (!entryId) return;
     applySuggestionBtn?.setAttribute('disabled', 'true');
     rejectSuggestionBtn?.setAttribute('disabled', 'true');
@@ -1531,7 +1501,7 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
   const aiSummaryStatus = document.getElementById('ai-summary-status') as HTMLElement | null;
   if (aiSummaryBtn) {
     aiSummaryBtn.addEventListener('click', async () => {
-      const entryId = window.location.pathname.split('/').pop()!;
+      const entryId = document.body.dataset.entityId || window.location.pathname.split('/').pop()!;
       const original = aiSummaryBtn.textContent;
       aiSummaryBtn.disabled = true;
       aiSummaryBtn.textContent = '…';
@@ -1563,6 +1533,184 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
         aiSummaryBtn.disabled = false;
         aiSummaryBtn.textContent = original;
       }
+    });
+  }
+
+  // ── AI actions: entry-level menu + per-field improve ────────────────────────
+  // Entry id comes from the context the layout stamps on <body>, not from parsing the URL.
+  const aiEntryId = document.body.dataset.entityId || window.location.pathname.split('/').pop() || '';
+  const aiMenuBtn = document.getElementById('ai-menu-btn') as HTMLButtonElement | null;
+  const aiMenu = document.getElementById('ai-menu') as HTMLElement | null;
+
+  function aiToast(msg: string, ok = true) {
+    if (!aiSummaryStatus) return;
+    aiSummaryStatus.textContent = msg;
+    aiSummaryStatus.className = `ai-status ${ok ? 'ok' : 'err'}`;
+    aiSummaryStatus.style.display = 'block';
+  }
+
+  function closeAiMenu() {
+    aiMenu?.setAttribute('hidden', '');
+    aiMenuBtn?.setAttribute('aria-expanded', 'false');
+  }
+  aiMenuBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !aiMenu?.hasAttribute('hidden');
+    if (open) return closeAiMenu();
+    aiMenu?.removeAttribute('hidden');
+    aiMenuBtn.setAttribute('aria-expanded', 'true');
+  });
+  document.addEventListener('click', closeAiMenu);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAiMenu(); });
+
+  /** Re-render the suggestion banner in place. Avoids a reload, which would drop unsaved edits. */
+  function renderSuggestion(entry: any) {
+    const mount = document.getElementById('suggestion-mount');
+    if (!mount) return;
+    const suggestion = entry?.suggestionJson ?? entry?.suggestion_json;
+    const targets = suggestion ? Object.keys(suggestion).filter((k) => k !== '_meta') : [];
+    if (!targets.length) { mount.innerHTML = ''; return; }
+
+    const esc = (s: unknown) => String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const fmt = (v: any) => v == null || v === '' ? '—'
+      : Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : String(v);
+    const current = (t: string) =>
+      t.startsWith('data_json.') ? entry?.dataJson?.[t.slice(10)]
+      : t.startsWith('metadata_json.') ? entry?.metadataJson?.[t.slice(14)]
+      : entry?.[t];
+
+    const rows = targets.map((t) => `
+      <li class="suggestion-field">
+        <span class="suggestion-label">${esc(t.replace(/^(data_json|metadata_json)\./, ''))}</span>
+        <div class="suggestion-diff">
+          <div class="diff-row diff-current"><span class="diff-tag">current</span><span class="diff-val">${esc(fmt(current(t)))}</span></div>
+          <div class="diff-row diff-proposed"><span class="diff-tag">proposed</span><span class="diff-val">${esc(fmt(suggestion[t]))}</span></div>
+        </div>
+      </li>`).join('');
+    const op = suggestion?._meta?.operation;
+
+    mount.innerHTML = `
+      <div class="suggestion-banner">
+        <div class="suggestion-head">
+          <span class="suggestion-title">✨ AI suggested changes</span>
+          ${op ? `<span class="suggestion-op">from <code>${esc(op)}</code></span>` : ''}
+        </div>
+        <ul class="suggestion-list">${rows}</ul>
+        <div class="suggestion-actions">
+          <button type="button" id="apply-suggestion" class="button">Apply changes</button>
+          <button type="button" id="reject-suggestion" class="button secondary">Reject</button>
+        </div>
+      </div>`;
+    // Freshly-created buttons need their handlers bound (the originals are gone).
+    mount.querySelector('#apply-suggestion')?.addEventListener('click', () => suggestionAction('apply'));
+    mount.querySelector('#reject-suggestion')?.addEventListener('click', () => suggestionAction('reject'));
+    mount.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function refreshSuggestionBanner() {
+    try {
+      renderSuggestion(await sdk.entries.get(aiEntryId));
+    } catch {
+      aiToast('Staged, but the banner could not refresh — reload to review.', false);
+    }
+  }
+
+  /** Run an operation against this entry; returns its output plus the write-back outcome. */
+  async function runEntryOp(slug: string, input: Record<string, unknown> = {}) {
+    const exec: any = await sdk.ai.operations.execute(slug, {
+      entityType: 'entry', entityId: aiEntryId, input,
+    });
+    const meta = exec?.metadataJson ?? exec?.metadata_json ?? {};
+    return {
+      out: exec?.outputJson ?? exec?.output_json ?? {},
+      // "applied" | "staged" | undefined — depends on the workspace approval_mode, so the UI
+      // must not assume staging. Under allow-automatic-update the entry is already changed.
+      writeback: meta?.writeback as 'applied' | 'staged' | undefined,
+    };
+  }
+
+  async function aiGenerateTags() {
+    aiToast('Generating tags…');
+    try {
+      let existing: string[] = [];
+      try {
+        const meta = JSON.parse((document.getElementById('metadata_json') as HTMLTextAreaElement)?.value || '{}');
+        if (Array.isArray(meta.tags)) existing = meta.tags;
+      } catch { /* invalid metadata JSON — just don't pass existing tags */ }
+      const { out, writeback } = await runEntryOp('generate-tags', { existing_tags: existing });
+      const tags: string[] = out.tags ?? [];
+      if (!tags.length) return aiToast('No tags returned.', false);
+      await refreshSuggestionBanner();
+      // Report what actually happened — it depends on approval_mode, not on our assumptions.
+      if (writeback === 'applied') {
+        aiToast(`${tags.length} tags applied to this entry (approval mode: automatic): ${tags.join(', ')}`);
+      } else if (writeback === 'staged') {
+        aiToast(`${tags.length} tags staged — review the suggestion above.`);
+      } else {
+        aiToast(`Suggested ${tags.length} tags: ${tags.join(', ')}`);
+      }
+    } catch (err: any) {
+      aiToast(err?.message || 'Tag generation failed', false);
+    }
+  }
+
+  function aiReviewAndSuggest() {
+    // Hand off to the bubble; it already sends this page's entity context + history.
+    document.dispatchEvent(new CustomEvent('marvin:ask', {
+      detail: { text: 'Review this entry and suggest specific improvements.' },
+    }));
+  }
+
+  aiMenu?.querySelectorAll<HTMLButtonElement>('[data-ai-action]').forEach((item) => {
+    item.addEventListener('click', () => {
+      closeAiMenu();
+      const action = item.dataset.aiAction;
+      if (action === 'summary') aiSummaryBtn?.click();
+      else if (action === 'tags') aiGenerateTags();
+      else if (action === 'review') aiReviewAndSuggest();
+    });
+  });
+
+  // Per-field ✨ Improve — attached to prose textareas only. JSON editors and attachment
+  // metadata are structured, not prose; Summary already has its own Generate.
+  if (aiMenuBtn) {
+    const SKIP_CLASS = ['data-json-editor', 'metadata-editor', 'attachment-metadata'];
+    document.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((field) => {
+      if (field.id === 'summary') return;
+      if (SKIP_CLASS.some((c) => field.classList.contains(c))) return;
+
+      const label = document.querySelector<HTMLLabelElement>(`label[for="${field.id}"]`);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ai-mini-btn';
+      btn.textContent = '✨ Improve';
+      btn.title = 'Rewrite this field for clarity, grammar and style';
+      (label?.parentElement?.classList.contains('label-row') ? label.parentElement : label ?? field.parentElement)
+        ?.appendChild(btn);
+
+      btn.addEventListener('click', async () => {
+        const text = field.value.trim();
+        if (!text) return aiToast('Nothing to improve in that field yet.', false);
+        const original = btn.textContent;
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          const { out } = await runEntryOp('improve-writing', {
+            text, field: label?.textContent?.trim() || field.id,
+          });
+          if (out.improved) {
+            field.value = out.improved;
+            const changes: string[] = out.changes ?? [];
+            aiToast(`Rewrote ${label?.textContent?.trim() || field.id}${changes.length ? ` · ${changes.length} changes` : ''}. Review, then Save.`);
+          } else {
+            aiToast('No improvement returned.', false);
+          }
+        } catch (err: any) {
+          aiToast(err?.message || 'Improve failed', false);
+        } finally {
+          btn.disabled = false; btn.textContent = original;
+        }
+      });
     });
   }
 

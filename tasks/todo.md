@@ -3,6 +3,206 @@
 Captured from working sessions. Grouped by effort. (The original AI-settings build plan
 that lived here is shipped — replaced with the live backlog.)
 
+## ▶ ACTIVE PLAN — Context-aware Marvin bubble + broader entry AI actions
+> Implements the **"Per-page context"** bullet of the ★ North star (below, ~L463) using the
+> mechanism it prescribes: pages *declare* a context object, no DOM scraping, route fallback.
+> Grounding only — `min_role` + `invocation_sources` stay the permission wall.
+
+**Goal:** on an entry page you can say "review and suggest" and Marvin knows which entry.
+Then surface the entry AI actions that already exist but have no UI.
+
+**Decisions (confirmed 2026-07-20):** scope = context + read/review actions (no attach/create
+this pass) · agent/operation writes **respect `approval_mode`** and stage into `suggestion_json`
+· conversation memory **is** in scope (single-turn breaks "review and suggest" → "do #2").
+
+**Findings that shaped it:**
+- `AIAgentRequest` **already accepts** `entity_type`/`entity_id` (UUID *or* slug, resolved
+  server-side) — `schemas/group/ai_execution.py:66-76`. The frontend never sends them
+  (`capabilities.ts:129-133` posts only `{message, source}`).
+- Grounding today is cosmetic — one line appended to the user message
+  (`operations_controller.py:697-698`); the model gets a bare UUID and must call `get_entry`.
+- **`ContextBuilder` and the agent loop are entirely disjoint.** Operations get rich
+  pre-assembled `OperationContext`; the agent gets nothing. Bridging them is the real fix.
+- No conversation memory — `/api/ai/agent` builds `[system, user]` fresh every call.
+- `improve-writing` + `generate-tags` are registered and working with **no UI trigger anywhere**;
+  only `generate-summary` is reachable from an entry page.
+- No `data-entity-*` convention exists yet; `entries/[id].astro` parses the id out of
+  `window.location.pathname` ad hoc at lines 1506 and 1531.
+
+### A. Context plumbing (frontend + SDK) — ✅ SHIPPED 2026-07-20 (except A6)
+- [x] A1. `AppLayout.astro` — optional `entityType`/`entityId`/`entityLabel` props → stamp
+      `data-entity-*` on `<body>`. One convention; replaces ad-hoc pathname parsing.
+- [x] A2. Pass from detail pages. **Coverage rule: declare context only where the agent has a
+      tool that can resolve that entity** (`get_entry`, `get_asset`, `get_resource`,
+      `get_collection`, `get_entry_type`). Grounding a page the agent can't fetch invites
+      hallucination instead of preventing it. Declared on all 7 such pages:
+      `entries/[id]`, `assets/[id]`, `assets/[id]/view`, `resources/[id]`, `collections/[id]`,
+      `collections/[id]/edit`, `entry-types/[id]`.
+      **Deliberately NOT declared** (no resolving tool exists): `automation/**`,
+      `scheduled-tasks/[id]`, `settings/email/[id]`, `invites/[token]/email`.
+      **List pages are out of scope by design** — a list is a *scope*, not an entity, and the
+      backend contract requires BOTH `entity_type` and `entity_id`
+      (`if body.entity_type and entity_id`). Expressing "browsing entries filtered by
+      status=needs_review" needs a separate scope field → Phase B design, not a fill-in.
+- [x] A3. New `frontend/src/lib/marvin/context.ts` → `getPageContext()` reads the body dataset,
+      with a route fallback. Also `getActiveContext()` (honours suppression) + `contextLabel()`.
+- [x] A4. `capabilities.ts` agent skill sends `entityType`/`entityId`.
+      **camelCase** — `_MarvinModel` uses `alias_generator=camelize`; snake_case also works via
+      `populate_by_name=True`, but camelCase matches the rest of the frontend.
+- [x] A5. `Marvin.astro` — context chip ("Entry · Chore Coat") + dismiss (×) that suppresses
+      context for the page load. Static markup, so plain scoped styles reach it
+      (see memory [[astro-scoped-styles-vs-dynamic-dom]]).
+- [x] A6. SDK: `AIAgentRequest`/`AIAgentStep`/`AIAgentResult` types + `AIModule.agent()`; bubble
+      moved off raw `fetchApi` onto `runAgent()` in `lib/api/aiBubble.ts` (matches the existing
+      `sendChat`/`askWorkspace` pattern). **`node_modules/@inneropen/marvin-sdk` is an npm link
+      to `/home/jared/code/MarvinSDK`** (despite package.json pinning the `develop` tag), and it
+      resolves through `dist/` — so **`npm run build` in MarvinSDK is required** for changes to be
+      visible here. See memory [[marvin-repo-topology]].
+
+**Verified:** `/workspace/entries/abc-123` renders
+`<body data-entity-type="entry" data-entity-id="abc-123">`; `/workspace/entries` renders a bare
+`<body>` (no context leakage). `astro check` introduces zero new errors — the 4 errors in
+`entries/[id].astro` are pre-existing (confirmed identical against HEAD, offset by the +5 line diff).
+
+⚠️ **Do not use `git stash` in this repo** — commit signing is on, so it triggers GPG/pinentry and
+hangs. Compare against HEAD with `git show HEAD:<file>` instead.
+
+### B. Real grounding (backend) — ✅ SHIPPED 2026-07-20
+- [x] B1. `_agent_context_block()` assembles title / type / status / summary / fields / attached
+      assets + linked resources into the system prompt. Handles entry, asset, resource;
+      collection + entry_type return None and fall back to the bare-id hint (the agent's own
+      `get_collection` / `get_entry_type` cover those).
+- [x] B2. Bounded — 400 chars for summary/description, 1200 for fields, lists capped at 8 with
+      the true total and `(+N more)` still reported. Empty attachment lists say "none" explicitly,
+      so the model can't infer attachments it can't see.
+- [x] B3. Tools stay available; the block says so ("This is a summary, not the whole record").
+      Any failure (unknown type, missing entity, builder exception) degrades to the old hint —
+      grounding can never break a run.
+
+🔐 **Security fix found while doing this:** `ContextBuilder.with_entry` loaded entries with **no
+`group_id` check** — unlike `with_asset`/`with_resource`, which both verify it. A caller-supplied
+UUID from another workspace would have been loaded into the AI context. This affected the
+**existing operations path** too, not just the agent. Fixed + regression test both directions.
+
+🐞 **Latent bug fixed:** `AIOperation` is a plain ABC but declared `input_schema`/`output_schema`/
+`writeback` with `dataclasses.field(default_factory=dict)`. Outside a dataclass that never
+resolves to `{}` — it leaves a **truthy `Field` object**, so `getattr(op, "writeback") or {}` kept
+it and `.items()` raised, swallowed by `_write_back`'s best-effort handler. Every `improve-writing`
+run on an entry was silently taking an exception path. Now plain `= {}`, matching the existing
+`entity_types: list[str] = []` convention on the same class.
+
+**Verified:** 161 backend tests pass (+15 context/bounding/scoping, +8 operation-prompt).
+
+### C. Conversation memory — ✅ SHIPPED 2026-07-20
+- [x] C1. `AIAgentTurn` + `AIAgentRequest.history`; `_bounded_history()` trims newest-first by
+      **three** limits — turns (10), total chars (6000), per-turn chars (2000) — and **drops any
+      role that isn't user/assistant** (history is a replay, not a system-instruction channel).
+- [x] C2. Messages are now `[system, *history, user]`.
+- [x] C3. Bubble publishes a plain-text snapshot via new `lib/marvin/history.ts`. Snapshot is
+      taken **before** the new user turn is appended, so `history` is exactly "what came before"
+      — no off-by-one duplicating the current question. `MarvinResult.text` carries the model's
+      plain answer (HTML is useless as memory); falls back to `node.textContent`.
+      "Clear" now clears memory too, not just the visible log. SDK gained `AIAgentTurn`.
+
+**Verified:** 153 backend tests pass (+7 history tests: chronological order, newest-kept,
+role filtering, blank-drop, per-turn truncation, total-budget trim). `astro check` unchanged at
+106 pre-existing errors, none in touched files.
+
+⚠️ **Gotcha hit:** `marvin.services.ai.base` is NOT a module-level import in
+`operations_controller.py` — it's imported locally per-method. A class-body annotation
+(`-> list[Message]`) therefore NameErrors at import time and takes the whole app down. Keep
+`Message` imports local in that module.
+
+### D. Entry AI action menu
+
+**Blocker found while planning (2026-07-20): `improve-writing` cannot be wired as-is.**
+`build_prompt` reads `ctx.entry["content"]`, which `ContextBuilder.with_entry` sets to
+`str(entry.data_json or "")` — a **stringified dict** (`{'body': 'text…'}`), not prose. It then
+returns `improved` as a plain string and declares **no `writeback` map**, so there is no field to
+put it back into (`data_json` is structured). Shipping a button for it would be a trap. Fix first.
+
+**STATUS 2026-07-20: ✅ D0–D4 SHIPPED AND VERIFIED IN-BROWSER** (Chore Coat entry, gpt-4o-mini).
+Verified: AI menu opens with all 3 items · 3 per-field ✨ Improve buttons attach to prose fields
+only (Overview/Description, not the JSON editors) · context chip reads "Entry · Chore Coat" ·
+Review & suggest opens the bubble and returns a grounded review · **B1 proven: `tool steps: 0`**
+— the model cited the entry's real sections (Overview, Design Intent, Materials, Specifications)
+with ZERO tool calls, so the content reached it via the pre-assembled context block · tags flow
+verified on BOTH branches (applied under `allow-automatic-update`, staged + banner re-rendered
+in place under `suggest-only`). 164 tests pass.
+
+**Two bugs found & fixed during verification:**
+1. **Write-back outcome was invisible to clients.** `_write_back` returns `"applied"|"staged"`
+   but the call site discarded it, so the UI claimed "review below" even when the entry had been
+   auto-applied and no banner existed. Now recorded on `execution.metadata_json.writeback` (also
+   auditable) and exposed via `AIExecutionRead.metadata_json`; the editor reports honestly.
+2. 🎨 **Astro silently drops a rule whose selector is ENTIRELY `:global(...)`.** Converting the
+   banner styles to `:global(.suggestion-banner)` removed them from every stylesheet — rules
+   before and after survived, so it is not a parse error. Anchoring on a scoped ancestor
+   (`#suggestion-mount :global(...)`) did NOT help either. `Marvin.astro`'s working pattern is a
+   **class** ancestor (`.marvin-log :global(.mv-msg)` → `.marvin-log[data-astro-cid-…] .mv-msg`).
+   **Resolution: moved the banner styles to `src/styles/global.css`** — the honest home for
+   styles targeting JS-created nodes. See memory [[astro-scoped-styles-vs-dynamic-dom]].
+
+**Environment issues found (not code):** the app loads `src/.env` (`BASE_DIR = CWD.parent.parent`),
+NOT the repo-root `.env` — symlinked `src/.env -> ../.env` (gitignored). `OLLAMA_BASE_URL` had a
+bad `/api` suffix (provider appends `/api/chat`) — corrected. Workspace `provider` was NULL, so
+`AI_DEFAULT_PROVIDER` won; confirmed that setting workspace `provider` DOES override the env
+default (ran on `gemma4:latest`, then switched back to `gpt-4o-mini`).
+
+**Superseded note (kept for history):**
+`astro check` unchanged at 106 pre-existing errors (the 4 in `entries/[id].astro` predate this).
+Runtime curl verification is impossible — an unauthenticated request renders the error branch, so
+the toolbar/menu never mount. **Needs a logged-in browser pass** on a real entry to confirm:
+menu opens, per-field Improve buttons attach to the right fields, tags staging re-renders the
+banner in place, and Review & suggest opens the bubble.
+Known rough edge: `aiToast` writes to `#ai-summary-status`, which sits next to the Summary field —
+feedback for an Improve action on a field far down the page appears off-screen. Wants a
+per-field status line or a floating toast.
+
+- [x] D0. **Make `improve-writing` field-scoped** (backend). Accept `input.text` (the prose to
+      improve) and `input.field` (which field it came from, for the UI). `build_prompt` uses
+      `input.text` when given, else falls back to today's behaviour so existing API/MCP callers
+      don't break. Stays writeback-free — suggestion only; the UI fills the field for review.
+      **Decision:** surfaced as **per-field ✨ Improve buttons** (Description + each long-text
+      field in the entry-type schema), mirroring how Summary already works — not a menu picker.
+- [x] D1. Entry AI menu on `entries/[id].astro` — one `✨ AI` menu for *entry-level* actions:
+      Generate summary · Generate tags · Review & suggest. Field-level actions (Summary generate,
+      per-field Improve) stay inline next to their field.
+- [x] D2. Wire `generate-tags` — pass current tags as `existing_tags`; it has
+      `writeback = {"tags": "metadata_json.tags"}` so under `suggest-only` it **stages**. UI must
+      say "staged for review" and surface the suggestion banner (banner already understands
+      `metadata_json.` targets), not claim it applied.
+      **Decision:** re-render the banner **in place** (fetch the entry's suggestion, no reload) —
+      an auto-reload would silently discard unsaved edits elsewhere in the form.
+- [x] D3. "Review & suggest" → dispatch a `marvin:ask` CustomEvent; `Marvin.astro` listens,
+      opens the panel, prefills and submits. Gives any page a clean way to drive the bubble
+      without a global — the bubble currently exposes no public API.
+- [x] D4. Preserve `aiEditorEnabled` gating. Also drop the ad-hoc
+      `window.location.pathname.split('/').pop()` id parsing (lines ~1506/1535) in favour of the
+      `data-entity-id` the layout now stamps.
+
+### Verification
+- [ ] Backend tests: grounding block assembled per entity type; history bounding truncates.
+- [ ] Manual: entry page → "review and suggest" with no entity named in the message.
+- [ ] Manual: follow-up "do #2" resolves against the prior turn (proves memory).
+- [ ] Manual: `generate-tags` under `suggest-only` lands in the suggestion banner, not applied.
+- [ ] Regression: `/api/ai/tools` + MCP projection unchanged; bubble still works off an entry
+      page (no context → current behaviour).
+
+### Deferred to next pass — attach/create is blocked by 4 structural gaps (documented so they
+### aren't rediscovered)
+1. Write-back grammar understands only a scalar column, `data_json.<key>`, or
+   `metadata_json.<key>` (`_write_back`/`apply_fields`). **No target form can express a
+   junction-table row** — "attach asset X as hero" is inexpressible today.
+2. `repos.entries.update(asset_attachments=...)` is **replace-all** — a naive attach deletes
+   every existing attachment. Needs append-oriented repo methods.
+3. `ContextBuilder.with_assets` drops junction `role`/`position` and returns only
+   already-attached assets — the model can't discover candidates or reason about placement.
+4. The suggestion banner renders only scalar/`data_json`/`metadata_json` diffs; a staged
+   attachment would show as raw JSON.
+
+Also deferred: `create_resource` (+ attach), `propose_entry_changes` general write tool.
+
 ## ▶ ACTIVE PLAN — Flavor B: user-configurable orchestration (event → conditions → actions)
 > The two automation "flavors" (see memory [[ai-automation-flavors]]):
 > **Flavor A = developer-defined reactions** (hardcoded listener classes in `_get_listeners`;
@@ -118,6 +318,100 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       external MCP hosts can invoke it.
 - [ ] **T5 · Incoming webhook** — new subsystem: tokened inbound endpoint
       `POST /api/automations/hooks/{token}` mapping the request payload into `$event`.
+      *(In flight 2026-07-19 — Model 2 / ingress, see memory [[incoming-webhooks-ingress-model]]:
+      `POST /api/hooks/{token}` drops an `incoming_webhook` event on the bus and fans out to any
+      subscriber rather than binding one automation. Model + migration + schema + controller landed,
+      router registered. Remaining: `incoming_webhook` isn't in `_TRIGGERS` yet — folded into the
+      ⭐ generalize-event-triggers item above.)*
+
+### Flavor B — hardening backlog (from `docs/WORKFLOW_STATE_REVIEW.md`, 2026-07-19)
+> Review of the built engine against `docs/WORKFLOW_SUGGESTIONS.md`. The skeleton is
+> proportionate and shouldn't be redesigned; these are the gaps that make it *trustworthy*.
+> Ordered by unlock, not by feature area.
+
+**H0 · Foundation — do before any new action types**
+- [ ] **⭐⭐ Extract `services/entries/`** — THE structural blocker. There is no entries service;
+      all entry lifecycle logic (which status transition emits which event) lives in
+      `routes/platform/entries_controller.py:173-260`. So the "Flavor B actions call the same
+      domain service as API/UI/SDK/MCP" hierarchy has nothing to point at. Already biting:
+      `runner.py:184-205` hand-duplicates the controller's emit for AI write-back. Every new entry
+      action would duplicate it again, and each copy is a place a chained automation silently stops
+      firing. Extract `create/update/publish/unpublish/archive/restore` owning mutation **+** emit.
+- [ ] **⭐ `changed_fields` / `before` / `after` on `EventEntryData`** — the single biggest matching
+      gap. `update_entry` loads `old_entry` and throws the old values away, so "status changed
+      draft → review" is inexpressible. Changed-field names + **scalar** before/after only; rich
+      fields and relationships by reference (id+type), never by value — bounds payload size and
+      avoids persisting content into `event_log` the user may later delete. Natural to land inside H0.
+- [ ] **Validate `definition` with a Pydantic discriminated union** — today it's a bare `dict`
+      (`schemas/group/automation.py`), so malformed automations are accepted by the API and fail
+      silently at run time. See H4 for why this one is worth more than it looks.
+
+**H1 · Observability — makes the thing debuggable**
+- [ ] **⭐ `automation_executions` + `automation_action_executions` tables** — there is no execution
+      history at all. Only the `operation` action leaves a trace (an `AIExecutionModel` row);
+      `webhook`, `handler`, and `emit_event` leave nothing, so a misbehaving automation is a black
+      box. Also the prerequisite for most of the UI story (history view, execution detail, retry).
+      Truncate input/output snapshots at a fixed byte cap; never persist resolved secrets.
+- [ ] **Correlation id threaded through `dispatch`**, promoted to a real column on `event_log`
+      (it currently exists only as `reaction_depth` buried in the `event_data` JSON blob).
+      Causation id + parent-execution id can wait — correlation alone makes a chain readable.
+- [ ] **Snapshot the automation `definition` onto the execution row** — one column buys full
+      auditability without any versioning/revision infrastructure.
+
+**H2 · Honesty pass — cheap, removes user-visible lies**
+- [ ] **54 of 122 `EventTypes` members are never emitted**, yet the catalog advertises ~100
+      subscribable events — the Events UI offers subscriptions that can never deliver. All 8
+      site/publishing events, all 3 form-submission events, and both asset attach/detach events are
+      declared and dead. Delete them or gate the catalog to events with a real emitter.
+- [ ] **Add `test_every_catalog_entry_has_an_emitter`** — would have caught all 54. Cheap, and stops
+      the drift recurring.
+- [ ] **Fix the false comment at `runner.py:203`** — it claims the automation listener ignores its
+      own writes via `integration_id`. No listener reads `integration_id` (it's only ever *set*, 5
+      sites). Only the depth-3 counter bounds the loop. Fix the comment or implement the check;
+      as written it's a trap for whoever touches loop-prevention next.
+- [ ] **`/run` doesn't check `enabled`** — an admin can manually run a disabled automation.
+
+**H3 · Expression ergonomics — the sharp edges users will hit**
+- [ ] **Embedded `${...}` interpolation** — `interpolate` (`matcher.py:38`) only substitutes a string
+      that *starts* with `$`, so `"Summary: $previous.summary"` passes through as a literal. This
+      will surprise everyone who tries it.
+- [ ] **Named step outputs `$steps.<action-id>.output.*`** (keep `$previous` as an alias) — today only
+      the immediately preceding step is reachable, so reordering actions silently breaks a pipeline.
+- [ ] **`any` / `not` / nesting in conditions** — currently a flat AND-list. Plus operators `in`,
+      `starts_with`, and the change-aware `changed` / `changed_from` / `changed_to` (which only
+      become possible once H0's before/after lands).
+- [ ] **`MAX_ACTIONS = 10` truncates silently** (`engine.py:149`, `actions[:MAX_ACTIONS]`) — no error,
+      no warning. Reject at validation time instead.
+
+**H4 · Simplifications & ideas worth taking**
+- [ ] **⭐ Make the Pydantic definition schema the ONE source of truth** — if trigger and action
+      inputs are discriminated-union models, validation + the `/options` catalog JSON Schema + SDK
+      types + the MarvinMCP tool projection all fall out of a single declaration. The suggestions doc
+      treats the registry, the schemas, and the catalog as separate deliverables; they're one thing.
+      Biggest simplification available.
+- [ ] **`dry_run` as a flag on the engine, not a separate code path** — thread a bool through
+      `run_automations_for_event`; each executor returns its resolved input instead of executing.
+      ~10 lines per action, and it delivers the "evaluate trigger + conditions, resolve inputs, don't
+      execute" test mode without a parallel simulation engine.
+- [ ] **Allowlist the `handler` action** — currently the most powerful, least constrained thing in the
+      system: full `TaskHandlerRegistry` with no allowlist, no schema, duck-typed config, reaching
+      maintenance tasks like `remove_orphaned_assets`. Decide deliberately — promote specific handlers
+      to first-class actions with schemas, or keep it as an explicit escape hatch behind an allowlist.
+      The one item in this review I'd call a genuine risk.
+- [ ] **Per-user authorization at execution** — `user_id` is provenance only, never authorization.
+      An AUTHOR publishing an entry can trip an admin-authored automation that runs privileged
+      handlers and webhooks under full workspace authority.
+
+**H5 · Entry action surface** *(thin once H0 lands — deliberately sequenced last)*
+- [ ] `entry.publish` · `entry.unpublish` · `entry.archive` · `entry.restore` ·
+      `entry.add_to_collection` · `entry.remove_from_collection`. Keep `entry.delete` out for now.
+
+**Explicitly NOT doing** (agreeing with the suggestions doc, emphatically): branching, loops,
+`delay`/`wait_until`/`wait_for_event`, approval gates, native Slack, an internal notification system,
+the outbox pattern, event sourcing, a visual node editor. Each is either n8n's job or needs persisted
+mid-flight workflow state — the largest complexity jump available for the least return. Also skipping:
+normalizing conditions/actions into tables (JSON + Pydantic is right, the joins aren't justified) and
+automation versioning as infrastructure (the definition snapshot in H1 covers it).
 
 ## ▶ ACTIVE PLAN — External MCP servers, wired into the agent + UI (thin vertical slice)
 > The north-star "connect external MCP servers" plugin layer. Decided posture (2026-07-19):
@@ -383,6 +677,18 @@ Sequencing: operations registry (done) → skill/tool registry → agent loop �
 Ship the RAG bubble now as the seed; layer skills onto it.
 
 ## 🌲 Bigger / Phase 8
+> ⚠️ **Three tone axes — do not conflate them** (learned 2026-07-20: asked Marvin to review an
+> entry, got the review written in-character as a depressed robot):
+> **A. Assistant persona** — how Marvin *addresses you*. Workspace-level (`persona_prompt`).
+> **B. Task register** — how *work product* reads (reviews, findings, critiques). Must default to
+>   plain/professional. Had NO representation; axis A was leaking into it.
+> **C. Content voice** — how *generated content* sounds (the brand's voice). ← this cascade item.
+> Partial fix shipped: the `/agent` system prompt now scopes persona to address-only and demands
+> work product be plain (`operations_controller.py` ~695). That's a prompt-level mitigation, not a
+> mechanism — a weak local model can still drift. The durable fix is an explicit **register** on
+> the request (playful | neutral | professional), defaulting to professional for analysis-shaped
+> asks and suppressing persona entirely for them. Build B as its own axis; C does NOT solve it.
+
 - [ ] **Prompt storage + cascading theme/tone** ⭐ — user-authored prompts, but resolved as a
       CSS-like cascade: **Site → Collection → Entry-type → Entry** (nearest wins), two facets —
       **tone/voice** (injected into compose/enrichment via ContextBuilder) and **style/theme**

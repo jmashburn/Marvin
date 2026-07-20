@@ -10,13 +10,20 @@
  */
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { fetchApi } from '@/lib/api/client';
 import { listAgentTools } from '@/lib/api/aiTools';
-import { sendChat, askWorkspace } from '@/lib/api/aiBubble';
+import { sendChat, askWorkspace, runAgent } from '@/lib/api/aiBubble';
+import { getActiveContext } from '@/lib/marvin/context';
+import { getHistory } from '@/lib/marvin/history';
 
 export interface MarvinResult {
   /** Safe HTML for Marvin's reply. Escape ALL dynamic content with esc(). */
   html: string;
+  /**
+   * Plain-text form of the reply, for conversation memory. Rendered HTML is useless to a model,
+   * so skills that produce a model answer should supply it. When omitted the bubble falls back
+   * to the node's textContent, which is lossier but works.
+   */
+  text?: string;
 }
 
 export interface Capability {
@@ -125,12 +132,11 @@ const agent: Capability = {
   isDefault: true,
   async run(arg: string): Promise<MarvinResult> {
     let res: any;
+    // Ground the run in whatever the current page declared (see @/lib/marvin/context), so
+    // "review and suggest" works without naming the entity. Null when the page declared no
+    // context or the user dismissed it — then this is a plain, unscoped ask.
     try {
-      res = await fetchApi<any>('/api/ai/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: arg, source: 'editor' }),
-      });
+      res = await runAgent(arg, getActiveContext(), getHistory());
     } catch (err: any) {
       const msg = String(err?.message || err);
       // The agent needs a tool-capable provider; degrade to a helpful hint rather than snark.
@@ -170,7 +176,8 @@ const agent: Capability = {
       const tools = [...new Set(steps.map((s) => s.tool))];
       html += `<div class="mv-sources"><span>Used:</span> ${tools.map((t) => `<code>${esc(t)}</code>`).join(' ')}</div>`;
     }
-    return { html };
+    // `text` (not html) is what gets replayed as memory next turn.
+    return { html, text: String(answer) };
   },
 };
 

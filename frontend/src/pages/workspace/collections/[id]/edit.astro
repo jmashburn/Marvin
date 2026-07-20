@@ -37,7 +37,12 @@ if (!authToken) {
 }
 ---
 
-<AppLayout title={collection ? `Edit ${collection.name}` : "Edit Collection"}>
+<AppLayout
+  title={collection ? `Edit ${collection.name}` : "Edit Collection"}
+  entityType="collection"
+  entityId={id}
+  entityLabel={collection?.name}
+>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading collection:</strong> {error}</p>

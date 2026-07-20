@@ -30,7 +30,12 @@ const isAudio = asset?.mimeType?.startsWith('audio/');
 const isPdf = asset?.mimeType?.includes('pdf');
 ---
 
-<AppLayout title={asset ? `View: ${asset.name}` : "View Asset"}>
+<AppLayout
+  title={asset ? `View: ${asset.name}` : "View Asset"}
+  entityType="asset"
+  entityId={id}
+  entityLabel={asset?.name}
+>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading asset:</strong> {error}</p>
