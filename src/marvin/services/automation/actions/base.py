@@ -6,11 +6,14 @@ no AI dependency; the `operation` kind is the only AI-coupled one, and it's reac
 automation names an AI operation (and AI is enabled + the `automation` source is allowed).
 
 Executor contract:
-    execute(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=ROLE_OWNER) -> dict
+    execute(session, group_id, action: dict, context: dict, *, user_id=None,
+            authorizer_role=ROLE_OWNER, dry_run=False) -> dict
 `context` carries {event, entry?, previous, depth}. `authorizer_role` is the *current* numeric role
 of the automation's author — the authority the action runs under (definer's rights, see authz.py);
-executors gate their privilege against it. Return a dict (becomes `$previous` for the next step).
-Raise :class:`AutomationActionError` on any failure — the engine logs and stops that pipeline.
+executors gate their privilege against it. When `dry_run` is True the executor still gates + resolves
+its inputs (interpolation, target lookup) but does NOT execute — it returns a preview of what it
+*would* do instead of performing it. Return a dict (becomes `$previous` for the next step). Raise
+:class:`AutomationActionError` on any failure — the engine logs and stops that pipeline.
 """
 
 from typing import Callable
@@ -38,11 +41,13 @@ def available_kinds() -> list[str]:
     return sorted(ACTION_EXECUTORS)
 
 
-def run_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=ROLE_OWNER) -> dict:
+def run_action(session, group_id, action: dict, context: dict, *, user_id=None,
+               authorizer_role=ROLE_OWNER, dry_run=False) -> dict:
     """Dispatch one action to its registered executor by `kind`."""
     kind = action.get("kind")
     fn = ACTION_EXECUTORS.get(kind)
     if fn is None:
         raise AutomationActionError(f"unsupported action kind '{kind}'")
-    out = fn(session, group_id, action, context, user_id=user_id, authorizer_role=authorizer_role)
+    out = fn(session, group_id, action, context, user_id=user_id,
+             authorizer_role=authorizer_role, dry_run=dry_run)
     return out if isinstance(out, dict) else {}

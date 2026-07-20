@@ -14,7 +14,7 @@ from .base import AutomationActionError, register_action
 
 
 @register_action("emit_event")
-def run_emit_event(session, group_id, action, context, *, user_id=None, authorizer_role=None) -> dict:
+def run_emit_event(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False) -> dict:
     from marvin.services.event_bus_service.event_bus_service import EventBusService
     from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
 
@@ -37,6 +37,10 @@ def run_emit_event(session, group_id, action, context, *, user_id=None, authoriz
         entry_id = raw_id if isinstance(raw_id, uuid.UUID) else uuid.UUID(str(raw_id))
     except (ValueError, TypeError) as e:
         raise AutomationActionError("emit_event needs a valid entry id (entity_id)") from e
+
+    if dry_run:
+        return {"dry_run": True, "kind": "emit_event", "event": ev_name,
+                "entity_id": str(entry_id), "reaction_depth": depth}
 
     doc = EventEntryData(
         operation=EventOperation.update,

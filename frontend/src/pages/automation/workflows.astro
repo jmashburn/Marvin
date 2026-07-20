@@ -182,6 +182,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     updateAutomation,
     deleteAutomation,
     runAutomation,
+    dryRunAutomation,
     validateAutomation,
     previewAutomation,
     listAutomationExecutions,
@@ -685,6 +686,33 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     } catch (e: any) { panel.innerHTML = `<span class="hint error">${esc(e?.message ?? e)}</span>`; }
   }
 
+  // ── Dry run (preview the plan, execute nothing) ──────────────────────────────
+  function planStepRow(s: any): string {
+    const ok = s.status === "success";
+    const label = s.label ? ` · ${esc(s.label)}` : "";
+    const tgt = s.resolved?.entity_id ? ` <span class="muted">→ ${esc(String(s.resolved.entity_id).slice(0, 8))}</span>` : "";
+    const err = s.error ? ` <span class="run-err">${esc(s.error)}</span>` : "";
+    // Show the resolved preview minus the noise keys already shown as label/kind/target.
+    const preview = { ...(s.resolved ?? {}) };
+    ["dry_run", "kind", "entity_id"].forEach((k) => delete preview[k]);
+    const body = Object.keys(preview).length ? `<pre class="plan-json">${esc(JSON.stringify(preview, null, 2))}</pre>` : "";
+    return `<div class="act-row">
+      <span class="status-${esc(s.status)}">${ok ? "✓" : "✗"}</span>
+      <span>${esc(s.kind)}${label}</span>${tgt}${err}
+    </div>${body}`;
+  }
+  async function showDryRun(card: Element, id: string) {
+    const panel = card.querySelector(".wf-history") as HTMLElement;
+    panel.removeAttribute("hidden");
+    panel.innerHTML = `<span class="hint">Resolving plan…</span>`;
+    try {
+      const res: any = await dryRunAutomation(id);
+      const plan: any[] = res.plan ?? [];
+      const head = `<div class="hint">Dry run — nothing executed. ${res.ran} target(s), ${plan.length} step(s)${res.ok ? "" : " · would fail"}.</div>`;
+      panel.innerHTML = head + (plan.length ? plan.map(planStepRow).join("") : `<span class="hint">No steps would run (target/conditions matched nothing).</span>`);
+    } catch (e: any) { panel.innerHTML = `<span class="hint error">${esc(e?.message ?? e)}</span>`; }
+  }
+
   function renderList() {
     const host = $("wf-list");
     $("wf-empty").toggleAttribute("hidden", workflows.length > 0);
@@ -700,6 +728,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
         </div>
         <div class="wf-actions">
           <button class="wf-btn primary js-run" ${wf.enabled ? "" : "disabled title=\"Enable the workflow to run it\""}>Run</button>
+          <button class="wf-btn js-dryrun" title="Preview the plan — resolve inputs, execute nothing">Dry run</button>
           <button class="wf-btn js-history">Runs</button>
           <button class="wf-btn js-toggle">${wf.enabled ? "Disable" : "Enable"}</button>
           <button class="wf-btn js-edit">Edit</button>
@@ -719,6 +748,12 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
         } catch (err: any) {
           alert(err?.message || "Run failed.");
         } finally { btn.disabled = false; btn.textContent = orig; }
+      });
+      card.querySelector(".js-dryrun")!.addEventListener("click", async (e) => {
+        const btn = e.currentTarget as HTMLButtonElement;
+        btn.disabled = true; const orig = btn.textContent; btn.textContent = "Resolving…";
+        try { await showDryRun(card, id); }
+        finally { btn.disabled = false; btn.textContent = orig; }
       });
       card.querySelector(".js-history")!.addEventListener("click", () => toggleHistory(card, id));
       card.querySelector(".js-edit")!.addEventListener("click", () => openBuilder(wf));
@@ -826,6 +861,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   .workflows-page :global(.run-detail[hidden]) { display: none; }
   .workflows-page :global(.act-row) { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-family: var(--mono, monospace); }
   .workflows-page :global(.run-err) { color: var(--color-error); }
+  .workflows-page :global(.plan-json) { margin: 0 0 6px 26px; padding: 6px 8px; font-size: 11px; font-family: var(--mono, monospace); color: var(--muted); background: color-mix(in srgb, var(--ink) 4%, transparent); border-radius: 6px; overflow-x: auto; white-space: pre; }
   .workflows-page :global(.banner code) { font-family: ui-monospace, monospace; font-size: 0.9em; background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
 
   /* Builder */

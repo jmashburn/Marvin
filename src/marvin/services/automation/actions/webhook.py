@@ -25,7 +25,7 @@ def _bearer(secret_ref: str | None, group_id) -> dict:
 
 
 @register_action("webhook")
-def run_webhook(session, group_id, action, context, *, user_id=None, authorizer_role=None) -> dict:
+def run_webhook(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False) -> dict:
     import httpx
 
     from ..authz import ROLE_OWNER, WEBHOOK_MIN_ROLE, require_role
@@ -57,8 +57,15 @@ def run_webhook(session, group_id, action, context, *, user_id=None, authorizer_
     if not url:
         raise AutomationActionError("webhook action needs a webhook_id (or a raw url)")
 
-    headers.update(_bearer(action.get("secret_ref"), group_id))
     method = str(method).upper()
+    if dry_run:
+        # Preview the request WITHOUT sending it. Never resolve the secret value into the preview —
+        # just note whether an auth header would be attached.
+        return {"dry_run": True, "kind": "webhook", "method": method, "url": url,
+                "body": None if method == "GET" else body, "webhook_id": webhook_id,
+                "authorized": bool(action.get("secret_ref"))}
+
+    headers.update(_bearer(action.get("secret_ref"), group_id))
     try:
         resp = httpx.request(
             method, url,

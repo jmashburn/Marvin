@@ -240,14 +240,18 @@ class AutomationsController(BaseUserController):
         return AutomationExecutionDetail.model_validate(row)
 
     @router.post("/{automation_id}/run", summary="Run an automation now (manual trigger)")
-    def run_automation(self, automation_id: UUID4) -> dict:
+    def run_automation(self, automation_id: UUID4, dry_run: bool = False) -> dict:
         """Run the automation's steps immediately — the Manual trigger / Run button. Skips the
-        trigger + condition gates (the caller asked for it explicitly)."""
+        trigger + condition gates (the caller asked for it explicitly).
+
+        ``dry_run=true`` resolves the target + each action's inputs but executes nothing (no AI call,
+        no mutation, no webhook POST) and records nothing — it returns ``plan``, the resolved per-step
+        preview. A disabled draft can be dry-run (that's when you most want to preview it)."""
         _require_admin(self.user, self.group_id)
         row = _get_or_404(self.session, automation_id, self.group_id)
-        if not row.enabled:
+        if not row.enabled and not dry_run:
             # A disabled automation is off — don't fire it via the Run button either (the scheduled
-            # path already skips disabled). Enable it to run.
+            # path already skips disabled). Enable it to run. (A dry run is fine — it does nothing.)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This workflow is disabled — enable it to run.",
@@ -257,12 +261,12 @@ class AutomationsController(BaseUserController):
 
         try:
             res = run_automation_now(
-                self.session, self.group_id, row, user_id=self.user.id,
-                recorder=ExecutionRecorder(self.session, self.group_id),
+                self.session, self.group_id, row, user_id=self.user.id, dry_run=dry_run,
+                recorder=None if dry_run else ExecutionRecorder(self.session, self.group_id),
             )
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-        return {"status": "ran", **res}
+        return {"status": "dry_run" if dry_run else "ran", **res}
 
     @router.post("", response_model=AutomationRead, status_code=status.HTTP_201_CREATED, summary="Create Automation")
     def create_automation(self, data: AutomationCreate) -> AutomationRead:

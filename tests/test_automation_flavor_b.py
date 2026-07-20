@@ -226,7 +226,7 @@ def _entry(entry_type="recipe", status="published"):
 def _recording_runner():
     calls = []
 
-    def run(session, group_id, action, context, *, user_id=None, authorizer_role=None):
+    def run(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False):
         calls.append({"action": action, "previous": dict(context.get("previous", {}))})
         return {"summary": "generated"}
 
@@ -290,7 +290,7 @@ class TestEngine:
         ])
         seen = []
 
-        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None):
+        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False):
             seen.append({k: dict(v) for k, v in context.get("steps", {}).items()})
             return {"val": action["op"]}
 
@@ -316,7 +316,7 @@ class TestEngine:
         ])
         calls = []
 
-        def failing(session, group_id, action, context, *, user_id=None, authorizer_role=None):
+        def failing(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False):
             calls.append(action["op"])
             raise AutomationActionError("nope")
 
@@ -495,6 +495,100 @@ class TestActionRoleGates:
         res = engine.run_automation_now(_FakeSession([]), "G", auto)
         assert res["ok"] is False and res["ran"] == 1  # attempted, but the gate stopped it
         assert executed == []                            # the privileged handler never ran
+
+
+# ── Dry run: resolve inputs, execute nothing ──────────────────────────────────
+class TestDryRun:
+    def test_handler_dry_run_previews_without_executing(self, monkeypatch):
+        from marvin.services.automation.actions.handler import run_handler
+        from marvin.services.automation.authz import ROLE_ADMIN
+        from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
+
+        executed = []
+        monkeypatch.setattr(TaskHandlerRegistry, "get_handler",
+                            staticmethod(lambda _t: SimpleNamespace(execute=lambda *a: executed.append(1))))
+        out = run_handler(None, "G", {"kind": "handler", "task": "request_site_rebuild", "config": {"n": "$event.count"}},
+                          {"event": {"count": 3}, "depth": 0}, authorizer_role=ROLE_ADMIN, dry_run=True)
+        assert out == {"dry_run": True, "kind": "handler", "task": "request_site_rebuild", "config": {"n": 3}}
+        assert executed == []  # the job never ran
+
+    def test_entry_dry_run_previews_without_mutating(self, monkeypatch):
+        import marvin.services.entries as entries_mod
+        from marvin.services.automation.actions.entry import run_entry_action
+        from marvin.services.automation.authz import ROLE_AUTHOR
+
+        def _boom(*a, **k):
+            raise AssertionError("EntryService must not be constructed during a dry run")
+
+        monkeypatch.setattr(entries_mod, "EntryService", _boom)
+        eid = uuid4()
+        out = run_entry_action(None, "G", {"kind": "entry", "op": "publish"},
+                               {"event": {"entry_id": str(eid)}, "depth": 0},
+                               authorizer_role=ROLE_AUTHOR, dry_run=True)
+        assert out == {"dry_run": True, "kind": "entry", "op": "publish",
+                       "entity_id": str(eid), "would_set_status": "published"}
+
+    def test_webhook_dry_run_does_not_post(self, monkeypatch):
+        import httpx
+
+        from marvin.services.automation.actions.webhook import run_webhook
+        from marvin.services.automation.authz import ROLE_ADMIN
+
+        monkeypatch.setattr(httpx, "request", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no POST in dry run")))
+        out = run_webhook(None, "G", {"kind": "webhook", "url": "https://example.test/hook", "body": {"id": "$event.entry_id"}},
+                          {"event": {"entry_id": "e1"}, "depth": 0}, authorizer_role=ROLE_ADMIN, dry_run=True)
+        assert out["dry_run"] is True and out["method"] == "POST" and out["url"] == "https://example.test/hook"
+        assert out["body"] == {"id": "e1"} and out["authorized"] is False
+
+    def test_emit_event_dry_run_does_not_dispatch(self):
+        from marvin.services.automation.actions.emit_event import run_emit_event
+        from marvin.services.automation.authz import ROLE_ADMIN
+
+        eid = uuid4()
+        out = run_emit_event(None, "G", {"kind": "emit_event", "event": "entry_published", "entity_id": str(eid)},
+                             {"event": {}, "entry": {}, "depth": 1}, authorizer_role=ROLE_ADMIN, dry_run=True)
+        assert out == {"dry_run": True, "kind": "emit_event", "event": "entry_published",
+                       "entity_id": str(eid), "reaction_depth": 2}
+
+    def test_operation_dry_run_skips_provider(self, monkeypatch):
+        from marvin.services.automation import runner
+        from marvin.services.automation.authz import ROLE_OWNER
+
+        monkeypatch.setattr(runner, "_gate_source", lambda *a, **k: None)
+        monkeypatch.setattr(runner, "get_operation",
+                            lambda slug: SimpleNamespace(slug=slug, min_role=2, invocation_sources=("automation",)))
+
+        def _no_provider(*a, **k):
+            raise AssertionError("provider must not be fetched during a dry run")
+
+        monkeypatch.setattr(runner, "get_workspace_ai_provider", _no_provider, raising=False)
+        eid = uuid4()
+        out = runner.run_operation_action(None, "G",
+                                          {"kind": "operation", "op": "generate-summary", "input": {"tone": "$event.tone"}, "write_back": True},
+                                          {"event": {"entry_id": str(eid), "tone": "warm"}, "depth": 0},
+                                          authorizer_role=ROLE_OWNER, dry_run=True)
+        assert out == {"dry_run": True, "kind": "operation", "op": "generate-summary",
+                       "entity_type": "entry", "entity_id": str(eid),
+                       "input": {"tone": "warm"}, "would_write_back": True}
+
+    def test_engine_dry_run_returns_plan_and_records_nothing(self, monkeypatch):
+        from marvin.services.automation import engine
+        from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
+
+        executed = []
+        monkeypatch.setattr(TaskHandlerRegistry, "get_handler",
+                            staticmethod(lambda _t: SimpleNamespace(execute=lambda *a: executed.append(1))))
+        auto = SimpleNamespace(slug="a", created_by=None, definition={
+            "trigger": {"type": "manual"},
+            "actions": [{"kind": "handler", "task": "request_site_rebuild", "config": {"x": 1}}],
+        })
+        res = engine.run_automation_now(_FakeSession([]), "G", auto, dry_run=True)
+        assert res["dry_run"] is True and res["ok"] is True and res["ran"] == 1
+        assert len(res["plan"]) == 1
+        step = res["plan"][0]
+        assert step["kind"] == "handler" and step["status"] == "success"
+        assert step["resolved"] == {"dry_run": True, "kind": "handler", "task": "request_site_rebuild", "config": {"x": 1}}
+        assert executed == []  # nothing actually ran
 
 
 # ── Trigger matching: event / chained / on-error (T3) ─────────────────────────
@@ -855,7 +949,7 @@ class TestTargetSelector:
         monkeypatch.setattr(selector, "resolve_target_entities", lambda *a, **k: (ents, 2))
         seen = []
 
-        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None):
+        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False):
             seen.append(context.get("entry", {}).get("slug"))  # per-entity context is bound
             return {}
 
@@ -871,7 +965,7 @@ class TestTargetSelector:
         monkeypatch.setattr(selector, "resolve_target_entities", lambda *a, **k: (ents, 2))
         seen = []
 
-        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None):
+        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False):
             seen.append(context.get("entry", {}).get("slug"))
             return {}
 

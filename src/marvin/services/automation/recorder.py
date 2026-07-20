@@ -67,6 +67,37 @@ class NullRecorder:
         pass
 
 
+class CollectingRecorder:
+    """In-memory recorder for **dry runs** — captures the resolved plan, persists nothing.
+
+    Each step's ``output`` is the executor's resolved-but-not-executed preview (see the executors'
+    ``dry_run`` branch), so ``.plan`` is exactly "what this automation *would* do" per target×action.
+    """
+
+    def __init__(self) -> None:
+        self.plan: list[dict] = []
+
+    def start(self, *args, **kwargs):
+        return "dry"  # non-None so action() records against it
+
+    def action(self, exec_id, *, target_index: int, target_ref: dict | None, action_index: int,
+               action: dict, status: str, output=None, error: str | None = None,
+               duration_ms: int | None = None) -> None:
+        self.plan.append({
+            "target_index": target_index,
+            "target": target_ref,
+            "action_index": action_index,
+            "kind": action.get("kind"),
+            "label": _action_label(action),
+            "status": status,           # "success" = would run; "failed" = a gate/resolve error
+            "resolved": output,         # the executor's dry-run preview (or None on a gate failure)
+            "error": error,
+        })
+
+    def finish(self, *args, **kwargs) -> None:
+        pass
+
+
 class ExecutionRecorder:
     """Persists a run and its per-(target, action) steps. Best-effort — never raises to the engine."""
 

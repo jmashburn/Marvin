@@ -51,6 +51,11 @@ export async function runAutomation(id: string, authToken?: string) {
   return createSdkClient(authToken).automations.run(id);
 }
 
+/** Dry-run an automation: resolve target + inputs, execute nothing, return the plan. */
+export async function dryRunAutomation(id: string, authToken?: string) {
+  return createSdkClient(authToken).automations.dryRun(id);
+}
+
 /** Recent runs of an automation (history list). */
 export async function listAutomationExecutions(id: string, limit = 25, authToken?: string) {
   return createSdkClient(authToken).automations.executions(id, limit);

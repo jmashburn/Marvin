@@ -479,10 +479,17 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       types + the MarvinMCP tool projection all fall out of a single declaration. The suggestions doc
       treats the registry, the schemas, and the catalog as separate deliverables; they're one thing.
       Biggest simplification available.
-- [ ] **`dry_run` as a flag on the engine, not a separate code path** — thread a bool through
-      `run_automations_for_event`; each executor returns its resolved input instead of executing.
-      ~10 lines per action, and it delivers the "evaluate trigger + conditions, resolve inputs, don't
-      execute" test mode without a parallel simulation engine.
+- [x] **`dry_run` as a flag on the engine DONE (2026-07-20)** ✅ — a `dry_run` bool threads through
+      `run_automations_for_event` / `run_automation_now` → `_run_targets` → `_run_pipeline` → the
+      executor contract. Each executor still gates (authz + source) and resolves its inputs
+      (interpolation, slug→id target) but, when dry, returns a preview of what it *would* do instead
+      of executing — no AI call / AIExecution row, no entry mutation, no event dispatch, no webhook
+      POST (and the secret value is never resolved into the preview). A dry run records nothing (an
+      in-memory `CollectingRecorder`) and fires no `automation_ran`; it returns `plan` — the resolved
+      per-step preview. Surfaced at `POST /api/automations/{id}/run?dry_run=true` (works on a disabled
+      draft), SDK `automations.dryRun()`, and a **Dry run** button on each workflow card that renders
+      the plan. Verified live (generate-tags op resolved, executed nothing). 6 tests. (Marvin, this
+      commit; SDK.)
 - [x] **Allowlist the `handler` action DONE (2026-07-20)** ✅ — `AUTOMATION_ALLOWED_HANDLERS`
       (request_site_rebuild / publish_scheduled_entries / unpublish_expired_entries /
       ai_reindex_embeddings / resync_smart_collections). Anything else — the destructive maintenance

@@ -72,7 +72,7 @@ def _resolve_model(session, group_id, settings) -> str | None:
     return None
 
 
-def run_operation_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=None) -> dict:
+def run_operation_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=None, dry_run=False) -> dict:
     """Run one ``operation`` action; return its output_json (so ``$previous`` can reference it).
 
     ``action`` = ``{"kind": "operation", "op": <slug>, "input": {...}, "entity_type": "entry",
@@ -112,6 +112,13 @@ def run_operation_action(session, group_id, action: dict, context: dict, *, user
         entity_id = _resolve_entry_id_by_slug(session, group_id, str(entity_slug))
     else:
         entity_id = interpolate(action.get("entity_id", "$event.entry_id"), context)
+
+    if dry_run:
+        # Preview: the op is authorized and its inputs/target resolve — but don't call the provider,
+        # create an AIExecution row, or write back. (An AI call is the expensive, side-effectful part.)
+        return {"dry_run": True, "kind": "operation", "op": slug,
+                "entity_type": entity_type, "entity_id": str(entity_id) if entity_id else None,
+                "input": op_input, "would_write_back": bool(action.get("write_back"))}
 
     try:
         provider = get_workspace_ai_provider(session, group_id)

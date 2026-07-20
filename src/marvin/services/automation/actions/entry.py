@@ -46,7 +46,7 @@ def _resolve_target(session, group_id, action: dict, context: dict):
 
 
 @register_action("entry")
-def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=None) -> dict:
+def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=None, dry_run=False) -> dict:
     from marvin.services.entries import EntryService
 
     from ..authz import ENTRY_ACTION_MIN_ROLE, ROLE_OWNER, require_role
@@ -58,6 +58,10 @@ def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=
     require_role(ROLE_OWNER if authorizer_role is None else authorizer_role, ENTRY_ACTION_MIN_ROLE, f"entry action '{op}'")
 
     entity_id = _resolve_target(session, group_id, action, context)
+
+    if dry_run:
+        return {"dry_run": True, "kind": "entry", "op": op,
+                "entity_id": str(entity_id), "would_set_status": ENTRY_OPS[op]}
 
     # Emitted events chain at depth+1 so the loop-guard bounds any cascade.
     depth = int(context.get("depth", 0)) + 1

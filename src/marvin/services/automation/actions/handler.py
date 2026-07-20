@@ -27,7 +27,7 @@ AUTOMATION_ALLOWED_HANDLERS: frozenset[str] = frozenset({
 
 
 @register_action("handler")
-def run_handler(session, group_id, action, context, *, user_id=None, authorizer_role=None) -> dict:
+def run_handler(session, group_id, action, context, *, user_id=None, authorizer_role=None, dry_run=False) -> dict:
     from marvin.services.event_bus_service.event_bus_service import EventBusService
     from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
 
@@ -49,6 +49,10 @@ def run_handler(session, group_id, action, context, *, user_id=None, authorizer_
 
     handler = TaskHandlerRegistry.get_handler(task_type)
     config = interpolate(action.get("config") or {}, context)
+
+    if dry_run:
+        return {"dry_run": True, "kind": "handler", "task": task_type, "config": config}
+
     task = SimpleNamespace(group_id=group_id, task_config=config)
     try:
         result = handler.execute(task, EventBusService(bg_tasks=None))
