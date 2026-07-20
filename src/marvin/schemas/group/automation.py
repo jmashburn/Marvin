@@ -126,3 +126,33 @@ class AutomationValidateResult(_MarvinModel):
     issues: list[AutomationValidationIssue] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationPreviewMatch(_MarvinModel):
+    """One entity a `target` selector resolved to (dry-run preview)."""
+    id: str
+    entry_type: str | None = None
+    status: str | None = None
+    title: str | None = None
+    slug: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationPreviewRequest(_MarvinModel):
+    definition: dict = {}
+    payload: dict = {}                   # simulates $event.payload for the query/conditions
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationPreviewResult(_MarvinModel):
+    """Dry-run of a `target` selector — which entities it resolves to, before running anything."""
+    has_target: bool = False             # false when the definition has no target selector
+    entity: str = "entry"
+    total: int = 0                       # entities matching the query (the FROM count, pre-cap)
+    capped: bool = False                 # total exceeded the run cap (only the first N would run)
+    matches: list[AutomationPreviewMatch] = []  # capped set that also passes conditions (the WHERE)
+    error: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)

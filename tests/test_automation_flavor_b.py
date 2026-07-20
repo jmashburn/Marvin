@@ -424,3 +424,61 @@ class TestValidateDefinition:
         # entry trigger offers entry fields; webhook offers a payload prefix
         assert any(f["field"].startswith("entry.") for f in cat["event"])
         assert any(f["field"].startswith("event.payload") for f in cat["incoming_webhook"])
+
+    def test_target_makes_entry_conditions_and_actions_valid(self):
+        # A target selector hydrates entry.* per matched row, so entry conditions/actions are fine
+        # even under a webhook trigger that has no inherent entry.
+        issues = self._v({
+            "trigger": {"type": "incoming_webhook", "webhook": "x"},
+            "target": {"entity": "entry", "query": {"status": "draft"}},
+            "conditions": [{"field": "entry.status", "op": "eq", "value": "draft"}],
+            "actions": [{"kind": "operation", "op": "generate-tags"}],
+        })
+        assert issues == []
+
+
+# ── Target selector: the FROM clause (set-based fan-out) ───────────────────────
+class TestTargetSelector:
+    def _entities(self):
+        return [
+            SimpleNamespace(id=uuid4(), entry_type=SimpleNamespace(slug="recipe"), status="draft", title="A", slug="a"),
+            SimpleNamespace(id=uuid4(), entry_type=SimpleNamespace(slug="recipe"), status="draft", title="B", slug="b"),
+        ]
+
+    def _auto(self, conditions=None):
+        return SimpleNamespace(slug="tag-all", enabled=True, group_id="G", definition={
+            "trigger": {"type": "manual"},
+            "target": {"entity": "entry", "query": {"entry_type": "recipe", "status": "draft"}},
+            "conditions": conditions or [],
+            "actions": [{"kind": "operation", "op": "generate-tags"}],
+        })
+
+    def test_action_runs_once_per_matched_entity(self, monkeypatch):
+        from marvin.services.automation import engine, selector
+        ents = self._entities()
+        monkeypatch.setattr(selector, "resolve_target_entities", lambda *a, **k: (ents, 2))
+        seen = []
+
+        def runner(session, group_id, action, context, *, user_id=None):
+            seen.append(context.get("entry", {}).get("slug"))  # per-entity context is bound
+            return {}
+
+        res = engine.run_automation_now(_FakeSession([]), "G", self._auto(), run_action=runner)
+        assert res["ran"] == 2
+        assert set(seen) == {"a", "b"}
+
+    def test_target_conditions_are_a_where_over_the_set(self, monkeypatch):
+        # Even a MANUAL run applies conditions when there's a target (they're the WHERE clause).
+        from marvin.services.automation import engine, selector
+        ents = self._entities()
+        ents[1].status = "published"  # only "a" is draft
+        monkeypatch.setattr(selector, "resolve_target_entities", lambda *a, **k: (ents, 2))
+        seen = []
+
+        def runner(session, group_id, action, context, *, user_id=None):
+            seen.append(context.get("entry", {}).get("slug"))
+            return {}
+
+        auto = self._auto(conditions=[{"field": "entry.status", "op": "eq", "value": "draft"}])
+        res = engine.run_automation_now(_FakeSession([]), "G", auto, run_action=runner)
+        assert res["ran"] == 1 and seen == ["a"]

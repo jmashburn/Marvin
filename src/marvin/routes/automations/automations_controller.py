@@ -20,6 +20,9 @@ from marvin.schemas.group.automation import (
     AutomationCreate,
     AutomationIncomingWebhookOption,
     AutomationOptions,
+    AutomationPreviewMatch,
+    AutomationPreviewRequest,
+    AutomationPreviewResult,
     AutomationRead,
     AutomationTargetOption,
     AutomationUpdate,
@@ -168,6 +171,42 @@ class AutomationsController(BaseUserController):
 
         issues = validate_definition(data.definition)
         return AutomationValidateResult(issues=issues)
+
+    @router.post("/preview", response_model=AutomationPreviewResult, summary="Dry-run a target selector")
+    def preview(self, data: AutomationPreviewRequest) -> AutomationPreviewResult:
+        """Resolve a definition's `target` query (with an optional test payload) and show which
+        entities it would act on — WITHOUT running any action. `matches` is the capped set that also
+        passes the conditions; `total` is the full query count so the caller sees when it's capped."""
+        _require_admin(self.user, self.group_id)
+        from marvin.services.automation.matcher import matches as _conds_match
+        from marvin.services.automation.selector import entity_ref, resolve_target_entities
+
+        defn = data.definition or {}
+        target = defn.get("target")
+        if not target:
+            return AutomationPreviewResult(has_target=False)
+
+        context = {"event": {"event_type": "preview", "payload": data.payload or {}}, "previous": {}, "depth": 0}
+        try:
+            entities, total = resolve_target_entities(self.session, self.group_id, target, context)
+        except Exception as e:
+            return AutomationPreviewResult(has_target=True, entity=target.get("entity", "entry"), error=str(e))
+
+        conditions = defn.get("conditions")
+        matched: list[AutomationPreviewMatch] = []
+        for ent in entities:
+            ref = entity_ref(ent)
+            ctx = {**context, "entry": ref, "event": {**context["event"], "entry_id": ref["id"]}}
+            if _conds_match(conditions, ctx):
+                matched.append(AutomationPreviewMatch(**ref))
+
+        return AutomationPreviewResult(
+            has_target=True,
+            entity=target.get("entity", "entry"),
+            total=total,
+            capped=total > len(entities),
+            matches=matched,
+        )
 
     @router.post("/{automation_id}/run", summary="Run an automation now (manual trigger)")
     def run_automation(self, automation_id: UUID4) -> dict:

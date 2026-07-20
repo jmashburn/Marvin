@@ -70,13 +70,64 @@ def run_automations_for_event(
         trig = defn.get("trigger") or {}
         if not _trigger_matches(trig, event_ctx):
             continue
-        if not matches(defn.get("conditions"), context):
-            continue
-        ok = _run_pipeline(session, group_id, automation, context, user_id=user_id, logger=logger, run_action=run_action)
-        _announce(session, group_id, automation, ok, depth, user_id, context)
-        ran += 1
+        ran_this, ok = _run_targets(
+            session, group_id, automation, context,
+            user_id=user_id, logger=logger, run_action=run_action, gate_conditions=True,
+        )
+        if ran_this:
+            _announce(session, group_id, automation, ok, depth, user_id, context)
+            ran += 1
 
     return ran
+
+
+def _target_context(base_context: dict, entity_ref: dict) -> dict:
+    """A per-target match context: bind the resolved entity as `entry` and as `$event.entry_id`
+    (so entry-defaulting actions target it) while carrying the rest of the base context."""
+    base_event = base_context.get("event", {})
+    return {**base_context, "event": {**base_event, "entry_id": entity_ref["id"]}, "entry": entity_ref}
+
+
+def _run_targets(session, group_id, automation, base_context: dict, *, user_id, logger, run_action,
+                 gate_conditions: bool) -> tuple[int, bool]:
+    """Run the automation's pipeline over its target set (the `target` selector) — or, with no
+    target, over the single trigger context.
+
+    Returns ``(ran_count, all_ok)``. With a `target`, conditions are always applied as the WHERE
+    over the resolved set. With no target, `gate_conditions` decides (events gate; a manual Run does
+    not). Capped by the selector — a matched set larger than the cap is truncated and logged.
+    """
+    defn = automation.definition or {}
+    conditions = defn.get("conditions")
+    target = defn.get("target")
+
+    if target:
+        from .selector import entity_ref, resolve_target_entities
+        try:
+            entities, total = resolve_target_entities(session, group_id, target, base_context)
+        except Exception as e:
+            if logger:
+                logger.warning("automation '%s' target query failed: %s", automation.slug, e)
+            return 0, True
+        if logger and total > len(entities):
+            logger.warning(
+                "automation '%s' target matched %d entities; acting on the first %d (cap)",
+                automation.slug, total, len(entities),
+            )
+        contexts = [_target_context(base_context, entity_ref(ent)) for ent in entities]
+        gate = True  # a target's conditions are its WHERE clause — always applied
+    else:
+        contexts = [base_context]
+        gate = gate_conditions
+
+    ran, ok_all = 0, True
+    for ctx in contexts:
+        if gate and not matches(conditions, ctx):
+            continue
+        ok = _run_pipeline(session, group_id, automation, ctx, user_id=user_id, logger=logger, run_action=run_action)
+        ok_all = ok_all and ok
+        ran += 1
+    return ran, ok_all
 
 
 def _trigger_matches(trig: dict, event_ctx: dict) -> bool:
@@ -171,6 +222,11 @@ def run_automation_now(session, group_id, automation, *, user_id=None, logger=No
         "previous": {},
         "depth": 0,
     }
-    ok = _run_pipeline(session, group_id, automation, context, user_id=user_id, logger=logger, run_action=run_action)
+    # Manual run skips conditions when acting on the single (implicit) context — the human asked for
+    # it. But when a `target` selects a set, its conditions are the WHERE over that set and DO apply.
+    ran, ok = _run_targets(
+        session, group_id, automation, context,
+        user_id=user_id, logger=logger, run_action=run_action, gate_conditions=False,
+    )
     _announce(session, group_id, automation, ok, 0, user_id, context)
-    return {"ok": ok, "result": context.get("previous", {})}
+    return {"ok": ok, "ran": ran, "result": context.get("previous", {})}

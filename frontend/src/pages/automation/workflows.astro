@@ -104,6 +104,36 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
           <span class="hint">Runs when this webhook receives a POST. Read the payload with <code>$event.payload.*</code>. Manage webhooks under <a href="/automation/incoming-webhooks">Incoming Webhooks</a>.</span>
         </div>
 
+        <div class="form-field target-block">
+          <label class="check"><input type="checkbox" id="wf-target-on" /> Run on a query of entries <span class="muted">(instead of the triggering entry) — runs the steps on each match</span></label>
+          <div id="wf-target-body" hidden>
+            <div class="target-grid">
+              <label class="tf"><span>Entry type</span><input class="input" id="wf-t-type" placeholder="any — e.g. recipe" /></label>
+              <label class="tf"><span>Status</span>
+                <select class="input" id="wf-t-status">
+                  <option value="">any</option>
+                  <option value="draft">draft</option>
+                  <option value="published">published</option>
+                  <option value="archived">archived</option>
+                  <option value="inbox">inbox</option>
+                </select>
+              </label>
+              <label class="tf"><span>Title contains</span><input class="input" id="wf-t-text" placeholder="any" /></label>
+              <label class="tf"><span>In collection</span><input class="input" id="wf-t-collection" placeholder="any — slug or name" /></label>
+            </div>
+            <div class="target-checks">
+              <label class="check small"><input type="checkbox" id="wf-t-images" /> has images</label>
+              <label class="check small"><input type="checkbox" id="wf-t-assets" /> has assets</label>
+              <label class="check small"><input type="checkbox" id="wf-t-resources" /> has resources</label>
+            </div>
+            <div class="target-preview-row">
+              <button type="button" class="button secondary sm" id="wf-preview-btn">Preview matches</button>
+              <span class="hint" id="wf-preview-status"></span>
+            </div>
+            <div id="wf-preview-result" class="preview-result" hidden></div>
+          </div>
+        </div>
+
         <div class="form-field">
           <label class="label">Only if <span class="muted">(all conditions must match — optional)</span></label>
           <div id="wf-conditions" class="rows"></div>
@@ -153,6 +183,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     deleteAutomation,
     runAutomation,
     validateAutomation,
+    previewAutomation,
   } from "@/lib/api/automations";
 
   const read = (id: string) => JSON.parse(document.getElementById(id)!.textContent || "null");
@@ -386,7 +417,53 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     } else {
       trigger = { type: ttype };
     }
-    return { trigger, conditions, actions };
+    return { trigger, ...readTarget(), conditions, actions };
+  }
+
+  // The optional "Run on" selector (FROM clause). Returns {} or { target: {...} }.
+  function readTarget() {
+    if (!($("wf-target-on") as HTMLInputElement).checked) return {};
+    const query: any = {};
+    const type = ($("wf-t-type") as HTMLInputElement).value.trim(); if (type) query.entry_type = type;
+    const status = ($("wf-t-status") as HTMLSelectElement).value; if (status) query.status = status;
+    const text = ($("wf-t-text") as HTMLInputElement).value.trim(); if (text) query.text = text;
+    const coll = ($("wf-t-collection") as HTMLInputElement).value.trim(); if (coll) query.collection = coll;
+    if (($("wf-t-images") as HTMLInputElement).checked) query.has_images = true;
+    if (($("wf-t-assets") as HTMLInputElement).checked) query.has_assets = true;
+    if (($("wf-t-resources") as HTMLInputElement).checked) query.has_resources = true;
+    return { target: { entity: "entry", query } };
+  }
+
+  function syncTargetBody() {
+    const on = ($("wf-target-on") as HTMLInputElement).checked;
+    $("wf-target-body").toggleAttribute("hidden", !on);
+  }
+
+  // Dry-run the target selector: show which entries it would act on, without running anything.
+  async function runPreview() {
+    const status = $("wf-preview-status");
+    const result = $("wf-preview-result");
+    status.textContent = "Resolving…"; status.className = "hint";
+    result.setAttribute("hidden", "");
+    try {
+      const res: any = await previewAutomation(readDefinition());
+      if (res.error) { status.textContent = `Query error: ${res.error}`; status.className = "hint error"; return; }
+      const total = res.total ?? 0;
+      const matches = res.matches ?? [];
+      const noun = (n: number) => `${n} ${n === 1 ? "entry" : "entries"}`;
+      status.textContent = "";
+      const cappedNote = res.capped ? ` <span class="muted">(capped — only the first are shown/run)</span>` : "";
+      const chips = matches.length
+        ? matches.map((m: any) => `<span class="chip">${esc(m.title || m.slug || m.id)}</span>`).join("")
+        : `<span class="muted">Nothing passes the conditions.</span>`;
+      result.innerHTML =
+        `<div class="preview-head">Query matches <strong>${noun(total)}</strong>${cappedNote}. `
+        + `After conditions, it would run on <strong>${noun(matches.length)}</strong>:</div>`
+        + `<div class="preview-chips">${chips}</div>`;
+      result.removeAttribute("hidden");
+    } catch (e: any) {
+      status.textContent = `Error: ${e?.message ?? e}`; status.className = "hint error";
+    }
   }
 
   // ── Open / close the builder ──────────────────────────────────────────────
@@ -413,6 +490,20 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       ($("wf-webhook-target") as HTMLSelectElement).value = trig.webhook || "any";
     }
     syncTriggerType();
+
+    // Restore the "Run on" target selector.
+    const tgt = def.target;
+    const tq = tgt?.query ?? {};
+    ($("wf-target-on") as HTMLInputElement).checked = !!tgt;
+    ($("wf-t-type") as HTMLInputElement).value = tq.entry_type ?? "";
+    ($("wf-t-status") as HTMLSelectElement).value = tq.status ?? "";
+    ($("wf-t-text") as HTMLInputElement).value = tq.text ?? tq.query ?? "";
+    ($("wf-t-collection") as HTMLInputElement).value = tq.collection ?? "";
+    ($("wf-t-images") as HTMLInputElement).checked = !!tq.has_images;
+    ($("wf-t-assets") as HTMLInputElement).checked = !!tq.has_assets;
+    ($("wf-t-resources") as HTMLInputElement).checked = !!tq.has_resources;
+    syncTargetBody();
+    ($("wf-preview-result") as HTMLElement).setAttribute("hidden", "");
 
     const condWrap = $("wf-conditions"); condWrap.innerHTML = "";
     (def.conditions ?? []).forEach((c: any) => condWrap.appendChild(conditionRow(c)));
@@ -487,11 +578,27 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       : t.type === "incoming_webhook" ? `${webhookName(t.webhook)} received`
       : prettyEvent(t.event || "—");
     const trigChip = `<span class="chip trigger">${esc(trigText)}</span>`;
+    const onChips = d.target ? [`<span class="chip target">${esc(targetSummary(d.target))}</span>`] : [];
     return `<div class="flow">
       ${lane("When", [trigChip])}
+      ${onChips.length ? lane("On", onChips) : ""}
       ${lane("If", conds)}
       ${lane("Then", steps)}
     </div>`;
+  }
+
+  function targetSummary(t: any): string {
+    const q = t?.query || {};
+    const parts: string[] = [];
+    if (q.entry_type) parts.push(q.entry_type);
+    if (q.status) parts.push(q.status);
+    if (q.collection) parts.push(`in ${q.collection}`);
+    if (q.text) parts.push(`titled “${q.text}”`);
+    if (q.has_images) parts.push("with images");
+    else if (q.has_assets) parts.push("with assets");
+    if (q.has_resources) parts.push("with resources");
+    const noun = `${t?.entity || "entry"}${parts.length ? "" : " (all)"}`;
+    return `${noun}${parts.length ? " " + parts.join(", ") : "s"}`;
   }
 
   function renderList() {
@@ -547,6 +654,8 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   $("wf-trigger-type").addEventListener("change", syncTriggerType);
   $("wf-add-condition").addEventListener("click", () => { $("wf-conditions").appendChild(conditionRow()); revalidate(); });
   $("wf-add-action").addEventListener("click", () => { $("wf-actions").appendChild(actionRow()); revalidate(); });
+  $("wf-target-on").addEventListener("change", () => { syncTargetBody(); revalidate(); });
+  $("wf-preview-btn").addEventListener("click", runPreview);
   // Any edit inside the builder re-runs the advisory coherence check (debounced).
   builder.addEventListener("input", revalidate);
   builder.addEventListener("change", revalidate);
@@ -596,6 +705,22 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   .workflows-page :global(.banner.warn ul) { margin: 6px 0 4px; padding-left: 18px; }
   .workflows-page :global(.banner.warn li) { margin: 2px 0; }
   .workflows-page :global(.banner.warn .warn-note) { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; }
+
+  /* "Run on" target selector + dry-run preview */
+  .workflows-page :global(.target-block) { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; }
+  .workflows-page :global(.target-grid) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 8px; }
+  .workflows-page :global(.tf) { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .workflows-page :global(.tf > span) { color: var(--muted); }
+  .workflows-page :global(.target-checks) { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 10px; }
+  .workflows-page :global(.target-preview-row) { display: flex; align-items: center; gap: 10px; }
+  .workflows-page :global(.button.secondary.sm) { padding: 5px 12px; font-size: 12px; }
+  .workflows-page :global(.preview-result) { margin-top: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .workflows-page :global(.preview-result[hidden]) { display: none; }
+  .workflows-page :global(.preview-head) { font-size: 13px; margin-bottom: 8px; }
+  .workflows-page :global(.preview-chips) { display: flex; flex-wrap: wrap; gap: 6px; }
+  .workflows-page :global(.preview-chips .chip) { padding: 2px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; }
+  .workflows-page :global(.hint.error) { color: var(--color-error); }
+  .workflows-page :global(.chip.target) { background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
   .workflows-page :global(.banner code) { font-family: ui-monospace, monospace; font-size: 0.9em; background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
 
   /* Builder */

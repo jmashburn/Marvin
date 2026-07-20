@@ -89,7 +89,13 @@ def validate_definition(definition: dict | None) -> list[dict]:
     trig = definition.get("trigger") or {}
     ttype = trig.get("type", "event")
     namespaces = _namespaces_for(ttype)
-    has_entry = ttype in _ENTRY_TRIGGERS
+    # A `target` selector that yields entries hydrates `entry.*` for every matched row — so entry
+    # conditions/actions are valid even under a trigger (webhook/manual) that has no inherent entry.
+    target = definition.get("target") or {}
+    has_target_entry = bool(target) and target.get("entity", "entry") == "entry"
+    has_entry = (ttype in _ENTRY_TRIGGERS) or has_target_entry
+    if has_target_entry:
+        namespaces = namespaces | {"entry"}
 
     # ── Conditions ────────────────────────────────────────────────────────────
     for i, cond in enumerate(definition.get("conditions") or []):
