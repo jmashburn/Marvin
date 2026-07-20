@@ -5,6 +5,7 @@ import FilterBar from "@/components/FilterBar.astro";
 import { listEntries, type EntryRead } from "@/lib/api/entries";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections, type CollectionRead } from "@/lib/api/collections";
+import { listTags, type TagRead } from "@/lib/api/tags";
 import { getAuthToken } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
@@ -12,10 +13,13 @@ const authToken = getAuthToken(Astro.cookies);
 // Get URL parameters for pre-filtering
 const statusParam = Astro.url.searchParams.get('status');
 const statusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : [];
+// A single tag slug can pre-select the tag filter (deep-link, e.g. ?tag=leather).
+const tagParam = Astro.url.searchParams.get('tag') || '';
 
 let entries: EntryRead[] = [];
 let entryTypes: EntryTypeRead[] = [];
 let collections: CollectionRead[] = [];
+let allTags: TagRead[] = [];
 let error: string | null = null;
 
 // Ensure we have auth token before making requests
@@ -23,10 +27,11 @@ if (!authToken) {
   error = 'Authentication required';
 } else {
   try {
-    [entries, entryTypes, collections] = await Promise.all([
+    [entries, entryTypes, collections, allTags] = await Promise.all([
       listEntries(authToken),
       listEntryTypes(authToken),
       listCollections(authToken),
+      listTags(authToken),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -39,6 +44,11 @@ const collectionsMap = new Map(collections.map(c => [c.id, c]));
 
 // Sort entry types by sort_order
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
+
+// Tags that are actually applied to something, for the filter dropdown (alpha by name).
+const filterTags = allTags
+  .filter((t) => (t.entryCount ?? 0) > 0)
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 // Group entries by collection (entries can appear in multiple collections)
 const collectionGroups = new Map<string, { collection: CollectionRead; entries: EntryRead[] }>();
@@ -103,7 +113,13 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                   { value: "published", label: "Published" },
                   { value: "archived", label: "Archived" }
                 ]
-              }
+              },
+              ...(filterTags.length > 0 ? [{
+                id: "tag-filter",
+                label: "Tags",
+                defaultValue: tagParam,
+                options: filterTags.map(tag => ({ value: tag.slug, label: tag.name }))
+              }] : [])
             ]}
           />
           <a class="button" href="/workspace/entries/new">New Entry</a>
@@ -141,6 +157,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                   data-title={entry.title.toLowerCase()}
                   data-summary={(entry.summary || '').toLowerCase()}
                   data-collections={entry.collections?.map((c: any) => typeof c === 'string' ? c : c.id).join(',') || ''}
+                  data-tags={((entry.tags as string[] | undefined) || []).join(' ')}
                   style={matchesStatusFilter ? '' : 'display: none;'}>
                   <EntryCard entry={entry} collectionsMap={collectionsMap} />
                 </div>
@@ -174,7 +191,8 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                       data-type={entry.entryTypeId}
                       data-status={entry.status}
                       data-title={entry.title.toLowerCase()}
-                      data-summary={(entry.summary || '').toLowerCase()}>
+                      data-summary={(entry.summary || '').toLowerCase()}
+                      data-tags={((entry.tags as string[] | undefined) || []).join(' ')}>
                       <EntryCard entry={entry} collectionsMap={collectionsMap} />
                     </div>
                   ))}
@@ -197,7 +215,8 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
                       data-type={entry.entryTypeId}
                       data-status={entry.status}
                       data-title={entry.title.toLowerCase()}
-                      data-summary={(entry.summary || '').toLowerCase()}>
+                      data-summary={(entry.summary || '').toLowerCase()}
+                      data-tags={((entry.tags as string[] | undefined) || []).join(' ')}>
                       <EntryCard entry={entry} collectionsMap={collectionsMap} />
                     </div>
                   ))}
@@ -215,6 +234,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
   const searchInput = document.getElementById('filter-search') as HTMLInputElement;
   const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
   const statusFilter = document.getElementById('status-filter') as HTMLSelectElement;
+  const tagFilter = document.getElementById('tag-filter') as HTMLSelectElement | null;
   const gridView = document.getElementById('grid-view');
   const groupedView = document.getElementById('grouped-view');
   const viewGridBtn = document.getElementById('view-grid');
@@ -246,6 +266,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
     const searchQuery = searchInput?.value.toLowerCase() || '';
     const typeQuery = typeFilter?.value || '';
     const statusQuery = statusFilter?.value || '';
+    const tagQuery = tagFilter?.value || '';
 
     // Filter all entry wrappers across both views
     const wrappers = document.querySelectorAll('.entry-wrapper');
@@ -254,9 +275,11 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
       const summary = wrapper.getAttribute('data-summary') || '';
       const type = wrapper.getAttribute('data-type') || '';
       const status = wrapper.getAttribute('data-status') || '';
+      const tags = (wrapper.getAttribute('data-tags') || '').split(' ').filter(Boolean);
 
       const matchesSearch = !searchQuery || title.includes(searchQuery) || summary.includes(searchQuery);
       const matchesType = !typeQuery || type === typeQuery;
+      const matchesTag = !tagQuery || tags.includes(tagQuery);
 
       let matchesStatus = true;
       if (statusQuery) {
@@ -265,7 +288,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
         matchesStatus = urlStatusFilters.includes(status);
       }
 
-      (wrapper as HTMLElement).style.display = (matchesSearch && matchesType && matchesStatus) ? '' : 'none';
+      (wrapper as HTMLElement).style.display = (matchesSearch && matchesType && matchesStatus && matchesTag) ? '' : 'none';
     });
 
     // Hide collection groups where all entries are filtered out
@@ -280,6 +303,7 @@ const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
   searchInput?.addEventListener('input', filterEntries);
   typeFilter?.addEventListener('change', filterEntries);
   statusFilter?.addEventListener('change', filterEntries);
+  tagFilter?.addEventListener('change', filterEntries);
 </script>
 
 <style>

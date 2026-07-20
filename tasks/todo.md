@@ -807,10 +807,18 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       /tags`). SDK: new `TagsModule` (list/get/create/update/delete/attach/detach) + `PlatformTag*` types,
       schema regenerated from offline OpenAPI (carries `tags`/`tagIds`); built + npm-linked. Frontend
       `lib/api/tags.ts` wrapper. Page compiles + renders 200. (Create-flow attach stays deferred per ask.)
-- [ ] **T6. Entries list tag filter** — `data-tags` attribute + a tag filter chip, following the
-      existing type/status filter pattern (`entries.astro`).
-- [ ] **Verify:** promotion migration idempotent + reversible · smart-collection-by-tag matches ·
-      chip add/remove round-trips · published entry exposes tags · tests.
+- [x] **T6. Entries list tag filter** ✅ (2026-07-20) — Tags dropdown in the `entries.astro` FilterBar
+      (only tags with entryCount > 0, alpha), `data-tags` slug attribute on every wrapper (grid + grouped
+      + uncollected), client `matchesTag` folded into the existing filter (AND with type/status/search).
+      Deep-linkable: `?tag=slug` pre-selects via `defaultValue`. Page compiles + renders 200, no new
+      type errors.
+- [x] **Verify:** ✅ promotion migration idempotent + reversible (T1) · smart-collection-by-tag matches
+      (T2, live) · tag_ids round-trips through tag_names (T3, live) · published entry + admin + MCP expose
+      tags (T4, live) · editor + list pages compile & render 200 · 230 backend + 126 MCP tests green.
+
+**Phase 1 COMPLETE (T1–T6).** Real queryable tags, tag-based smart collections, full read/write API,
+editor chip UI, and list filter — end to end. Deferred by request: create-flow attach; AI generate-tags
+repoint (Phase 3).
 
 ### Phase 2 — assets + resources (fast follow)
 - [ ] `asset_tags` + `resource_tags` junctions + `.tags` associations · lift the entries-only guard in
