@@ -10,13 +10,19 @@ Actions dispatch through the action-executor registry (`actions.run_action`) —
 the engine is unit-testable without real executors.
 """
 
+from datetime import UTC, datetime
 from typing import Callable
 
 from .actions import AutomationActionError, run_action as _registry_run_action
 from .matcher import matches
+from .recorder import NullRecorder, new_correlation_id
 
 MAX_ACTIONS = 10          # per-automation guardrail against a runaway pipeline
 MAX_REACTION_DEPTH = 3    # how many automation/emit_event hops a single chain may span before we stop
+
+
+def _ms_since(started: datetime) -> int:
+    return int((datetime.now(UTC) - started).total_seconds() * 1000)
 
 
 def _entry_context(session, group_id, entry_id) -> dict | None:
@@ -38,6 +44,7 @@ def run_automations_for_event(
     *,
     logger=None,
     run_action: Callable = _registry_run_action,
+    recorder=None,
 ) -> int:
     """Run every enabled automation matching this event. Returns how many ran (best-effort).
 
@@ -48,6 +55,7 @@ def run_automations_for_event(
     """
     from marvin.db.models.groups.automations import WorkspaceAutomationModel
 
+    recorder = recorder or NullRecorder()
     automations = (
         session.query(WorkspaceAutomationModel)
         .filter_by(group_id=group_id, enabled=True)
@@ -73,6 +81,7 @@ def run_automations_for_event(
         ran_this, ok = _run_targets(
             session, group_id, automation, context,
             user_id=user_id, logger=logger, run_action=run_action, gate_conditions=True,
+            recorder=recorder,
         )
         if ran_this:
             _announce(session, group_id, automation, ok, depth, user_id, context)
@@ -89,9 +98,9 @@ def _target_context(base_context: dict, entity_ref: dict) -> dict:
 
 
 def _run_targets(session, group_id, automation, base_context: dict, *, user_id, logger, run_action,
-                 gate_conditions: bool) -> tuple[int, bool]:
+                 gate_conditions: bool, recorder) -> tuple[int, bool]:
     """Run the automation's pipeline over its target set (the `target` selector) — or, with no
-    target, over the single trigger context.
+    target, over the single trigger context — recording the run + each step.
 
     Returns ``(ran_count, all_ok)``. With a `target`, conditions are always applied as the WHERE
     over the resolved set. With no target, `gate_conditions` decides (events gate; a manual Run does
@@ -100,6 +109,7 @@ def _run_targets(session, group_id, automation, base_context: dict, *, user_id, 
     defn = automation.definition or {}
     conditions = defn.get("conditions")
     target = defn.get("target")
+    trigger_type = (defn.get("trigger") or {}).get("type", "event")
 
     if target:
         from .selector import entity_ref, resolve_target_entities
@@ -109,24 +119,42 @@ def _run_targets(session, group_id, automation, base_context: dict, *, user_id, 
             if logger:
                 logger.warning("automation '%s' target query failed: %s", automation.slug, e)
             return 0, True
-        if logger and total > len(entities):
+        capped = total > len(entities)
+        if logger and capped:
             logger.warning(
                 "automation '%s' target matched %d entities; acting on the first %d (cap)",
                 automation.slug, total, len(entities),
             )
-        contexts = [_target_context(base_context, entity_ref(ent)) for ent in entities]
+        pairs = [(_target_context(base_context, (ref := entity_ref(ent))), ref) for ent in entities]
         gate = True  # a target's conditions are its WHERE clause — always applied
     else:
-        contexts = [base_context]
-        gate = gate_conditions
+        # Non-target: single context. If gated and conditions fail, it's a non-run — don't record.
+        if gate_conditions and not matches(conditions, base_context):
+            return 0, True
+        pairs = [(base_context, base_context.get("entry"))]
+        total, capped, gate = 1, False, gate_conditions
 
-    ran, ok_all = 0, True
-    for ctx in contexts:
+    exec_id = recorder.start(
+        automation, trigger_type, targets_matched=total, capped=capped,
+        user_id=user_id, correlation_id=new_correlation_id(),
+    )
+
+    ran, ok_all, steps_ok, steps_failed = 0, True, 0, 0
+    for target_index, (ctx, ref) in enumerate(pairs):
         if gate and not matches(conditions, ctx):
             continue
-        ok = _run_pipeline(session, group_id, automation, ctx, user_id=user_id, logger=logger, run_action=run_action)
+        ok, s_ok, s_failed = _run_pipeline(
+            session, group_id, automation, ctx, user_id=user_id, logger=logger, run_action=run_action,
+            recorder=recorder, exec_id=exec_id, target_index=target_index, target_ref=ref,
+        )
         ok_all = ok_all and ok
+        steps_ok += s_ok
+        steps_failed += s_failed
         ran += 1
+
+    status = "success" if ok_all else ("partial" if steps_ok else "failed")
+    recorder.finish(exec_id, status=status, error=base_context.get("_error"),
+                    targets_run=ran, steps_ok=steps_ok, steps_failed=steps_failed)
     return ran, ok_all
 
 
@@ -188,31 +216,44 @@ def _announce(session, group_id, automation, ok: bool, depth: int, user_id, cont
         pass
 
 
-def _run_pipeline(session, group_id, automation, context: dict, *, user_id, logger, run_action) -> bool:
-    """Run one automation's action pipeline in order. Returns True if all steps completed.
+def _run_pipeline(session, group_id, automation, context: dict, *, user_id, logger, run_action,
+                  recorder=None, exec_id=None, target_index: int = 0, target_ref=None) -> tuple[bool, int, int]:
+    """Run one automation's action pipeline in order, recording each step. Returns
+    ``(all_ok, steps_ok, steps_failed)``.
 
     A fresh `previous` is set so pipelines don't leak into each other; a failing step stops the rest
     (later steps usually depend on it).
     """
+    recorder = recorder or NullRecorder()
     actions = (automation.definition or {}).get("actions") or []
     context["previous"] = {}
     context.pop("_error", None)
-    for action in actions[:MAX_ACTIONS]:
+    steps_ok, steps_failed = 0, 0
+    for action_index, action in enumerate(actions[:MAX_ACTIONS]):
+        started = datetime.now(UTC)
         try:
             out = run_action(session, group_id, action, context, user_id=user_id)
+            recorder.action(exec_id, target_index=target_index, target_ref=target_ref,
+                            action_index=action_index, action=action, status="success",
+                            output=out, duration_ms=_ms_since(started))
             context["previous"] = out if isinstance(out, dict) else {}
+            steps_ok += 1
         except AutomationActionError as e:
+            recorder.action(exec_id, target_index=target_index, target_ref=target_ref,
+                            action_index=action_index, action=action, status="failed",
+                            error=str(e), duration_ms=_ms_since(started))
             context["_error"] = str(e)
+            steps_failed += 1
             if logger:
                 logger.warning(
                     "automation '%s' action kind=%s failed: %s",
                     automation.slug, action.get("kind"), e,
                 )
-            return False
-    return True
+            return False, steps_ok, steps_failed
+    return True, steps_ok, steps_failed
 
 
-def run_automation_now(session, group_id, automation, *, user_id=None, logger=None, run_action: Callable = _registry_run_action) -> dict:
+def run_automation_now(session, group_id, automation, *, user_id=None, logger=None, run_action: Callable = _registry_run_action, recorder=None) -> dict:
     """Run one automation on demand (the Manual trigger / Run button) — skips the trigger + condition
     gates (the human explicitly asked for it). No event, so `$event.*` resolves to None; best for
     automations whose steps don't need a specific entry (webhook, handler, reindex, …).
@@ -227,6 +268,7 @@ def run_automation_now(session, group_id, automation, *, user_id=None, logger=No
     ran, ok = _run_targets(
         session, group_id, automation, context,
         user_id=user_id, logger=logger, run_action=run_action, gate_conditions=False,
+        recorder=recorder or NullRecorder(),
     )
     _announce(session, group_id, automation, ok, 0, user_id, context)
     return {"ok": ok, "ran": ran, "result": context.get("previous", {})}

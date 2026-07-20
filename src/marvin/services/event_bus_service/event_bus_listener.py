@@ -1040,10 +1040,14 @@ class AutomationReactionListener(EventListenerBase):
             "reaction_depth": getattr(event, "reaction_depth", 0),
         }
         from marvin.services.automation.engine import run_automations_for_event
+        from marvin.services.automation.recorder import ExecutionRecorder
 
         with self.ensure_session() as session:
             try:
-                ran = run_automations_for_event(session, self.group_id, event_ctx, logger=self.logger)
+                ran = run_automations_for_event(
+                    session, self.group_id, event_ctx, logger=self.logger,
+                    recorder=ExecutionRecorder(session, self.group_id),
+                )
             except Exception as e:
                 session.rollback()
                 self.logger.warning(f"AutomationReactionListener: engine error: {e}")

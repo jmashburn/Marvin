@@ -30,6 +30,7 @@ class RunAutomationHandler(ScheduledTaskHandler):
         from marvin.db.db_setup import session_context
         from marvin.db.models.groups.automations import WorkspaceAutomationModel
         from marvin.services.automation.engine import run_automation_now
+        from marvin.services.automation.recorder import ExecutionRecorder
 
         automation_id = (task.task_config or {}).get("automation_id")
         if not automation_id:
@@ -41,7 +42,10 @@ class RunAutomationHandler(ScheduledTaskHandler):
                 return f"automation {automation_id} not found"
             if not automation.enabled:
                 return f"automation '{automation.slug}' is disabled — skipped"
-            res = run_automation_now(session, automation.group_id, automation, user_id=None, logger=logger)
+            res = run_automation_now(
+                session, automation.group_id, automation, user_id=None, logger=logger,
+                recorder=ExecutionRecorder(session, automation.group_id),
+            )
 
         summary = f"ran automation '{automation.slug}' (ok={res.get('ok')})"
         logger.info("Scheduled automation: %s", summary)

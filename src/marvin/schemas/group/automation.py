@@ -5,6 +5,8 @@ validates/executes it. `AutomationOptions` advertises the builder's vocabulary (
 condition operators, action kinds) so the UI is backend-driven rather than hardcoding it.
 """
 
+from datetime import datetime
+
 from pydantic import UUID4, ConfigDict
 
 from marvin.schemas._marvin import _MarvinModel
@@ -154,5 +156,53 @@ class AutomationPreviewResult(_MarvinModel):
     capped: bool = False                 # total exceeded the run cap (only the first N would run)
     matches: list[AutomationPreviewMatch] = []  # capped set that also passes conditions (the WHERE)
     error: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationActionExecutionRead(_MarvinModel):
+    """One recorded step within a run — which target, which action, and how it went."""
+    id: UUID4
+    target_index: int = 0
+    target_entity_type: str | None = None
+    target_entity_id: str | None = None
+    action_index: int = 0
+    kind: str
+    label: str | None = None
+    status: str
+    error: str | None = None
+    duration_ms: int | None = None
+    output_snapshot: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationExecutionRead(_MarvinModel):
+    """One recorded run of an automation (compact — for the history list)."""
+    id: UUID4
+    automation_id: UUID4 | None = None
+    automation_slug: str
+    trigger_type: str
+    status: str
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: int | None = None
+    targets_matched: int = 1
+    targets_run: int = 0
+    capped: bool = False
+    steps_total: int = 0
+    steps_ok: int = 0
+    steps_failed: int = 0
+    error: str | None = None
+    correlation_id: str | None = None
+    triggered_by: UUID4 | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationExecutionDetail(AutomationExecutionRead):
+    """A run plus its per-step records and the definition it ran against."""
+    definition_snapshot: dict | None = None
+    actions: list[AutomationActionExecutionRead] = []
 
     model_config = ConfigDict(from_attributes=True)

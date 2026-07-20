@@ -18,6 +18,8 @@ from marvin.schemas.group.automation import (
     AutomationActionOption,
     AutomationConditionField,
     AutomationCreate,
+    AutomationExecutionDetail,
+    AutomationExecutionRead,
     AutomationIncomingWebhookOption,
     AutomationOptions,
     AutomationPreviewMatch,
@@ -208,6 +210,34 @@ class AutomationsController(BaseUserController):
             matches=matched,
         )
 
+    # ── Execution history ─────────────────────────────────────────────────────
+    @router.get("/{automation_id}/executions", response_model=list[AutomationExecutionRead], summary="List recent runs")
+    def list_executions(self, automation_id: UUID4, limit: int = 25) -> list[AutomationExecutionRead]:
+        """Recent runs of this automation, newest first — status, targets, step counts, timing."""
+        _require_admin(self.user, self.group_id)
+        _get_or_404(self.session, automation_id, self.group_id)
+        from marvin.db.models.groups.automation_executions import AutomationExecutionModel
+
+        rows = (
+            self.session.query(AutomationExecutionModel)
+            .filter_by(group_id=self.group_id, automation_id=automation_id)
+            .order_by(AutomationExecutionModel.started_at.desc())
+            .limit(max(1, min(limit, 100)))
+            .all()
+        )
+        return [AutomationExecutionRead.model_validate(r) for r in rows]
+
+    @router.get("/{automation_id}/executions/{execution_id}", response_model=AutomationExecutionDetail, summary="Run detail")
+    def get_execution(self, automation_id: UUID4, execution_id: UUID4) -> AutomationExecutionDetail:
+        """One run plus its per-(target, step) records and the definition snapshot it ran against."""
+        _require_admin(self.user, self.group_id)
+        from marvin.db.models.groups.automation_executions import AutomationExecutionModel
+
+        row = self.session.get(AutomationExecutionModel, execution_id)
+        if not row or row.group_id != self.group_id or row.automation_id != automation_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found.")
+        return AutomationExecutionDetail.model_validate(row)
+
     @router.post("/{automation_id}/run", summary="Run an automation now (manual trigger)")
     def run_automation(self, automation_id: UUID4) -> dict:
         """Run the automation's steps immediately — the Manual trigger / Run button. Skips the
@@ -215,9 +245,13 @@ class AutomationsController(BaseUserController):
         _require_admin(self.user, self.group_id)
         row = _get_or_404(self.session, automation_id, self.group_id)
         from marvin.services.automation.engine import run_automation_now
+        from marvin.services.automation.recorder import ExecutionRecorder
 
         try:
-            res = run_automation_now(self.session, self.group_id, row, user_id=self.user.id)
+            res = run_automation_now(
+                self.session, self.group_id, row, user_id=self.user.id,
+                recorder=ExecutionRecorder(self.session, self.group_id),
+            )
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
         return {"status": "ran", **res}

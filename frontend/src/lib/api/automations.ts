@@ -50,3 +50,13 @@ export async function deleteAutomation(id: string, authToken?: string): Promise<
 export async function runAutomation(id: string, authToken?: string) {
   return createSdkClient(authToken).automations.run(id);
 }
+
+/** Recent runs of an automation (history list). */
+export async function listAutomationExecutions(id: string, limit = 25, authToken?: string) {
+  return createSdkClient(authToken).automations.executions(id, limit);
+}
+
+/** One run + its per-step records. */
+export async function getAutomationExecution(id: string, executionId: string, authToken?: string) {
+  return createSdkClient(authToken).automations.execution(id, executionId);
+}

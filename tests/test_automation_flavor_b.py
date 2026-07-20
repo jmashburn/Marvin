@@ -482,3 +482,70 @@ class TestTargetSelector:
         auto = self._auto(conditions=[{"field": "entry.status", "op": "eq", "value": "draft"}])
         res = engine.run_automation_now(_FakeSession([]), "G", auto, run_action=runner)
         assert res["ran"] == 1 and seen == ["a"]
+
+
+# ── Execution recording (observability) ───────────────────────────────────────
+class _SpyRecorder:
+    def __init__(self):
+        self.started, self.actions, self.finished = [], [], []
+
+    def start(self, automation, trigger_type, **kw):
+        self.started.append({"slug": automation.slug, "trigger": trigger_type, **kw})
+        return "EXEC-1"
+
+    def action(self, exec_id, **kw):
+        self.actions.append(kw)
+
+    def finish(self, exec_id, **kw):
+        self.finished.append(kw)
+
+
+class TestExecutionRecording:
+    def test_records_run_and_a_step_per_target(self, monkeypatch):
+        from marvin.services.automation import engine, selector
+        ents = [
+            SimpleNamespace(id=uuid4(), entry_type=SimpleNamespace(slug="recipe"), status="draft", title="A", slug="a"),
+            SimpleNamespace(id=uuid4(), entry_type=SimpleNamespace(slug="recipe"), status="draft", title="B", slug="b"),
+        ]
+        monkeypatch.setattr(selector, "resolve_target_entities", lambda *a, **k: (ents, 5))  # 5 matched, 2 returned (cap)
+        auto = SimpleNamespace(slug="tag-all", enabled=True, group_id="G", definition={
+            "trigger": {"type": "manual"},
+            "target": {"entity": "entry", "query": {"status": "draft"}},
+            "conditions": [],
+            "actions": [{"kind": "operation", "op": "generate-tags"}],
+        })
+        spy = _SpyRecorder()
+        engine.run_automation_now(_FakeSession([]), "G", auto, run_action=lambda *a, **k: {}, recorder=spy)
+
+        assert len(spy.started) == 1
+        assert spy.started[0]["targets_matched"] == 5 and spy.started[0]["capped"] is True
+        assert len(spy.actions) == 2                       # one step per matched target
+        assert {a["target_index"] for a in spy.actions} == {0, 1}
+        assert all(a["status"] == "success" for a in spy.actions)
+        assert spy.finished[0]["status"] == "success" and spy.finished[0]["targets_run"] == 2
+        assert spy.finished[0]["steps_ok"] == 2 and spy.finished[0]["steps_failed"] == 0
+
+    def test_failed_step_marks_run_failed(self):
+        from marvin.services.automation import engine
+        from marvin.services.automation.runner import AutomationActionError
+        auto = SimpleNamespace(slug="boom", enabled=True, group_id="G", definition={
+            "trigger": {"type": "manual"}, "conditions": [], "actions": [{"kind": "operation", "op": "boom"}],
+        })
+
+        def failing(*a, **k):
+            raise AutomationActionError("nope")
+
+        spy = _SpyRecorder()
+        engine.run_automation_now(_FakeSession([]), "G", auto, run_action=failing, recorder=spy)
+        assert spy.actions[0]["status"] == "failed" and spy.actions[0]["error"] == "nope"
+        assert spy.finished[0]["status"] == "failed" and spy.finished[0]["steps_failed"] == 1
+
+    def test_no_target_manual_run_records_once(self):
+        from marvin.services.automation import engine
+        auto = SimpleNamespace(slug="simple", enabled=True, group_id="G", definition={
+            "trigger": {"type": "manual"}, "conditions": [], "actions": [{"kind": "emit_event", "event": "noted"}],
+        })
+        spy = _SpyRecorder()
+        engine.run_automation_now(_FakeSession([]), "G", auto, run_action=lambda *a, **k: {}, recorder=spy)
+        assert len(spy.started) == 1 and spy.started[0]["targets_matched"] == 1
+        assert len(spy.actions) == 1 and spy.finished[0]["targets_run"] == 1

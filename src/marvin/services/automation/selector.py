@@ -16,9 +16,11 @@ MVP: entity == "entry". Collections/assets can plug in here with their own query
 
 from .matcher import interpolate
 
-# Hard ceiling on how many entities one automation run will touch. Small on purpose — the preview
-# shows the true count, and unbounded fan-out is deferred until there's per-row execution history.
-MAX_TARGET_ENTITIES = 25
+# Hard ceiling on how many entities one automation run will touch. Now that every run + step is
+# recorded (automation_executions), a capped batch is fully inspectable, so the cap can be generous —
+# but it stays bounded: a runaway query fanning an AI op over the whole workspace is still a real
+# cost/rate hazard, and the preview shows the true count so an author sees when it's clipped.
+MAX_TARGET_ENTITIES = 250
 
 
 def resolve_target_entities(session, group_id, target: dict, context: dict, *, cap: int = MAX_TARGET_ENTITIES):

@@ -184,6 +184,8 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     runAutomation,
     validateAutomation,
     previewAutomation,
+    listAutomationExecutions,
+    getAutomationExecution,
   } from "@/lib/api/automations";
 
   const read = (id: string) => JSON.parse(document.getElementById(id)!.textContent || "null");
@@ -601,6 +603,53 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     return `${noun}${parts.length ? " " + parts.join(", ") : "s"}`;
   }
 
+  // ── Run history ─────────────────────────────────────────────────────────────
+  function runRow(r: any): string {
+    const when = r.startedAt ? new Date(r.startedAt).toLocaleString() : "";
+    const dur = r.durationMs != null ? ` · ${r.durationMs}ms` : "";
+    const targets = (r.targetsMatched > 1 || r.capped) ? ` · ${r.targetsRun}/${r.targetsMatched}${r.capped ? "+" : ""} targets` : "";
+    const steps = ` · ${r.stepsOk}✓${r.stepsFailed ? ` ${r.stepsFailed}✗` : ""}`;
+    return `<div class="run-row" data-exec="${esc(r.id)}">
+        <span class="run-status status-${esc(r.status)}">${esc(r.status)}</span>
+        <span class="run-when">${esc(when)}</span>
+        <span class="run-meta muted">${esc(r.triggerType)}${esc(targets)}${esc(steps)}${esc(dur)}</span>
+      </div>
+      <div class="run-detail" hidden></div>`;
+  }
+  function execActionRow(a: any): string {
+    const ent = a.targetEntityId ? ` <span class="muted">→ ${esc(String(a.targetEntityId).slice(0, 8))}</span>` : "";
+    const err = a.error ? ` <span class="run-err">${esc(a.error)}</span>` : "";
+    const dur = a.durationMs != null ? ` <span class="muted">${a.durationMs}ms</span>` : "";
+    return `<div class="act-row">
+      <span class="status-${esc(a.status)}">${a.status === "success" ? "✓" : "✗"}</span>
+      <span>${esc(a.kind)}${a.label ? ` · ${esc(a.label)}` : ""}</span>${ent}${err}${dur}
+    </div>`;
+  }
+  async function toggleHistory(card: Element, id: string) {
+    const panel = card.querySelector(".wf-history") as HTMLElement;
+    if (!panel.hasAttribute("hidden")) { panel.setAttribute("hidden", ""); return; }
+    panel.removeAttribute("hidden");
+    panel.innerHTML = `<span class="hint">Loading runs…</span>`;
+    try {
+      const runs: any[] = await listAutomationExecutions(id, 15);
+      panel.innerHTML = runs.length ? runs.map(runRow).join("") : `<span class="hint">No runs recorded yet.</span>`;
+      panel.querySelectorAll(".run-row").forEach((rr) => {
+        rr.addEventListener("click", async () => {
+          const execId = (rr as HTMLElement).dataset.exec!;
+          const detail = rr.nextElementSibling as HTMLElement;
+          if (!detail.hasAttribute("hidden")) { detail.setAttribute("hidden", ""); return; }
+          detail.removeAttribute("hidden");
+          detail.innerHTML = `<span class="hint">Loading…</span>`;
+          try {
+            const ex: any = await getAutomationExecution(id, execId);
+            const acts = ex.actions ?? [];
+            detail.innerHTML = acts.length ? acts.map(execActionRow).join("") : `<span class="hint">No step records.</span>`;
+          } catch (e: any) { detail.innerHTML = `<span class="hint error">${esc(e?.message ?? e)}</span>`; }
+        });
+      });
+    } catch (e: any) { panel.innerHTML = `<span class="hint error">${esc(e?.message ?? e)}</span>`; }
+  }
+
   function renderList() {
     const host = $("wf-list");
     $("wf-empty").toggleAttribute("hidden", workflows.length > 0);
@@ -612,9 +661,11 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
             <span class="badge ${wf.enabled ? "on" : "muted"}">${wf.enabled ? "Enabled" : "Disabled"}</span>
           </div>
           ${summarize(wf)}
+          <div class="wf-history" hidden></div>
         </div>
         <div class="wf-actions">
           <button class="wf-btn primary js-run">Run</button>
+          <button class="wf-btn js-history">Runs</button>
           <button class="wf-btn js-toggle">${wf.enabled ? "Disable" : "Enable"}</button>
           <button class="wf-btn js-edit">Edit</button>
           <button class="wf-btn danger js-delete">Delete</button>
@@ -634,6 +685,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
           alert(err?.message || "Run failed.");
         } finally { btn.disabled = false; btn.textContent = orig; }
       });
+      card.querySelector(".js-history")!.addEventListener("click", () => toggleHistory(card, id));
       card.querySelector(".js-edit")!.addEventListener("click", () => openBuilder(wf));
       card.querySelector(".js-toggle")!.addEventListener("click", async () => {
         try { await updateAutomation(id, { enabled: !wf.enabled }); location.reload(); }
@@ -721,6 +773,22 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   .workflows-page :global(.preview-chips .chip) { padding: 2px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; }
   .workflows-page :global(.hint.error) { color: var(--color-error); }
   .workflows-page :global(.chip.target) { background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+
+  /* Run history */
+  .workflows-page :global(.wf-history) { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .workflows-page :global(.wf-history[hidden]) { display: none; }
+  .workflows-page :global(.run-row) { display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
+  .workflows-page :global(.run-row:hover) { background: var(--panel); }
+  .workflows-page :global(.run-status) { font-weight: 600; text-transform: capitalize; font-size: 11px; }
+  .workflows-page :global(.status-success) { color: #3fae6b; }
+  .workflows-page :global(.status-failed) { color: var(--color-error); }
+  .workflows-page :global(.status-partial) { color: #d9a441; }
+  .workflows-page :global(.status-running) { color: var(--muted); }
+  .workflows-page :global(.run-meta) { font-size: 11.5px; }
+  .workflows-page :global(.run-detail) { margin: 0 0 6px 18px; display: flex; flex-direction: column; gap: 2px; }
+  .workflows-page :global(.run-detail[hidden]) { display: none; }
+  .workflows-page :global(.act-row) { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-family: var(--mono, monospace); }
+  .workflows-page :global(.run-err) { color: var(--color-error); }
   .workflows-page :global(.banner code) { font-family: ui-monospace, monospace; font-size: 0.9em; background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
 
   /* Builder */
