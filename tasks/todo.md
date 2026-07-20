@@ -779,10 +779,13 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       `tag_ids` on `EntryCreate`/`EntryUpdate` → `_attach_tags`/`_replace_tags` (replace semantics, empty
       clears). Registered in schemas/repos/factory __init__s + platform router. 4 DB-backed repo tests;
       230 pass. Note: `POST /tags` is find-or-create so the chip UI resolves a typed name → id in one call.
-- [ ] **T4. Expose tags where they must be wired explicitly** (nothing but `EntryRead` auto-propagates):
-      `EntryRead` (auto — verify) · publish `Published*` schemas + builders (`publishing_controller.py`) ·
-      MCP `builtins.py` `get_entry`/`find_entries` handlers · MarvinMCP `serializeEntry` pick-list ·
-      new `?tag=` filter on `list_published_entries`.
+- [x] **T4. Expose tags where wired explicitly** ✅ (2026-07-20) — admin `EntryRead` gained `tags:
+      list[str]` (model_validate override maps the ORM Tag relationship → `tag_names` slugs; joinedload
+      added). Publish `PublishedEntryRead` + `PublishedEntryListItem` carry `tags`; both builders populate
+      from `entry.tag_names` (selectinload added). New `?tag=slug1,slug2` filter on `list_published_entries`
+      (slugified, ANY-match via `Entries.tags.any()` EXISTS — no dup rows). MCP `get_entry`/`find_entries`
+      emit `tags` (find_entries batches the lookup); `get_entry` description updated. MarvinMCP
+      `serializeEntry` passes `tags` through (build + 126 vitest green). 5 tag tests; backend 230 pass.
 - [ ] **T5. Entry editor chip UI** — token/chip input beside the Metadata field (`entries/[id].astro`),
       create-on-type; posts `tag_ids`/new names. Replaces the raw-JSON-only path.
 - [ ] **T6. Entries list tag filter** — `data-tags` attribute + a tag filter chip, following the

@@ -89,6 +89,22 @@ def test_tag_ids_on_entry_update_replaces_the_set(db_session, group):
     assert db_session.get(Entries, entry_id).tag_names == []
 
 
+def test_entry_read_exposes_tag_slugs_not_objects(db_session, group):
+    """EntryRead.tags must be slug strings — the model_validate override converts the ORM
+    Tag relationship (objects) into `tag_names`, or pydantic would choke on list[str]."""
+    from marvin.db.models.platform import Entries
+    from marvin.schemas.platform import EntryRead
+
+    gid, entry_id = group
+    repos = get_repositories(db_session, group_id=gid)
+
+    waxed = repos.tags.create(TagCreate(name="Waxed Canvas"))
+    repos.entries.update(entry_id, EntryUpdate(tag_ids=[waxed.id]))
+
+    read = EntryRead.model_validate(db_session.get(Entries, entry_id))
+    assert read.tags == ["waxed-canvas"]  # slug string, not a Tag object
+
+
 def test_attaching_the_same_tag_twice_is_idempotent(db_session, group):
     gid, entry_id = group
     repos = get_repositories(db_session, group_id=gid)

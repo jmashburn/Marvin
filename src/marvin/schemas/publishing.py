@@ -155,6 +155,9 @@ class PublishedEntryRead(_MarvinModel):
     assets: list[PublishedEntryAsset] = []
     """Assets included in this entry with relationship context."""
 
+    tags: list[str] = []
+    """Tag slugs applied to this entry."""
+
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
 
@@ -198,6 +201,9 @@ class PublishedEntryListItem(_MarvinModel):
 
     resources: list[str] = Field(default=[], serialization_alias="resourceSlugs")
     """List of resource slugs referenced by this entry."""
+
+    tags: list[str] = []
+    """Tag slugs applied to this entry."""
 
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Custom non-schema metadata as JSON object."""

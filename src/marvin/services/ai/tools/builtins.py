@@ -19,8 +19,10 @@ from marvin.db.models.platform.collections import Collections
 from marvin.db.models.platform.entries import Entries
 from marvin.db.models.platform.entry_assets import EntryAssets
 from marvin.db.models.platform.entry_resources import EntryResources
+from marvin.db.models.platform.entry_tags import EntryTags
 from marvin.db.models.platform.entry_types import EntryTypes
 from marvin.db.models.platform.resources import Resources
+from marvin.db.models.platform.tags import Tags
 
 from ..entity_resolve import resolve_entity_id, resolve_retrieved_sources
 from ..operations.base import ROLE_AUTHOR
@@ -225,7 +227,15 @@ def find_entries(ctx: ToolContext, args: dict) -> str:
     entry_ids = [e.id for e in rows]
     assets_by_entry: dict = {}
     resources_by_entry: dict = {}
+    tags_by_entry: dict = {}
     if entry_ids:
+        for eid, slug in (
+            ctx.session.query(EntryTags.entry_id, Tags.slug)
+            .join(Tags, Tags.id == EntryTags.tag_id)
+            .filter(EntryTags.entry_id.in_(entry_ids))
+            .all()
+        ):
+            tags_by_entry.setdefault(eid, []).append(slug)
         for eid, a in (
             ctx.session.query(EntryAssets.entry_id, Assets)
             .join(Assets, Assets.id == EntryAssets.asset_id)
@@ -251,6 +261,7 @@ def find_entries(ctx: ToolContext, args: dict) -> str:
             "entryType": e.entry_type.slug if e.entry_type else None,
             "assets": assets_by_entry.get(e.id, []),
             "resources": resources_by_entry.get(e.id, []),
+            "tags": tags_by_entry.get(e.id, []),
         }
         for e in rows
     ]
@@ -260,7 +271,7 @@ def find_entries(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="get_entry",
-    description="Get one entry COMPLETE by id or slug: all fields (data, summary, description, timestamps) plus fully-hydrated attachments — assets (each with a real displayable `url`, assetType, altText, dimensions, and attachment role/position), linked resources (with their `url` + role), and collection membership. Use the asset `url` to reference/show an image; never invent an image URL.",
+    description="Get one entry COMPLETE by id or slug: all fields (data, summary, description, timestamps) plus fully-hydrated attachments — assets (each with a real displayable `url`, assetType, altText, dimensions, and attachment role/position), linked resources (with their `url` + role), collection membership, and tag slugs. Use the asset `url` to reference/show an image; never invent an image URL.",
     input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string"}}, "required": ["id_or_slug"]},
 )
 def get_entry(ctx: ToolContext, args: dict) -> str:
@@ -315,6 +326,7 @@ def get_entry(ctx: ToolContext, args: dict) -> str:
         "assets": [_serialize_asset(a, link) for link, a in asset_links],
         "resources": [_serialize_resource(r, link) for link, r in resource_links],
         "collections": [{"slug": c.slug, "name": c.name} for c in collections],
+        "tags": list(entry.tag_names),
     })
 
 

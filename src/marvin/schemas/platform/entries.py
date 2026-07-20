@@ -207,6 +207,8 @@ class EntryRead(_MarvinModel):
     """Assets included in this entry with placement info."""
     collections: list["EntryCollectionRead"] = []
     """Collections this entry belongs to, with placement info."""
+    tags: list[str] = []
+    """Tag slugs applied to this entry (shared vocabulary)."""
     order: int | None = None
     """Sort order within a collection. Only populated when querying entries for a specific collection."""
 
@@ -222,12 +224,18 @@ class EntryRead(_MarvinModel):
             joinedload(Entries.entry_collections).joinedload(EntryCollections.collection),
             joinedload(Entries.entry_assets).joinedload(EntryAssets.asset),
             joinedload(Entries.entry_resources).joinedload(EntryResources.resource),
+            joinedload(Entries.tags),
         ]
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
         """Custom validation to extract collection IDs and build asset/resource details."""
         data = {field: getattr(obj, field, None) for field in cls.model_fields}
+
+        # `obj.tags` is the ORM relationship (Tag objects); the schema field is list[str] of slugs.
+        # tag_names is the property over the junction — use it so validation gets strings, not rows.
+        if "tags" in cls.model_fields:
+            data["tags"] = list(getattr(obj, "tag_names", None) or [])
 
         if hasattr(obj, "collections") and obj.collections:
             if obj.collections and hasattr(obj.collections[0], "id"):

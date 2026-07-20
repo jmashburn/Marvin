@@ -61,6 +61,7 @@ def _entry_eager_options():
         selectinload(Entries.entry_collections).joinedload(EntryCollections.collection),
         selectinload(Entries.entry_assets).joinedload(EntryAssets.asset),
         selectinload(Entries.entry_resources).joinedload(EntryResources.resource),
+        selectinload(Entries.tags),
     ]
 
 
@@ -169,6 +170,7 @@ def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool
         "collections": collections,
         "assets": asset_slugs,
         "resources": resource_slugs,
+        "tags": list(entry.tag_names),
         "metadata": entry.metadata_json,
         "featured_asset": _resolve_featured_asset(entry, workspace_slug),
     }
@@ -324,6 +326,7 @@ async def list_published_entries(
     session: Session = Depends(generate_session),
     entry_type: str | None = Query(None, description="Filter by entry type slug"),
     collection: str | None = Query(None, description="Filter by collection slug"),
+    tag: str | None = Query(None, description="Filter by tag slug(s), comma-separated (matches ANY)"),
     slug: str | None = Query(None, description="Filter by specific slug(s), comma-separated"),
     updated_since: str | None = Query(None, description="Filter by entries updated since ISO datetime"),
     limit: int = Query(settings.PUBLISHING_DEFAULT_PAGE_SIZE, ge=1, le=settings.PUBLISHING_MAX_PAGE_SIZE, description="Max results"),
@@ -339,12 +342,14 @@ async def list_published_entries(
     - Scoped to the workspace associated with the API client
     - `entry_type`: Filter by entry type slug
     - `collection`: Filter by collection slug
+    - `tag`: Filter by tag slug(s), comma-separated — matches entries carrying ANY of them
     - `slug`: Filter by specific slug(s), comma-separated for batch fetching
     - `updated_since`: ISO datetime, returns entries updated after this time
 
     **Use cases:**
     - `?entry_type=page` - Get all static pages
     - `?collection=projects` - Get all project entries
+    - `?tag=leather,waxed` - Get entries tagged leather OR waxed
     - `?slug=about,contact,sizing` - Batch fetch specific pages
     - `?updated_since=2026-07-01T00:00:00Z` - Incremental builds
 
@@ -410,6 +415,18 @@ async def list_published_entries(
 
         # Join with entry_collections to filter
         query = query.join(EntryCollections).filter(EntryCollections.collection_id == collection_obj.id)
+
+    # Filter by tag slug(s) if specified — matches entries carrying ANY of the given tags.
+    if tag:
+        from slugify import slugify
+
+        from marvin.db.models.platform import Tags
+
+        # Slugify so a caller can pass "Waxed Canvas" or "waxed-canvas". `.any()` is an EXISTS
+        # subquery — no join, so no duplicate rows and no interaction with the collection join.
+        want = [slugify(t.strip()) for t in tag.split(",") if t.strip()]
+        if want:
+            query = query.filter(Entries.tags.any(Tags.slug.in_(want)))
 
     # Filter by slug(s) if specified
     if slug:
@@ -560,6 +577,7 @@ async def get_published_entry(
         collections=collections,
         resources=resources,
         assets=assets,
+        tags=list(entry.tag_names),
     )
 
 
