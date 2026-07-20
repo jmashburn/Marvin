@@ -67,3 +67,39 @@ def test_tags_rule_is_slugified_so_display_names_match():
 def test_entry_without_entry_type_relationship_does_not_crash():
     entry = SimpleNamespace(status="published", entry_type=None, tag_names=None)
     assert entry_matches_rules(entry, {"entry_types": ["article"]}) is False
+
+
+# ── asset / resource target types (Phase: smart collections of assets/resources) ──────────────
+
+from marvin.services.collections.smart_collections import matches_rules
+
+
+def _asset(asset_type="image", tag_names=None):
+    return SimpleNamespace(asset_type=asset_type, tag_names=tag_names)
+
+
+def _resource(resource_type="fabric", tag_names=None):
+    return SimpleNamespace(resource_type=resource_type, tag_names=tag_names)
+
+
+def test_asset_matches_on_asset_type_and_tags():
+    assert matches_rules(_asset(asset_type="image"), {"asset_types": ["image"]}, "asset") is True
+    assert matches_rules(_asset(asset_type="video"), {"asset_types": ["image"]}, "asset") is False
+    assert matches_rules(_asset(tag_names=["hero"]), {"tags": ["Hero"]}, "asset") is True  # slugified
+    # match=all across type + tags
+    rules = {"asset_types": ["image"], "tags": ["hero"], "match": "all"}
+    assert matches_rules(_asset("image", ["hero"]), rules, "asset") is True
+    assert matches_rules(_asset("image", ["other"]), rules, "asset") is False
+
+
+def test_resource_matches_on_resource_type_and_tags():
+    assert matches_rules(_resource(resource_type="fabric"), {"resource_types": ["fabric"]}, "resource") is True
+    assert matches_rules(_resource(resource_type="tool"), {"resource_types": ["fabric"]}, "resource") is False
+    assert matches_rules(_resource(tag_names=["waxed-canvas"]), {"tags": ["Waxed Canvas"]}, "resource") is True
+
+
+def test_target_type_dimensions_are_isolated():
+    # An entry_types rule doesn't accidentally match an asset (wrong target type → dimension ignored,
+    # no dimensions → matches nothing).
+    assert matches_rules(_asset(), {"entry_types": ["article"]}, "asset") is False
+    assert matches_rules(_resource(), {"statuses": ["published"]}, "resource") is False

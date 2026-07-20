@@ -11,7 +11,9 @@ from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
+    from .assets import Assets
     from .entries import Entries
+    from .resources import Resources
 
 
 class Collections(SqlAlchemyBase, BaseMixins):
@@ -33,6 +35,9 @@ class Collections(SqlAlchemyBase, BaseMixins):
     color: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     is_smart: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
     smart_rules: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    # Which entity type this collection groups: "entry" (default), "asset", or "resource".
+    # A smart collection materializes membership of this type; manual collections are entry-only.
+    target_type: Mapped[str] = mapped_column(sa.String, nullable=False, default="entry", server_default="entry")
     # System workflow collections (Inbox/Drafts/…) are seeded, locked from edit/delete, and
     # internal-only (not exposed via the publish API).
     is_system: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
@@ -45,6 +50,16 @@ class Collections(SqlAlchemyBase, BaseMixins):
         secondary="entry_collections",
         back_populates="collections",
         doc="Entries in this collection",
+    )
+    assets: Mapped[list["Assets"]] = orm.relationship(
+        "Assets",
+        secondary="collection_assets",
+        doc="Assets in this (asset-target smart) collection",
+    )
+    resources: Mapped[list["Resources"]] = orm.relationship(
+        "Resources",
+        secondary="collection_resources",
+        doc="Resources in this (resource-target smart) collection",
     )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)

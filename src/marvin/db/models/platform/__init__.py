@@ -3,6 +3,8 @@
 from .api_clients import APIClients
 from .asset_tags import AssetTags
 from .assets import Assets
+from .collection_assets import CollectionAssets
+from .collection_resources import CollectionResources
 from .collections import Collections
 from .entries import Entries
 from .entry_assets import EntryAssets
@@ -24,6 +26,8 @@ __all__ = [
     "APIClients",
     "AssetTags",
     "Assets",
+    "CollectionAssets",
+    "CollectionResources",
     "Collections",
     "Entries",
     "EntryAssets",

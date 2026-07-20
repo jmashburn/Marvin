@@ -27,6 +27,8 @@ class CollectionCreate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    target_type: str = "entry"
+    """Which entity type this collection groups: 'entry' (default), 'asset', or 'resource'."""
     is_public: bool = True
     """Whether this collection is exposed via the publish API."""
     metadata_json: dict | None = None
@@ -56,6 +58,8 @@ class CollectionUpdate(_MarvinModel):
     """Whether this is a smart collection based on rules."""
     smart_rules: dict | None = None
     """Optional rules for smart collections."""
+    target_type: str | None = None
+    """Which entity type this collection groups: 'entry', 'asset', or 'resource'."""
     is_public: bool | None = None
     """Whether this collection is exposed via the publish API."""
     metadata_json: dict | None = None
@@ -85,6 +89,8 @@ class CollectionSummary(_MarvinModel):
     """Optional color code."""
     is_smart: bool
     """Whether this is a smart collection."""
+    target_type: str = "entry"
+    """Which entity type this collection groups: 'entry', 'asset', or 'resource'."""
     is_system: bool = False
     """System workflow collection — locked from edit/delete and internal-only."""
     is_public: bool = True

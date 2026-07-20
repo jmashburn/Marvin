@@ -126,6 +126,7 @@ class TagsController(BaseUserController):
         if existing is None:
             self.session.add(AssetTags(asset_id=asset_id, tag_id=tag_id))
             self.session.commit()
+            self._resync_item("asset", asset_id)
         return {"status": "ok", "message": "Tag attached"}
 
     @router.delete("/{tag_id}/assets/{asset_id}", summary="Detach Tag from Asset")
@@ -134,6 +135,7 @@ class TagsController(BaseUserController):
         if not deleted:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset does not carry this tag.")
         self.session.commit()
+        self._resync_item("asset", asset_id)
         return {"status": "ok", "message": "Tag detached"}
 
     @router.post("/{tag_id}/resources/{resource_id}", status_code=status.HTTP_201_CREATED, summary="Attach Tag to Resource")
@@ -152,6 +154,7 @@ class TagsController(BaseUserController):
         if existing is None:
             self.session.add(ResourceTags(resource_id=resource_id, tag_id=tag_id))
             self.session.commit()
+            self._resync_item("resource", resource_id)
         return {"status": "ok", "message": "Tag attached"}
 
     @router.delete("/{tag_id}/resources/{resource_id}", summary="Detach Tag from Resource")
@@ -160,4 +163,15 @@ class TagsController(BaseUserController):
         if not deleted:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource does not carry this tag.")
         self.session.commit()
+        self._resync_item("resource", resource_id)
         return {"status": "ok", "message": "Tag detached"}
+
+    def _resync_item(self, target_type: str, item_id: UUID4) -> None:
+        """Re-materialize asset/resource smart-collection membership after a tag change."""
+        from marvin.db.models.platform import Assets, Resources
+        from marvin.services.collections.smart_collections import sync_item
+
+        model = {"asset": Assets, "resource": Resources}[target_type]
+        item = self.session.get(model, item_id)
+        if item and sync_item(self.session, item.group_id, item, target_type):
+            self.session.commit()

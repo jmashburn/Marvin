@@ -35,33 +35,45 @@ from marvin.core.root_logger import get_logger
 logger = get_logger(__name__)
 
 
-def entry_matches_rules(entry, rules: dict | None) -> bool:
-    """Return True if ``entry`` satisfies a smart collection's ``rules``.
+TARGET_TYPES = ("entry", "asset", "resource")
 
-    ``entry`` may be an ORM ``Entries`` instance or any object exposing ``status`` and
-    ``entry_type.slug``. An empty/None rule set matches nothing.
+
+def matches_rules(item, rules: dict | None, target_type: str = "entry") -> bool:
+    """Return True if ``item`` satisfies a smart collection's ``rules`` for ``target_type``.
+
+    Dimensions are type-specific except ``tags`` (universal, matched on slugs):
+      entry    → entry_types (entry_type.slug), statuses (status)
+      asset    → asset_types (asset_type)
+      resource → resource_types (resource_type)
+    An empty/None rule set — or one with no recognized dimension — matches nothing.
     """
     if not rules:
         return False
 
     dimensions: list[bool] = []
 
-    entry_types = rules.get("entry_types")
-    if entry_types:
-        entry_type = getattr(entry, "entry_type", None)
-        dimensions.append(getattr(entry_type, "slug", None) in entry_types)
-
-    statuses = rules.get("statuses")
-    if statuses:
-        dimensions.append(getattr(entry, "status", None) in statuses)
+    if target_type == "entry":
+        entry_types = rules.get("entry_types")
+        if entry_types:
+            dimensions.append(getattr(getattr(item, "entry_type", None), "slug", None) in entry_types)
+        statuses = rules.get("statuses")
+        if statuses:
+            dimensions.append(getattr(item, "status", None) in statuses)
+    elif target_type == "asset":
+        asset_types = rules.get("asset_types")
+        if asset_types:
+            dimensions.append(getattr(item, "asset_type", None) in asset_types)
+    elif target_type == "resource":
+        resource_types = rules.get("resource_types")
+        if resource_types:
+            dimensions.append(getattr(item, "resource_type", None) in resource_types)
 
     tags = rules.get("tags")
     if tags:
         # Compare on slugs so a rule matches whether it stored "Chore Coat" or "chore-coat".
-        # `entry.tags` is now the ORM relationship (Tag objects); `tag_names` gives the slugs.
         from slugify import slugify
         want = {slugify(str(t)) for t in tags}
-        have = set(getattr(entry, "tag_names", None) or [])
+        have = set(getattr(item, "tag_names", None) or [])
         dimensions.append(bool(want & have))
 
     if not dimensions:
@@ -72,30 +84,54 @@ def entry_matches_rules(entry, rules: dict | None) -> bool:
     return all(dimensions)
 
 
+def entry_matches_rules(entry, rules: dict | None) -> bool:
+    """Back-compat shim — entry-target matching. Prefer ``matches_rules(item, rules, target_type)``."""
+    return matches_rules(entry, rules, "entry")
+
+
+def _membership(target_type: str):
+    """(model, junction, fk_field) for a target type's membership junction."""
+    from marvin.db.models.platform import (
+        Assets,
+        CollectionAssets,
+        CollectionResources,
+        Entries,
+        EntryCollections,
+        Resources,
+    )
+
+    return {
+        "entry": (Entries, EntryCollections, "entry_id"),
+        "asset": (Assets, CollectionAssets, "asset_id"),
+        "resource": (Resources, CollectionResources, "resource_id"),
+    }[target_type]
+
+
 def _smart_collections(session, group_id):
     from marvin.db.models.platform.collections import Collections
 
     return session.query(Collections).filter_by(group_id=group_id, is_smart=True).all()
 
 
-def sync_entry(session, group_id, entry) -> int:
-    """Sync one entry's membership across every smart collection in its workspace.
+def sync_item(session, group_id, item, target_type: str = "entry") -> int:
+    """Sync one item's membership across every smart collection of its ``target_type``.
 
-    Adds the entry to smart collections whose rules it now matches and removes it from those it
-    no longer matches. Returns the number of membership rows changed. Does not commit.
+    Adds the item to smart collections whose rules it now matches and removes it from those it no
+    longer matches. Returns the number of membership rows changed. Does not commit.
     """
-    from marvin.db.models.platform.entry_collections import EntryCollections
-
+    _model, junction, fk = _membership(target_type)
     changed = 0
     for collection in _smart_collections(session, group_id):
-        desired = entry_matches_rules(entry, collection.smart_rules)
+        if getattr(collection, "target_type", "entry") != target_type:
+            continue
+        desired = matches_rules(item, collection.smart_rules, target_type)
         existing = (
-            session.query(EntryCollections)
-            .filter_by(entry_id=entry.id, collection_id=collection.id)
+            session.query(junction)
+            .filter(getattr(junction, fk) == item.id, junction.collection_id == collection.id)
             .first()
         )
         if desired and existing is None:
-            session.add(EntryCollections(entry_id=entry.id, collection_id=collection.id, sort_order=0))
+            session.add(junction(**{fk: item.id, "collection_id": collection.id, "sort_order": 0}))
             changed += 1
         elif not desired and existing is not None:
             session.delete(existing)
@@ -103,8 +139,13 @@ def sync_entry(session, group_id, entry) -> int:
     return changed
 
 
+def sync_entry(session, group_id, entry) -> int:
+    """Sync one entry's smart-collection membership. Thin wrapper over ``sync_item``."""
+    return sync_item(session, group_id, entry, "entry")
+
+
 def sync_collection(session, group_id, collection) -> int:
-    """Re-evaluate one smart collection's membership across all of the workspace's entries.
+    """Re-evaluate one smart collection's membership across all items of its target type.
 
     Used when a collection's rules change and by the reconcile/backfill task. Returns the number
     of membership rows changed. Does not commit. A non-smart collection is left untouched.
@@ -112,25 +153,25 @@ def sync_collection(session, group_id, collection) -> int:
     if not getattr(collection, "is_smart", False):
         return 0
 
-    from marvin.db.models.platform.entries import Entries
-    from marvin.db.models.platform.entry_collections import EntryCollections
+    target_type = getattr(collection, "target_type", "entry") or "entry"
+    model, junction, fk = _membership(target_type)
 
     rules = collection.smart_rules or {}
-    entries = session.query(Entries).filter_by(group_id=group_id).all()
-    desired = {e.id for e in entries if entry_matches_rules(e, rules)}
+    items = session.query(model).filter_by(group_id=group_id).all()
+    desired = {i.id for i in items if matches_rules(i, rules, target_type)}
     current = {
-        row.entry_id
-        for row in session.query(EntryCollections).filter_by(collection_id=collection.id).all()
+        getattr(row, fk)
+        for row in session.query(junction).filter_by(collection_id=collection.id).all()
     }
 
     to_add = desired - current
     to_remove = current - desired
-    for entry_id in to_add:
-        session.add(EntryCollections(entry_id=entry_id, collection_id=collection.id, sort_order=0))
+    for item_id in to_add:
+        session.add(junction(**{fk: item_id, "collection_id": collection.id, "sort_order": 0}))
     if to_remove:
-        session.query(EntryCollections).filter(
-            EntryCollections.collection_id == collection.id,
-            EntryCollections.entry_id.in_(to_remove),
+        session.query(junction).filter(
+            junction.collection_id == collection.id,
+            getattr(junction, fk).in_(to_remove),
         ).delete(synchronize_session=False)
 
     return len(to_add) + len(to_remove)

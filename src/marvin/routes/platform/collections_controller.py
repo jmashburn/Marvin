@@ -52,19 +52,28 @@ class CollectionsController(BaseUserController):
         # sort_order) lead — Inbox first — and drag-and-drop reordering is reflected.
         collections = self.repos.collections.get_all(order_by="sort_order", order_descending=False)
 
-        # Attach entry counts in one grouped query (avoids N+1).
+        # Attach member counts. entry_count carries the count of whatever the collection targets
+        # (entries / assets / resources) — one grouped query per junction (avoids N+1).
         from sqlalchemy import func
 
-        from marvin.db.models.platform import Collections, EntryCollections
+        from marvin.db.models.platform import CollectionAssets, CollectionResources, Collections, EntryCollections
 
-        counts = dict(
-            self.session.query(EntryCollections.collection_id, func.count(EntryCollections.entry_id))
-            .join(Collections, Collections.id == EntryCollections.collection_id)
-            .filter(Collections.group_id == self.group_id)
-            .group_by(EntryCollections.collection_id)
-            .all()
-        )
+        def _counts(junction, fk):
+            return dict(
+                self.session.query(junction.collection_id, func.count(getattr(junction, fk)))
+                .join(Collections, Collections.id == junction.collection_id)
+                .filter(Collections.group_id == self.group_id)
+                .group_by(junction.collection_id)
+                .all()
+            )
+
+        by_type = {
+            "entry": _counts(EntryCollections, "entry_id"),
+            "asset": _counts(CollectionAssets, "asset_id"),
+            "resource": _counts(CollectionResources, "resource_id"),
+        }
         for collection in collections:
+            counts = by_type.get(getattr(collection, "target_type", "entry") or "entry", {})
             collection.entry_count = counts.get(collection.id, 0)
         return collections
 
@@ -175,6 +184,42 @@ class CollectionsController(BaseUserController):
 
         self.repos.collections.delete(item_id)
         return {"status": "ok", "message": "Collection deleted successfully"}
+
+    @router.get("/{item_id}/members", summary="Get Collection Members")
+    def get_collection_members(self, item_id: UUID4) -> list[dict]:
+        """Lightweight membership list for a collection of any target type.
+
+        Returns ``[{id, label, slug, type}]`` — entries (title), assets (name), or resources (name)
+        depending on the collection's target_type. Used by the admin UI to show membership of
+        asset/resource smart collections uniformly.
+        """
+        collection = self.repos.collections.get_one(item_id)
+        if not collection:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found.")
+
+        from marvin.db.models.platform import (
+            Assets,
+            CollectionAssets,
+            CollectionResources,
+            Entries,
+            Resources,
+        )
+
+        target = getattr(collection, "target_type", "entry") or "entry"
+        model, junction, fk, label_col = {
+            "entry": (Entries, EntryCollections, EntryCollections.entry_id, "title"),
+            "asset": (Assets, CollectionAssets, CollectionAssets.asset_id, "name"),
+            "resource": (Resources, CollectionResources, CollectionResources.resource_id, "name"),
+        }[target]
+
+        rows = (
+            self.session.query(model)
+            .join(junction, model.id == fk)
+            .filter(junction.collection_id == item_id)
+            .order_by(getattr(model, label_col))
+            .all()
+        )
+        return [{"id": str(r.id), "label": getattr(r, label_col), "slug": r.slug, "type": target} for r in rows]
 
     @router.get("/{item_id}/entries", response_model=list[EntryRead], summary="Get Collection Entries")
     def get_collection_entries(self, item_id: UUID4) -> list[EntryRead]:

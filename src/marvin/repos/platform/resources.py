@@ -30,6 +30,7 @@ class ResourcesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric):
         if tag_ids:
             self._replace_tags(resource.id, tag_ids)
             resource = self.get_one(resource.id)
+        self._resync_membership(resource.id)
         return resource
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> ResourceRead:
@@ -39,7 +40,16 @@ class ResourcesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric):
         if tag_ids is not None:
             self._replace_tags(resource.id, tag_ids)
             resource = self.get_one(resource.id)
+        self._resync_membership(resource.id)
         return resource
+
+    def _resync_membership(self, resource_id: UUID4) -> None:
+        """Re-evaluate this resource against resource-target smart collections (tags / resource_type)."""
+        from marvin.services.collections.smart_collections import sync_item
+
+        resource = self.session.get(Resources, resource_id)
+        if resource and sync_item(self.session, resource.group_id, resource, "resource"):
+            self.session.commit()
 
     def _replace_tags(self, resource_id: UUID4, tag_ids: list[UUID4]) -> None:
         """Replace all tags on a resource (empty list clears them)."""

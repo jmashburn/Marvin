@@ -23,6 +23,11 @@ class AssetsRepository(SuggestionWritebackMixin, GroupRepositoryGeneric):
             group_id=group_id,
         )
 
+    def create(self, data: Any) -> AssetRead:
+        asset = super().create(data)
+        self._resync_membership(asset.id)  # asset_type-target smart collections
+        return asset
+
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> AssetRead:
         # Assets are created via upload; tags are applied here (PATCH) or via the attach endpoint.
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
@@ -31,7 +36,16 @@ class AssetsRepository(SuggestionWritebackMixin, GroupRepositoryGeneric):
         if tag_ids is not None:
             self._replace_tags(asset.id, tag_ids)
             asset = self.get_one(asset.id)
+        self._resync_membership(asset.id)
         return asset
+
+    def _resync_membership(self, asset_id: UUID4) -> None:
+        """Re-evaluate this asset against asset-target smart collections (tags / asset_type)."""
+        from marvin.services.collections.smart_collections import sync_item
+
+        asset = self.session.get(Assets, asset_id)
+        if asset and sync_item(self.session, asset.group_id, asset, "asset"):
+            self.session.commit()
 
     def _replace_tags(self, asset_id: UUID4, tag_ids: list[UUID4]) -> None:
         """Replace all tags on an asset (empty list clears them)."""
