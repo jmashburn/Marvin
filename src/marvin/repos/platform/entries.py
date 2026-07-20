@@ -8,13 +8,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from marvin.db.models.platform import Entries, EntryTypes, EntryCollections, EntryAssets, EntryResources, EntryTags
+from marvin.repos.platform._suggestions import SuggestionWritebackMixin
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryRead
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 from marvin.services.content_validator import ContentValidationError, ContentValidator
 
 
-class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
+class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRead, Entries]):
     """Repository for workspace-scoped entries.
 
     Validates entry content (data_json) against entry type schema (schema_json)
@@ -346,34 +347,7 @@ class EntriesRepository(GroupRepositoryGeneric[EntryRead, Entries]):
             self.session.add(EntryTags(entry_id=entry.id, tag_id=tag.id))
             have.add(slug)
 
-    def stage_suggestion(self, entry_id: Any, fields: dict) -> None:
-        """Merge proposed fields into the entry's pending suggestion_json (for later review)."""
-        entry = self.session.get(Entries, entry_id)
-        if not entry:
-            return
-        staged = dict(entry.suggestion_json or {})
-        staged.update(fields)
-        entry.suggestion_json = staged
-        self.session.commit()
-
-    def apply_suggestion(self, entry_id: Any) -> EntryRead | None:
-        """Apply the staged suggestion_json onto the entry and clear it."""
-        entry = self.session.get(Entries, entry_id)
-        if not entry:
-            return None
-        if entry.suggestion_json:
-            self.apply_fields(entry_id, {k: v for k, v in entry.suggestion_json.items() if k != "_meta"})
-            entry.suggestion_json = None
-            self.session.commit()
-        return self.get_one(entry_id)
-
-    def clear_suggestion(self, entry_id: Any) -> EntryRead | None:
-        """Discard the staged suggestion_json without applying it."""
-        entry = self.session.get(Entries, entry_id)
-        if entry and entry.suggestion_json is not None:
-            entry.suggestion_json = None
-            self.session.commit()
-        return self.get_one(entry_id)
+    # stage_suggestion / apply_suggestion / clear_suggestion come from SuggestionWritebackMixin.
 
     def _attach_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:
         """Attach collections to an entry."""

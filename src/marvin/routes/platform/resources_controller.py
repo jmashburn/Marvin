@@ -80,6 +80,20 @@ class ResourcesController(BaseUserController):
 
         return resource
 
+    @router.post("/{item_id}/apply-suggestion", response_model=ResourceRead, summary="Apply AI Suggestion")
+    def apply_suggestion(self, item_id: UUID4) -> ResourceRead:
+        """Apply the resource's staged AI suggestion (suggestion_json) and clear it."""
+        if not self.repos.resources.get_one(item_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found.")
+        return self.repos.resources.apply_suggestion(item_id)
+
+    @router.post("/{item_id}/reject-suggestion", response_model=ResourceRead, summary="Reject AI Suggestion")
+    def reject_suggestion(self, item_id: UUID4) -> ResourceRead:
+        """Discard the resource's staged AI suggestion without applying it."""
+        if not self.repos.resources.get_one(item_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found.")
+        return self.repos.resources.clear_suggestion(item_id)
+
     @router.delete("/{item_id}", summary="Delete Resource")
     def delete_resource(self, item_id: UUID4) -> dict:
         resource = self.repos.resources.get_one(item_id)

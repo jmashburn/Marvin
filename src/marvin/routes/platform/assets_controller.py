@@ -132,6 +132,20 @@ class AssetsController(BaseUserController):
 
         return updated_asset
 
+    @router.post("/{item_id}/apply-suggestion", response_model=AssetRead, summary="Apply AI Suggestion")
+    def apply_suggestion(self, item_id: UUID4) -> AssetRead:
+        """Apply the asset's staged AI suggestion (suggestion_json) and clear it."""
+        if not self.repos.assets.get_one(item_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+        return self.repos.assets.apply_suggestion(item_id)
+
+    @router.post("/{item_id}/reject-suggestion", response_model=AssetRead, summary="Reject AI Suggestion")
+    def reject_suggestion(self, item_id: UUID4) -> AssetRead:
+        """Discard the asset's staged AI suggestion without applying it."""
+        if not self.repos.assets.get_one(item_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+        return self.repos.assets.clear_suggestion(item_id)
+
     @router.delete("/{item_id}", summary="Delete Asset")
     def delete_asset(self, item_id: UUID4) -> dict:
         """Delete asset from storage and database."""

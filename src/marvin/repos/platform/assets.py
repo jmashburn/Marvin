@@ -5,12 +5,13 @@ from typing import Any
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 
-from marvin.db.models.platform import AssetTags, Assets
+from marvin.db.models.platform import AssetTags, Assets, Tags
+from marvin.repos.platform._suggestions import SuggestionWritebackMixin
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import AssetRead
 
 
-class AssetsRepository(GroupRepositoryGeneric):
+class AssetsRepository(SuggestionWritebackMixin, GroupRepositoryGeneric):
     """Repository for managing assets."""
 
     def __init__(self, session: Session, group_id: UUID4 | None) -> None:
@@ -42,3 +43,47 @@ class AssetsRepository(GroupRepositoryGeneric):
             seen.add(tag_id)
             self.session.add(AssetTags(asset_id=asset_id, tag_id=tag_id))
         self.session.commit()
+
+    # ── AI write-back (apply staged suggestions) ───────────────────────────
+
+    def apply_fields(self, asset_id: Any, fields: dict) -> None:
+        """Apply a {target: value} map onto an asset and commit.
+
+        Targets: the special "tags" target (find-or-create + link, unioned), a "metadata_json.<key>"
+        path, or a real column (e.g. "alt_text"/"description"). Unknown targets are ignored.
+        """
+        asset = self.session.get(Assets, asset_id)
+        if not asset:
+            return
+        columns = {c.key for c in Assets.__table__.columns}
+        for target, value in fields.items():
+            if target == "_meta":
+                continue
+            if target == "tags":
+                self._apply_tag_names(asset, value)
+            elif target.startswith("metadata_json."):
+                meta = dict(asset.metadata_json or {})
+                meta[target.split(".", 1)[1]] = value
+                asset.metadata_json = meta
+            elif target in columns:
+                setattr(asset, target, value)
+        self.session.commit()
+
+    def _apply_tag_names(self, asset: Assets, names: Any) -> None:
+        """Find-or-create each tag name (group-scoped, by slug) and link it, unioned with existing."""
+        if not isinstance(names, (list, tuple)):
+            return
+        from slugify import slugify
+
+        have = {t.slug for t in asset.tags}
+        for raw in names:
+            slug = slugify(str(raw))
+            if not slug or slug in have:
+                continue
+            tag = self.session.query(Tags).filter(Tags.group_id == asset.group_id, Tags.slug == slug).first()
+            if tag is None:
+                tag = Tags(session=self.session, group_id=asset.group_id, name=str(raw).strip(), slug=slug)
+                self.session.add(tag)
+                self.session.flush()
+            self.session.add(AssetTags(asset_id=asset.id, tag_id=tag.id))
+            have.add(slug)

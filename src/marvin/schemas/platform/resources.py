@@ -83,6 +83,11 @@ class ResourceRead(ResourceSummary):
     """ID of user who created the resource."""
     tags: list[str] = []
     """Tag slugs applied to this resource (shared vocabulary)."""
+    suggestion_json: dict | None = Field(
+        default=None,
+        description="Pending AI-proposed changes staged for review (write-back)",
+        serialization_alias="suggestionJson",
+    )
 
     @field_validator("tags", mode="before")
     @classmethod

@@ -51,6 +51,9 @@ class Assets(SqlAlchemyBase, BaseMixins):
     alt_text: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    # Pending AI-proposed changes staged for human review (write-back), keyed by target field —
+    # mirrors Entries.suggestion_json. e.g. {"tags": [...], "_meta": {"operation": "generate-tags"}}.
+    suggestion_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     uploaded_by: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
 
     # Relationships

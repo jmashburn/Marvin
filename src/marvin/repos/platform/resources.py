@@ -5,12 +5,13 @@ from typing import Any
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 
-from marvin.db.models.platform import ResourceTags, Resources
+from marvin.db.models.platform import ResourceTags, Resources, Tags
+from marvin.repos.platform._suggestions import SuggestionWritebackMixin
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import ResourceRead
 
 
-class ResourcesRepository(GroupRepositoryGeneric):
+class ResourcesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric):
     """Repository for managing resources."""
 
     def __init__(self, session: Session, group_id: UUID4 | None) -> None:
@@ -50,3 +51,48 @@ class ResourcesRepository(GroupRepositoryGeneric):
             seen.add(tag_id)
             self.session.add(ResourceTags(resource_id=resource_id, tag_id=tag_id))
         self.session.commit()
+
+    # ── AI write-back (apply staged suggestions) ───────────────────────────
+
+    def apply_fields(self, resource_id: Any, fields: dict) -> None:
+        """Apply a {target: value} map onto a resource and commit.
+
+        Targets: the special "tags" target (find-or-create + link, unioned), a "metadata_json.<key>"
+        path, or a real column (e.g. "description"). Unknown targets are ignored (so e.g. a
+        generate-summary "summary" target on a resource — which has no summary column — is a no-op).
+        """
+        resource = self.session.get(Resources, resource_id)
+        if not resource:
+            return
+        columns = {c.key for c in Resources.__table__.columns}
+        for target, value in fields.items():
+            if target == "_meta":
+                continue
+            if target == "tags":
+                self._apply_tag_names(resource, value)
+            elif target.startswith("metadata_json."):
+                meta = dict(resource.metadata_json or {})
+                meta[target.split(".", 1)[1]] = value
+                resource.metadata_json = meta
+            elif target in columns:
+                setattr(resource, target, value)
+        self.session.commit()
+
+    def _apply_tag_names(self, resource: Resources, names: Any) -> None:
+        """Find-or-create each tag name (group-scoped, by slug) and link it, unioned with existing."""
+        if not isinstance(names, (list, tuple)):
+            return
+        from slugify import slugify
+
+        have = {t.slug for t in resource.tags}
+        for raw in names:
+            slug = slugify(str(raw))
+            if not slug or slug in have:
+                continue
+            tag = self.session.query(Tags).filter(Tags.group_id == resource.group_id, Tags.slug == slug).first()
+            if tag is None:
+                tag = Tags(session=self.session, group_id=resource.group_id, name=str(raw).strip(), slug=slug)
+                self.session.add(tag)
+                self.session.flush()
+            self.session.add(ResourceTags(resource_id=resource.id, tag_id=tag.id))
+            have.add(slug)

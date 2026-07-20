@@ -109,6 +109,35 @@ def test_export_includes_asset_and_resource_tags(db_session, workspace):
     assert exported_resource["tags"] == ["leather"]
 
 
+def test_resource_suggestion_stage_and_apply_links_real_tags(db_session, workspace):
+    """A staged generate-tags suggestion on a resource applies as real tags (union)."""
+    from marvin.db.models.platform import Resources
+
+    gid, _, resource_id, _ = workspace
+    repos = get_repositories(db_session, group_id=gid)
+    leather = repos.tags.create(TagCreate(name="Leather"))
+    repos.resources.update(resource_id, ResourceUpdate(tag_ids=[leather.id]))  # existing curated tag
+
+    # Stage (what _write_back does in suggest-only mode), then apply.
+    repos.resources.stage_suggestion(resource_id, {"tags": ["Waxed", "leather"], "_meta": {"operation": "generate-tags"}})
+    assert db_session.get(Resources, resource_id).suggestion_json["tags"] == ["Waxed", "leather"]
+
+    repos.resources.apply_suggestion(resource_id)
+    resource = db_session.get(Resources, resource_id)
+    assert set(resource.tag_names) == {"leather", "waxed"}  # union, deduped
+    assert resource.suggestion_json is None  # cleared after apply
+
+
+def test_asset_apply_fields_tags_target_links_real_tags(db_session, workspace):
+    """apply_fields with the "tags" target links real tags on an asset (the auto-apply path)."""
+    from marvin.db.models.platform import Assets
+
+    gid, asset_id, _, _ = workspace
+    repos = get_repositories(db_session, group_id=gid)
+    repos.assets.apply_fields(asset_id, {"tags": ["Denim", "Selvedge"], "_meta": {"operation": "generate-tags"}})
+    assert set(db_session.get(Assets, asset_id).tag_names) == {"denim", "selvedge"}
+
+
 def test_import_relinks_resource_tags(db_session, workspace):
     gid, _, _, marker = workspace
     repos = get_repositories(db_session, group_id=gid)

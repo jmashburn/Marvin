@@ -143,6 +143,11 @@ class AssetRead(AssetSummary):
     """ID of user who uploaded the asset."""
     tags: list[str] = []
     """Tag slugs applied to this asset (shared vocabulary)."""
+    suggestion_json: dict | None = Field(
+        default=None,
+        description="Pending AI-proposed changes staged for review (write-back)",
+        serialization_alias="suggestionJson",
+    )
 
     @field_validator("tags", mode="before")
     @classmethod

@@ -1262,40 +1262,47 @@ class AIOperationsController(BaseUserController):
         return "\n".join(lines)
 
     def _write_back(self, operation, entity_type, entity_id, output_json, execution_id) -> str | None:
-        """Apply or stage an operation's output onto an entry, gated by approval_mode.
+        """Apply or stage an operation's output onto an entry/asset/resource, gated by approval_mode.
 
-        Entries only (v1). Uses the operation's `writeback` field map. Returns
-        "applied" | "staged" | None. Best-effort — never breaks the operation response.
+        Uses the operation's `writeback` field map. Returns "applied" | "staged" | None.
+        Best-effort — never breaks the operation response.
         """
-        if entity_type != "entry" or not entity_id or not isinstance(output_json, dict):
+        if entity_type not in ("entry", "asset", "resource") or not entity_id or not isinstance(output_json, dict):
             return None
         writeback = getattr(operation, "writeback", None) or {}
         proposed = {target: output_json[out] for out, target in writeback.items() if out in output_json}
         if not proposed:
             return None
 
-        from marvin.db.models.platform.entries import Entries
-        entry = self.session.get(Entries, entity_id)
-        if not entry or entry.group_id != self.group_id:
+        from marvin.db.models.platform import Assets, Entries, Resources
+        repo, model = {
+            "entry": (self.repos.entries, Entries),
+            "asset": (self.repos.assets, Assets),
+            "resource": (self.repos.resources, Resources),
+        }[entity_type]
+        obj = self.session.get(model, entity_id)
+        if not obj or obj.group_id != self.group_id:
             return None
 
         mode = self._approval_mode()
-        is_draft = entry.status not in ("published", "archived")
+        # Assets/resources have no published lifecycle to protect, so treat them as always-draft.
+        is_draft = entity_type != "entry" or obj.status not in ("published", "archived")
         should_apply = mode == "allow-automatic-update" or (mode == "allow-draft-update" and is_draft)
 
         try:
             if should_apply:
-                self.repos.entries.apply_fields(entity_id, proposed)
-                self._emit_entry_updated(entry)
+                repo.apply_fields(entity_id, proposed)
+                if entity_type == "entry":
+                    self._emit_entry_updated(obj)
                 return "applied"
-            self.repos.entries.stage_suggestion(
+            repo.stage_suggestion(
                 entity_id,
                 {**proposed, "_meta": {"operation": operation.slug, "executionId": str(execution_id)}},
             )
             return "staged"
         except Exception as e:
             self.session.rollback()
-            self.logger.warning(f"write-back failed for entry {entity_id}: {e}")
+            self.logger.warning(f"write-back failed for {entity_type} {entity_id}: {e}")
             return None
 
     def _emit_entry_updated(self, entry) -> None:
