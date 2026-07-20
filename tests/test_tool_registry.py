@@ -36,8 +36,10 @@ def test_builtins_are_registered():
         "list_assets",
         "get_asset",
     } <= names
-    # compose_entry stays controller-wired — it is NOT in the registry.
-    assert "compose_entry" not in names
+    # Authoring tools now go through the registry (shared AuthoringService, one door):
+    # compose_entry (agent-bound; withholds the mcp source to avoid colliding with the hand-wired
+    # marvin_compose_entry) and revise_entry (also projects to MCP).
+    assert {"compose_entry", "revise_entry"} <= names
 
 
 def test_insights_tools_are_registered_and_projected():
