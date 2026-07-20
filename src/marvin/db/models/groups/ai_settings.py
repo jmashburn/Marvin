@@ -54,6 +54,10 @@ class WorkspaceAISettingsModel(SqlAlchemyBase, BaseMixins):
     assistant_name: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     # Free-text voice/tone instruction appended to the system prompt.
     persona_prompt: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Default tone register for agent runs — a SEPARATE axis from persona (axis B). Persona is how
+    # the assistant addresses you; register is how work product reads. "professional" suppresses
+    # the persona for the run. "auto" | "professional" | "playful". A per-call register overrides it.
+    default_register: Mapped[str] = mapped_column(sa.String, default="auto", nullable=False, server_default="auto")
 
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:

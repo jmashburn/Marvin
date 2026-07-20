@@ -629,13 +629,16 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       ("HSow shipping", "AA long-skirted"). Also observed: page-type sprawl (`page` vs
       `page-with-navigation` vs `about`) and navigation modeled two ways. Worth a cleanup pass +
       possibly a guard so published-without-timestamp can't happen again.
-- [ ] **axis-B register: per-workspace default + UI** — the tone `register` (auto/professional/
-      playful) is currently **code-driven only**: the entry editor's "Review & suggest" hard-codes
-      `professional`, everything else defaults to `auto`. There's no way for a workspace to change
-      it. Natural home: a "Default register" select under the persona textarea in
-      `settings/ai-workflow.astro`, with per-action overrides still winning. Needs a
-      `workspace_ai_settings` column (now that autogenerate works, this is a clean `task py:migrate`).
-      Also decide whether `/chat` (still applies persona unscoped) should respect it.
+- [x] **axis-B register: per-workspace default + UI** ✅ (2026-07-20) — `default_register` column
+      on `workspace_ai_settings` (migration was a clean one-line autogenerate — the payoff from
+      un-breaking it) + "Default register" select under the persona textarea in
+      `settings/ai-workflow.astro`. Resolution: explicit per-call register (e.g. "Review & suggest"
+      → professional) > workspace `default_register` > "auto". `AIAgentRequest.register` changed
+      `"auto"`→`None` so the server can tell "unset" from "explicitly auto". SDK `AISettings`
+      gained `defaultRegister`. Verified: precedence + clause output correct; 208 tests.
+      Note: `/chat` still applies persona unscoped (chat IS conversation) — left as-is, decided.
+      Benign pre-existing warning: `register` field shadows a pydantic parent attr; round-trips
+      fine, not worth a public-field rename.
 - [x] **Marvin session memory** ✅ — the Ask Marvin bubble transcript now PERSISTS across page
       navigations. `sessionStorage` per tab (`marvin.transcript`), restored on load; only committed
       turns are stored (never the transient "thinking…" placeholder — committed via `commitReply`

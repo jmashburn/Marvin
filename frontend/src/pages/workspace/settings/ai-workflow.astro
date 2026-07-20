@@ -35,6 +35,7 @@ const s = {
   allowWorkspaceCredentials: settings?.allowWorkspaceCredentials ?? true,
   assistantName: settings?.assistantName ?? null,
   personaPrompt: settings?.personaPrompt ?? null,
+  defaultRegister: settings?.defaultRegister ?? "auto",
 };
 
 const invSrc = s.invocationSources ?? {
@@ -245,6 +246,20 @@ const modCfg = s.moderationConfig ?? {};
         <textarea name="persona_prompt" class="input persona-prompt" rows="4"
           placeholder="e.g. Warm and upbeat; concise; a leathercraft studio's helper.">{s.personaPrompt ?? ""}</textarea>
         <small class="hint">A free-text instruction appended to the assistant's system prompt. Leave blank for the default voice.</small>
+      </label>
+      <label class="form-field">
+        <span class="label">Default register</span>
+        <select name="default_register" class="input">
+          <option value="auto" selected={s.defaultRegister === "auto" || !s.defaultRegister}>Auto — voice for chat, plain for work</option>
+          <option value="professional" selected={s.defaultRegister === "professional"}>Professional — plain everywhere, no persona</option>
+          <option value="playful" selected={s.defaultRegister === "playful"}>Playful — persona applies to everything</option>
+        </select>
+        <small class="hint">
+          Separate from the voice above. The <strong>voice</strong> is how the assistant addresses
+          you; the <strong>register</strong> is how its work product reads. <em>Auto</em> keeps the
+          voice for chat but writes reviews, critiques and suggested copy plainly. Specific actions
+          (like "Review &amp; suggest") may still override this per run.
+        </small>
       </label>
     </div>
 
@@ -496,6 +511,7 @@ const modCfg = s.moderationConfig ?? {};
       moderationConfig: modCfg,
       assistantName: (fd.get('assistant_name')?.toString().trim() || null),
       personaPrompt: (fd.get('persona_prompt')?.toString().trim() || null),
+      defaultRegister: (fd.get('default_register')?.toString() || 'auto'),
     };
 
     const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;

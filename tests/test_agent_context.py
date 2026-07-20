@@ -270,3 +270,23 @@ def test_no_persona_means_no_voice_section():
 def test_professional_still_instructs_even_without_a_persona():
     # The register is about the OUTPUT, so it applies whether or not a persona is configured.
     assert "Do not adopt a persona" in _clause("professional", persona="")
+
+
+# ── Register resolution precedence (per-call > workspace default > "auto") ────
+
+def _ctrl_with_default(default_register):
+    ctrl = _ctrl()
+    settings = MagicMock(default_register=default_register)
+    ctrl.session.query.return_value.filter_by.return_value.first.return_value = settings
+    return ctrl
+
+
+def test_default_register_reads_workspace_value():
+    assert AIOperationsController._default_register(_ctrl_with_default("professional")) == "professional"
+
+
+def test_default_register_falls_back_to_auto_when_unset():
+    assert AIOperationsController._default_register(_ctrl_with_default(None)) == "auto"
+    # no settings row at all
+    ctrl = _ctrl(); ctrl.session.query.return_value.filter_by.return_value.first.return_value = None
+    assert AIOperationsController._default_register(ctrl) == "auto"

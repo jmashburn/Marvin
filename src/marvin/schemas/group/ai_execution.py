@@ -88,8 +88,10 @@ class AIAgentRequest(_MarvinModel):
     # Tone register for this call, independent of the workspace persona. The persona governs how
     # the assistant ADDRESSES the user; it must not govern work product (a review written in
     # character isn't actionable). "professional" suppresses the persona outright.
-    # "auto" (default) | "professional" | "playful"
-    register: str = "auto"
+    # None (default) → fall back to the workspace's `default_register`, then "auto". An explicit
+    # value here wins — e.g. the entry editor's "Review & suggest" sends "professional".
+    # "auto" | "professional" | "playful"
+    register: str | None = None
     model_override: str | None = None
     max_steps: int | None = None             # tool-dispatch budget (server clamps)
     source: str = "agent"                    # invocation surface; gated by workspace policy

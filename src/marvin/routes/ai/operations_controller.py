@@ -698,7 +698,8 @@ class AIOperationsController(BaseUserController):
             "your answer in what they return. Composing creates a DRAFT for human review — never claim "
             "anything is published. Be concise."
         )
-        system += self._register_clause(body.register, persona_prompt)
+        # Explicit per-call register wins; otherwise the workspace default; otherwise "auto".
+        system += self._register_clause(body.register or self._default_register(), persona_prompt)
         # Ground the run in what the user is looking at. Prefer a pre-assembled context block
         # (title/status/fields/attachments) so the agent can answer immediately; fall back to the
         # bare id hint when we can't assemble one, so it can still fetch the entity itself.
@@ -1080,6 +1081,11 @@ class AIOperationsController(BaseUserController):
     # reliable lever is to withhold the persona entirely — asking a model to compartmentalise
     # is advisory, and small models ignore it.
     REGISTERS = ("auto", "professional", "playful")
+
+    def _default_register(self) -> str:
+        """The workspace's default tone register, or 'auto' when unset."""
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        return (settings.default_register if settings and settings.default_register else "auto")
 
     def _register_clause(self, register: str | None, persona_prompt: str) -> str:
         """The voice/tone section of a system prompt for the requested register.

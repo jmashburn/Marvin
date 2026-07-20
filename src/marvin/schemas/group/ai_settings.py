@@ -23,6 +23,8 @@ class WorkspaceAISettingsCreate(_MarvinModel):
     # Per-workspace AI persona: display name and a free-text voice/tone instruction.
     assistant_name: str | None = None
     persona_prompt: str | None = None
+    # Default tone register for agent runs (axis B, separate from persona). A per-call register wins.
+    default_register: str = "auto"  # "auto" | "professional" | "playful"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -43,6 +45,7 @@ class WorkspaceAISettingsUpdate(_MarvinModel):
     external_mcp_enabled: bool | None = None
     assistant_name: str | None = None
     persona_prompt: str | None = None
+    default_register: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
