@@ -94,10 +94,17 @@ def run_operation_action(session, group_id, action: dict, context: dict, *, user
 
     _gate_source(session, group_id, operation)
 
-    # Resolve entity (slice: entries). entity_id may be a $event/$previous template.
+    # Resolve entity (slice: entries). entity_id may be a $event/$previous template. An action may
+    # instead target an entry by SLUG (`entity_slug`) — humans reference entries by slug, not UUID,
+    # so a webhook payload that carries `entry_slug` is far more usable than an opaque id.
     entity_type = action.get("entity_type", "entry")
-    entity_id = interpolate(action.get("entity_id", "$event.entry_id"), context)
     op_input = interpolate(action.get("input", {}) or {}, context)
+
+    entity_slug = interpolate(action.get("entity_slug"), context) if action.get("entity_slug") else None
+    if entity_type == "entry" and entity_slug:
+        entity_id = _resolve_entry_id_by_slug(session, group_id, str(entity_slug))
+    else:
+        entity_id = interpolate(action.get("entity_id", "$event.entry_id"), context)
 
     try:
         provider = get_workspace_ai_provider(session, group_id)
@@ -178,6 +185,16 @@ def run_operation_action(session, group_id, action: dict, context: dict, *, user
             _apply_writeback(session, group_id, entity_id, proposed, user_id, depth)
 
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _resolve_entry_id_by_slug(session, group_id, slug: str):
+    """Resolve an entry SLUG to its id within the workspace. Raises if there's no such entry."""
+    from marvin.db.models.platform.entries import Entries
+
+    entry = session.query(Entries).filter_by(group_id=group_id, slug=slug).first()
+    if not entry:
+        raise AutomationActionError(f"no entry with slug '{slug}' in this workspace")
+    return entry.id
 
 
 def _apply_writeback(session, group_id, entity_id, proposed: dict, user_id, depth: int = 0) -> None:

@@ -380,6 +380,15 @@ class TestValidateDefinition:
             "actions": [{"kind": "operation", "op": "generate-summary"}],
         }) == []
 
+    def test_entity_slug_clears_the_entry_action_warning(self):
+        # Targeting an entry by slug from the payload makes an entry-shaped step valid on a webhook.
+        issues = self._v({
+            "trigger": {"type": "incoming_webhook", "webhook": "x"},
+            "conditions": [],
+            "actions": [{"kind": "operation", "op": "generate-tags", "entity_slug": "$event.payload.entry_slug"}],
+        })
+        assert issues == []
+
     def test_webhook_payload_condition_is_clean(self):
         assert self._v({
             "trigger": {"type": "incoming_webhook", "webhook": "x"},

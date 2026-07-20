@@ -280,7 +280,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       <select class="input c-op">${ops}</select>
       <input class="input c-value" placeholder="value" value="${esc(c.value ?? "")}" />
       <button type="button" class="icon-btn" title="Remove">✕</button>`;
-    row.querySelector(".icon-btn")!.addEventListener("click", () => row.remove());
+    row.querySelector(".icon-btn")!.addEventListener("click", () => { row.remove(); revalidate(); });
     return row;
   }
 
@@ -302,7 +302,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     const fields = row.querySelector(".a-fields") as HTMLElement;
     const render = () => { fields.innerHTML = ""; fields.appendChild(kindFields(kindSel.value, a)); };
     kindSel.addEventListener("change", () => render());
-    row.querySelector(".icon-btn")!.addEventListener("click", () => row.remove());
+    row.querySelector(".icon-btn")!.addEventListener("click", () => { row.remove(); revalidate(); });
     render();
     return row;
   }
@@ -318,6 +318,8 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       const optList = ops.map((o: any) => `<option value="${esc(o.op)}" ${a.op === o.op ? "selected" : ""}>${esc(o.name)}</option>`).join("");
       wrap.innerHTML = `
         <select class="input a-op">${optList}</select>
+        <input class="input a-entity-slug" placeholder="Target entry by slug — e.g. $event.payload.entry_slug" value="${esc(a.entity_slug ?? "")}" />
+        <span class="hint small">Which entry to run on. Leave blank to use the triggering entry; for a webhook, point at one by slug (e.g. <code>$event.payload.entry_slug</code>).</span>
         <label class="check small"><input type="checkbox" class="a-writeback" ${a.write_back ? "checked" : ""}/> Write the result back to the entry</label>`;
     } else if (kind === "emit_event") {
       const evs = (OPTIONS.triggers || []).map((t: string) => `<option value="${esc(t)}" ${a.event === t ? "selected" : ""}>${esc(prettyEvent(t))}</option>`).join("");
@@ -350,7 +352,10 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       if (kind === "operation") {
         const op = (r.querySelector(".a-op") as HTMLSelectElement | null)?.value;
         if (!op) return null;
-        return { kind, op, write_back: (r.querySelector(".a-writeback") as HTMLInputElement)?.checked || false };
+        const slug = (r.querySelector(".a-entity-slug") as HTMLInputElement | null)?.value.trim();
+        const step: any = { kind, op, write_back: (r.querySelector(".a-writeback") as HTMLInputElement)?.checked || false };
+        if (slug) step.entity_slug = slug;
+        return step;
       }
       if (kind === "emit_event") return { kind, event: (r.querySelector(".a-event") as HTMLSelectElement).value };
       if (kind === "handler") {

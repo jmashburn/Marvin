@@ -133,13 +133,14 @@ def validate_definition(definition: dict | None) -> list[dict]:
             continue
         kind = act.get("kind")
         # An AI `operation` acts on an entity — it defaults to $event.entry_id. Under a trigger with
-        # no entry, that resolves to nothing unless the author maps entity_id from the payload.
-        if kind == "operation" and not has_entry and not act.get("entity_id"):
+        # no entry, that resolves to nothing unless the author targets one from the payload, by slug
+        # (entity_slug — preferred, human-readable) or id (entity_id).
+        if kind == "operation" and not has_entry and not act.get("entity_slug") and not act.get("entity_id"):
             op = act.get("op", "operation")
             issues.append(_issue(
                 "warning",
                 f"Step “{op}” runs on an entry, but this {_pretty(ttype)} trigger has none. "
-                "Set the step's entity_id (e.g. $event.payload.entry_id) or use an entry trigger.",
+                "Point it at one with entity_slug (e.g. $event.payload.entry_slug) — or use an entry trigger.",
                 "action", i))
 
     return issues
