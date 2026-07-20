@@ -13,6 +13,7 @@ path (compose_entry / generate-tags) which decides links for you.
 """
 
 import json
+from types import SimpleNamespace
 
 from ..entity_resolve import resolve_entity_id
 from ..operations.base import ROLE_AUTHOR
@@ -128,3 +129,96 @@ def attach_asset(ctx: ToolContext, args: dict) -> str:
 )
 def detach_asset(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="detach_asset", ref_key="asset")
+
+
+# ── Asset ingestion (bring a new image in) ────────────────────────────────────
+_MAX_IMPORT_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
+@register_tool(
+    name="import_asset",
+    description=(
+        "Bring a NEW image into the workspace as an asset — from a web URL or from base64 bytes "
+        "(e.g. a phone capture) — and optionally attach it to an entry in one call. Returns the new "
+        "asset id + url. Use attach_asset instead when the asset already exists."
+    ),
+    input_schema={"type": "object", "properties": {
+        "url": {"type": "string", "description": "an http(s) URL of the image to fetch"},
+        "data": {"type": "string", "description": "base64-encoded image bytes (alternative to url)"},
+        "filename": {"type": "string", "description": "filename for base64 data (e.g. 'photo.jpg')"},
+        "name": {"type": "string", "description": "display name (defaults to the filename)"},
+        "alt_text": {"type": "string", "description": "accessibility alt text"},
+        "attach_to": {"type": "string", "description": "optional entry (slug/id) to attach the new asset to"},
+        "role": {"type": "string", "description": "role for the attachment (e.g. 'hero'), if attach_to is set"},
+    }},
+    min_role=ROLE_AUTHOR, read_only=False,
+)
+def import_asset(ctx: ToolContext, args: dict) -> str:
+    import base64
+    import io
+    import os
+    import uuid as _uuid
+
+    if getattr(ctx.user, "id", None) is None:
+        return json.dumps({"error": "import_asset requires an authenticated user"})
+
+    url, data = args.get("url"), args.get("data")
+    # 1) Get the bytes + a filename.
+    if url:
+        if not str(url).lower().startswith(("http://", "https://")):
+            return json.dumps({"error": "url must be http(s)"})
+        try:
+            import httpx
+
+            resp = httpx.get(str(url), timeout=15.0, follow_redirects=True)
+            resp.raise_for_status()
+            raw = resp.content
+        except Exception as e:  # noqa: BLE001
+            return json.dumps({"error": f"could not fetch url: {e}"})
+        filename = os.path.basename(str(url).split("?")[0]) or "imported"
+    elif data:
+        try:
+            raw = base64.b64decode(str(data), validate=True)
+        except Exception as e:  # noqa: BLE001
+            return json.dumps({"error": f"invalid base64 data: {e}"})
+        filename = args.get("filename") or "imported.png"
+    else:
+        return json.dumps({"error": "provide either 'url' or 'data' (base64)"})
+
+    if not raw:
+        return json.dumps({"error": "no image bytes"})
+    if len(raw) > _MAX_IMPORT_BYTES:
+        return json.dumps({"error": f"image too large ({len(raw)} bytes; max {_MAX_IMPORT_BYTES})"})
+
+    # 2) Store it as an asset (metadata — mime/type/dimensions — is derived from the bytes).
+    from slugify import slugify
+
+    from marvin.repos.all_repositories import get_repositories
+    from marvin.schemas.platform.assets import AssetUploadRequest
+    from marvin.services.assets.asset_storage_service import AssetStorageService
+    from marvin.services.storage.provider_factory import get_storage_provider
+
+    name = (args.get("name") or os.path.splitext(filename)[0] or "imported").strip()
+    slug = f"{slugify(name) or 'asset'}-{_uuid.uuid4().hex[:6]}"  # suffix guarantees uniqueness
+    upload_file = SimpleNamespace(filename=filename, file=io.BytesIO(raw))
+    repos = get_repositories(ctx.session, group_id=ctx.group_id)
+    try:
+        asset = AssetStorageService(repos, get_storage_provider()).upload_asset(
+            upload_file=upload_file,
+            upload_request=AssetUploadRequest(slug=slug, name=name, alt_text=args.get("alt_text")),
+            group_id=ctx.group_id,
+            user_id=ctx.user.id,
+        )
+    except Exception as e:  # noqa: BLE001
+        return json.dumps({"error": f"could not import asset: {e}"})
+
+    out = {"asset_id": str(asset.id), "slug": asset.slug, "name": asset.name,
+           "url": getattr(asset, "public_url", None) or getattr(asset, "url", None),
+           "assetType": getattr(asset, "asset_type", None)}
+
+    # 3) Optionally attach it to an entry in the same call.
+    if args.get("attach_to"):
+        entry_id = resolve_entity_id(ctx.session, ctx.group_id, "entry", args["attach_to"])
+        out["attach"] = _service(ctx).attach_asset(entry_id, asset.id, role=args.get("role"))
+        out["attached_to"] = str(args["attach_to"])
+    return json.dumps(out)

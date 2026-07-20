@@ -147,3 +147,40 @@ def test_list_tags_is_a_read_tool():
 
     spec = get_tool("list_tags")
     assert spec.read_only is True and spec.min_role == ROLE_VIEWER
+
+
+# ── import_asset (ingestion) input guards ─────────────────────────────────────
+class _User:
+    id = uuid.uuid4()
+
+
+def _import(args, user=_User()):
+    import json
+
+    from marvin.services.ai.tools import ToolContext, get_tool
+    ctx = ToolContext(session=None, group_id=uuid.uuid4(), user=user)
+    return json.loads(get_tool("import_asset").handler(ctx, args))
+
+
+def test_import_asset_is_a_write_tool():
+    from marvin.services.ai.operations.base import ROLE_AUTHOR
+    from marvin.services.ai.tools import get_tool
+
+    spec = get_tool("import_asset")
+    assert spec.read_only is False and spec.min_role == ROLE_AUTHOR and "mcp" in spec.sources
+
+
+def test_import_asset_requires_a_user():
+    assert "authenticated user" in _import({"url": "https://x/y.jpg"}, user=None)["error"]
+
+
+def test_import_asset_requires_url_or_data():
+    assert "url" in _import({})["error"]  # "provide either 'url' or 'data'"
+
+
+def test_import_asset_rejects_non_http_url():
+    assert "http" in _import({"url": "file:///etc/passwd"})["error"]  # SSRF-adjacent guard
+
+
+def test_import_asset_rejects_bad_base64():
+    assert "base64" in _import({"data": "!!!not base64!!!"})["error"]
