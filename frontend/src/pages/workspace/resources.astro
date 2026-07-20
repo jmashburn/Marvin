@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
+import TagList from "@/components/TagList.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { listResources, type ResourceRead } from "@/lib/api/resources";
 
@@ -99,7 +100,10 @@ const sortedTypeGroups = [...typeGroups.values()].sort((a, b) => a.type.localeCo
           <tbody>
             {resources.map((resource) => (
               <tr class="resource-row" data-type={resource.resourceType}>
-                <td class="resource-name"><strong>{resource.name}</strong></td>
+                <td class="resource-name">
+                  <strong>{resource.name}</strong>
+                  {resource.tags?.length > 0 && <div class="tags-row"><TagList tags={resource.tags} /></div>}
+                </td>
                 <td><span class="type-badge">{resource.resourceType}</span></td>
                 <td class="description-cell">{resource.description || '—'}</td>
                 <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
@@ -153,7 +157,10 @@ const sortedTypeGroups = [...typeGroups.values()].sort((a, b) => a.type.localeCo
               <tbody>
                 {groupResources.map((resource) => (
                   <tr class="resource-row" data-type={resource.resourceType}>
-                    <td class="resource-name"><strong>{resource.name}</strong></td>
+                    <td class="resource-name">
+                  <strong>{resource.name}</strong>
+                  {resource.tags?.length > 0 && <div class="tags-row"><TagList tags={resource.tags} /></div>}
+                </td>
                     <td><span class="type-badge">{resource.resourceType}</span></td>
                     <td class="description-cell">{resource.description || '—'}</td>
                     <td>{resource.externalId ? <code>{resource.externalId}</code> : '—'}</td>
@@ -270,6 +277,9 @@ const sortedTypeGroups = [...typeGroups.values()].sort((a, b) => a.type.localeCo
 </script>
 
 <style>
+  .tags-row {
+    margin-top: 0.35rem;
+  }
   .error-banner {
     padding: 1.5rem;
     background: var(--color-error-bg);

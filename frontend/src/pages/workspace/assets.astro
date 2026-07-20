@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
+import TagList from "@/components/TagList.astro";
 import { getAssets } from "@/lib/api/platform";
 import { getAuthToken } from "@/lib/api/client";
 
@@ -137,6 +138,7 @@ const sortedCategoryGroups = categoryOrder
                     <td class="asset-name">
                       <strong>{asset.name}</strong>
                       {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
+                      {asset.tags?.length > 0 && <div class="tags-row"><TagList tags={asset.tags} /></div>}
                     </td>
                     <td class="asset-type"><span class="type-badge">{asset.mimeType}</span></td>
                     <td>
@@ -212,6 +214,7 @@ const sortedCategoryGroups = categoryOrder
                         <td class="asset-name">
                           <strong>{asset.name}</strong>
                           {asset.slug && <div class="slug"><code>{asset.slug}</code></div>}
+                          {asset.tags?.length > 0 && <div class="tags-row"><TagList tags={asset.tags} /></div>}
                         </td>
                         <td class="asset-type"><span class="type-badge">{asset.mimeType}</span></td>
                         <td>
@@ -369,6 +372,9 @@ const sortedCategoryGroups = categoryOrder
     margin-top: 0.25rem;
     font-size: 0.75rem;
     color: var(--muted);
+  }
+  .tags-row {
+    margin-top: 0.35rem;
   }
 
   .type-badge {

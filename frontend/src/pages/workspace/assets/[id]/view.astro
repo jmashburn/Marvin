@@ -1,5 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import TagList from "@/components/TagList.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
 import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
@@ -121,6 +122,13 @@ const isPdf = asset?.mimeType?.includes('pdf');
           <div class="description-panel">
             <h4>Description</h4>
             <p>{asset.description}</p>
+          </div>
+        )}
+
+        {asset.tags?.length > 0 && (
+          <div class="tags-panel">
+            <h4>Tags</h4>
+            <TagList tags={asset.tags} />
           </div>
         )}
 
@@ -267,6 +275,7 @@ const isPdf = asset?.mimeType?.includes('pdf');
 
   .description-panel,
   .metadata-panel,
+  .tags-panel,
   .custom-metadata-panel {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -276,6 +285,7 @@ const isPdf = asset?.mimeType?.includes('pdf');
 
   .description-panel h4,
   .metadata-panel h4,
+  .tags-panel h4,
   .custom-metadata-panel h4 {
     margin: 0 0 1rem;
     font-size: 1rem;
