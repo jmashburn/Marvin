@@ -134,6 +134,7 @@ class AuthoringService:
             + f"\n\nBrief:\n{brief}"
             + grounding
             + self._recipe_resource_hint(recipe)
+            + self._recipe_asset_hint(recipe)
         )
         parts: list = [instruction]
         for a in ctx.assets or []:
@@ -524,6 +525,20 @@ class AuthoringService:
             f"by name in `resources`. Reuse the existing resource names above where they match; do not invent new ones."
         )
 
+    def _recipe_asset_hint(self, recipe) -> str:
+        """A prompt fragment nudging the model to attach relevant EXISTING images from the grounded
+        catalog, keyed to the entry type's asset roles (first → hero). Mirrors _recipe_resource_hint.
+        Empty when the recipe declares no asset roles."""
+        assets = getattr(recipe, "assets", None)
+        roles = [r.role for r in (assets.roles or [])] if assets else []
+        if not roles:
+            return ""
+        return (
+            f"\n\nThis entry type illustrates with images in these roles: {', '.join(roles)}. If the workspace "
+            f"list above includes an image that fits this entry, name it in `assets` (by name or slug) to attach it "
+            f"— the first becomes the hero. Reuse only; do not invent, and omit `assets` when none are a good fit."
+        )
+
     def _attach_existing_resources(self, entry_id, refs) -> list[str]:
         """Attach only resources that already exist (reuse); ignore unknown refs. Returns attached slugs.
 
@@ -550,7 +565,7 @@ class AuthoringService:
                     .filter((Resources.slug == ref) | (Resources.name == ref))
                     .first()
                 )
-            if not resource or resource.group_id != self.group_id:
+            if not resource or str(resource.group_id) != str(self.group_id):
                 continue
             exists = self.session.query(EntryResources).filter_by(entry_id=entry_id, resource_id=resource.id).first()
             if exists is None:
@@ -585,7 +600,7 @@ class AuthoringService:
                     .filter((Assets.slug == ref) | (Assets.name == ref))
                     .first()
                 )
-            if not asset or asset.group_id != self.group_id:
+            if not asset or str(asset.group_id) != str(self.group_id):
                 continue
             if str(asset.id) in exclude or asset.id in seen:
                 continue
@@ -654,28 +669,38 @@ class AuthoringService:
         return "\n\n## Already in this workspace — reuse, don't duplicate\n" + "\n".join(parts)
 
     def _rag_catalog(self, seed_text: str) -> str:
-        """RAG-relevant existing resources/assets for the seed text, as a short reuse hint."""
+        """RAG-relevant existing resources/assets for the seed text, as a short reuse hint.
+
+        Resources and assets get SEPARATE retrieval budgets rather than sharing one top-k. Pooled,
+        a text-heavy brief's near-exact resource matches take every slot and assets never surface —
+        so compose could never suggest an existing image to attach. Split, each kind always gets a
+        fair share. The seed is embedded once and reused for both queries.
+        """
         if not (seed_text and self.provider and getattr(self.provider, "supports_embeddings", False)):
             return ""
-        from marvin.services.ai.context import ContextBuilder
-        from marvin.services.ai.embeddings import default_embedding_model
+        from marvin.services.ai.embeddings import default_embedding_model, search_embeddings
         from marvin.services.ai.entity_resolve import resolve_retrieved_sources
 
         emb = default_embedding_model(self.provider.provider_type)
         if not emb:
             return ""
         try:
-            built = (
-                ContextBuilder(self.session, self.group_id)
-                .with_semantic_search(seed_text, self.provider, emb, limit=8, entity_types=["resource", "asset"])
-                .build()
-            )
-            srcs = resolve_retrieved_sources(self.session, built.retrieved or [])
+            qvec = self.provider.embed([seed_text], emb)[0]
         except Exception as e:  # grounding must never break authoring
-            self.logger.warning(f"AuthoringService: RAG grounding failed: {e}")
+            self.logger.warning(f"AuthoringService: RAG grounding embed failed: {e}")
             return ""
-        res = list(dict.fromkeys(s["title"] for s in srcs if s.get("entity_type") == "resource"))
-        ass = list(dict.fromkeys(s["title"] for s in srcs if s.get("entity_type") == "asset"))
+
+        def _titles(entity_type: str, limit: int) -> list[str]:
+            try:
+                rows = search_embeddings(self.session, self.group_id, qvec, limit, [entity_type])
+                srcs = resolve_retrieved_sources(self.session, rows or [])
+            except Exception as e:
+                self.logger.warning(f"AuthoringService: RAG grounding ({entity_type}) failed: {e}")
+                return []
+            return list(dict.fromkeys(s["title"] for s in srcs if s.get("entity_type") == entity_type))
+
+        res = _titles("resource", 6)
+        ass = _titles("asset", 6)
         out: list[str] = []
         if res:
             out.append("Relevant existing resources (reference/attach these rather than recreating): " + ", ".join(res))

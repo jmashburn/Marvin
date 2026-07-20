@@ -158,6 +158,43 @@ def test_alt_text_requested_reads_enrichment_flag_and_role_derive(db_session, wo
     assert svc._alt_text_requested(EntryTypeRecipe.model_validate({"enrichment": {"voice": "wry"}})) is False
 
 
+def test_recipe_asset_hint_lists_roles_and_is_empty_without_them(db_session, workspace):
+    from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
+    gid, _, _ = workspace
+    svc = _svc(db_session, gid)
+
+    hint = svc._recipe_asset_hint(
+        EntryTypeRecipe.model_validate({"assets": {"roles": [{"role": "hero"}, {"role": "gallery"}]}})
+    )
+    assert "hero, gallery" in hint and "`assets`" in hint  # names the roles + the output field
+    assert svc._recipe_asset_hint(EntryTypeRecipe.model_validate({"assets": {"min": 1}})) == ""  # no roles → no hint
+    assert svc._recipe_asset_hint(EntryTypeRecipe.model_validate({})) == ""
+
+
+def test_resolvers_are_group_id_type_safe(db_session, workspace):
+    # Regression: a string group_id (as MCP/JSON callers can pass) once made the UUID != str guard
+    # always true, silently dropping every asset/resource. Both resolvers must match by value.
+    from marvin.db.models.platform import Assets
+    from marvin.db.models.users.users import Users
+
+    gid, entry_id, res_id = workspace
+    uid = db_session.query(Users.id).filter(Users.group_id == gid).scalar()
+    aid = uuid.uuid4()
+    db_session.execute(Assets.__table__.insert().values(
+        id=aid, group_id=gid, slug="loom", name="Loom", original_filename="l.jpg",
+        filename="l", extension="jpg", file_size=1, mime_type="image/jpeg", asset_type="image",
+        checksum="y", storage_provider="local", storage_key=f"k/{gid.hex[:5]}.jpg", uploaded_by=uid,
+    ))
+    db_session.commit()
+
+    svc = AuthoringService(db_session, str(gid), user=None, provider=None, model=None)  # STRING group_id
+    assert svc._resolve_asset_refs(["Loom"]) == [(aid, "loom")]              # asset resolves
+    assert svc._attach_existing_resources(entry_id, ["Waxed Canvas"]) == ["waxed-canvas"]  # resource resolves
+    db_session.commit()
+    assert _count(db_session, entry_id, res_id) == 1
+
+
 def test_alt_text_enrichment_noops_without_a_vision_provider(db_session, workspace):
     from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
 
