@@ -17,6 +17,7 @@ from marvin.schemas.group.ai_execution import (
     AIExecutionRead,
     AIOperationExecuteRequest,
     AIReindexRequest,
+    AIReviseEntryRequest,
     AIToolInvokeRequest,
 )
 
@@ -483,6 +484,91 @@ class AIOperationsController(BaseUserController):
         self._emit_budget_thresholds(execution)
         return result
 
+    @router.post("/revise-entry", summary="Revise an existing entry from an instruction")
+    def revise_entry(self, body: AIReviseEntryRequest) -> dict:
+        """Revise an EXISTING entry in place per an instruction — the counterpart to compose.
+
+        Same shared AuthoringService, but it enriches an entry that already exists (e.g.
+        "determine the tags and attach relevant resources", "tighten the summary") instead of
+        authoring a new draft. Grounded on the workspace catalog so it reuses existing tags and
+        resources rather than duplicating. Unlike compose there is no skeleton fallback — reworking
+        an entry has no meaning without a model, so an unconfigured provider is a hard error.
+        """
+        import uuid
+
+        from marvin.db.models.platform.entries import Entries
+        from marvin.services.ai.factory import get_workspace_ai_provider
+        from marvin.services.ai.operations.base import ROLE_AUTHOR
+
+        # AUTHOR or higher — revising mutates content.
+        if not self.user.admin:
+            role = 0
+            for m in self.user.workspace_memberships:
+                if m.group_id == self.group_id:
+                    role = m.workspace_role.value
+                    break
+            if role < ROLE_AUTHOR:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
+
+        # Same authoring surfaces as compose (editor / MCP / agent / API), gated by policy.
+        self._check_invocation_source(body.source, ("editor", "mcp", "agent", "api"))
+
+        # Resolve the entry (workspace-scoped) by slug then id.
+        entry = (
+            self.session.query(Entries)
+            .filter(Entries.slug == body.entry, Entries.group_id == self.group_id)
+            .first()
+        )
+        if not entry:
+            try:
+                e = self.session.get(Entries, uuid.UUID(str(body.entry)))
+                if e and e.group_id == self.group_id:
+                    entry = e
+            except (ValueError, TypeError):
+                entry = None
+        if not entry:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Entry '{body.entry}' not found.")
+
+        provider = None
+        try:
+            provider = get_workspace_ai_provider(self.session, self.group_id)
+        except Exception:
+            provider = None
+        model = (body.model_override or self._default_model()) if provider else None
+        if not provider or not model:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No AI provider is configured for this workspace.")
+
+        self._check_budget()
+
+        from marvin.services.ai.authoring import AuthoringService
+
+        log_inputs, log_outputs = self._logging_policy()
+        service = AuthoringService(
+            self.session, self.group_id, self.user, provider, model,
+            event_bus=self.event_bus, logger=self.logger,
+        )
+        try:
+            result = service.revise(
+                entry=entry, instruction=body.instruction, source=body.source,
+                register=self._default_register(),
+                log_inputs=log_inputs, log_outputs=log_outputs, max_tokens=self._max_output_tokens(),
+            )
+        except HTTPException as he:
+            if service.last_execution is not None:
+                self._emit_ai_event(service.last_execution, "failed", str(he.detail))
+            raise
+        except Exception as e:
+            if service.last_execution is not None:
+                self._emit_ai_event(service.last_execution, "failed", str(e))
+                self._maybe_emit_quota(service.last_execution, str(e))
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Revise failed: {e}")
+
+        execution = service.last_execution
+        self.session.refresh(execution)
+        self._emit_ai_event(execution, "completed", None)
+        self._emit_budget_thresholds(execution)
+        return result
+
     # ── Compose helpers ────────────────────────────────────────────────
 
     def _recipe_asset_attachments(self, asset_ids: list, recipe) -> list[dict]:
@@ -798,12 +884,14 @@ class AIOperationsController(BaseUserController):
             )
 
     def _build_agent_tools(self, provider) -> list:
-        """Bind the core tool registry in-process for the agent, plus the compose special.
+        """Bind the agent's in-process toolset: the core tool registry + the AI operations.
 
-        Each registry ToolSpec reachable from the "agent" source and allowed for this user's
-        role becomes an AgentTool whose run() calls the spec's handler with a ToolContext built
-        from this controller — no MCP hop. `compose_entry` stays controller-wired: it has its own
-        endpoint/SDK/MCP tool and needs the full execution + write-back machinery.
+        Each registry ToolSpec reachable from the "agent" source and allowed for this user's role
+        becomes an AgentTool whose run() calls the spec's handler with a ToolContext (direct DB
+        handlers — reads + link writes + authoring via compose_entry/revise_entry). Then every AI
+        *operation* allowed for the agent (generate-summary/tags, improve-writing, …) is bound too, so
+        Chat has parity with MCP's marvin_op_* surface — an operation is an LLM generation (curated
+        prompt + write-back), not a direct handler. Finally, allowlisted external MCP tools.
         """
         import json
 
@@ -829,29 +917,45 @@ class AIOperationsController(BaseUserController):
             if "agent" in spec.sources and role >= spec.min_role
         ]
 
-        def compose_entry(args: dict) -> str:
-            etype = str(args.get("entry_type") or "").strip()
-            brief = str(args.get("brief") or "").strip()
-            if not etype or not brief:
-                return json.dumps({"error": "entry_type and brief are required"})
-            res = self.compose_entry(AIComposeEntryRequest(entry_type=etype, brief=brief, source="agent"))
-            return json.dumps({
-                "entryId": res.get("entryId"),
-                "title": res.get("title"),
-                "status": res.get("status"),
-                "editUrl": res.get("editUrl"),
-            })
+        # compose_entry / revise_entry now come from the registry (builtins_authoring, shared
+        # AuthoringService) and are bound by the loop above — no hand-wiring here.
 
-        tools.append(
-            AgentTool(
-                name="compose_entry",
-                description="Compose a DRAFT entry of entry_type (slug) from a short brief. Creates an inbox draft for human review; does not publish. Returns the new entry id + edit url.",
+        # Bind AI operations (generate-summary/tags, improve-writing, describe-image, …) as agent
+        # tools too, so Chat has parity with MCP's marvin_op_* surface. Each runs through the shared
+        # execute path (curated prompt + output schema + write-back), gated by its own agent source +
+        # min_role. Unlike a registry tool (a direct DB handler), an operation is an LLM generation.
+        from marvin.schemas.group.ai_execution import AIOperationExecuteRequest
+        from marvin.services.ai.operations import list_operations
+
+        def _make_op_run(op_slug: str):
+            def run(args: dict) -> str:
+                try:
+                    res = self.execute_operation(op_slug, AIOperationExecuteRequest(
+                        entity_type=(args.get("entity_type") or "entry"),
+                        entity_id=args.get("entity_id"),
+                        input=args.get("input") or {},
+                        source="agent",
+                    ))
+                except HTTPException as e:
+                    return json.dumps({"error": e.detail})
+                except Exception as e:  # noqa: BLE001 — surface to the model, never raise into the loop
+                    return json.dumps({"error": str(e)})
+                return json.dumps({"status": res.status, "output": res.output_json, "error": res.error_message})
+            return run
+
+        for op in list_operations():
+            if "agent" not in op.invocation_sources or role < op.min_role:
+                continue
+            tools.append(AgentTool(
+                name=op.slug.replace("-", "_"),
+                description=f"AI operation — {op.description} (LLM generation with curated prompt + write-back; slug '{op.slug}').",
                 input_schema={"type": "object", "properties": {
-                    "entry_type": {"type": "string"}, "brief": {"type": "string"},
-                }, "required": ["entry_type", "brief"]},
-                run=compose_entry,
-            )
-        )
+                    "entity_id": {"type": "string", "description": "id or slug of the entry/asset/resource to run on (omit for ops that don't target one, e.g. answer-workspace-question)"},
+                    "entity_type": {"type": "string", "description": "entry | asset | resource (default entry)"},
+                    "input": op.input_schema or {"type": "object", "properties": {}},
+                }},
+                run=_make_op_run(op.slug),
+            ))
 
         # Growth plane: allowlisted tools from the workspace's enabled external MCP servers.
         tools.extend(self._external_mcp_tools())
