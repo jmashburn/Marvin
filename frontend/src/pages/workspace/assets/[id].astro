@@ -1,13 +1,16 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import TagChips from "@/components/TagChips.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
+import { listTags, type TagRead } from "@/lib/api/tags";
 import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
 let asset: PlatformAsset | null = null;
+let allTags: TagRead[] = [];
 let error: string | null = null;
 
 if (!id) {
@@ -17,12 +20,19 @@ if (!id) {
 } else {
   try {
     const sdk = createSdkClient(authToken);
-    asset = await sdk.assets.get(id);
+    [asset, allTags] = await Promise.all([sdk.assets.get(id), listTags(authToken)]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     console.error('[Asset] Failed to load:', error);
   }
 }
+
+// asset.tags is a slug list; resolve to {id, name} via the workspace vocabulary for the chips.
+const tagBySlug = new Map((allTags || []).map((t) => [t.slug, t]));
+const attachedTags = (((asset as any)?.tags as string[] | undefined) || [])
+  .map((slug) => tagBySlug.get(slug))
+  .filter(Boolean)
+  .map((t) => ({ id: t!.id, name: t!.name }));
 
 // AI assist: only shown for image assets when AI is enabled for the workspace.
 let aiEnabled = false;
@@ -140,6 +150,8 @@ const showAiPanel = aiEnabled && isImage;
                 </div>
               )}
             </div>
+
+            <TagChips attachedTags={attachedTags} allTags={(allTags || []).map((t) => ({ id: t.id, name: t.name, slug: t.slug }))} />
 
             <div class="form-actions">
               <button type="submit" class="button">Save Changes</button>
@@ -437,6 +449,7 @@ const showAiPanel = aiEnabled && isImage;
 
 <script>
   import { createSdkClient } from '@/lib/sdk';
+  import { resolveTagIds } from '@/lib/api/tagChips';
 
   console.log('[Asset Edit] Script loading...');
 
@@ -530,6 +543,7 @@ const showAiPanel = aiEnabled && isImage;
 
       // Always send metadata field (can be null or object)
       updateData.metadataJson = metadata;
+      updateData.tag_ids = await resolveTagIds(document.getElementById('tags-payload') as HTMLInputElement | null);
 
       console.log('Updating asset with data:', updateData);
       await sdk.assets.update(assetId, updateData);

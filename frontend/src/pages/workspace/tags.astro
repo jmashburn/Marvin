@@ -60,7 +60,7 @@ const sortedTags = tags.sort((a, b) => a.name.localeCompare(b.name));
               <th class="col-color">Color</th>
               <th class="col-name">Name</th>
               <th class="col-slug">Slug</th>
-              <th class="col-count">Entries</th>
+              <th class="col-count" title="Entries + assets + resources using this tag">Uses</th>
               <th class="col-actions"></th>
             </tr>
           </thead>
@@ -74,7 +74,7 @@ const sortedTags = tags.sort((a, b) => a.name.localeCompare(b.name));
                   <input type="text" class="tag-name" value={tag.name} />
                 </td>
                 <td class="col-slug"><code>{tag.slug}</code></td>
-                <td class="col-count">{tag.entryCount ?? 0}</td>
+                <td class="col-count">{tag.usageCount ?? tag.entryCount ?? 0}</td>
                 <td class="col-actions">
                   <button type="button" class="button small save-tag" disabled>Save</button>
                   <button type="button" class="button small danger delete-tag">Delete</button>
