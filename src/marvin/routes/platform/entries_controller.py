@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from marvin.db.models.platform import EntryCollections
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import CollectionRead, EntryCreate, EntryRead, EntryUpdate
+from marvin.services.entries import EntryService
 from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/entries")
@@ -15,7 +16,16 @@ router = APIRouter(prefix="/entries")
 
 @controller(router)
 class EntriesController(BaseUserController):
-    """Authenticated CRUD routes for entries."""
+    """Authenticated CRUD routes for entries. Entry mutation + its events live in EntryService;
+    this controller owns the HTTP concerns (auth, 404s, response shape)."""
+
+    def _entries(self) -> EntryService:
+        """The entry domain service, wired with this request's actor + event bus."""
+        return EntryService(
+            self.session, self.group_id,
+            event_bus=self.event_bus,
+            actor_id=self.user.id if self.user else None,
+        )
 
     def _resolve_entry_event_names(self, author_id) -> tuple[str | None, str | None]:
         """Return (workspace_name, author_name) for entry event payloads."""
@@ -36,45 +46,9 @@ class EntriesController(BaseUserController):
 
     @router.post("", response_model=EntryRead, status_code=status.HTTP_201_CREATED, summary="Create Entry")
     def create_entry(self, data: EntryCreate) -> EntryRead:
-        # Inject created_by from authenticated user
         data_dict = data.model_dump()
-        data_dict["created_by"] = self.user.id
-        entry = self.repos.entries.create(data_dict)
-
-        # Get entry type for event
-        entry_type_slug = None
-        if entry.entry_type_id:
-            entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
-            if entry_type:
-                entry_type_slug = entry_type.slug
-
-        # Emit event
-        try:
-            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
-            self.event_bus.dispatch(
-                integration_id="entry_management",
-                group_id=self.group_id,
-                event_type=EventTypes.entry_created,
-                document_data=EventEntryData(
-                    operation=EventOperation.create,
-                    entry_id=entry.id,
-                    entry_title=entry.title,
-                    entry_type=entry_type_slug,
-                    workspace_id=entry.group_id,
-                    workspace_name=workspace_name,
-                    author_id=entry.created_by,
-                    author_name=author_name,
-                ),
-                message=f"Entry '{entry.title}' created",
-                user_id=self.user.id if self.user else None,
-                entity_id=entry.id,
-                entity_type="entry",
-            )
-        except Exception as e:
-            # Log error but don't fail the request
-            self.logger.error(f"Failed to dispatch entry_created event: {e}", exc_info=True)
-
-        return entry
+        data_dict["created_by"] = self.user.id  # inject the authenticated author
+        return self._entries().create(data_dict)
 
     @router.get("/{item_id}", response_model=EntryRead, summary="Get Entry")
     def get_entry(self, item_id: UUID4) -> EntryRead:
@@ -90,37 +64,9 @@ class EntriesController(BaseUserController):
         This is the human-approval half of write-back: an AI op stages proposed changes under
         suggestion_json (when approval_mode doesn't auto-apply); this endpoint commits them.
         """
-        existing = self.repos.entries.get_one(item_id)
-        if not existing:
+        if not self.repos.entries.get_one(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
-
-        entry = self.repos.entries.apply_suggestion(item_id)
-
-        # Emit entry_updated so reactions (re-embed, smart collections) fire.
-        try:
-            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
-            self.event_bus.dispatch(
-                integration_id="entry_management",
-                group_id=self.group_id,
-                event_type=EventTypes.entry_updated,
-                document_data=EventEntryData(
-                    operation=EventOperation.update,
-                    entry_id=entry.id,
-                    entry_title=entry.title,
-                    workspace_id=entry.group_id,
-                    workspace_name=workspace_name,
-                    author_id=entry.created_by,
-                    author_name=author_name,
-                ),
-                message=f"AI suggestion applied to '{entry.title}'",
-                user_id=self.user.id if self.user else None,
-                entity_id=entry.id,
-                entity_type="entry",
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to dispatch entry_updated (apply-suggestion): {e}", exc_info=True)
-
-        return entry
+        return self._entries().apply_suggestion(item_id)
 
     @router.post("/{item_id}/reject-suggestion", response_model=EntryRead, summary="Reject AI Suggestion")
     def reject_suggestion(self, item_id: UUID4) -> EntryRead:
@@ -132,174 +78,17 @@ class EntriesController(BaseUserController):
 
     @router.patch("/{item_id}", response_model=EntryRead, summary="Update Entry")
     def update_entry(self, item_id: UUID4, data: EntryUpdate) -> EntryRead:
-        old_entry = self.repos.entries.get_one(item_id)
-        if not old_entry:
+        # The service emits entry_updated + any status-transition events (published/unpublished/
+        # archived/restored), in that order.
+        entry = self._entries().update(item_id, data)
+        if entry is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
-
-        entry = self.repos.entries.update(item_id, data)
-
-        # Get entry type for event
-        entry_type_slug = None
-        if entry.entry_type_id:
-            entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
-            if entry_type:
-                entry_type_slug = entry_type.slug
-
-        # Emit update event
-        try:
-            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
-            self.event_bus.dispatch(
-                integration_id="entry_management",
-                group_id=self.group_id,
-                event_type=EventTypes.entry_updated,
-                document_data=EventEntryData(
-                    operation=EventOperation.update,
-                    entry_id=entry.id,
-                    entry_title=entry.title,
-                    entry_type=entry_type_slug,
-                    workspace_id=entry.group_id,
-                    workspace_name=workspace_name,
-                    author_id=entry.created_by,
-                    author_name=author_name,
-                ),
-                message=f"Entry '{entry.title}' updated",
-                user_id=self.user.id if self.user else None,
-                entity_id=entry.id,
-                entity_type="entry",
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to dispatch entry_updated event: {e}", exc_info=True)
-
-        # Emit status change events if status changed
-        if old_entry.status != entry.status:
-            try:
-                workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
-                if entry.status == "published":
-                    self.event_bus.dispatch(
-                        integration_id="entry_management",
-                        group_id=self.group_id,
-                        event_type=EventTypes.entry_published,
-                        document_data=EventEntryData(
-                            operation=EventOperation.update,
-                            entry_id=entry.id,
-                            entry_title=entry.title,
-                            entry_type=entry_type_slug,
-                            workspace_id=entry.group_id,
-                            workspace_name=workspace_name,
-                            author_id=entry.created_by,
-                            author_name=author_name,
-                        ),
-                        message=f"Entry '{entry.title}' published",
-                        user_id=self.user.id if self.user else None,
-                        entity_id=entry.id,
-                        entity_type="entry",
-                    )
-                elif old_entry.status == "published":
-                    self.event_bus.dispatch(
-                        integration_id="entry_management",
-                        group_id=self.group_id,
-                        event_type=EventTypes.entry_unpublished,
-                        document_data=EventEntryData(
-                            operation=EventOperation.update,
-                            entry_id=entry.id,
-                            entry_title=entry.title,
-                            entry_type=entry_type_slug,
-                            workspace_id=entry.group_id,
-                            workspace_name=workspace_name,
-                            author_id=entry.created_by,
-                            author_name=author_name,
-                        ),
-                        message=f"Entry '{entry.title}' unpublished",
-                        user_id=self.user.id if self.user else None,
-                        entity_id=entry.id,
-                        entity_type="entry",
-                    )
-
-                # Handle archived status
-                if entry.status == "archived":
-                    self.event_bus.dispatch(
-                        integration_id="entry_management",
-                        group_id=self.group_id,
-                        event_type=EventTypes.entry_archived,
-                        document_data=EventEntryData(
-                            operation=EventOperation.update,
-                            entry_id=entry.id,
-                            entry_title=entry.title,
-                            entry_type=entry_type_slug,
-                            workspace_id=entry.group_id,
-                            workspace_name=workspace_name,
-                            author_id=entry.created_by,
-                            author_name=author_name,
-                        ),
-                        message=f"Entry '{entry.title}' archived",
-                        user_id=self.user.id if self.user else None,
-                        entity_id=entry.id,
-                        entity_type="entry",
-                    )
-                elif old_entry.status == "archived":
-                    self.event_bus.dispatch(
-                        integration_id="entry_management",
-                        group_id=self.group_id,
-                        event_type=EventTypes.entry_restored,
-                        document_data=EventEntryData(
-                            operation=EventOperation.update,
-                            entry_id=entry.id,
-                            entry_title=entry.title,
-                            entry_type=entry_type_slug,
-                            workspace_id=entry.group_id,
-                            workspace_name=workspace_name,
-                            author_id=entry.created_by,
-                            author_name=author_name,
-                        ),
-                        message=f"Entry '{entry.title}' restored from archive",
-                        user_id=self.user.id if self.user else None,
-                        entity_id=entry.id,
-                        entity_type="entry",
-                    )
-            except Exception as e:
-                self.logger.error(f"Failed to dispatch entry status change event: {e}", exc_info=True)
-
         return entry
 
     @router.delete("/{item_id}", summary="Delete Entry")
     def delete_entry(self, item_id: UUID4) -> dict:
-        entry = self.repos.entries.get_one(item_id)
-        if not entry:
+        if not self._entries().delete(item_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
-
-        # Get entry type for event
-        entry_type_slug = None
-        if entry.entry_type_id:
-            entry_type = self.repos.entry_types.get_one(entry.entry_type_id)
-            if entry_type:
-                entry_type_slug = entry_type.slug
-
-        # Emit event before deletion
-        try:
-            workspace_name, author_name = self._resolve_entry_event_names(entry.created_by)
-            self.event_bus.dispatch(
-                integration_id="entry_management",
-                group_id=self.group_id,
-                event_type=EventTypes.entry_deleted,
-                document_data=EventEntryData(
-                    operation=EventOperation.delete,
-                    entry_id=entry.id,
-                    entry_title=entry.title,
-                    entry_type=entry_type_slug,
-                    workspace_id=entry.group_id,
-                    workspace_name=workspace_name,
-                    author_id=entry.created_by,
-                    author_name=author_name,
-                ),
-                message=f"Entry '{entry.title}' deleted",
-                user_id=self.user.id if self.user else None,
-                entity_id=entry.id,
-                entity_type="entry",
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to dispatch entry_deleted event: {e}", exc_info=True)
-
-        self.repos.entries.delete(item_id)
         return {"status": "ok", "message": "Entry deleted successfully"}
 
     @router.get("/{entry_id}/collections", response_model=list[CollectionRead], summary="List Entry Collections")

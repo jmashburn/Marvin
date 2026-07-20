@@ -198,42 +198,16 @@ def _resolve_entry_id_by_slug(session, group_id, slug: str):
 
 
 def _apply_writeback(session, group_id, entity_id, proposed: dict, user_id, depth: int = 0) -> None:
-    """Apply an op's write-back to an entry and emit entry_updated (so downstream reactions fire).
+    """Apply an op's write-back to an entry via the entry domain service.
 
-    The emitted event carries ``reaction_depth = depth + 1`` so the depth loop-guard bounds any chain
-    (an automation whose write-back re-triggers automations can't cascade forever).
+    Routing through EntryService (instead of mutating + hand-dispatching here) means a write-back
+    that changes status now emits the *right* events — entry_published / entry_unpublished /
+    entry_archived / entry_restored — not just a bare entry_updated. So chained automations that key
+    on publish fire reliably. The events carry ``reaction_depth = depth + 1`` so the loop-guard still
+    bounds any chain, and ``integration_id="automation"`` tags them as automation-sourced.
     """
-    from marvin.db.models.platform.entries import Entries
-    from marvin.repos.repository_factory import AllRepositories
+    from marvin.services.entries import EntryService
 
-    entry = session.get(Entries, entity_id)
-    if not entry or entry.group_id != group_id:
-        return
-    repos = AllRepositories(session, group_id=group_id)
-    repos.entries.apply_fields(entity_id, proposed)
-
-    from marvin.services.event_bus_service.event_bus_service import EventBusService
-    from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
-
-    try:
-        EventBusService(bg_tasks=None).dispatch(
-            integration_id="automation",  # loop-guard: automation listener ignores its own writes
-            group_id=group_id,
-            event_type=EventTypes.entry_updated,
-            document_data=EventEntryData(
-                operation=EventOperation.update,
-                entry_id=entry.id,
-                entry_title=entry.title,
-                entry_type=None,
-                workspace_id=group_id,
-                workspace_name=None,
-                author_id=user_id,
-            ),
-            message=f"Entry '{entry.title}' updated by automation write-back",
-            user_id=user_id,
-            entity_id=entry.id,
-            entity_type="entry",
-            reaction_depth=depth + 1,
-        )
-    except Exception:
-        pass  # best-effort; the write itself already succeeded
+    EntryService(session, group_id, actor_id=user_id, integration_id="automation").apply_fields(
+        entity_id, proposed, reaction_depth=depth + 1
+    )
