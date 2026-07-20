@@ -49,6 +49,8 @@ def _action_label(action: dict) -> str | None:
         return action.get("task")
     if kind == "webhook":
         return action.get("webhook_id") or action.get("url")
+    if kind == "entry":
+        return action.get("op")
     return None
 
 

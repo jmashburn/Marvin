@@ -240,10 +240,10 @@ class TestEngine:
 
 # ── Action-executor registry ──────────────────────────────────────────────────
 class TestActionRegistry:
-    def test_all_four_kinds_registered(self):
+    def test_all_kinds_registered(self):
         from marvin.services.automation.actions import available_kinds
 
-        assert set(available_kinds()) == {"operation", "emit_event", "handler", "webhook"}
+        assert set(available_kinds()) == {"operation", "emit_event", "handler", "webhook", "entry"}
 
     def test_unknown_kind_raises(self):
         from marvin.services.automation.actions import run_action
@@ -435,6 +435,67 @@ class TestValidateDefinition:
             "actions": [{"kind": "operation", "op": "generate-tags"}],
         })
         assert issues == []
+
+
+# ── Entry actions (publish/unpublish/archive/restore) ─────────────────────────
+class TestEntryAction:
+    def _spy_service(self, monkeypatch):
+        calls = {"set_status": []}
+
+        class SpySvc:
+            def __init__(self, *a, **k):
+                pass
+
+            def set_status(self, eid, status, *, reaction_depth=0):
+                calls["set_status"].append((str(eid), status, reaction_depth))
+                return object()  # non-None = found
+
+        import marvin.services.entries as entries_mod
+        monkeypatch.setattr(entries_mod, "EntryService", SpySvc)
+        return calls
+
+    def test_publish_sets_status_at_depth_plus_one(self, monkeypatch):
+        from marvin.services.automation.actions.entry import run_entry_action
+        calls = self._spy_service(monkeypatch)
+        eid = uuid4()
+        out = run_entry_action(None, "G", {"kind": "entry", "op": "publish"},
+                               {"event": {"entry_id": str(eid)}, "depth": 0})
+        assert calls["set_status"] == [(str(eid), "published", 1)]  # depth+1 for the loop-guard
+        assert out == {"entry_id": str(eid), "op": "publish", "status": "published"}
+
+    def test_each_op_maps_to_its_status(self, monkeypatch):
+        from marvin.services.automation.actions.entry import ENTRY_OPS, run_entry_action
+        for op, st in ENTRY_OPS.items():
+            calls = self._spy_service(monkeypatch)
+            eid = uuid4()
+            run_entry_action(None, "G", {"kind": "entry", "op": op},
+                             {"event": {"entry_id": str(eid)}, "depth": 0})
+            assert calls["set_status"][0][1] == st
+
+    def test_targets_entry_by_slug(self, monkeypatch):
+        from marvin.services.automation.actions import entry as entry_action
+        calls = self._spy_service(monkeypatch)
+        target = uuid4()
+        monkeypatch.setattr(entry_action, "_resolve_target", lambda *a, **k: target)
+        run_entry_action = entry_action.run_entry_action
+        run_entry_action(None, "G", {"kind": "entry", "op": "archive", "entity_slug": "$event.payload.slug"},
+                         {"event": {"payload": {"slug": "x"}}, "depth": 0})
+        assert calls["set_status"][0][0] == str(target)
+
+    def test_unknown_op_raises(self):
+        from marvin.services.automation.actions.entry import run_entry_action
+        with pytest.raises(AutomationActionError):
+            run_entry_action(None, "G", {"kind": "entry", "op": "nuke"}, {"event": {}, "depth": 0})
+
+    def test_no_target_entry_raises(self, monkeypatch):
+        from marvin.services.automation.actions.entry import run_entry_action
+        self._spy_service(monkeypatch)
+        with pytest.raises(AutomationActionError):
+            run_entry_action(None, "G", {"kind": "entry", "op": "publish"}, {"event": {}, "depth": 0})
+
+    def test_registered_as_an_action_kind(self):
+        from marvin.services.automation.actions import available_kinds
+        assert "entry" in available_kinds()
 
 
 # ── Change detection: conditions on what an update changed ────────────────────

@@ -289,13 +289,17 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   }
   const KIND_LABELS: Record<string, string> = {
     operation: "AI operation",
+    entry: "Entry action",
     emit_event: "Emit event",
     handler: "Run task",
     webhook: "Call webhook",
   };
+  const ENTRY_OP_LABELS: Record<string, string> = {
+    publish: "Publish", unpublish: "Unpublish", archive: "Archive", restore: "Restore from archive",
+  };
   // Most-useful-first (backend returns kinds alphabetically). New steps default to the first
   // available — an AI operation when AI is on, otherwise the first non-AI kind.
-  const KIND_ORDER = ["operation", "handler", "webhook", "emit_event"];
+  const KIND_ORDER = ["operation", "entry", "handler", "webhook", "emit_event"];
   const orderedKinds = (): string[] => {
     const avail = OPTIONS.actionKinds || [];
     return KIND_ORDER.filter((k) => avail.includes(k)).concat(avail.filter((k: string) => !KIND_ORDER.includes(k)));
@@ -354,6 +358,13 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
         <input class="input a-entity-slug" placeholder="Target entry by slug — e.g. $event.payload.entry_slug" value="${esc(a.entity_slug ?? "")}" />
         <span class="hint small">Which entry to run on. Leave blank to use the triggering entry; for a webhook, point at one by slug (e.g. <code>$event.payload.entry_slug</code>).</span>
         <label class="check small"><input type="checkbox" class="a-writeback" ${a.write_back ? "checked" : ""}/> Write the result back to the entry</label>`;
+    } else if (kind === "entry") {
+      const opList = Object.entries(ENTRY_OP_LABELS)
+        .map(([op, label]) => `<option value="${esc(op)}" ${a.op === op ? "selected" : ""}>${esc(label)}</option>`).join("");
+      wrap.innerHTML = `
+        <select class="input a-op">${opList}</select>
+        <input class="input a-entity-slug" placeholder="Target entry by slug — e.g. $event.payload.entry_slug" value="${esc(a.entity_slug ?? "")}" />
+        <span class="hint small">Which entry to act on. Leave blank to use the triggering entry (or each entry a Run-on target matches); or point at one by slug (e.g. <code>$event.payload.entry_slug</code>).</span>`;
     } else if (kind === "emit_event") {
       const evs = (OPTIONS.triggers || []).map((t: string) => `<option value="${esc(t)}" ${a.event === t ? "selected" : ""}>${esc(prettyEvent(t))}</option>`).join("");
       wrap.innerHTML = `<select class="input a-event">${evs}</select><span class="hint small">Re-emits this event so other workflows can react.</span>`;
@@ -387,6 +398,14 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
         if (!op) return null;
         const slug = (r.querySelector(".a-entity-slug") as HTMLInputElement | null)?.value.trim();
         const step: any = { kind, op, write_back: (r.querySelector(".a-writeback") as HTMLInputElement)?.checked || false };
+        if (slug) step.entity_slug = slug;
+        return step;
+      }
+      if (kind === "entry") {
+        const op = (r.querySelector(".a-op") as HTMLSelectElement | null)?.value;
+        if (!op) return null;
+        const slug = (r.querySelector(".a-entity-slug") as HTMLInputElement | null)?.value.trim();
+        const step: any = { kind, op };
         if (slug) step.entity_slug = slug;
         return step;
       }
@@ -857,6 +876,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   .workflows-page :global(.chip.k-webhook) { background: color-mix(in srgb, #3b82f6 14%, transparent); }
   .workflows-page :global(.chip.k-emit_event) { background: color-mix(in srgb, #a855f7 14%, transparent); }
   .workflows-page :global(.chip.k-handler) { background: color-mix(in srgb, #22c55e 14%, transparent); }
+  .workflows-page :global(.chip.k-entry) { background: color-mix(in srgb, #f59e0b 16%, transparent); }
 
   .workflows-page :global(.empty) { color: var(--muted); text-align: center; padding: 40px; border: 1px dashed var(--line); border-radius: 14px; margin-top: 8px; }
 

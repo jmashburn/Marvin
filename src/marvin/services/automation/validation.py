@@ -143,15 +143,17 @@ def validate_definition(definition: dict | None) -> list[dict]:
         if not isinstance(act, dict):
             continue
         kind = act.get("kind")
-        # An AI `operation` acts on an entity — it defaults to $event.entry_id. Under a trigger with
-        # no entry, that resolves to nothing unless the author targets one from the payload, by slug
-        # (entity_slug — preferred, human-readable) or id (entity_id).
-        if kind == "operation" and not has_entry and not act.get("entity_slug") and not act.get("entity_id"):
-            op = act.get("op", "operation")
+        # An AI `operation` or an `entry` action operates on an entity — both default to
+        # $event.entry_id. Under a trigger with no entry (and no target selector), that resolves to
+        # nothing unless the author targets one from the payload, by slug (entity_slug — preferred,
+        # human-readable) or id (entity_id).
+        if kind in ("operation", "entry") and not has_entry and not act.get("entity_slug") and not act.get("entity_id"):
+            what = act.get("op", kind)
             issues.append(_issue(
                 "warning",
-                f"Step “{op}” runs on an entry, but this {_pretty(ttype)} trigger has none. "
-                "Point it at one with entity_slug (e.g. $event.payload.entry_slug) — or use an entry trigger.",
+                f"Step “{what}” runs on an entry, but this {_pretty(ttype)} trigger has none. "
+                "Point it at one with entity_slug (e.g. $event.payload.entry_slug), add a Run-on target, "
+                "or use an entry trigger.",
                 "action", i))
 
     return issues
