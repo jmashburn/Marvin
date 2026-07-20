@@ -41,6 +41,25 @@ export interface Capability {
   run(arg: string): Promise<MarvinResult>;
 }
 
+export type MarvinRegister = 'auto' | 'professional' | 'playful';
+
+/**
+ * Tone register for the NEXT agent run, set by whoever triggered it (e.g. the entry editor's
+ * "Review & suggest" asks for 'professional' so findings come back plain rather than in
+ * character). One-shot: consumed by the run, so a typed follow-up isn't silently affected.
+ */
+let pendingRegister: MarvinRegister | undefined;
+
+export function setPendingRegister(register: MarvinRegister | undefined): void {
+  pendingRegister = register;
+}
+
+function takeRegister(): MarvinRegister | undefined {
+  const r = pendingRegister;
+  pendingRegister = undefined;
+  return r;
+}
+
 /** Escape untrusted text before putting it in innerHTML (attributes, inline chips, etc.). */
 export function esc(s: unknown): string {
   return String(s ?? '')
@@ -136,7 +155,7 @@ const agent: Capability = {
     // "review and suggest" works without naming the entity. Null when the page declared no
     // context or the user dismissed it — then this is a plain, unscoped ask.
     try {
-      res = await runAgent(arg, getActiveContext(), getHistory());
+      res = await runAgent(arg, getActiveContext(), getHistory(), takeRegister());
     } catch (err: any) {
       const msg = String(err?.message || err);
       // The agent needs a tool-capable provider; degrade to a helpful hint rather than snark.

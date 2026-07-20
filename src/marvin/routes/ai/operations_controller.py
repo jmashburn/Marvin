@@ -698,19 +698,7 @@ class AIOperationsController(BaseUserController):
             "your answer in what they return. Composing creates a DRAFT for human review — never claim "
             "anything is published. Be concise."
         )
-        if persona_prompt:
-            # Persona governs how the assistant ADDRESSES the user — never the work product.
-            # A review, critique, or piece of suggested copy is an artifact the user acts on; if
-            # the voice colours it, the voice has distorted the substance. Scope it explicitly, or
-            # "review this entry" comes back in character and is useless to act on.
-            system += (
-                f"\n\nVoice and tone: {persona_prompt}"
-                "\nThat voice applies ONLY to how you address the user — greetings, framing, brief "
-                "asides. Work product itself — reviews, critiques, findings, summaries, suggested "
-                "copy — must be written plainly, specifically, and professionally. Never let the "
-                "persona soften, exaggerate, or obscure a finding, and never write generated "
-                "content in that voice unless the user explicitly asks for it."
-            )
+        system += self._register_clause(body.register, persona_prompt)
         # Ground the run in what the user is looking at. Prefer a pre-assembled context block
         # (title/status/fields/attachments) so the agent can answer immediately; fall back to the
         # bare id hint when we can't assemble one, so it can still fetch the entity itself.
@@ -1084,6 +1072,47 @@ class AIOperationsController(BaseUserController):
         name = (settings.assistant_name if settings and settings.assistant_name else None) or "Marvin"
         persona = (settings.persona_prompt if settings and settings.persona_prompt else "") or ""
         return name, persona
+
+    # Tone registers. Persona and register are DIFFERENT axes and must not share one knob:
+    #   persona  = how the assistant ADDRESSES you (workspace-level, user-authored)
+    #   register = how THIS call's output should read (per-request, set by the caller)
+    # Asking for a review and getting it in character is the failure this separates. The only
+    # reliable lever is to withhold the persona entirely — asking a model to compartmentalise
+    # is advisory, and small models ignore it.
+    REGISTERS = ("auto", "professional", "playful")
+
+    def _register_clause(self, register: str | None, persona_prompt: str) -> str:
+        """The voice/tone section of a system prompt for the requested register.
+
+        Returns "" when there's nothing to say (no persona, or persona deliberately withheld).
+        """
+        reg = (register or "auto").lower()
+        if reg not in self.REGISTERS:
+            reg = "auto"
+
+        if reg == "professional":
+            # Withhold the persona outright — this is the mechanism, not a request to behave.
+            return (
+                "\n\nWrite plainly, specifically and professionally. Do not adopt a persona, "
+                "voice, or character; skip pleasantries and lead with the substance. Be concrete: "
+                "name the field, section, or line you mean, and say what to change and why."
+            )
+
+        if not persona_prompt:
+            return ""
+
+        if reg == "playful":
+            return f"\n\nVoice and tone: {persona_prompt}"
+
+        # auto — persona for framing, plain for the artifact.
+        return (
+            f"\n\nVoice and tone: {persona_prompt}"
+            "\nThat voice applies ONLY to how you address the user — greetings, framing, brief "
+            "asides. Work product itself — reviews, critiques, findings, summaries, suggested "
+            "copy — must be written plainly, specifically, and professionally. Never let the "
+            "persona soften, exaggerate, or obscure a finding, and never write generated "
+            "content in that voice unless the user explicitly asks for it."
+        )
 
     # Caps for replayed conversation history. The client sends what it has; the server decides
     # what's affordable. Keeps the newest turns — recency is what "do #2" depends on.

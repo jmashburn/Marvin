@@ -24,6 +24,7 @@ def _ctrl():
     ctrl._HISTORY_MAX_TURNS = AIOperationsController._HISTORY_MAX_TURNS
     ctrl._HISTORY_MAX_CHARS = AIOperationsController._HISTORY_MAX_CHARS
     ctrl._HISTORY_TURN_CHARS = AIOperationsController._HISTORY_TURN_CHARS
+    ctrl.REGISTERS = AIOperationsController.REGISTERS
     return ctrl
 
 
@@ -211,3 +212,61 @@ def test_history_respects_the_total_char_budget():
     out = _history([_turn("user", big) for _ in range(AIOperationsController._HISTORY_MAX_TURNS)])
     assert sum(len(m.content) for m in out) <= AIOperationsController._HISTORY_MAX_CHARS
     assert len(out) < AIOperationsController._HISTORY_MAX_TURNS  # budget bit before the turn cap
+
+
+# ── Tone register (axis B: persona vs work product) ──────────────────────────
+# Persona governs how the assistant ADDRESSES the user; register governs how THIS call's
+# output reads. "professional" must WITHHOLD the persona, not merely ask the model to
+# compartmentalise — small models ignore instructions to behave.
+
+PERSONA = "Marvin the Paranoid Android; deadpan and gloomy."
+
+
+def _clause(register, persona=PERSONA):
+    return AIOperationsController._register_clause(_ctrl(), register, persona)
+
+
+def test_professional_register_withholds_the_persona_entirely():
+    out = _clause("professional")
+    assert PERSONA not in out
+    assert "Paranoid" not in out and "gloomy" not in out
+    assert "Do not adopt a persona" in out
+
+
+def test_professional_register_demands_specificity():
+    out = _clause("professional")
+    assert "plainly" in out and "professionally" in out
+    assert "name the field" in out.lower()
+
+
+def test_playful_register_applies_the_persona_unscoped():
+    out = _clause("playful")
+    assert PERSONA in out
+    # No "work product must be plain" carve-out — the user asked for the voice.
+    assert "Work product itself" not in out
+
+
+def test_auto_register_scopes_the_persona_to_framing():
+    out = _clause("auto")
+    assert PERSONA in out
+    assert "ONLY to how you address the user" in out
+    assert "Work product itself" in out
+
+
+def test_register_defaults_to_auto():
+    assert _clause(None) == _clause("auto")
+    assert _clause("") == _clause("auto")
+
+
+def test_unknown_register_falls_back_to_auto_not_an_error():
+    assert _clause("shakespearean") == _clause("auto")
+
+
+def test_no_persona_means_no_voice_section():
+    assert _clause("auto", persona="") == ""
+    assert _clause("playful", persona="") == ""
+
+
+def test_professional_still_instructs_even_without_a_persona():
+    # The register is about the OUTPUT, so it applies whether or not a persona is configured.
+    assert "Do not adopt a persona" in _clause("professional", persona="")

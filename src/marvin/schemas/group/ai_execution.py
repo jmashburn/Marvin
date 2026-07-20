@@ -85,6 +85,11 @@ class AIAgentRequest(_MarvinModel):
     # the model is concerned — it replays what it has. Bounded server-side (turn count + chars) so
     # a long transcript can't blow the context window or the token budget.
     history: list[AIAgentTurn] = []
+    # Tone register for this call, independent of the workspace persona. The persona governs how
+    # the assistant ADDRESSES the user; it must not govern work product (a review written in
+    # character isn't actionable). "professional" suppresses the persona outright.
+    # "auto" (default) | "professional" | "playful"
+    register: str = "auto"
     model_override: str | None = None
     max_steps: int | None = None             # tool-dispatch budget (server clamps)
     source: str = "agent"                    # invocation surface; gated by workspace policy

@@ -203,6 +203,29 @@ per-field status line or a floating toast.
 
 Also deferred: `create_resource` (+ attach), `propose_entry_changes` general write tool.
 
+### E. Tone register (axis B) + agent timeout budget — ✅ SHIPPED 2026-07-20
+- [x] **E1. Tone register.** `AIAgentRequest.register` = `auto | professional | playful`, resolved
+      by `_register_clause()`. **`professional` WITHHOLDS the persona entirely** — that's the
+      mechanism. The previous fix only *asked* the model to compartmentalise, which small models
+      ignore. `auto` (default) keeps persona-for-framing + plain findings; `playful` applies the
+      persona unscoped. Unknown values fall back to `auto` rather than erroring.
+      The entry editor's "Review & suggest" sends `professional` via the `marvin:ask` detail;
+      the register is **one-shot** (consumed per run) so a typed follow-up isn't silently affected.
+      **Verified live:** review went from *"\*sigh\* Here we go again… make it slightly less dull"*
+      → *"Here are specific suggestions… Current: '…' Improvement: '…'"* (also markedly more
+      specific), while free-text chat immediately after still answered in persona. +9 tests.
+- [x] **E2. Agent timeout budget.** `HttpClient.request/post` accept a per-request `timeout`
+      (still clamped by the now-static `HttpClient.MAX_TIMEOUT` = 120s); `AIModule.agent()`
+      defaults to `AGENT_TIMEOUT_MS` = 120s. The client-wide 30s default is unchanged — only the
+      agent, which is multi-step and can run minutes on a local model, gets its own budget.
+      **Verified live:** a `gemma4:latest` review **completed in 102.3s**; the identical request
+      previously died at *"Request timeout after 30000ms"* while the server kept working.
+
+⚠️ **New finding (not a timeout issue):** that gemma4 run completed but returned an **empty
+answer** at exactly **4096 total tokens** — looks like a token/context ceiling (the grounding
+block + history + tool schemas may exceed what gemma4 can carry, or `num_predict` is capping it).
+Worth investigating before recommending local models for the agent. Backlog.
+
 ## ▶ ACTIVE PLAN — Flavor B: user-configurable orchestration (event → conditions → actions)
 > The two automation "flavors" (see memory [[ai-automation-flavors]]):
 > **Flavor A = developer-defined reactions** (hardcoded listener classes in `_get_listeners`;

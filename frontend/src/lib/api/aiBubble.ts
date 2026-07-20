@@ -26,10 +26,12 @@ export async function runAgent(
   message: string,
   context?: { entityType?: string; entityId?: string } | null,
   history?: { role: 'user' | 'assistant'; content: string }[],
+  register?: 'auto' | 'professional' | 'playful',
 ) {
   return createSdkClient().ai.agent({
     message,
     source: 'editor',
+    ...(register ? { register } : {}),
     ...(context?.entityType && context.entityId
       ? { entityType: context.entityType, entityId: context.entityId }
       : {}),

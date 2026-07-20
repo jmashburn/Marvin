@@ -1657,8 +1657,10 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
 
   function aiReviewAndSuggest() {
     // Hand off to the bubble; it already sends this page's entity context + history.
+    // 'professional' suppresses the workspace persona for this run — a review written in
+    // character reads well and is useless to act on.
     document.dispatchEvent(new CustomEvent('marvin:ask', {
-      detail: { text: 'Review this entry and suggest specific improvements.' },
+      detail: { text: 'Review this entry and suggest specific improvements.', register: 'professional' },
     }));
   }
 

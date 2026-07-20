@@ -33,7 +33,7 @@
 
 <script>
   import { fetchApi } from '@/lib/api/client';
-  import { resolveCapability, helpHtml, esc } from '@/lib/marvin/capabilities';
+  import { resolveCapability, helpHtml, esc, setPendingRegister } from '@/lib/marvin/capabilities';
   import { GREETINGS, TAGLINES, THINKING, ERRORS, pick } from '@/lib/marvin/persona';
   import { getPageContext, contextLabel, setContextSuppressed } from '@/lib/marvin/context';
   import { setHistory, clearHistory } from '@/lib/marvin/history';
@@ -235,9 +235,14 @@
     //   document.dispatchEvent(new CustomEvent('marvin:ask', { detail: { text: 'review this' } }))
     // Opens the panel and submits, so the ask flows through the normal capability dispatch
     // (and therefore picks up page context + history like anything the user typed).
+    // `detail.register` lets the caller ask for a tone register — e.g. the entry editor's
+    // "Review & suggest" sends 'professional' so the findings come back plain and actionable
+    // rather than in character. Cleared after the run so typed messages aren't affected.
     document.addEventListener('marvin:ask', (e) => {
-      const text = String((e as CustomEvent).detail?.text ?? '').trim();
+      const detail = (e as CustomEvent).detail ?? {};
+      const text = String(detail.text ?? '').trim();
       if (!text || busy) return;
+      if (detail.register) setPendingRegister(detail.register);
       if (!panel.classList.contains('open')) openPanel();
       input.value = text;
       form.requestSubmit();
