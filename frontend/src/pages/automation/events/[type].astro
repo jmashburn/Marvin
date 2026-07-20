@@ -826,7 +826,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
         // The read model returns options as objects ({option: "core.foo"}); the update schema wants
         // a list of slug STRINGS. Map before appending, or the PUT fails list[str] validation.
         const currentSlugs = (notif.options ?? [])
-          .map((o: any) => o.option || o.slug)
+          .map((o) => o.option || o.slug)
           .filter(Boolean);
         if (currentSlugs.includes(optionSlug)) { window.location.reload(); return; }
         const putRes = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, {
