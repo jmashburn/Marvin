@@ -391,20 +391,13 @@ class AIOperationsController(BaseUserController):
         the fields a valid entry needs. The result lands as status='inbox' for review — the
         caller (Marvin / MCP / UI) decides whether to publish, which fires the usual pipeline.
         """
-        import time
         import uuid
-        from datetime import UTC, datetime
 
-        from marvin.core.config import get_app_settings
         from marvin.db.models.platform.entry_types import EntryTypes
         from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
         from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
-        from marvin.services.ai.base import CompletionOptions, ImagePart, Message
-        from marvin.services.ai.compose import entry_type_to_output_schema
-        from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
         from marvin.services.ai.factory import get_workspace_ai_provider
         from marvin.services.ai.operations.base import ROLE_AUTHOR
-        from marvin.services.ai.pricing import estimate_cost
 
         # AUTHOR or higher — composing creates content.
         if not self.user.admin:
@@ -439,7 +432,6 @@ class AIOperationsController(BaseUserController):
 
         schema_def = EntryTypeSchemaDefinition.model_validate(entry_type.schema_json or {})
         recipe = EntryTypeRecipe.model_validate(entry_type.recipe_json or {})
-        output_schema = entry_type_to_output_schema(schema_def, entry_type.name)
 
         # Assign asset roles from the recipe (hero → first) so rendering (getFeaturedAsset) lights up.
         asset_attachments = self._recipe_asset_attachments(body.asset_ids or [], recipe)
@@ -457,121 +449,39 @@ class AIOperationsController(BaseUserController):
 
         self._check_budget()
 
-        # Context + vision images.
-        builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
-        for aid in body.asset_ids or []:
-            builder.with_asset(aid)
-        if body.asset_ids:
-            builder.with_asset_images()
-        ctx = builder.build()
+        # Author through the shared service (same brain the agent's compose_entry tool uses).
+        from marvin.services.ai.authoring import AuthoringService
 
-        instruction = (
-            f"Compose a new '{entry_type.name}' for {ctx.workspace_name or 'this workspace'} from the brief below. "
-            f"Fill every field you reasonably can"
-            + (", using the attached image(s) as the subject." if body.asset_ids else ".")
-            + f"\n\nBrief:\n{body.brief}"
-        )
-        parts: list = [instruction]
-        for a in ctx.assets or []:
-            img = a.get("image_data")
-            if img:
-                parts.append(ImagePart(data=img, mime_type=a.get("mime_type") or "image/png"))
-        voice = recipe.enrichment.get("voice") if isinstance(recipe.enrichment, dict) else None
-        system_content = (
-            f"You are a content author. Produce a complete, publish-ready '{entry_type.name}'. "
-            f"Return ONLY the requested fields."
-        )
-        if voice:
-            system_content += f" Voice/tone: {voice}"
-        messages = [
-            Message(role="system", content=system_content),
-            Message(role="user", content=parts if len(parts) > 1 else instruction),
-        ]
-        messages = resolve_prompt_messages(messages, self.group_id, ctx.variables)
-
+        assistant_name, persona_prompt = self._persona()
         log_inputs, log_outputs = self._logging_policy()
-        execution = AIExecutionModel(
-            session=self.session, group_id=self.group_id, operation_slug="compose-entry",
-            provider_type=provider.provider_type, model_id=model, status="pending",
-            triggered_by=self.user.id, trigger_type=body.source, entity_type="entry_type", entity_id=entry_type.id,
-            input_json={"entry_type": body.entry_type, "brief": body.brief} if log_inputs else None,
+        service = AuthoringService(
+            self.session, self.group_id, self.user, provider, model,
+            event_bus=self.event_bus, logger=self.logger,
         )
-        self.session.add(execution)
-        self.session.commit()
-
-        start = time.monotonic()
         try:
-            execution.status = "running"
-            execution.started_at = datetime.now(UTC)
-            self.session.commit()
-
-            _app = get_app_settings()
-            opts = CompletionOptions(
-                temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
-                max_tokens=self._max_output_tokens(),
+            result = service.compose(
+                entry_type=entry_type, brief=body.brief, asset_ids=body.asset_ids or [],
+                asset_attachments=asset_attachments, source=body.source,
+                assistant_name=assistant_name, persona_prompt=persona_prompt,
+                register=body.register or self._default_register(),
+                log_inputs=log_inputs, log_outputs=log_outputs, max_tokens=self._max_output_tokens(),
             )
-            parsed, completion = provider.execute_operation(messages, model, output_schema, opts)
-
-            fields = dict(parsed or {})
-            title = fields.pop("title", None) or f"Untitled {entry_type.name}"
-            summary = fields.pop("summary", None)
-            allowed = schema_def.get_field_keys()
-            data_json = {k: v for k, v in fields.items() if k in allowed}
-
-            entry = self.repos.entries.create({
-                "title": title,
-                "summary": summary,
-                "entry_type_id": entry_type.id,
-                "status": "inbox",  # draft — review before publishing
-                "data_json": data_json,
-                "asset_attachments": asset_attachments or None,
-                "created_by": self.user.id,
-            })
-            self.session.commit()
-            self._emit_entry_created(entry, entry_type)
-
-            elapsed_ms = int((time.monotonic() - start) * 1000)
-            execution.status = "completed"
-            execution.completed_at = datetime.now(UTC)
-            execution.duration_ms = elapsed_ms
-            execution.entity_type = "entry"
-            execution.entity_id = entry.id
-            execution.output_json = (
-                {"entry_id": str(entry.id), "title": title, "status": entry.status, "fields": data_json}
-                if log_outputs else {"entry_id": str(entry.id), "status": entry.status}
-            )
-            execution.prompt_tokens = completion.prompt_tokens
-            execution.completion_tokens = completion.completion_tokens
-            execution.total_tokens = completion.total_tokens
-            execution.estimated_cost_usd = estimate_cost(
-                provider.provider_type, model, completion.prompt_tokens, completion.completion_tokens,
-            )
-            self.session.commit()
-
         except HTTPException as he:
-            # e.g. the repo rejecting AI output that fails schema validation.
-            self._fail_execution(execution, str(he.detail), start)
-            self._emit_ai_event(execution, "failed", str(he.detail))
+            if service.last_execution is not None:
+                self._emit_ai_event(service.last_execution, "failed", str(he.detail))
             raise
         except Exception as e:
-            self._fail_execution(execution, str(e), start)
-            self._emit_ai_event(execution, "failed", str(e))
-            self._maybe_emit_quota(execution, str(e))
+            if service.last_execution is not None:
+                self._emit_ai_event(service.last_execution, "failed", str(e))
+                self._maybe_emit_quota(service.last_execution, str(e))
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Compose failed: {e}")
 
+        # The controller owns the ai_operation event surface + budget notifications.
+        execution = service.last_execution
         self.session.refresh(execution)
         self._emit_ai_event(execution, "completed", None)
         self._emit_budget_thresholds(execution)
-        return {
-            "entryId": str(entry.id),
-            "status": entry.status,
-            "title": title,
-            "editUrl": f"/workspace/entries/{entry.id}",
-            "executionId": str(execution.id),
-            "totalTokens": execution.total_tokens,
-            "estimatedCostUsd": execution.estimated_cost_usd,
-            "generated": data_json,
-        }
+        return result
 
     # ── Compose helpers ────────────────────────────────────────────────
 
