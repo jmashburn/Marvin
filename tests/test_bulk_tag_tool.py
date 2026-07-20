@@ -1,0 +1,161 @@
+"""DB-backed tests for the registry bulk tag tool (services/ai/tools/builtins_actions).
+
+Covers what shipped beyond the single-item path: selecting targets by `entities` or `filter`
+(type / tag / query, dimensions mirroring smart-collection rules), idempotency, the unknown-tag
+→ empty case, and the asset/resource smart-collection resync — the latent-gap fix where tagging
+via link_tag alone never re-materialized collection membership.
+"""
+
+import json
+import uuid
+
+from pytest import fixture
+
+from marvin.db.models.platform import (
+    AssetTags,
+    Assets,
+    CollectionAssets,
+    Collections,
+)
+from marvin.services.ai.tools import get_tool
+from marvin.services.ai.tools.base import ToolContext
+from marvin.services.ai.tools.builtins_actions import _resolve_targets
+
+
+@fixture(autouse=True)
+def _quiet_events(monkeypatch):
+    """Isolate the tool's selection/counting/resync from the event subsystem (whose audit-log
+    persistence needs seed rows a throwaway workspace lacks) — the service tests do the same with a
+    spy bus. link_tag still find-or-creates the tag, links the junction, and commits."""
+    monkeypatch.setattr("marvin.services.tagging._emit", lambda *a, **k: None)
+
+
+def _asset(db_session, gid, uid, slug, name, asset_type, ext="jpg", mime="image/jpeg"):
+    aid = uuid.uuid4()
+    db_session.execute(Assets.__table__.insert().values(
+        id=aid, group_id=gid, slug=slug, name=name, original_filename=f"{slug}.{ext}",
+        filename=slug, extension=ext, file_size=10, mime_type=mime, asset_type=asset_type,
+        checksum=uuid.uuid4().hex, storage_provider="local", storage_key=f"k/{aid.hex}", uploaded_by=uid,
+    ))
+    return aid
+
+
+@fixture
+def ws(db_session):
+    """A workspace with 2 image + 1 svg + 1 document asset."""
+    from marvin.db.models.groups import Groups
+    from marvin.db.models.users.users import Users
+
+    gid = uuid.uuid4()
+    marker = gid.hex[:8]
+    g = Groups(session=db_session, name=f"blk-{marker}", slug=f"blk-{marker}")
+    g.id = gid
+    db_session.add(g)
+    db_session.flush()
+
+    uid = uuid.uuid4()
+    db_session.execute(Users.__table__.insert().values(
+        id=uid, group_id=gid, username=f"u-{marker}", email=f"u-{marker}@t.test",
+        full_name="U", is_superuser=False, platform_role="NONE", auth_method="MARVIN",
+    ))
+
+    ids = {
+        "img1": _asset(db_session, gid, uid, "img-1", "Photo One", "image"),
+        "img2": _asset(db_session, gid, uid, "img-2", "Photo Two", "image"),
+        "svg1": _asset(db_session, gid, uid, "logo", "Logo", "svg", ext="svg", mime="image/svg+xml"),
+        "doc1": _asset(db_session, gid, uid, "spec", "Spec", "document", ext="pdf", mime="application/pdf"),
+    }
+    db_session.commit()
+
+    yield gid, ids
+
+    db_session.query(CollectionAssets).delete()
+    db_session.query(Collections).filter(Collections.group_id == gid).delete()
+    db_session.query(AssetTags).delete()
+    from marvin.db.models.platform import Tags
+    db_session.query(Tags).filter(Tags.group_id == gid).delete()
+    db_session.execute(Assets.__table__.delete().where(Assets.group_id == gid))
+    db_session.execute(Users.__table__.delete().where(Users.group_id == gid))
+    db_session.query(Groups).filter(Groups.id == gid).delete()
+    db_session.commit()
+
+
+def _ctx(db_session, gid):
+    return ToolContext(session=db_session, group_id=gid, user=None, provider=None)
+
+
+def _attach(db_session, gid, args):
+    return json.loads(get_tool("attach_tag").handler(_ctx(db_session, gid), args))
+
+
+# ── target resolution ─────────────────────────────────────────────────────────
+def test_filter_by_asset_type_selects_matching(db_session, ws):
+    gid, _ = ws
+    ids, err = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"asset_types": ["image", "svg"]}})
+    assert err is None
+    assert len(ids) == 3  # 2 image + 1 svg, not the document
+
+
+def test_filter_by_query_matches_name(db_session, ws):
+    gid, _ = ws
+    ids, _ = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"query": "Photo"}})
+    assert len(ids) == 2
+
+
+def test_entities_list_resolves_by_slug(db_session, ws):
+    gid, _ = ws
+    ids, _ = _resolve_targets(_ctx(db_session, gid), "asset", {"entities": ["img-1", "logo", "nope-xyz"]})
+    assert len(ids) == 2  # the unknown slug is dropped
+
+
+# ── attach: bulk, idempotent, single-shape ─────────────────────────────────────
+def test_bulk_attach_then_idempotent(db_session, ws):
+    gid, _ = ws
+    r1 = _attach(db_session, gid, {"entity_type": "asset", "filter": {"asset_types": ["image", "svg"]}, "tag": "site asset"})
+    assert r1["targets"] == 3 and r1["attached"] == 3 and r1["unchanged"] == 0
+    r2 = _attach(db_session, gid, {"entity_type": "asset", "filter": {"asset_types": ["image", "svg"]}, "tag": "site asset"})
+    assert r2["attached"] == 0 and r2["unchanged"] == 3  # nothing re-added
+
+
+def test_single_target_keeps_simple_shape(db_session, ws):
+    gid, _ = ws
+    r = _attach(db_session, gid, {"entity_type": "asset", "entity": "img-1", "tag": "hero"})
+    assert r["result"] == "attached" and r["entity"] == "img-1" and r["tag"] == "hero"
+
+
+def test_multiple_tags_applied_to_each(db_session, ws):
+    gid, _ = ws
+    r = _attach(db_session, gid, {"entity_type": "asset", "entities": ["img-1", "img-2"], "tags": ["a", "b"]})
+    assert r["targets"] == 2 and r["attached"] == 4  # 2 entities × 2 tags
+
+
+# ── filter by tag (the "query from tags" dimension) ────────────────────────────
+def test_filter_by_tag_and_unknown_tag(db_session, ws):
+    gid, _ = ws
+    _attach(db_session, gid, {"entity_type": "asset", "filter": {"asset_types": ["image", "svg"]}, "tag": "site"})
+    # select by the tag we just applied…
+    ids, _ = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"tags": ["site"]}})
+    assert len(ids) == 3
+    # …AND narrows with another dimension
+    ids2, _ = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"asset_types": ["svg"], "tags": ["site"]}})
+    assert len(ids2) == 1
+    # unknown tag → no rows, no error
+    ids3, err = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"tags": ["does-not-exist"]}})
+    assert ids3 == [] and err is None
+
+
+# ── the latent-gap fix: bulk tag resyncs smart-collection membership ───────────
+def test_bulk_tag_materializes_smart_collection(db_session, ws):
+    gid, _ = ws
+    col = Collections(
+        session=db_session, group_id=gid, name="Site Assets", slug="site-assets",
+        target_type="asset", is_smart=True, smart_rules={"tags": ["site"]},
+    )
+    db_session.add(col)
+    db_session.commit()
+
+    assert db_session.query(CollectionAssets).filter_by(collection_id=col.id).count() == 0
+    r = _attach(db_session, gid, {"entity_type": "asset", "filter": {"asset_types": ["image", "svg"]}, "tag": "site"})
+    assert r["collections_resynced"] == 3
+    # every image/svg asset is now a materialized member
+    assert db_session.query(CollectionAssets).filter_by(collection_id=col.id).count() == 3
