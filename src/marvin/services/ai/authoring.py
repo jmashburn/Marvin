@@ -218,10 +218,14 @@ class AuthoringService:
             self.session.commit()
             self._emit_entry_created(entry, entry_type)
 
+            # Recipe enrichment: derive alt text for the draft's images (opt-in, best-effort).
+            enriched_alt = self._run_alt_text_enrichment(recipe, final_attachments)
+
             self._complete_execution(execution, completion, start, entity_id=entry.id, output={
                 "entry_id": str(entry.id), "title": title, "status": entry.status,
                 **({"fields": data_json, "tags": list(proposed_tags or []),
-                    "resources": attached_resources, "assets": auto_asset_slugs} if log_outputs else {}),
+                    "resources": attached_resources, "assets": auto_asset_slugs,
+                    "altText": enriched_alt} if log_outputs else {}),
             })
         except Exception as e:
             self._fail_execution(execution, str(e), start)
@@ -234,6 +238,7 @@ class AuthoringService:
             "tags": list(proposed_tags or []),
             "resources": attached_resources,
             "assets": auto_asset_slugs,
+            "altText": enriched_alt,
             "warnings": recipe_warnings,
             "editUrl": f"/workspace/entries/{entry.id}",
             "executionId": str(execution.id),
@@ -437,6 +442,71 @@ class AuthoringService:
             if (r.required or (r.min and r.min > 0)) and r.role not in roles_present:
                 warnings.append(f"This type expects a '{r.role}' image; none attached.")
         return warnings
+
+    def _alt_text_requested(self, recipe) -> bool:
+        """Whether the entry type's recipe asks compose to derive alt text for its images —
+        either a top-level ``enrichment.alt_text`` flag or any asset role deriving "alt_text"."""
+        enrichment = getattr(recipe, "enrichment", None)
+        if isinstance(enrichment, dict) and enrichment.get("alt_text"):
+            return True
+        assets = getattr(recipe, "assets", None)
+        roles = (getattr(assets, "roles", None) or []) if assets else []
+        return any("alt_text" in (getattr(r, "derive", None) or []) for r in roles)
+
+    def _run_alt_text_enrichment(self, recipe, attachments) -> list[str]:
+        """Recipe enrichment step: generate accessible alt text for freshly-attached image assets
+        that lack it, reusing the ``generate-alt-text`` operation. Opt-in via the recipe.
+
+        Best-effort and self-contained: needs a vision-capable provider, skips assets that already
+        have alt text or aren't images, and a failed vision call never breaks compose. Returns the
+        slugs it enriched.
+        """
+        if not self._alt_text_requested(recipe) or not attachments:
+            return []
+        if not (self.provider and getattr(self.provider, "supports_vision", False) and self.model):
+            return []
+        import uuid as _uuid
+
+        from marvin.db.models.platform import Assets
+        from marvin.services.ai.base import CompletionOptions
+        from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
+        from marvin.services.ai.operations.base import get_operation
+
+        op = get_operation("generate-alt-text")
+        enriched: list[str] = []
+        for att in attachments:
+            aid = att.get("asset_id") if isinstance(att, dict) else None
+            if not aid:
+                continue
+            try:
+                asset = self.session.get(Assets, _uuid.UUID(str(aid)))
+            except (ValueError, TypeError):
+                asset = None
+            if not asset or asset.group_id != self.group_id:
+                continue
+            if asset.alt_text or (asset.asset_type or "") != "image":
+                continue
+            try:
+                ctx = (
+                    ContextBuilder(self.session, self.group_id)
+                    .with_site_settings().with_variables()
+                    .with_asset(asset.id).with_asset_images()
+                    .build()
+                )
+                if not (ctx.assets and ctx.assets[0].get("image_data")):
+                    continue  # unreadable / not actually an image
+                messages = resolve_prompt_messages(op.build_prompt({}, ctx), self.group_id, ctx.variables)
+                opts = CompletionOptions(temperature=self._temperature(), max_tokens=300)
+                parsed, _ = self.provider.execute_operation(messages, self.model, op.output_schema, opts)
+                alt = (parsed or {}).get("alt_text")
+                if alt:
+                    asset.alt_text = alt
+                    self.session.commit()
+                    enriched.append(asset.slug)
+            except Exception as e:  # enrichment is best-effort — never sink the compose
+                self.session.rollback()
+                self.logger.warning(f"AuthoringService: alt-text enrichment skipped for asset {aid}: {e}")
+        return enriched
 
     def _recipe_resource_hint(self, recipe) -> str:
         """A prompt fragment for the entry type's recipe.resources.extract rules — tells the model which

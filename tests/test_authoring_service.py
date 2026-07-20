@@ -141,3 +141,27 @@ def test_resolve_asset_refs_by_name_slug_id_and_exclude(db_session, workspace):
     assert svc._resolve_asset_refs([str(aid)]) == [(aid, "studio-shot")]         # by id
     assert svc._resolve_asset_refs(["Studio Shot"], exclude_ids=[aid]) == []     # caller already has it
     assert svc._resolve_asset_refs(["nope", "", "Studio Shot", "studio-shot"]) == [(aid, "studio-shot")]  # unknown/blank/dup collapsed
+
+
+# ── Recipe enrichment: alt-text opt-in gate + best-effort guard ────────────────────────
+def test_alt_text_requested_reads_enrichment_flag_and_role_derive(db_session, workspace):
+    from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
+    gid, _, _ = workspace
+    svc = _svc(db_session, gid)
+
+    assert svc._alt_text_requested(EntryTypeRecipe.model_validate({"enrichment": {"alt_text": True}})) is True
+    assert svc._alt_text_requested(
+        EntryTypeRecipe.model_validate({"assets": {"roles": [{"role": "hero", "derive": ["alt_text"]}]}})
+    ) is True
+    assert svc._alt_text_requested(EntryTypeRecipe.model_validate({})) is False
+    assert svc._alt_text_requested(EntryTypeRecipe.model_validate({"enrichment": {"voice": "wry"}})) is False
+
+
+def test_alt_text_enrichment_noops_without_a_vision_provider(db_session, workspace):
+    from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
+    gid, _, _ = workspace
+    svc = _svc(db_session, gid)  # provider=None
+    recipe = EntryTypeRecipe.model_validate({"enrichment": {"alt_text": True}})
+    assert svc._run_alt_text_enrichment(recipe, [{"asset_id": str(uuid.uuid4())}]) == []  # no provider → skip
