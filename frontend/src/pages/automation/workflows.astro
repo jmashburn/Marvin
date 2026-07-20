@@ -683,7 +683,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
           <div class="wf-history" hidden></div>
         </div>
         <div class="wf-actions">
-          <button class="wf-btn primary js-run">Run</button>
+          <button class="wf-btn primary js-run" ${wf.enabled ? "" : "disabled title=\"Enable the workflow to run it\""}>Run</button>
           <button class="wf-btn js-history">Runs</button>
           <button class="wf-btn js-toggle">${wf.enabled ? "Disable" : "Enable"}</button>
           <button class="wf-btn js-edit">Edit</button>
@@ -749,7 +749,9 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   }
   populateFieldDatalist("event");
   const dh = document.createElement("datalist"); dh.id = "wf-handlers";
-  ["request_site_rebuild", "ai_reindex_embeddings", "publish_scheduled_entries"].forEach((f) => {
+  // Matches the backend allowlist (AUTOMATION_ALLOWED_HANDLERS) — content/publishing/index only.
+  ["request_site_rebuild", "publish_scheduled_entries", "unpublish_expired_entries",
+   "ai_reindex_embeddings", "resync_smart_collections"].forEach((f) => {
     const o = document.createElement("option"); o.value = f; dh.appendChild(o);
   });
   document.body.appendChild(dh);

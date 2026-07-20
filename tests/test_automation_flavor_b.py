@@ -252,6 +252,46 @@ class TestActionRegistry:
             run_action(None, "G", {"kind": "does-not-exist"}, {"previous": {}})
 
 
+# ── handler action allowlist (security) ───────────────────────────────────────
+class TestHandlerAllowlist:
+    def _run(self, task, config=None):
+        from marvin.services.automation.actions.handler import run_handler
+        return run_handler(None, "G", {"kind": "handler", "task": task, "config": config or {}},
+                           {"event": {}, "depth": 0})
+
+    def test_allowlisted_handler_runs(self, monkeypatch):
+        from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
+        seen = {}
+
+        class _Fake:
+            def execute(self, task, _bus):
+                seen["cfg"] = task.task_config
+                return "ok"
+
+        monkeypatch.setattr(TaskHandlerRegistry, "get_handler", staticmethod(lambda _t: _Fake()))
+        out = self._run("request_site_rebuild", {"x": 1})
+        assert out == {"result": "ok"} and seen["cfg"] == {"x": 1}
+
+    def test_maintenance_and_meta_handlers_are_blocked(self):
+        import marvin.services.scheduled_tasks.handlers.maintenance  # noqa: F401 — ensure registration
+        import marvin.services.scheduled_tasks.handlers.automation  # noqa: F401
+        for task in ("remove_orphaned_assets", "prune_event_logs", "prune_ai_executions",
+                     "prune_expired_sessions", "cleanup_temp_files", "run_automation"):
+            with pytest.raises(AutomationActionError):
+                self._run(task)  # never runs a destructive/meta job from an automation
+
+    def test_forbidden_registered_task_names_the_allowlist(self):
+        import marvin.services.scheduled_tasks.handlers.maintenance  # noqa: F401
+        with pytest.raises(AutomationActionError) as e:
+            self._run("remove_orphaned_assets")
+        assert "allowlist" in str(e.value).lower()
+
+    def test_unknown_task_still_reported_as_unknown(self):
+        with pytest.raises(AutomationActionError) as e:
+            self._run("totally_made_up_task")
+        assert "unknown" in str(e.value).lower()
+
+
 # ── Trigger matching: event / chained / on-error (T3) ─────────────────────────
 class TestTriggerMatching:
     def _m(self, trig, ev):

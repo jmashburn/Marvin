@@ -244,6 +244,13 @@ class AutomationsController(BaseUserController):
         trigger + condition gates (the caller asked for it explicitly)."""
         _require_admin(self.user, self.group_id)
         row = _get_or_404(self.session, automation_id, self.group_id)
+        if not row.enabled:
+            # A disabled automation is off — don't fire it via the Run button either (the scheduled
+            # path already skips disabled). Enable it to run.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This workflow is disabled — enable it to run.",
+            )
         from marvin.services.automation.engine import run_automation_now
         from marvin.services.automation.recorder import ExecutionRecorder
 
