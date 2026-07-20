@@ -4,6 +4,7 @@
  */
 
 import { createSdkClient } from '../sdk';
+import { getApiUrl } from './config';
 import type {
   PlatformCollection,
   PlatformCollectionCreate,
@@ -74,6 +75,25 @@ export async function reorderCollections(
 export async function getCollectionEntries(collectionId: string, authToken: string): Promise<EntryRead[]> {
   const sdk = createSdkClient(authToken);
   return sdk.collections.getEntries(collectionId);
+}
+
+export interface CollectionMember {
+  id: string;
+  label: string;
+  slug: string;
+  type: 'entry' | 'asset' | 'resource';
+}
+
+/**
+ * Get a collection's membership as a lightweight typed list (entries/assets/resources),
+ * for uniformly displaying membership of asset/resource smart collections.
+ */
+export async function getCollectionMembers(collectionId: string, authToken?: string): Promise<CollectionMember[]> {
+  const res = await fetch(getApiUrl(`/api/platform/collections/${collectionId}/members`), {
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+  });
+  if (!res.ok) throw new Error(`get members failed: ${res.status}`);
+  return res.json();
 }
 
 /**

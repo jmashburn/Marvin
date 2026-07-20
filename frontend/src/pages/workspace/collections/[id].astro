@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getCollection, getCollectionEntries } from "@/lib/api/collections";
+import { getCollection, getCollectionEntries, getCollectionMembers, type CollectionMember } from "@/lib/api/collections";
 import { listEntryTypes } from "@/lib/api/entryTypes";
 import type { EntryRead, CollectionRead } from "@/lib/api/entries";
 
@@ -10,6 +10,7 @@ const { id } = Astro.params;
 
 let collection: CollectionRead | null = null;
 let entries: EntryRead[] = [];
+let members: CollectionMember[] = [];
 let typeMap = new Map<string, string>();
 let error: string | null = null;
 
@@ -19,19 +20,26 @@ if (!authToken) {
   error = "Collection ID is required";
 } else {
   try {
-    const [col, ents, types] = await Promise.all([
-      getCollection(id, authToken),
-      getCollectionEntries(id, authToken),
-      listEntryTypes(authToken),
-    ]);
-    collection = col;
-    entries = ents;
-    typeMap = new Map(types.map((t) => [t.id, t.name]));
+    collection = await getCollection(id, authToken);
+    const targetType = (collection as any).targetType ?? "entry";
+    if (targetType === "entry") {
+      const [ents, types] = await Promise.all([getCollectionEntries(id, authToken), listEntryTypes(authToken)]);
+      entries = ents;
+      typeMap = new Map(types.map((t) => [t.id, t.name]));
+    } else {
+      // Asset/resource smart collections: fetch the uniform member list.
+      members = await getCollectionMembers(id, authToken);
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     console.error("[Collection view] Failed to load:", error);
   }
 }
+
+const targetType = ((collection as any)?.targetType ?? "entry") as string;
+const memberHref = (m: CollectionMember) =>
+  m.type === "asset" ? `/workspace/assets/${m.id}` : m.type === "resource" ? `/workspace/resources/${m.id}` : `/workspace/entries/${m.id}`;
+const totalCount = targetType === "entry" ? entries.length : members.length;
 
 const statusMeta: Record<string, { label: string; cls: string }> = {
   inbox: { label: "Inbox", cls: "s-inbox" },
@@ -72,8 +80,9 @@ function fmtDate(d?: string | null): string {
           <h2 class="col-title">
             {collection.icon && <span class="col-icon">{collection.icon}</span>}
             {collection.name}
-            <span class="col-count">{entries.length}</span>
+            <span class="col-count">{totalCount}</span>
             {collection.isSmart && <span class="pill">Smart</span>}
+            {targetType !== "entry" && <span class="pill target-pill">{targetType}s</span>}
             {collection.isSystem && <span class="pill system-pill">System</span>}
           </h2>
           {collection.description && <p class="col-desc">{collection.description}</p>}
@@ -83,13 +92,13 @@ function fmtDate(d?: string | null): string {
         )}
       </div>
 
-      {entries.length === 0 ? (
+      {totalCount === 0 ? (
         <div class="empty-state">
           <div class="empty-icon">📭</div>
-          <h3>No entries</h3>
-          <p>Entries matching this collection will appear here.</p>
+          <h3>No {targetType === "entry" ? "entries" : `${targetType}s`}</h3>
+          <p>{targetType === "entry" ? "Entries" : `${targetType[0].toUpperCase()}${targetType.slice(1)}s`} matching this collection will appear here.</p>
         </div>
-      ) : (
+      ) : targetType === "entry" ? (
         <ul class="inbox">
           {entries.map((entry) => {
             const s = statusMeta[entry.status] ?? { label: entry.status, cls: "s-default" };
@@ -112,6 +121,23 @@ function fmtDate(d?: string | null): string {
               </li>
             );
           })}
+        </ul>
+      ) : (
+        <ul class="inbox">
+          {members.map((m) => (
+            <li class="inbox-row">
+              <a class="inbox-link" href={memberHref(m)}>
+                <span class="status-dot s-published" title={m.type}></span>
+                <span class="inbox-main">
+                  <span class="inbox-title">{m.label || "Untitled"}</span>
+                  <span class="inbox-summary">{m.slug}</span>
+                </span>
+                <span class="inbox-meta">
+                  <span class="inbox-type">{m.type}</span>
+                </span>
+              </a>
+            </li>
+          ))}
         </ul>
       )}
     </>

@@ -11,8 +11,9 @@
 interface Props {
   checked?: boolean;
   rules?: Record<string, unknown> | null;
+  targetType?: string;
 }
-const { checked = false, rules = null } = Astro.props;
+const { checked = false, rules = null, targetType = "entry" } = Astro.props;
 const rulesText = rules ? JSON.stringify(rules, null, 2) : "";
 ---
 
@@ -21,34 +22,46 @@ const rulesText = rules ? JSON.stringify(rules, null, 2) : "";
     <input type="checkbox" name="is_smart" id="is_smart" value="true" checked={checked} />
     <span class="smart-toggle-text">
       <strong>Smart Collection</strong>
-      <span class="form-help">Fill this collection automatically from rules — no adding entries by hand.</span>
+      <span class="form-help">Fill this collection automatically from rules — no adding items by hand.</span>
     </span>
   </label>
 
   <div class="smart-rules" id="smart-rules-field" hidden={!checked}>
+    <div class="smart-target">
+      <label for="target_type">Collect</label>
+      <select name="target_type" id="target_type">
+        <option value="entry" selected={targetType === "entry"}>Entries</option>
+        <option value="asset" selected={targetType === "asset"}>Assets</option>
+        <option value="resource" selected={targetType === "resource"}>Resources</option>
+      </select>
+      <span class="form-help">Which kind of content this collection groups.</span>
+    </div>
+
     <label for="smartRules">Rules (JSON)</label>
-    <textarea
-      id="smartRules"
-      name="smartRules"
-      rows="6"
-      spellcheck="false"
-      placeholder={'{\n  "entry_types": ["article"],\n  "statuses": ["published"]\n}'}
-    >{rulesText}</textarea>
+    <textarea id="smartRules" name="smartRules" rows="6" spellcheck="false">{rulesText}</textarea>
     <div class="smart-help">
       <p>
-        Entries that match these rules are added automatically and kept in sync as they're created,
-        published, or edited. Every field is optional; combine them with <code>match</code>. An empty
-        rule set matches nothing.
+        Items that match these rules are added automatically and kept in sync as they're created,
+        edited, or tagged. Every field is optional; combine them with <code>match</code>. An empty rule
+        set matches nothing.
       </p>
-      <ul>
+      {/* Per-target dimension hints — JS shows the one matching the selected target type. */}
+      <ul class="dim-hints" data-target="entry">
         <li><code>entry_types</code> — entry-type slugs, e.g. <code>["article", "bench-note"]</code></li>
         <li><code>statuses</code> — e.g. <code>["published"]</code>, or <code>["inbox"]</code> for a Drafts collection</li>
-        <li><code>tags</code> — reserved; active once entries carry tags</li>
+      </ul>
+      <ul class="dim-hints" data-target="asset" hidden>
+        <li><code>asset_types</code> — <code>["image", "document", "video", "audio", "archive", "svg", "other"]</code></li>
+      </ul>
+      <ul class="dim-hints" data-target="resource" hidden>
+        <li><code>resource_types</code> — resource-type values, e.g. <code>["fabric", "tool", "supplier"]</code></li>
+      </ul>
+      <ul>
+        <li><code>tags</code> — tag slugs or names, e.g. <code>["waxed-canvas", "workwear"]</code></li>
         <li><code>match</code> — <code>"all"</code> (default, every rule must hold) or <code>"any"</code></li>
       </ul>
       <p class="smart-help-example">
-        Example — published articles &amp; bench notes:
-        <code>{'{"entry_types": ["article", "bench-note"], "statuses": ["published"]}'}</code>
+        Example: <code class="dim-example" data-target="entry">{'{"entry_types": ["article"], "statuses": ["published"]}'}</code><code class="dim-example" data-target="asset" hidden>{'{"asset_types": ["image"], "tags": ["hero"]}'}</code><code class="dim-example" data-target="resource" hidden>{'{"resource_types": ["fabric"], "tags": ["waxed-canvas"], "match": "any"}'}</code>
       </p>
     </div>
   </div>
@@ -57,13 +70,30 @@ const rulesText = rules ? JSON.stringify(rules, null, 2) : "";
 <script>
   const checkbox = document.getElementById("is_smart") as HTMLInputElement | null;
   const rulesField = document.getElementById("smart-rules-field") as HTMLElement | null;
+  const targetSelect = document.getElementById("target_type") as HTMLSelectElement | null;
+  const rulesArea = document.getElementById("smartRules") as HTMLTextAreaElement | null;
+
+  const PLACEHOLDERS: Record<string, string> = {
+    entry: '{\n  "entry_types": ["article"],\n  "statuses": ["published"]\n}',
+    asset: '{\n  "asset_types": ["image"],\n  "tags": ["hero"]\n}',
+    resource: '{\n  "resource_types": ["fabric"],\n  "tags": ["waxed-canvas"]\n}',
+  };
+
+  function syncTarget() {
+    const t = targetSelect?.value || "entry";
+    document.querySelectorAll<HTMLElement>(".dim-hints, .dim-example").forEach((el) => {
+      el.hidden = el.dataset.target !== t;
+    });
+    if (rulesArea) rulesArea.placeholder = PLACEHOLDERS[t] ?? PLACEHOLDERS.entry;
+  }
+
   if (checkbox && rulesField) {
-    const sync = () => {
-      rulesField.hidden = !checkbox.checked;
-    };
+    const sync = () => { rulesField.hidden = !checkbox.checked; };
     checkbox.addEventListener("change", sync);
     sync();
   }
+  targetSelect?.addEventListener("change", syncTarget);
+  syncTarget();
 </script>
 
 <style>
@@ -119,6 +149,22 @@ const rulesText = rules ? JSON.stringify(rules, null, 2) : "";
   .smart-rules[hidden] {
     display: none;
   }
+
+  .smart-target {
+    display: grid;
+    gap: 0.3rem;
+    margin-bottom: 0.25rem;
+  }
+  .smart-target select {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 0.875rem;
+    max-width: 12rem;
+  }
+  .dim-hints[hidden], .dim-example[hidden] { display: none; }
 
   /* Match the page's textareas (scoped styles don't reach into the component). */
   .smart-panel textarea {

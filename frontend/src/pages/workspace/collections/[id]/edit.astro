@@ -43,6 +43,7 @@ if (!authToken) {
   entityId={id}
   entityLabel={collection?.name}
 >
+  <div id="delete-error" class="error-banner" style="margin-bottom:1rem;display:none;"></div>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading collection:</strong> {error}</p>
@@ -123,7 +124,7 @@ if (!authToken) {
             <p class="form-help">Lower numbers appear first</p>
           </div>
 
-          <SmartCollectionFields checked={collection.isSmart === true} rules={collection.smartRules} />
+          <SmartCollectionFields checked={collection.isSmart === true} rules={collection.smartRules} targetType={(collection as any).targetType ?? 'entry'} />
 
           <div class="form-group">
             <label for="metadata">Metadata (JSON)</label>
@@ -243,6 +244,37 @@ if (!authToken) {
   import { createSdkClient } from '@/lib/sdk';
 
   const sdk = createSdkClient();
+
+  // Intercept the delete submit so a failed delete (e.g. 409 — collection still in
+  // use by entries) shows an inline banner instead of navigating to the /delete
+  // endpoint and rendering raw JSON. The button's onclick confirm() already gated it.
+  document.addEventListener('submit', async (e) => {
+    const formEl = e.target as HTMLFormElement;
+    if (!(formEl instanceof HTMLFormElement)) return;
+    if (!/\/api\/collections\/[^/]+\/delete$/.test(formEl.getAttribute('action') || '')) return;
+
+    e.preventDefault();
+    const res = await fetch(formEl.action, { method: 'POST' });
+    if (res.ok) {
+      window.location.href = '/workspace/collections';
+      return;
+    }
+
+    let msg = 'Failed to delete collection';
+    try {
+      const data = await res.json();
+      if (data?.error) msg = data.error;
+    } catch {
+      // keep the generic message
+    }
+    const banner = document.getElementById('delete-error');
+    if (banner) {
+      banner.innerHTML = `<p><strong>Couldn't delete collection:</strong> ${msg}</p>`;
+      banner.style.display = 'flex';
+      banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
   const form = document.getElementById('collection-form') as HTMLFormElement;
   const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
 
@@ -260,6 +292,7 @@ if (!authToken) {
       const description = formData.get('description') as string;
       const sortOrder = formData.get('sort_order') as string;
       const isSmart = formData.get('is_smart') === 'true';
+      const targetType = (formData.get('target_type') as string) || 'entry';
       const smartRulesStr = formData.get('smartRules') as string;
       const metadataStr = formData.get('metadata') as string;
 
@@ -295,6 +328,7 @@ if (!authToken) {
           description: description?.trim() || null,
           sortOrder: sortOrder ? parseInt(sortOrder) : 0,
           isSmart,
+          targetType,
           smartRules: smartRules,
           metadataJson: metadataJson,
         });
