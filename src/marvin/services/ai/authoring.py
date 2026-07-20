@@ -57,6 +57,7 @@ class AuthoringService:
         log_inputs: bool = False,
         log_outputs: bool = True,
         max_tokens: int | None = None,
+        ground: bool = True,
     ) -> dict:
         """Compose a DRAFT entry of ``entry_type`` from a brief (+ optional images).
 
@@ -70,12 +71,17 @@ class AuthoringService:
         from marvin.services.ai.base import CompletionOptions, ImagePart, Message
         from marvin.services.ai.compose import entry_type_to_output_schema
         from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
-        from marvin.services.ai.pricing import estimate_cost
 
         asset_ids = asset_ids or []
         schema_def = EntryTypeSchemaDefinition.model_validate(entry_type.schema_json or {})
         recipe = EntryTypeRecipe.model_validate(entry_type.recipe_json or {})
         output_schema = entry_type_to_output_schema(schema_def, entry_type.name)
+        # Let the model return tags so it can REUSE the existing vocabulary (grounded below).
+        if isinstance(output_schema, dict) and isinstance(output_schema.get("properties"), dict):
+            output_schema["properties"]["tags"] = {
+                "type": "array", "items": {"type": "string"},
+                "description": "Relevant tags. Reuse the existing tag names listed in the prompt where they fit; only add a new tag when none match.",
+            }
 
         # Context + vision images.
         builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
@@ -85,11 +91,13 @@ class AuthoringService:
             builder.with_asset_images()
         ctx = builder.build()
 
+        grounding = self._grounding_block(brief) if ground else ""
         instruction = (
             f"Compose a new '{entry_type.name}' for {ctx.workspace_name or 'this workspace'} from the brief below. "
             f"Fill every field you reasonably can"
             + (", using the attached image(s) as the subject." if asset_ids else ".")
             + f"\n\nBrief:\n{brief}"
+            + grounding
         )
         parts: list = [instruction]
         for a in ctx.assets or []:
@@ -133,6 +141,7 @@ class AuthoringService:
             fields = dict(parsed or {})
             title = fields.pop("title", None) or f"Untitled {entry_type.name}"
             summary = fields.pop("summary", None)
+            proposed_tags = fields.pop("tags", None)
             allowed = schema_def.get_field_keys()
             data_json = {k: v for k, v in fields.items() if k in allowed}
 
@@ -146,6 +155,9 @@ class AuthoringService:
                 "created_by": getattr(self.user, "id", None),
             })
             self.session.commit()
+            # Link the model's tags onto the draft — find-or-create by slug, reusing the vocabulary.
+            if isinstance(proposed_tags, (list, tuple)) and proposed_tags:
+                self.repos.entries.apply_fields(entry.id, {"tags": list(proposed_tags)})
             self._emit_entry_created(entry, entry_type)
 
             self._complete_execution(execution, completion, start, entity_id=entry.id, output={
@@ -178,6 +190,57 @@ class AuthoringService:
             role = roles[i] if i < len(roles) else (roles[-1] if roles else None)
             out.append({"asset_id": str(aid), "role": role, "position": i})
         return out
+
+    # ── Catalog grounding (reuse, don't duplicate) ───────────────────────────
+
+    def _grounding_block(self, seed_text: str) -> str:
+        """A prompt block listing what already exists — the workspace tag vocabulary plus (via RAG)
+        resources/assets relevant to the seed — so the model reuses instead of inventing duplicates."""
+        from marvin.db.models.platform import Tags
+
+        parts: list[str] = []
+        tags = self.session.query(Tags).filter_by(group_id=self.group_id).order_by(Tags.name).limit(80).all()
+        if tags:
+            parts.append(
+                "Existing tags — REUSE these exact names where they fit; do not invent near-duplicates:\n  "
+                + ", ".join(t.name for t in tags)
+            )
+        catalog = self._rag_catalog(seed_text)
+        if catalog:
+            parts.append(catalog)
+        if not parts:
+            return ""
+        return "\n\n## Already in this workspace — reuse, don't duplicate\n" + "\n".join(parts)
+
+    def _rag_catalog(self, seed_text: str) -> str:
+        """RAG-relevant existing resources/assets for the seed text, as a short reuse hint."""
+        if not (seed_text and self.provider and getattr(self.provider, "supports_embeddings", False)):
+            return ""
+        from marvin.services.ai.context import ContextBuilder
+        from marvin.services.ai.embeddings import default_embedding_model
+        from marvin.services.ai.entity_resolve import resolve_retrieved_sources
+
+        emb = default_embedding_model(self.provider.provider_type)
+        if not emb:
+            return ""
+        try:
+            built = (
+                ContextBuilder(self.session, self.group_id)
+                .with_semantic_search(seed_text, self.provider, emb, limit=8, entity_types=["resource", "asset"])
+                .build()
+            )
+            srcs = resolve_retrieved_sources(self.session, built.retrieved or [])
+        except Exception as e:  # grounding must never break authoring
+            self.logger.warning(f"AuthoringService: RAG grounding failed: {e}")
+            return ""
+        res = list(dict.fromkeys(s["title"] for s in srcs if s.get("entity_type") == "resource"))
+        ass = list(dict.fromkeys(s["title"] for s in srcs if s.get("entity_type") == "asset"))
+        out: list[str] = []
+        if res:
+            out.append("Relevant existing resources (reference/attach these rather than recreating): " + ", ".join(res))
+        if ass:
+            out.append("Relevant existing assets: " + ", ".join(ass))
+        return "\n".join(out)
 
     # ── Execution-record + event machinery (self-contained) ──────────────────
 
