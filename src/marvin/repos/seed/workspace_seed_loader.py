@@ -299,6 +299,10 @@ class WorkspaceSeedLoader:
             }
             create_data = {k: v for k, v in create_data.items() if v is not None}
 
+            from marvin.db.models.platform import AssetTags
+
+            tag_slugs = asset.get("tags", [])
+
             try:
                 if existing and self._overwrite:
                     if has_binary:
@@ -321,9 +325,15 @@ class WorkspaceSeedLoader:
                     update_data = {k: v for k, v in update_data.items() if v is not None}
                     self.repos.assets.update(existing[0].id, update_data)
                     self.logger.info(f"Overwrote asset: {slug}")
+                    asset_id = existing[0].id
+                    self.repos.session.query(AssetTags).filter(AssetTags.asset_id == asset_id).delete()
+                    self.repos.session.commit()
                 else:
-                    self.repos.assets.create(create_data)
+                    created = self.repos.assets.create(create_data)
                     self.logger.info(f"Imported asset: {slug}")
+                    asset_id = created.id
+                if tag_slugs:
+                    self._link_tags(AssetTags, "asset_id", asset_id, tag_slugs)
                 count += 1
             except Exception as e:
                 self.logger.error(f"Failed to create asset record {slug}: {e}")
@@ -604,16 +614,26 @@ class WorkspaceSeedLoader:
             "created_by": user_id,
         }
 
+        from marvin.db.models.platform import ResourceTags
+
+        tag_slugs = data.get("tags", [])
+
         if existing:
             if self._overwrite:
                 self.repos.resources.update(existing[0].id, create_data)
                 self.logger.info(f"Overwrote resource: {data['slug']}")
+                self.repos.session.query(ResourceTags).filter(ResourceTags.resource_id == existing[0].id).delete()
+                self.repos.session.commit()
+                if tag_slugs:
+                    self._link_tags(ResourceTags, "resource_id", existing[0].id, tag_slugs)
             else:
                 self.logger.debug(f"Resource already exists: {data['slug']}")
             return
 
-        self.repos.resources.create(create_data)
+        resource = self.repos.resources.create(create_data)
         self.logger.info(f"Created resource: {data['slug']}")
+        if tag_slugs:
+            self._link_tags(ResourceTags, "resource_id", resource.id, tag_slugs)
 
     def _assign_to_resources(self, entry_id: str, assignments: list[dict[str, Any]]) -> None:
         """Link an entry to resources with role and position.
@@ -663,32 +683,35 @@ class WorkspaceSeedLoader:
         # TagsRepository.create is find-or-create by slug, so re-import doesn't duplicate.
         self.repos.tags.create(TagCreate(name=name, slug=data.get("slug"), color=data.get("color")))
 
-    def _assign_to_tags(self, entry_id: str, tag_slugs: list[str]) -> None:
-        """Link an entry to tags by slug, creating any missing tag on the fly.
+    def _link_tags(self, junction_cls, fk_field: str, entity_id: str, tag_slugs: list[str]) -> None:
+        """Link an entity to tags by slug through its junction table, creating missing tags.
 
-        Args:
-            entry_id: UUID of the entry
-            tag_slugs: List of tag slugs
+        Shared by entries/assets/resources — pass the junction model (EntryTags/AssetTags/
+        ResourceTags) and its owning FK column name ("entry_id"/"asset_id"/"resource_id").
         """
-        from marvin.db.models.platform import EntryTags
-
         for slug in tag_slugs:
             tag = self.repos.tags.find_or_create(slug)
             if tag is None:
                 continue
             try:
                 exists = (
-                    self.repos.session.query(EntryTags)
-                    .filter(EntryTags.entry_id == entry_id, EntryTags.tag_id == tag.id)
+                    self.repos.session.query(junction_cls)
+                    .filter(getattr(junction_cls, fk_field) == entity_id, junction_cls.tag_id == tag.id)
                     .first()
                 )
                 if exists is None:
-                    self.repos.session.add(EntryTags(entry_id=entry_id, tag_id=tag.id))
+                    self.repos.session.add(junction_cls(**{fk_field: entity_id, "tag_id": tag.id}))
                     self.repos.session.commit()
-                    self.logger.debug(f"Tagged entry with: {slug}")
+                    self.logger.debug(f"Tagged {fk_field}={entity_id} with: {slug}")
             except Exception as e:
                 self.repos.session.rollback()
-                self.logger.error(f"Failed to tag entry with {slug}: {e}")
+                self.logger.error(f"Failed to tag {fk_field}={entity_id} with {slug}: {e}")
+
+    def _assign_to_tags(self, entry_id: str, tag_slugs: list[str]) -> None:
+        """Link an entry to tags by slug, creating any missing tag on the fly."""
+        from marvin.db.models.platform import EntryTags
+
+        self._link_tags(EntryTags, "entry_id", entry_id, tag_slugs)
 
     def _assign_to_collections(self, entry_id: str, assignments: list[dict[str, Any]]) -> None:
         """Assign an entry to collections with order.

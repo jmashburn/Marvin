@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
 from sqlalchemy import func
 
-from marvin.db.models.platform import EntryTags, Tags
+from marvin.db.models.platform import AssetTags, EntryTags, ResourceTags, Tags
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.platform import TagCreate, TagRead, TagUpdate
 
@@ -24,16 +24,23 @@ class TagsController(BaseUserController):
     def list_tags(self) -> list[TagRead]:
         tags = self.repos.tags.get_all(order_by="name", order_descending=False)
 
-        # Attach entry counts in one grouped query (avoids N+1).
-        counts = dict(
-            self.session.query(EntryTags.tag_id, func.count(EntryTags.entry_id))
-            .join(Tags, Tags.id == EntryTags.tag_id)
-            .filter(Tags.group_id == self.group_id)
-            .group_by(EntryTags.tag_id)
-            .all()
-        )
+        # Per-junction counts, each in one grouped query (avoids N+1). entry_count drives the
+        # entries-list filter; usage_count (entries + assets + resources) is the admin total.
+        def _counts(junction, fk):
+            return dict(
+                self.session.query(junction.tag_id, func.count(getattr(junction, fk)))
+                .join(Tags, Tags.id == junction.tag_id)
+                .filter(Tags.group_id == self.group_id)
+                .group_by(junction.tag_id)
+                .all()
+            )
+
+        entry_counts = _counts(EntryTags, "entry_id")
+        asset_counts = _counts(AssetTags, "asset_id")
+        resource_counts = _counts(ResourceTags, "resource_id")
         for tag in tags:
-            tag.entry_count = counts.get(tag.id, 0)
+            tag.entry_count = entry_counts.get(tag.id, 0)
+            tag.usage_count = tag.entry_count + asset_counts.get(tag.id, 0) + resource_counts.get(tag.id, 0)
         return tags
 
     @router.post("", response_model=TagRead, status_code=status.HTTP_201_CREATED, summary="Create Tag")
@@ -98,3 +105,59 @@ class TagsController(BaseUserController):
         entry = self.session.get(Entries, entry_id)
         if entry and sync_entry(self.session, entry.group_id, entry):
             self.session.commit()
+
+    # ── Asset / resource tagging ───────────────────────────────────────────
+    # Same lightweight attach/detach as entries, minus smart-collection resync (collections
+    # only hold entries today).
+
+    @router.post("/{tag_id}/assets/{asset_id}", status_code=status.HTTP_201_CREATED, summary="Attach Tag to Asset")
+    def attach_tag_to_asset(self, tag_id: UUID4, asset_id: UUID4) -> dict:
+        """Apply a tag to an asset. Idempotent."""
+        tag = self.repos.tags.get_one(tag_id)
+        if not tag:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found.")
+        asset = self.repos.assets.get_one(asset_id)
+        if not asset:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found.")
+        if asset.group_id != tag.group_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Asset and tag must belong to the same workspace.")
+
+        existing = self.session.query(AssetTags).filter(AssetTags.asset_id == asset_id, AssetTags.tag_id == tag_id).first()
+        if existing is None:
+            self.session.add(AssetTags(asset_id=asset_id, tag_id=tag_id))
+            self.session.commit()
+        return {"status": "ok", "message": "Tag attached"}
+
+    @router.delete("/{tag_id}/assets/{asset_id}", summary="Detach Tag from Asset")
+    def detach_tag_from_asset(self, tag_id: UUID4, asset_id: UUID4) -> dict:
+        deleted = self.session.query(AssetTags).filter(AssetTags.asset_id == asset_id, AssetTags.tag_id == tag_id).delete()
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset does not carry this tag.")
+        self.session.commit()
+        return {"status": "ok", "message": "Tag detached"}
+
+    @router.post("/{tag_id}/resources/{resource_id}", status_code=status.HTTP_201_CREATED, summary="Attach Tag to Resource")
+    def attach_tag_to_resource(self, tag_id: UUID4, resource_id: UUID4) -> dict:
+        """Apply a tag to a resource. Idempotent."""
+        tag = self.repos.tags.get_one(tag_id)
+        if not tag:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found.")
+        resource = self.repos.resources.get_one(resource_id)
+        if not resource:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found.")
+        if resource.group_id != tag.group_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Resource and tag must belong to the same workspace.")
+
+        existing = self.session.query(ResourceTags).filter(ResourceTags.resource_id == resource_id, ResourceTags.tag_id == tag_id).first()
+        if existing is None:
+            self.session.add(ResourceTags(resource_id=resource_id, tag_id=tag_id))
+            self.session.commit()
+        return {"status": "ok", "message": "Tag attached"}
+
+    @router.delete("/{tag_id}/resources/{resource_id}", summary="Detach Tag from Resource")
+    def detach_tag_from_resource(self, tag_id: UUID4, resource_id: UUID4) -> dict:
+        deleted = self.session.query(ResourceTags).filter(ResourceTags.resource_id == resource_id, ResourceTags.tag_id == tag_id).delete()
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource does not carry this tag.")
+        self.session.commit()
+        return {"status": "ok", "message": "Tag detached"}

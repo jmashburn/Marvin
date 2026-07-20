@@ -69,6 +69,7 @@ def _serialize_asset(a, link=None) -> dict:
         "altText": a.alt_text,
         "width": a.width,
         "height": a.height,
+        "tags": list(getattr(a, "tag_names", None) or []),
         **_link_fields(link),
     }
 
@@ -85,6 +86,7 @@ def _serialize_resource(r, link=None) -> dict:
         "url": r.url,
         "externalId": r.external_id,
         "metadataJson": r.metadata_json,
+        "tags": list(getattr(r, "tag_names", None) or []),
         **_link_fields(link),
     }
 

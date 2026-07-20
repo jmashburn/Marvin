@@ -72,12 +72,12 @@ def _entry_eager_options_with_type():
 
 def _asset_eager_options():
     """Common eager loading options for asset relationships."""
-    return [selectinload(Assets.entry_assets).joinedload(EntryAssets.entry)]
+    return [selectinload(Assets.entry_assets).joinedload(EntryAssets.entry), selectinload(Assets.tags)]
 
 
 def _resource_eager_options():
     """Common eager loading options for resource relationships."""
-    return [selectinload(Resources.entry_resources).joinedload(EntryResources.entry)]
+    return [selectinload(Resources.entry_resources).joinedload(EntryResources.entry), selectinload(Resources.tags)]
 
 
 def _build_entry_type_info(entry: Entries) -> PublishedEntryTypeInfo | None:
@@ -112,6 +112,7 @@ def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAss
         description=ea.asset.description,
         public_url=get_storage_provider().get_public_url(ea.asset.storage_key),
         metadata=ea.asset.metadata_json,
+        tags=list(ea.asset.tag_names),
     )
 
 
@@ -547,6 +548,7 @@ async def get_published_entry(
                 url=er.resource.url,
                 external_id=er.resource.external_id,
                 metadata=er.resource.metadata_json,
+                tags=list(er.resource.tag_names),
             ),
         )
         for er in entry.entry_resources
@@ -829,6 +831,7 @@ async def list_published_assets(
                 public_url=provider.get_public_url(asset.storage_key),
                 metadata=asset.metadata_json,
                 entries=entry_slugs,
+                tags=list(asset.tag_names),
             )
         )
 
@@ -904,6 +907,7 @@ async def get_published_asset(
         public_url=get_storage_provider().get_public_url(asset.storage_key),
         metadata=asset.metadata_json,
         entries=entry_slugs,
+        tags=list(asset.tag_names),
     )
 
 
@@ -1016,6 +1020,7 @@ async def list_published_resources(
                 external_id=resource.external_id,
                 metadata=resource.metadata_json,
                 entries=entry_slugs,
+                tags=list(resource.tag_names),
             )
         )
 
@@ -1084,6 +1089,7 @@ async def get_published_resource(
         external_id=resource.external_id,
         metadata=resource.metadata_json,
         entries=entry_slugs,
+        tags=list(resource.tag_names),
     )
 
 

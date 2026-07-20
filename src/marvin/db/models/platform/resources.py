@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ..users import Users
     from .entries import Entries
     from .entry_resources import EntryResources
+    from .tags import Tags
 
 
 class Resources(SqlAlchemyBase, BaseMixins):
@@ -51,8 +52,19 @@ class Resources(SqlAlchemyBase, BaseMixins):
         overlaps="entries,resources",
         doc="Junction records for entries using this resource",
     )
+    tags: Mapped[list["Tags"]] = orm.relationship(
+        "Tags",
+        secondary="resource_tags",
+        back_populates="resources",
+        doc="Tags applied to this resource (shared vocabulary)",
+    )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)
+
+    @property
+    def tag_names(self) -> list[str]:
+        """Tag slugs on this resource — the stable identity a rule/filter matches (see Entries.tag_names)."""
+        return [t.slug for t in self.tags]
 
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:

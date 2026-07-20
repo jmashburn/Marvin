@@ -54,6 +54,8 @@ class TagSummary(_MarvinModel):
     """Optional color code."""
     entry_count: int | None = None
     """Number of entries carrying this tag (populated by the list endpoint)."""
+    usage_count: int | None = None
+    """Total things carrying this tag — entries + assets + resources (populated by the list endpoint)."""
     created_at: datetime | None = None
     """Timestamp when the tag was created."""
     update_at: datetime | None = None

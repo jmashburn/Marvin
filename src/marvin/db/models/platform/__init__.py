@@ -1,6 +1,7 @@
 """Platform models."""
 
 from .api_clients import APIClients
+from .asset_tags import AssetTags
 from .assets import Assets
 from .collections import Collections
 from .entries import Entries
@@ -10,6 +11,7 @@ from .entry_resources import EntryResources
 from .entry_types import EntryTypes
 from .event_log import EventLogModel
 from .entry_tags import EntryTags
+from .resource_tags import ResourceTags
 from .resources import Resources
 from .scheduled_tasks import ScheduledTaskExecutionLogModel, ScheduledTaskModel
 from .tags import Tags
@@ -20,6 +22,7 @@ from .tags import Tags
 
 __all__ = [
     "APIClients",
+    "AssetTags",
     "Assets",
     "Collections",
     "Entries",
@@ -29,6 +32,7 @@ __all__ = [
     "EntryTags",
     "EntryTypes",
     "EventLogModel",
+    "ResourceTags",
     "Resources",
     "ScheduledTaskExecutionLogModel",
     "ScheduledTaskModel",

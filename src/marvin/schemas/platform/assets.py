@@ -63,6 +63,8 @@ class AssetUpdate(_MarvinModel):
     alt_text: str | None = Field(default=None, validation_alias=AliasChoices("alt_text", "altText"))
     description: str | None = None
     metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
+    tag_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("tag_ids", "tagIds"))
+    """Existing tag IDs to replace this asset's tags (resolve typed names via POST /tags first)."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -139,6 +141,16 @@ class AssetRead(AssetSummary):
     """Optional asset metadata."""
     uploaded_by: UUID4
     """ID of user who uploaded the asset."""
+    tags: list[str] = []
+    """Tag slugs applied to this asset (shared vocabulary)."""
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _tag_slugs(cls, value: Any) -> list[str]:
+        # `obj.tags` is the ORM Tag relationship; the schema field is a list of slug strings.
+        if not value:
+            return []
+        return [getattr(t, "slug", t) for t in value]
 
     @field_validator("metadata_json", mode="before")
     @classmethod

@@ -24,6 +24,8 @@ class ResourceCreate(_MarvinModel):
     """External identifier (supplier SKU, ISBN, repo path, etc)."""
     metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional metadata as JSON."""
+    tag_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("tag_ids", "tagIds"))
+    """Existing tag IDs to apply to this resource (resolve typed names via POST /tags first)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -45,6 +47,8 @@ class ResourceUpdate(_MarvinModel):
     """External identifier (supplier SKU, ISBN, repo path, etc)."""
     metadata_json: dict | None = Field(default=None, validation_alias=AliasChoices("metadata", "metadata_json"))
     """Optional metadata for additional properties."""
+    tag_ids: list[UUID4] | None = Field(default=None, validation_alias=AliasChoices("tag_ids", "tagIds"))
+    """Existing tag IDs to replace this resource's tags (resolve typed names via POST /tags first)."""
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -77,6 +81,16 @@ class ResourceRead(ResourceSummary):
     """Optional metadata."""
     created_by: UUID4
     """ID of user who created the resource."""
+    tags: list[str] = []
+    """Tag slugs applied to this resource (shared vocabulary)."""
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _tag_slugs(cls, value: Any) -> list[str]:
+        # `obj.tags` is the ORM Tag relationship; the schema field is a list of slug strings.
+        if not value:
+            return []
+        return [getattr(t, "slug", t) for t in value]
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -13,6 +13,7 @@ from .._model_utils.guid import GUID
 if TYPE_CHECKING:
     from .entries import Entries
     from .entry_assets import EntryAssets
+    from .tags import Tags
 
 
 class Assets(SqlAlchemyBase, BaseMixins):
@@ -67,8 +68,19 @@ class Assets(SqlAlchemyBase, BaseMixins):
         overlaps="entries",
         doc="Junction records for entries using this asset",
     )
+    tags: Mapped[list["Tags"]] = orm.relationship(
+        "Tags",
+        secondary="asset_tags",
+        back_populates="assets",
+        doc="Tags applied to this asset (shared vocabulary)",
+    )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)
+
+    @property
+    def tag_names(self) -> list[str]:
+        """Tag slugs on this asset — the stable identity a rule/filter matches (see Entries.tag_names)."""
+        return [t.slug for t in self.tags]
 
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:

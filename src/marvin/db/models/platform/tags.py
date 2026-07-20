@@ -18,7 +18,9 @@ from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
+    from .assets import Assets
     from .entries import Entries
+    from .resources import Resources
 
 
 class Tags(SqlAlchemyBase, BaseMixins):
@@ -38,6 +40,18 @@ class Tags(SqlAlchemyBase, BaseMixins):
         secondary="entry_tags",
         back_populates="tags",
         doc="Entries carrying this tag",
+    )
+    assets: Mapped[list["Assets"]] = orm.relationship(
+        "Assets",
+        secondary="asset_tags",
+        back_populates="tags",
+        doc="Assets carrying this tag",
+    )
+    resources: Mapped[list["Resources"]] = orm.relationship(
+        "Resources",
+        secondary="resource_tags",
+        back_populates="tags",
+        doc="Resources carrying this tag",
     )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)

@@ -434,6 +434,9 @@ class WorkspaceExporter:
                 asset_dict["description"] = asset.description
             if asset.metadata_json:
                 asset_dict["metadataJson"] = asset.metadata_json
+            tag_slugs = list(getattr(asset, "tags", None) or [])
+            if tag_slugs:
+                asset_dict["tags"] = tag_slugs
 
             exported.append(asset_dict)
 
@@ -466,6 +469,9 @@ class WorkspaceExporter:
                 resource_dict["externalId"] = resource.external_id
             if resource.metadata_json:
                 resource_dict["metadataJson"] = resource.metadata_json
+            tag_slugs = list(getattr(resource, "tags", None) or [])
+            if tag_slugs:
+                resource_dict["tags"] = tag_slugs
 
             exported.append(resource_dict)
 
