@@ -821,19 +821,27 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
           return;
         }
         const res = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, { credentials: 'include' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`GET HTTP ${res.status}`);
         const notif = await res.json();
-        const currentOptions = notif.options ?? [];
+        // The read model returns options as objects ({option: "core.foo"}); the update schema wants
+        // a list of slug STRINGS. Map before appending, or the PUT fails list[str] validation.
+        const currentSlugs = (notif.options ?? [])
+          .map((o: any) => o.option || o.slug)
+          .filter(Boolean);
+        if (currentSlugs.includes(optionSlug)) { window.location.reload(); return; }
         const putRes = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ ...notif, options: [...currentOptions, optionSlug] }),
+          body: JSON.stringify({ ...notif, options: [...currentSlugs, optionSlug] }),
         });
-        if (!putRes.ok) throw new Error(`HTTP ${putRes.status}`);
+        if (!putRes.ok) {
+          const detail = await putRes.text().catch(() => '');
+          throw new Error(`PUT HTTP ${putRes.status} ${detail}`);
+        }
         window.location.reload();
       } catch (e) {
-        alert('Failed to update notification subscription');
+        alert('Failed to update notification subscription: ' + (e instanceof Error ? e.message : String(e)));
       }
     });
   });
