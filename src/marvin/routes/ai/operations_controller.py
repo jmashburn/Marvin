@@ -701,7 +701,11 @@ class AIOperationsController(BaseUserController):
             "for related content) — and REUSE matches; only create something new when nothing fits. To author, "
             "use compose_entry for a NEW entry and revise_entry to "
             "change an EXISTING one (never recreate). Authoring creates a DRAFT for human review — never claim "
-            "anything is published. Be concise."
+            "anything is published. When a request could reasonably map to two different tools or readings — "
+            "e.g. enumerate a vocabulary vs. find content by meaning — answer the most likely one, then add ONE "
+            "short line offering the alternative (what you would do differently and how to ask for it). Do this "
+            "only when the reading is genuinely forked; never append a 'did you mean…' to an unambiguous request. "
+            "Be concise."
         )
         # Explicit per-call register wins; otherwise the workspace default; otherwise "auto".
         system += self._register_clause(body.register or self._default_register(), persona_prompt)
