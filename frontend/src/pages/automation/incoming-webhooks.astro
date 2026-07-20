@@ -90,11 +90,22 @@ const hookBase = `${API_BASE_URL}/api/hooks`;
       ? `<div class="token-live">
            <input class="input url" readonly value="${esc(hookUrl(w.token))}" data-url />
            <button class="button ghost sm" data-act="copy">Copy</button>
-           <button class="button ghost sm" data-act="test">Send test</button>
+           <button class="button ghost sm" data-act="toggle-test">Send test</button>
            <button class="button ghost sm" data-act="rotate">Rotate</button>
            <button class="button ghost sm danger" data-act="revoke">Revoke</button>
          </div>
-         <span class="hint" data-status></span>`
+         <span class="hint" data-status></span>
+         <div class="test-panel" data-test-panel hidden>
+           <span class="hint">Test payload (JSON) — reaches your workflows as <code>$event.payload.*</code>:</span>
+           <textarea class="input test-payload" rows="4" spellcheck="false">{
+  "entry_slug": ""
+}</textarea>
+           <div class="test-actions">
+             <button class="button sm" data-act="send-test">Send</button>
+             <button class="button ghost sm" data-act="cancel-test">Cancel</button>
+             <span class="hint" data-test-status></span>
+           </div>
+         </div>`
       : `<div class="token-none">
            <span class="hint">No token yet — the endpoint is inactive.</span>
            <button class="button sm" data-act="mint">Create token</button>
@@ -189,21 +200,32 @@ const hookBase = `${API_BASE_URL}/api/hooks`;
         await navigator.clipboard.writeText(hookUrl(w.token));
         setStatus("Copied.");
         setTimeout(() => setStatus(""), 1500);
-      } else if (act === "test") {
-        // Simulate an external caller: POST the public receiver with ?wait=1 to run inline.
-        setStatus("Sending test…");
+      } else if (act === "toggle-test") {
+        const panel = cardEl.querySelector("[data-test-panel]");
+        panel?.toggleAttribute("hidden");
+        if (panel && !panel.hasAttribute("hidden")) cardEl.querySelector(".test-payload")?.focus();
+      } else if (act === "cancel-test") {
+        cardEl.querySelector("[data-test-panel]")?.setAttribute("hidden", "");
+      } else if (act === "send-test") {
+        // Simulate an external caller with the author's own JSON body; ?wait=1 runs inline.
+        const ta = cardEl.querySelector(".test-payload") as HTMLTextAreaElement | null;
+        const tStatus = cardEl.querySelector("[data-test-status]") as HTMLElement | null;
+        const setT = (t: string, err?: boolean) => { if (tStatus) { tStatus.textContent = t; tStatus.classList.toggle("error", !!err); } };
+        let payload: any;
+        try { payload = JSON.parse(ta?.value || "{}"); }
+        catch (e: any) { setT(`Invalid JSON: ${e?.message ?? e}`, true); return; }
+        setT("Sending…");
         const res = await fetch(`${hookUrl(w.token)}?wait=1`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ test: true, source: "marvin-ui", at: new Date().toISOString() }),
+          body: JSON.stringify(payload),
         });
         const body = await res.json().catch(() => ({}));
         if (res.ok) {
-          setStatus(`Fired (${body.status ?? "ok"}). Refreshing counts…`);
-          upsert(await sdk().incomingWebhooks.get(id));
-          setTimeout(() => setStatus(""), 2500);
+          setT(`Fired (${body.status ?? "ok"}).`);
+          upsert(await sdk().incomingWebhooks.get(id));  // refresh counts (re-renders card)
         } else {
-          setStatus(`Test failed: ${body.detail ?? res.status}`, true);
+          setT(`Failed: ${body.detail ?? res.status}`, true);
         }
       }
     } catch (e) { setStatus(`Error: ${e?.message ?? e}`, true); }
@@ -264,6 +286,11 @@ const hookBase = `${API_BASE_URL}/api/hooks`;
   .iw-list :global(.token-live) { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .iw-list :global(.token-live .url) { flex: 1; min-width: 240px; font-family: var(--mono, monospace); font-size: 12px; }
   .iw-list :global(.token-none) { display: flex; gap: 10px; align-items: center; }
+  .iw-list :global(.test-panel) { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
+  .iw-list :global(.test-panel[hidden]) { display: none; }
+  .iw-list :global(.test-payload) { width: 100%; box-sizing: border-box; font-family: var(--mono, monospace); font-size: 12px; resize: vertical; }
+  .iw-list :global(.test-actions) { display: flex; align-items: center; gap: 8px; }
+  .iw-list :global(.button.sm.danger) { color: var(--color-error, #c0392b); border-color: var(--color-error, #c0392b); }
   .iw-list :global(.iw-meta) { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
   .iw-list :global(.pill) { padding: 1px 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font-size: 11px; }
   .iw-list :global(.switch) { position: relative; display: inline-block; width: 38px; height: 22px; }
