@@ -158,6 +158,28 @@ def test_detach_asset_is_idempotent(db_session, workspace):
     assert bus.events == ["asset_attached_to_entry", "asset_detached_from_entry"]
 
 
+def test_attach_asset_positions_increment(db_session, workspace):
+    # Regression: (max_pos or -1)+1 collapsed to 0 for every attach because 0 is falsy, so a second
+    # gallery image never advanced past position 0 (arbitrary render order).
+    from marvin.db.models.users.users import Users
+
+    gid, entry_id, aid = workspace
+    uid = db_session.query(Users.id).filter(Users.group_id == gid).scalar()
+    aid2 = uuid.uuid4()
+    db_session.execute(Assets.__table__.insert().values(
+        id=aid2, group_id=gid, slug="second-img", name="Second", original_filename="b.jpg",
+        filename="b", extension="jpg", file_size=1, mime_type="image/jpeg", asset_type="image",
+        checksum="b", storage_provider="local", storage_key=f"k/{gid.hex[:5]}b.jpg", uploaded_by=uid,
+    ))
+    db_session.commit()
+    svc, _ = _svc(db_session, gid)
+
+    assert svc.attach_asset(entry_id, aid, role="hero") == "attached"
+    assert svc.attach_asset(entry_id, aid2, role="gallery") == "attached"
+    positions = sorted(r.position for r in db_session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id))
+    assert positions == [0, 1]  # not [0, 0]
+
+
 def test_attach_asset_unknown_returns_none(db_session, workspace):
     gid, entry_id, _ = workspace
     svc, _ = _svc(db_session, gid)
@@ -219,6 +241,23 @@ def test_import_asset_rejects_non_http_url():
 
 def test_import_asset_rejects_bad_base64():
     assert "base64" in _import({"data": "!!!not base64!!!"})["error"]
+
+
+def test_recipe_roles_for_entry_reads_declared_roles(db_session, workspace):
+    # Bulk import attaches by position → these roles (first→hero). Reads the entry type's recipe.
+    from marvin.db.models.platform import Entries, EntryTypes
+    from marvin.services.ai.tools import ToolContext
+    from marvin.services.ai.tools.builtins_actions import _recipe_roles_for_entry
+
+    gid, entry_id, _ = workspace
+    entry = db_session.get(Entries, entry_id)
+    et = db_session.get(EntryTypes, entry.entry_type_id)
+    et.recipe_json = {"assets": {"roles": [{"role": "hero"}, {"role": "gallery"}]}}
+    db_session.commit()
+
+    ctx = ToolContext(session=db_session, group_id=gid, user=None)
+    assert _recipe_roles_for_entry(ctx, entry_id) == ["hero", "gallery"]
+    assert _recipe_roles_for_entry(ctx, uuid.uuid4()) == []  # unknown entry → no roles
 
 
 def test_import_asset_ssrf_fence_blocks_internal_hosts():

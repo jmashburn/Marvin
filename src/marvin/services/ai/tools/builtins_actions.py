@@ -298,6 +298,7 @@ def detach_asset(ctx: ToolContext, args: dict) -> str:
 
 # ── Asset ingestion (bring a new image in) ────────────────────────────────────
 _MAX_IMPORT_BYTES = 20 * 1024 * 1024  # 20 MB
+_MAX_IMPORT_BATCH = 24                 # ceiling on images ingested in one call
 
 
 def _public_url_error(url: str) -> str | None:
@@ -329,39 +330,33 @@ def _public_url_error(url: str) -> str | None:
     return None
 
 
-@register_tool(
-    name="import_asset",
-    description=(
-        "Bring a NEW image into the workspace as an asset — from a web URL or from base64 bytes "
-        "(e.g. a phone capture) — and optionally attach it to an entry in one call. Returns the new "
-        "asset id + url. Use attach_asset instead when the asset already exists."
-    ),
-    input_schema={"type": "object", "properties": {
-        "url": {"type": "string", "description": "an http(s) URL of the image to fetch"},
-        "data": {"type": "string", "description": "base64-encoded image bytes (alternative to url)"},
-        "filename": {"type": "string", "description": "filename for base64 data (e.g. 'photo.jpg')"},
-        "name": {"type": "string", "description": "display name (defaults to the filename)"},
-        "alt_text": {"type": "string", "description": "accessibility alt text"},
-        "attach_to": {"type": "string", "description": "optional entry (slug/id) to attach the new asset to"},
-        "role": {"type": "string", "description": "role for the attachment (e.g. 'hero'), if attach_to is set"},
-    }},
-    min_role=ROLE_AUTHOR, read_only=False,
-)
-def import_asset(ctx: ToolContext, args: dict) -> str:
+def _recipe_roles_for_entry(ctx: ToolContext, entry_id) -> list:
+    """The entry type's declared asset roles (e.g. [hero, gallery]) for role-by-position attach."""
+    from marvin.db.models.platform.entries import Entries
+    from marvin.db.models.platform.entry_types import EntryTypes
+    from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
+    entry = ctx.session.get(Entries, entry_id) if entry_id else None
+    if not entry:
+        return []
+    et = ctx.session.get(EntryTypes, entry.entry_type_id)
+    recipe = EntryTypeRecipe.model_validate((et.recipe_json if et else {}) or {})
+    return [r.role for r in recipe.assets.roles] if (recipe.assets and recipe.assets.roles) else []
+
+
+def _ingest_one_image(ctx: ToolContext, spec: dict):
+    """Fetch/decode a single image spec ({url|data, filename?, name?, alt_text?}) and store it as an
+    asset. Returns (asset, None) on success or (None, error_string). Applies the SSRF fence + size cap."""
     import base64
     import io
     import os
     import uuid as _uuid
 
-    if getattr(ctx.user, "id", None) is None:
-        return json.dumps({"error": "import_asset requires an authenticated user"})
-
-    url, data = args.get("url"), args.get("data")
-    # 1) Get the bytes + a filename.
+    url, data = spec.get("url"), spec.get("data")
     if url:
         ssrf = _public_url_error(url)
         if ssrf:
-            return json.dumps({"error": ssrf})
+            return None, ssrf
         try:
             import httpx
 
@@ -369,27 +364,26 @@ def import_asset(ctx: ToolContext, args: dict) -> str:
             # (the SSRF fence only validated the initial host). A redirect is reported, not chased.
             resp = httpx.get(str(url), timeout=15.0, follow_redirects=False)
             if resp.is_redirect:
-                return json.dumps({"error": "url redirects — provide the direct image URL"})
+                return None, "url redirects — provide the direct image URL"
             resp.raise_for_status()
             raw = resp.content
         except Exception as e:  # noqa: BLE001
-            return json.dumps({"error": f"could not fetch url: {e}"})
+            return None, f"could not fetch url: {e}"
         filename = os.path.basename(str(url).split("?")[0]) or "imported"
     elif data:
         try:
             raw = base64.b64decode(str(data), validate=True)
         except Exception as e:  # noqa: BLE001
-            return json.dumps({"error": f"invalid base64 data: {e}"})
-        filename = args.get("filename") or "imported.png"
+            return None, f"invalid base64 data: {e}"
+        filename = spec.get("filename") or "imported.png"
     else:
-        return json.dumps({"error": "provide either 'url' or 'data' (base64)"})
+        return None, "provide either 'url' or 'data' (base64)"
 
     if not raw:
-        return json.dumps({"error": "no image bytes"})
+        return None, "no image bytes"
     if len(raw) > _MAX_IMPORT_BYTES:
-        return json.dumps({"error": f"image too large ({len(raw)} bytes; max {_MAX_IMPORT_BYTES})"})
+        return None, f"image too large ({len(raw)} bytes; max {_MAX_IMPORT_BYTES})"
 
-    # 2) Store it as an asset (metadata — mime/type/dimensions — is derived from the bytes).
     from slugify import slugify
 
     from marvin.repos.all_repositories import get_repositories
@@ -397,27 +391,105 @@ def import_asset(ctx: ToolContext, args: dict) -> str:
     from marvin.services.assets.asset_storage_service import AssetStorageService
     from marvin.services.storage.provider_factory import get_storage_provider
 
-    name = (args.get("name") or os.path.splitext(filename)[0] or "imported").strip()
+    name = (spec.get("name") or os.path.splitext(filename)[0] or "imported").strip()
     slug = f"{slugify(name) or 'asset'}-{_uuid.uuid4().hex[:6]}"  # suffix guarantees uniqueness
     upload_file = SimpleNamespace(filename=filename, file=io.BytesIO(raw))
     repos = get_repositories(ctx.session, group_id=ctx.group_id)
     try:
         asset = AssetStorageService(repos, get_storage_provider()).upload_asset(
             upload_file=upload_file,
-            upload_request=AssetUploadRequest(slug=slug, name=name, alt_text=args.get("alt_text")),
+            upload_request=AssetUploadRequest(slug=slug, name=name, alt_text=spec.get("alt_text")),
             group_id=ctx.group_id,
             user_id=ctx.user.id,
         )
     except Exception as e:  # noqa: BLE001
-        return json.dumps({"error": f"could not import asset: {e}"})
+        return None, f"could not import asset: {e}"
+    return asset, None
 
-    out = {"asset_id": str(asset.id), "slug": asset.slug, "name": asset.name,
-           "url": getattr(asset, "public_url", None) or getattr(asset, "url", None),
-           "assetType": getattr(asset, "asset_type", None)}
 
-    # 3) Optionally attach it to an entry in the same call.
+@register_tool(
+    name="import_asset",
+    description=(
+        "Bring NEW image(s) into the workspace as assets — from web URLs or base64 bytes (e.g. phone "
+        "captures) — and optionally attach them to an entry in one call. Pass a single image via "
+        "'url'/'data', or MANY at once via 'images'. When 'attach_to' is set, the images fill that "
+        "entry type's recipe roles in order (first → hero, the rest → gallery), so you can populate an "
+        "entry with all the photos its recipe calls for in a single call. Returns the new asset id(s) "
+        "+ urls. Use attach_asset instead when the asset already exists."
+    ),
+    input_schema={"type": "object", "properties": {
+        "url": {"type": "string", "description": "single import: an http(s) URL of the image to fetch"},
+        "data": {"type": "string", "description": "single import: base64-encoded image bytes (alternative to url)"},
+        "filename": {"type": "string", "description": "filename for base64 data (e.g. 'photo.jpg')"},
+        "name": {"type": "string", "description": "display name (defaults to the filename)"},
+        "alt_text": {"type": "string", "description": "accessibility alt text"},
+        "images": {
+            "type": "array",
+            "description": "bulk import: several images at once. When attach_to is set they fill the entry's recipe roles in order (first → hero).",
+            "items": {"type": "object", "properties": {
+                "url": {"type": "string"}, "data": {"type": "string"},
+                "filename": {"type": "string"}, "name": {"type": "string"}, "alt_text": {"type": "string"},
+            }},
+        },
+        "attach_to": {"type": "string", "description": "optional entry (slug/id) to attach the new asset(s) to"},
+        "role": {"type": "string", "description": "single import only: override the attachment role (e.g. 'hero'); ignored for bulk, which uses recipe roles by position"},
+    }},
+    min_role=ROLE_AUTHOR, read_only=False,
+)
+def import_asset(ctx: ToolContext, args: dict) -> str:
+    if getattr(ctx.user, "id", None) is None:
+        return json.dumps({"error": "import_asset requires an authenticated user"})
+
+    # Normalize to a list of image specs. A single url/data is the one-item (back-compat) case.
+    specs = args.get("images")
+    single = not (isinstance(specs, list) and specs)
+    if single:
+        if not (args.get("url") or args.get("data")):
+            return json.dumps({"error": "provide 'url' or 'data', or an 'images' array"})
+        specs = [{k: args.get(k) for k in ("url", "data", "filename", "name", "alt_text")}]
+    if len(specs) > _MAX_IMPORT_BATCH:
+        return json.dumps({"error": f"too many images ({len(specs)}; max {_MAX_IMPORT_BATCH} per call)"})
+
+    # 1) Ingest each image, preserving order.
+    results: list[dict] = []   # per-image record (asset fields, or an error)
+    assets: list = []          # successfully created assets, in order
+    for i, spec in enumerate(specs):
+        asset, err = _ingest_one_image(ctx, spec if isinstance(spec, dict) else {})
+        if err:
+            results.append({"index": i, "error": err})
+            continue
+        assets.append(asset)
+        results.append({"index": i, "asset_id": str(asset.id), "slug": asset.slug, "name": asset.name,
+                        "url": getattr(asset, "public_url", None) or getattr(asset, "url", None),
+                        "assetType": getattr(asset, "asset_type", None)})
+
+    if not assets:  # nothing imported — surface the (first) reason as a top-level error
+        return json.dumps({"error": results[0]["error"] if results else "no images provided"})
+
+    # 2) Optionally attach to an entry, assigning recipe roles by position (first → hero, then declared).
+    attached: list[dict] = []
     if args.get("attach_to"):
         entry_id = resolve_entity_id(ctx.session, ctx.group_id, "entry", args["attach_to"])
-        out["attach"] = _service(ctx).attach_asset(entry_id, asset.id, role=args.get("role"))
+        roles = _recipe_roles_for_entry(ctx, entry_id)
+        svc = _service(ctx)
+        for j, asset in enumerate(assets):
+            if single and args.get("role"):          # back-compat: explicit single-image role wins
+                role = args["role"]
+            elif roles:
+                role = roles[j] if j < len(roles) else roles[-1]   # overflow reuses the last role
+            else:
+                role = None
+            status_ = svc.attach_asset(entry_id, asset.id, role=role)
+            attached.append({"asset_id": str(asset.id), "role": role, "status": status_})
+
+    # 3) Response. Keep the single-import top-level keys for back-compat; always include the batch arrays.
+    first = results[0] if not results[0].get("error") else next(r for r in results if not r.get("error"))
+    out = {"asset_id": first["asset_id"], "slug": first["slug"], "name": first["name"],
+           "url": first["url"], "assetType": first["assetType"],
+           "imported": len(assets), "assets": results}
+    if args.get("attach_to"):
         out["attached_to"] = str(args["attach_to"])
+        out["attached"] = attached
+        if single:
+            out["attach"] = attached[0]["status"] if attached else None
     return json.dumps(out)

@@ -262,7 +262,8 @@ class EntryService:
             .filter(EntryResources.entry_id == entry.id)
             .scalar()
         )
-        self.session.add(EntryResources(entry_id=entry.id, resource_id=resource.id, role=role, position=(max_pos or -1) + 1))
+        self.session.add(EntryResources(entry_id=entry.id, resource_id=resource.id, role=role,
+                                        position=(max_pos + 1) if max_pos is not None else 0))
         self.session.commit()
         self._emit(entry, EventTypes.entry_resource_attached, EventOperation.update,
                    f"Resource '{resource.name}' attached to entry '{entry.title}'", self._names(entry),
@@ -352,7 +353,8 @@ class EntryService:
             .filter(EntryAssets.entry_id == entry.id)
             .scalar()
         )
-        self.session.add(EntryAssets(entry_id=entry.id, asset_id=asset.id, role=role, position=(max_pos or -1) + 1))
+        self.session.add(EntryAssets(entry_id=entry.id, asset_id=asset.id, role=role,
+                                     position=(max_pos + 1) if max_pos is not None else 0))
         self.session.commit()
         self._emit_asset_link(entry, asset, EventTypes.asset_attached_to_entry,
                               f"Asset '{asset.name}' attached to entry '{entry.title}'", reaction_depth)
