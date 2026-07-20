@@ -12,10 +12,14 @@ Conditions reference fields by dotted path (e.g. ``"event.entry_type"``); action
 ``"$event.entry_id"`` / ``"$previous.summary"`` templates, resolved by :func:`interpolate`.
 """
 
+import re
 from typing import Any
 
-# Supported condition operators. Kept deliberately small for v1.
-_OPS = ("eq", "neq", "contains", "exists")
+# Supported condition operators. `changed*` key on an update's diff (event.changed_fields/before/
+# after); the field's last segment names the field (so `entry.status` → the "status" diff key).
+_OPS = ("eq", "neq", "contains", "in", "starts_with", "exists", "changed", "changed_from", "changed_to")
+
+_BRACED = re.compile(r"\$\{([^}]+)\}")
 
 
 def resolve_path(path: str, context: dict) -> Any:
@@ -30,13 +34,23 @@ def resolve_path(path: str, context: dict) -> Any:
 
 
 def interpolate(value: Any, context: dict) -> Any:
-    """Resolve ``$event.*`` / ``$previous.*`` templates in a value (recursing dicts/lists).
+    """Resolve ``$event.*`` / ``$previous.*`` / ``$steps.<id>.output.*`` templates in a value
+    (recursing dicts/lists). Three forms:
 
-    A whole-string template (``"$event.entry_id"``) resolves to the raw referenced value (preserving
-    type). Non-template values pass through unchanged. Unknown references resolve to None.
+    * a whole-string bare template (``"$event.entry_id"``) → the raw referenced value (type preserved);
+    * a whole-string braced template (``"${event.count}"``) → also the raw value (type preserved);
+    * **embedded** braces (``"Summary: ${previous.summary}"``) → each ``${path}`` replaced by its
+      stringified value, result is a string (None → empty string).
+
+    Non-template values pass through unchanged; unknown references resolve to None (or "" when embedded).
     """
     if isinstance(value, str):
-        if value.startswith("$"):
+        if "${" in value:
+            whole = _BRACED.fullmatch(value.strip())
+            if whole:  # exactly "${path}" — preserve the referenced value's type
+                return resolve_path(whole.group(1), context)
+            return _BRACED.sub(lambda m: _stringify(resolve_path(m.group(1), context)), value)
+        if value.startswith("$"):  # legacy bare whole-string "$path"
             return resolve_path(value[1:], context)
         return value
     if isinstance(value, dict):
@@ -46,10 +60,24 @@ def interpolate(value: Any, context: dict) -> Any:
     return value
 
 
+def _stringify(v: Any) -> str:
+    return "" if v is None else str(v)
+
+
 def _match_one(cond: dict, context: dict) -> bool:
     field = cond.get("field")
     op = cond.get("op", "eq")
     expected = interpolate(cond.get("value"), context)
+
+    # Change-aware operators key on an update's diff, not the live value: the field's last segment
+    # names the diff key (so "entry.status" and "status" both mean the "status" field).
+    if op in ("changed", "changed_from", "changed_to"):
+        key = str(field or "").rsplit(".", 1)[-1]
+        if op == "changed":
+            return key in (resolve_path("event.changed_fields", context) or [])
+        side = "after" if op == "changed_to" else "before"
+        return (resolve_path(f"event.{side}", context) or {}).get(key) == expected
+
     actual = resolve_path(field, context) if field else None
 
     if op == "exists":
@@ -65,12 +93,38 @@ def _match_one(cond: dict, context: dict) -> bool:
             return expected in actual  # substring or membership
         except TypeError:
             return False
+    if op == "in":
+        # actual is one of a list; a comma-separated string is accepted for the guided UI.
+        options = [v.strip() for v in expected.split(",")] if isinstance(expected, str) else expected
+        try:
+            return actual in options
+        except TypeError:
+            return False
+    if op == "starts_with":
+        return isinstance(actual, str) and actual.startswith(str(expected))
     # Unknown operator → fail closed (never silently "match everything").
     return False
 
 
-def matches(conditions: list | None, context: dict) -> bool:
-    """True if EVERY condition holds (AND). No conditions → always matches."""
+def _eval(cond: dict, context: dict) -> bool:
+    """Evaluate a condition node — a leaf ``{field, op, value}`` or a boolean group:
+    ``{all: [...]}`` (AND), ``{any: [...]}`` (OR), ``{not: <cond>}``. Groups nest arbitrarily."""
+    if not isinstance(cond, dict):
+        return False
+    if "all" in cond:
+        return all(_eval(c, context) for c in (cond["all"] or []))
+    if "any" in cond:
+        return any(_eval(c, context) for c in (cond["any"] or []))
+    if "not" in cond:
+        return not _eval(cond["not"], context)
+    return _match_one(cond, context)
+
+
+def matches(conditions, context: dict) -> bool:
+    """True if the conditions hold. A top-level LIST is an implicit AND (the common case); a single
+    group dict (``{any: […]}`` etc.) is evaluated directly. No conditions → always matches."""
     if not conditions:
         return True
-    return all(_match_one(c, context) for c in conditions if isinstance(c, dict))
+    if isinstance(conditions, list):
+        return all(_eval(c, context) for c in conditions if isinstance(c, dict))
+    return _eval(conditions, context)

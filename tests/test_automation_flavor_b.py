@@ -87,6 +87,75 @@ class TestMatches:
         assert matcher.matches([{"field": "entry.entry_type", "op": "regex", "value": ".*"}], self._ctx()) is False
 
 
+# ── H3: expression ergonomics ─────────────────────────────────────────────────
+class TestEmbeddedInterpolation:
+    _ctx = {"event": {"count": 5}, "previous": {"summary": "tidy"},
+            "steps": {"0": {"output": {"tags": ["leather"]}}, "tagger": {"output": {"n": 3}}}}
+
+    def test_embedded_braces_stringify(self):
+        assert matcher.interpolate("Summary: ${previous.summary}!", self._ctx) == "Summary: tidy!"
+
+    def test_whole_braced_preserves_type(self):
+        assert matcher.interpolate("${event.count}", self._ctx) == 5  # int, not "5"
+
+    def test_step_output_by_index_and_id(self):
+        assert matcher.interpolate("${steps.0.output.tags}", self._ctx) == ["leather"]
+        assert matcher.interpolate("${steps.tagger.output.n}", self._ctx) == 3
+
+    def test_unknown_embedded_ref_is_empty(self):
+        assert matcher.interpolate("x=${event.missing}", self._ctx) == "x="
+
+    def test_bare_dollar_still_works(self):
+        assert matcher.interpolate("$previous.summary", self._ctx) == "tidy"
+
+
+class TestOperators:
+    _ctx = {"entry": {"status": "published", "title": "Waxed Canvas"},
+            "event": {"changed_fields": ["status"], "before": {"status": "draft"},
+                      "after": {"status": "published"}}}
+
+    def test_in_list_and_csv(self):
+        assert matcher.matches([{"field": "entry.status", "op": "in", "value": ["draft", "published"]}], self._ctx)
+        assert matcher.matches([{"field": "entry.status", "op": "in", "value": "draft, published"}], self._ctx)
+        assert not matcher.matches([{"field": "entry.status", "op": "in", "value": "draft, needs_review"}], self._ctx)
+
+    def test_starts_with(self):
+        assert matcher.matches([{"field": "entry.title", "op": "starts_with", "value": "Waxed"}], self._ctx)
+        assert not matcher.matches([{"field": "entry.title", "op": "starts_with", "value": "Oiled"}], self._ctx)
+
+    def test_changed_family(self):
+        assert matcher.matches([{"field": "entry.status", "op": "changed"}], self._ctx)
+        assert matcher.matches([{"field": "entry.status", "op": "changed_to", "value": "published"}], self._ctx)
+        assert matcher.matches([{"field": "entry.status", "op": "changed_from", "value": "draft"}], self._ctx)
+        assert not matcher.matches([{"field": "entry.title", "op": "changed"}], self._ctx)  # title didn't change
+
+
+class TestConditionGroups:
+    def _ctx(self, status="published", etype="recipe"):
+        return {"entry": {"status": status, "entry_type": etype}}
+
+    def test_any_or(self):
+        c = {"any": [{"field": "entry.status", "op": "eq", "value": "draft"},
+                     {"field": "entry.status", "op": "eq", "value": "published"}]}
+        assert matcher.matches(c, self._ctx("published"))
+        assert not matcher.matches(c, self._ctx("archived"))
+
+    def test_not(self):
+        c = {"not": {"field": "entry.status", "op": "eq", "value": "draft"}}
+        assert matcher.matches(c, self._ctx("published"))
+        assert not matcher.matches(c, self._ctx("draft"))
+
+    def test_nested_all_any(self):
+        c = {"all": [
+            {"field": "entry.entry_type", "op": "eq", "value": "recipe"},
+            {"any": [{"field": "entry.status", "op": "eq", "value": "published"},
+                     {"field": "entry.status", "op": "eq", "value": "needs_review"}]},
+        ]}
+        assert matcher.matches(c, self._ctx("needs_review", "recipe"))
+        assert not matcher.matches(c, self._ctx("draft", "recipe"))
+        assert not matcher.matches(c, self._ctx("published", "article"))
+
+
 # ── Listener: trigger gate + loop-guard ───────────────────────────────────────
 class TestListenerGate:
     def _listener(self):
@@ -211,6 +280,24 @@ class TestEngine:
         # First step sees empty previous; second sees the first step's output.
         assert runner.calls[0]["previous"] == {}
         assert runner.calls[1]["previous"] == {"summary": "generated"}
+
+    def test_named_step_outputs_addressable(self):
+        # A later step can reach an earlier one by position ($steps.0) AND by id ($steps.<id>),
+        # not just the immediately-previous one — so reordering doesn't silently break a pipeline.
+        auto = _automation(actions=[
+            {"kind": "operation", "op": "a", "id": "first"},
+            {"kind": "operation", "op": "b"},
+        ])
+        seen = []
+
+        def runner(session, group_id, action, context, *, user_id=None):
+            seen.append({k: dict(v) for k, v in context.get("steps", {}).items()})
+            return {"val": action["op"]}
+
+        self._run(_FakeSession([auto], entry=_entry()), run_action=runner)
+        assert seen[0] == {}                                   # first step: nothing recorded yet
+        assert seen[1]["0"]["output"] == {"val": "a"}          # by position
+        assert seen[1]["first"]["output"] == {"val": "a"}      # by id
 
     def test_all_actions_dispatch_in_order(self):
         # The engine no longer filters by kind — every action is handed to the dispatcher in order;

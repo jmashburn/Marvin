@@ -138,6 +138,14 @@ def validate_definition(definition: dict | None) -> list[dict]:
     actions = definition.get("actions") or []
     if not actions:
         issues.append(_issue("warning", "This workflow has no steps, so it does nothing.", "action"))
+    else:
+        from .engine import MAX_ACTIONS
+        if len(actions) > MAX_ACTIONS:
+            issues.append(_issue(
+                "warning",
+                f"This workflow has {len(actions)} steps, but only the first {MAX_ACTIONS} will run "
+                f"(the rest are ignored). Split it into chained workflows.",
+                "action"))
 
     for i, act in enumerate(actions):
         if not isinstance(act, dict):

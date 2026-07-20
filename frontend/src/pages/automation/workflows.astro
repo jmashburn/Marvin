@@ -305,6 +305,11 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   const ENTRY_OP_LABELS: Record<string, string> = {
     publish: "Publish", unpublish: "Unpublish", archive: "Archive", restore: "Restore from archive",
   };
+  const COND_OP_LABELS: Record<string, string> = {
+    eq: "equals", neq: "not equals", contains: "contains", in: "is one of",
+    starts_with: "starts with", exists: "exists", changed: "changed",
+    changed_from: "changed from", changed_to: "changed to",
+  };
   // Most-useful-first (backend returns kinds alphabetically). New steps default to the first
   // available — an AI operation when AI is on, otherwise the first non-AI kind.
   const KIND_ORDER = ["operation", "entry", "handler", "webhook", "emit_event"];
@@ -319,7 +324,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   function conditionRow(c: any = {}) {
     const row = document.createElement("div");
     row.className = "row cond-row";
-    const ops = (OPTIONS.conditionOps || []).map((o: string) => `<option ${c.op === o ? "selected" : ""}>${esc(o)}</option>`).join("");
+    const ops = (OPTIONS.conditionOps || []).map((o: string) => `<option value="${esc(o)}" ${c.op === o ? "selected" : ""}>${esc(COND_OP_LABELS[o] || o)}</option>`).join("");
     row.innerHTML = `
       <input class="input c-field" list="wf-fields" placeholder="entry.entry_type" value="${esc(c.field ?? "")}" />
       <select class="input c-op">${ops}</select>
@@ -578,7 +583,10 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   }
 
   // ── List rendering ─────────────────────────────────────────────────────────
-  const OP_SYMBOL: Record<string, string> = { eq: "=", neq: "≠", contains: "contains", exists: "exists" };
+  const OP_SYMBOL: Record<string, string> = {
+    eq: "=", neq: "≠", contains: "contains", in: "in", starts_with: "starts", exists: "exists",
+    changed: "changed", changed_from: "changed from", changed_to: "changed to",
+  };
   function stepChip(a: any): string {
     const base = KIND_LABELS[a.kind] || a.kind;
     const webhookName = a.webhook_id

@@ -226,7 +226,13 @@ def _run_pipeline(session, group_id, automation, context: dict, *, user_id, logg
     """
     recorder = recorder or NullRecorder()
     actions = (automation.definition or {}).get("actions") or []
+    if logger and len(actions) > MAX_ACTIONS:
+        logger.warning("automation '%s' has %d steps; only the first %d run (MAX_ACTIONS)",
+                       automation.slug, len(actions), MAX_ACTIONS)
+    # Fresh per-run scratch so pipelines don't leak. `steps` is addressable by position ("0") and by
+    # an action's optional `id`; `previous` is the last step's output (an alias for the common case).
     context["previous"] = {}
+    context["steps"] = {}
     context.pop("_error", None)
     steps_ok, steps_failed = 0, 0
     for action_index, action in enumerate(actions[:MAX_ACTIONS]):
@@ -236,7 +242,12 @@ def _run_pipeline(session, group_id, automation, context: dict, *, user_id, logg
             recorder.action(exec_id, target_index=target_index, target_ref=target_ref,
                             action_index=action_index, action=action, status="success",
                             output=out, duration_ms=_ms_since(started))
-            context["previous"] = out if isinstance(out, dict) else {}
+            out_dict = out if isinstance(out, dict) else {}
+            context["previous"] = out_dict
+            step_entry = {"output": out_dict}
+            context["steps"][str(action_index)] = step_entry
+            if action.get("id"):
+                context["steps"][str(action["id"])] = step_entry  # $steps.<id>.output.*
             steps_ok += 1
         except AutomationActionError as e:
             recorder.action(exec_id, target_index=target_index, target_ref=target_ref,
