@@ -437,6 +437,35 @@ class TestValidateDefinition:
         assert issues == []
 
 
+# ── Change detection: conditions on what an update changed ────────────────────
+class TestChangedFieldConditions:
+    def _run(self, conditions, event_ctx):
+        auto = _automation(trigger="entry_updated", conditions=conditions,
+                           actions=[{"kind": "emit_event", "event": "noted"}])
+        runner = _recording_runner()
+        ran = engine.run_automations_for_event(_FakeSession([auto]), "G", event_ctx, run_action=runner)
+        return ran
+
+    def test_status_changed_to_review_matches(self):
+        # The headline automation: "when status changes to review". before/after carry only changed
+        # fields, so event.after.status == review means exactly that.
+        ctx = {"event_type": "entry_updated", "entry_id": uuid4(), "user_id": None,
+               "changed_fields": ["status"], "before": {"status": "draft"}, "after": {"status": "needs_review"}}
+        assert self._run([{"field": "event.after.status", "op": "eq", "value": "needs_review"}], ctx) == 1
+
+    def test_status_unchanged_does_not_match(self):
+        ctx = {"event_type": "entry_updated", "entry_id": uuid4(), "user_id": None,
+               "changed_fields": ["title"], "before": {"title": "A"}, "after": {"title": "B"}}
+        # after.status is absent (only title changed) → never matches "changed to review"
+        assert self._run([{"field": "event.after.status", "op": "eq", "value": "needs_review"}], ctx) == 0
+
+    def test_changed_from_and_changed_fields_contains(self):
+        ctx = {"event_type": "entry_updated", "entry_id": uuid4(), "user_id": None,
+               "changed_fields": ["status"], "before": {"status": "draft"}, "after": {"status": "needs_review"}}
+        assert self._run([{"field": "event.before.status", "op": "eq", "value": "draft"}], ctx) == 1
+        assert self._run([{"field": "event.changed_fields", "op": "contains", "value": "status"}], ctx) == 1
+
+
 # ── Target selector: the FROM clause (set-based fan-out) ───────────────────────
 class TestTargetSelector:
     def _entities(self):

@@ -24,8 +24,19 @@ from marvin.services.event_bus_service.event_types import EventEntryData, EventO
 
 logger = get_logger("entry_service")
 
-# Status → the event a *transition into* that status emits, and the event a transition *out of* it
-# emits. Order matters: entry_updated is always emitted first, then these, then archive events.
+# Scalar entry fields we diff for `changed_fields`/`before`/`after` on update events. Deliberately
+# small and scalar — never body/content/metadata (large, and by-value content shouldn't land in the
+# audit log) or relationships. These are exactly the fields automation conditions key on.
+_TRACKED_FIELDS = ("status", "title", "slug")
+
+
+def _diff(old, new) -> tuple[list[str], dict, dict]:
+    """(changed_fields, before, after) over the tracked scalar fields. before/after carry ONLY the
+    changed fields, so `event.after.status == X` reads as "status changed to X"."""
+    changed = [f for f in _TRACKED_FIELDS if getattr(old, f, None) != getattr(new, f, None)]
+    before = {f: getattr(old, f, None) for f in changed}
+    after = {f: getattr(new, f, None) for f in changed}
+    return changed, before, after
 
 
 class EntryService:
@@ -74,7 +85,7 @@ class EntryService:
         if not old:
             return None
         entry = self.repos.entries.update(entry_id, data)
-        self._emit_updated_and_transitions(old.status, entry, "updated", reaction_depth)
+        self._emit_updated_and_transitions(old, entry, "updated", reaction_depth)
         return entry
 
     def apply_fields(self, entry_id, fields: dict, *, reaction_depth: int = 0):
@@ -86,7 +97,7 @@ class EntryService:
             return None
         self.repos.entries.apply_fields(entry_id, fields)
         entry = self.repos.entries.get_one(entry_id)
-        self._emit_updated_and_transitions(old.status, entry, "updated by automation write-back", reaction_depth)
+        self._emit_updated_and_transitions(old, entry, "updated by automation write-back", reaction_depth)
         return entry
 
     def apply_suggestion(self, entry_id):
@@ -116,27 +127,29 @@ class EntryService:
         return self.update(entry_id, EntryUpdate(status=new_status), reaction_depth=reaction_depth)
 
     # ── Emission ──────────────────────────────────────────────────────────────
-    def _emit_updated_and_transitions(self, old_status: str, entry, verb: str, reaction_depth: int) -> None:
+    def _emit_updated_and_transitions(self, old, entry, verb: str, reaction_depth: int) -> None:
         """Emit `entry_updated` first, then any status-transition events (published/unpublished/
-        archived/restored). The updated-then-published ordering is relied on by the embedding
-        reaction — keep it."""
+        archived/restored). Each carries the scalar diff (changed_fields/before/after). The
+        updated-then-published ordering is relied on by the embedding reaction — keep it."""
         names = self._names(entry)
+        diff = _diff(old, entry)
+        old_status = getattr(old, "status", None)
         self._emit(entry, EventTypes.entry_updated, EventOperation.update,
-                   f"Entry '{entry.title}' {verb}", names, reaction_depth=reaction_depth)
+                   f"Entry '{entry.title}' {verb}", names, reaction_depth=reaction_depth, diff=diff)
         if old_status == entry.status:
             return
         if entry.status == "published":
             self._emit(entry, EventTypes.entry_published, EventOperation.update,
-                       f"Entry '{entry.title}' published", names, reaction_depth=reaction_depth)
+                       f"Entry '{entry.title}' published", names, reaction_depth=reaction_depth, diff=diff)
         elif old_status == "published":
             self._emit(entry, EventTypes.entry_unpublished, EventOperation.update,
-                       f"Entry '{entry.title}' unpublished", names, reaction_depth=reaction_depth)
+                       f"Entry '{entry.title}' unpublished", names, reaction_depth=reaction_depth, diff=diff)
         if entry.status == "archived":
             self._emit(entry, EventTypes.entry_archived, EventOperation.update,
-                       f"Entry '{entry.title}' archived", names, reaction_depth=reaction_depth)
+                       f"Entry '{entry.title}' archived", names, reaction_depth=reaction_depth, diff=diff)
         elif old_status == "archived":
             self._emit(entry, EventTypes.entry_restored, EventOperation.update,
-                       f"Entry '{entry.title}' restored from archive", names, reaction_depth=reaction_depth)
+                       f"Entry '{entry.title}' restored from archive", names, reaction_depth=reaction_depth, diff=diff)
 
     def _names(self, entry) -> tuple[str | None, str | None, str | None]:
         """(entry_type_slug, workspace_name, author_name) for the event payload."""
@@ -157,9 +170,11 @@ class EntryService:
         return entry_type_slug, workspace_name, author_name
 
     def _emit(self, entry, event_type, operation, message: str,
-              names: tuple[str | None, str | None, str | None], *, reaction_depth: int = 0) -> None:
+              names: tuple[str | None, str | None, str | None], *, reaction_depth: int = 0,
+              diff: tuple[list[str], dict, dict] | None = None) -> None:
         """Dispatch one entry event. Best-effort — a dispatch failure never breaks the write."""
         entry_type_slug, workspace_name, author_name = names
+        changed_fields, before, after = diff or ([], {}, {})
         try:
             self.event_bus.dispatch(
                 integration_id=self.integration_id,
@@ -174,6 +189,9 @@ class EntryService:
                     workspace_name=workspace_name,
                     author_id=getattr(entry, "created_by", None),
                     author_name=author_name,
+                    changed_fields=changed_fields,
+                    before=before,
+                    after=after,
                 ),
                 message=message,
                 user_id=self.actor_id,

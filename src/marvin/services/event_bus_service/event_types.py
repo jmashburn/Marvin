@@ -641,6 +641,17 @@ class EventEntryData(EventDocumentDataBase):
     author_name: str | None = None
     """The full name of the entry author."""
 
+    # What an update changed. Deliberately SCALAR + bounded (status/title/slug) — never full
+    # snapshots or rich/relationship values by value, so the payload stays small and we don't persist
+    # content into event_log that the user may later delete. `before`/`after` carry ONLY the changed
+    # fields, so `event.after.status == "review"` reads as "status changed to review".
+    changed_fields: list[str] = []
+    """Names of the (tracked scalar) fields that changed on an update. Empty for create/delete."""
+    before: dict = {}
+    """Prior scalar values for the changed fields (only)."""
+    after: dict = {}
+    """New scalar values for the changed fields (only)."""
+
 
 class EventFormData(EventDocumentDataBase):
     """Data payload for form-related events."""

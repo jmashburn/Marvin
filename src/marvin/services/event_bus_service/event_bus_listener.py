@@ -1036,6 +1036,11 @@ class AutomationReactionListener(EventListenerBase):
             # body via $event.payload.*
             "webhook_slug": getattr(dd, "webhook_slug", None),
             "payload": getattr(dd, "payload", None),
+            # What an update changed — lets conditions key on transitions, e.g.
+            # $event.after.status == "review" (only-changed-fields, so this reads as "changed to").
+            "changed_fields": getattr(dd, "changed_fields", None) or [],
+            "before": getattr(dd, "before", None) or {},
+            "after": getattr(dd, "after", None) or {},
             "user_id": event.user_id,
             "reaction_depth": getattr(event, "reaction_depth", 0),
         }

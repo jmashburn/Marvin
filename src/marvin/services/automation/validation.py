@@ -35,6 +35,11 @@ _ENTRY_FIELDS = [
     {"field": "entry.title", "label": "Title", "description": "The entry title (use with 'contains')."},
     {"field": "entry.slug", "label": "Slug", "description": "The entry's URL slug."},
     {"field": "entry.id", "label": "Entry ID", "description": "The entry's UUID."},
+    # Change detection (populated on entry_updated). before/after carry only the changed fields, so
+    # `event.after.status == review` means "status changed to review".
+    {"field": "event.after.status", "label": "Status changed to…", "description": "New status, only if it changed (e.g. 'review'). Empty if status didn't change."},
+    {"field": "event.before.status", "label": "Status changed from…", "description": "Prior status, only if it changed (e.g. 'draft')."},
+    {"field": "event.changed_fields", "label": "Changed fields", "description": "Which fields changed — use with 'contains' (e.g. contains 'status')."},
 ]
 
 _WEBHOOK_FIELDS = [

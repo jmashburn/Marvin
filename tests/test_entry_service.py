@@ -16,9 +16,11 @@ from marvin.services.entries import EntryService
 class _SpyBus:
     def __init__(self):
         self.events = []  # (event_name, reaction_depth, integration_id)
+        self.docs = {}    # event_name -> document_data
 
-    def dispatch(self, *, event_type, reaction_depth=0, integration_id=None, **_):
+    def dispatch(self, *, event_type, reaction_depth=0, integration_id=None, document_data=None, **_):
         self.events.append((event_type.name, reaction_depth, integration_id))
+        self.docs[event_type.name] = document_data
 
 
 class _FakeEntries:
@@ -122,6 +124,31 @@ def test_delete_emits_then_deletes():
     assert svc.delete("id") is True
     assert _names(bus) == ["entry_deleted"]
     assert svc.repos.entries.deleted is True
+
+
+def test_update_carries_scalar_diff():
+    # The headline: a status change is expressible as event.after.status.
+    svc, bus = _svc("draft")
+    svc.update("id", EntryUpdate(status="needs_review"))
+    doc = bus.docs["entry_updated"]
+    assert doc.changed_fields == ["status"]
+    assert doc.before == {"status": "draft"} and doc.after == {"status": "needs_review"}
+    # a non-lifecycle status change still emits (only entry_updated — needs_review isn't publish/archive)
+    assert _names(bus) == ["entry_updated"]
+
+
+def test_no_change_has_empty_diff():
+    svc, bus = _svc("draft")
+    svc.update("id", EntryUpdate())  # nothing changes
+    doc = bus.docs["entry_updated"]
+    assert doc.changed_fields == [] and doc.before == {} and doc.after == {}
+
+
+def test_writeback_publish_diff_on_both_events():
+    svc, bus = _svc("draft", integration_id="automation")
+    svc.apply_fields("id", {"status": "published"}, reaction_depth=1)
+    assert bus.docs["entry_published"].after == {"status": "published"}
+    assert bus.docs["entry_updated"].changed_fields == ["status"]
 
 
 def test_missing_entry_is_a_noop():
