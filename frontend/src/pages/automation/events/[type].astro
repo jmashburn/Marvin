@@ -170,7 +170,7 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                         <a href={`/workspace/settings/email/${t.id}`} class="button small secondary">Edit</a>
                         <button
                           type="button"
-                          class="button small secondary danger disconnect-email-btn"
+                          class="button small secondary disconnect-email-btn"
                           data-subscription-id={sub?.id ?? ''}
                         >
                           Disconnect
@@ -263,19 +263,24 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
               const opts: any[] = (n as any).options ?? [];
               const isConnected = opts.some((o: any) => (o.option || o.slug) === ('core.' + type));
               return (
-                <div class="sub-option">
+                <div class:list={['sub-option', { 'sub-option-connected': isConnected }]}>
                   <div class="sub-option-info">
-                    <strong>{n.name}</strong>
+                    <div class="sub-option-name-row">
+                      {isConnected && <span class="connected-check">&#10003;</span>}
+                      <strong>{n.name}</strong>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    class:list={['button', 'small', isConnected ? 'secondary' : '']}
-                    data-notifier-id={n.id}
-                    data-event-type={type}
-                    data-connected={isConnected ? 'true' : 'false'}
-                  >
-                    {isConnected ? 'Disconnect' : 'Connect'}
-                  </button>
+                  <div class="sub-option-actions">
+                    <button
+                      type="button"
+                      class:list={['button', 'small', isConnected ? 'secondary' : '']}
+                      data-notifier-id={n.id}
+                      data-event-type={type}
+                      data-connected={isConnected ? 'true' : 'false'}
+                    >
+                      {isConnected ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
                 </div>
               );
             })}
