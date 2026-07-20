@@ -44,8 +44,12 @@ def workspace(db_session):
 
     yield gid, entry.id, res.id
 
+    from marvin.db.models.platform import Assets, EntryAssets
+
     db_session.query(EntryResources).delete()
+    db_session.query(EntryAssets).delete()
     db_session.query(Resources).filter(Resources.group_id == gid).delete()
+    db_session.execute(Assets.__table__.delete().where(Assets.group_id == gid))
     db_session.query(Entries).filter(Entries.group_id == gid).delete()
     db_session.query(EntryTypes).filter(EntryTypes.group_id == gid).delete()
     db_session.execute(Users.__table__.delete().where(Users.group_id == gid))
@@ -114,3 +118,26 @@ def test_apply_fields_resources_target_attaches_reuse_only(db_session, workspace
     assert _count(db_session, entry_id, res_id) == 1
     repos.entries.apply_fields(entry_id, {"resources": ["waxed-canvas", str(res_id), "Nope"]})  # slug/id dup + unknown
     assert _count(db_session, entry_id, res_id) == 1  # additive + reuse-only: no duplicate, unknown ignored
+
+
+# ── Compose asset auto-attach: resolve existing assets by name/slug/id (reuse-only) ────
+def test_resolve_asset_refs_by_name_slug_id_and_exclude(db_session, workspace):
+    from marvin.db.models.platform import Assets
+    from marvin.db.models.users.users import Users
+
+    gid, _, _ = workspace
+    uid = db_session.query(Users.id).filter(Users.group_id == gid).scalar()
+    aid = uuid.uuid4()
+    db_session.execute(Assets.__table__.insert().values(
+        id=aid, group_id=gid, slug="studio-shot", name="Studio Shot", original_filename="s.jpg",
+        filename="s", extension="jpg", file_size=1, mime_type="image/jpeg", asset_type="image",
+        checksum="x", storage_provider="local", storage_key=f"k/{gid.hex[:6]}.jpg", uploaded_by=uid,
+    ))
+    db_session.commit()
+    svc = _svc(db_session, gid)
+
+    assert svc._resolve_asset_refs(["Studio Shot"]) == [(aid, "studio-shot")]    # by name (grounding lists names)
+    assert svc._resolve_asset_refs(["studio-shot"]) == [(aid, "studio-shot")]    # by slug
+    assert svc._resolve_asset_refs([str(aid)]) == [(aid, "studio-shot")]         # by id
+    assert svc._resolve_asset_refs(["Studio Shot"], exclude_ids=[aid]) == []     # caller already has it
+    assert svc._resolve_asset_refs(["nope", "", "Studio Shot", "studio-shot"]) == [(aid, "studio-shot")]  # unknown/blank/dup collapsed

@@ -101,7 +101,6 @@ class AuthoringService:
         asset_ids = asset_ids or []
         schema_def = EntryTypeSchemaDefinition.model_validate(entry_type.schema_json or {})
         recipe = EntryTypeRecipe.model_validate(entry_type.recipe_json or {})
-        recipe_warnings = self._validate_recipe_assets(recipe, asset_attachments)
         output_schema = entry_type_to_output_schema(schema_def, entry_type.name)
         # Let the model return tags + resources so it can REUSE the existing vocabulary/catalog
         # (both grounded below). Resources are linked reuse-only after create (like revise).
@@ -113,6 +112,10 @@ class AuthoringService:
             output_schema["properties"]["resources"] = {
                 "type": "array", "items": {"type": "string"},
                 "description": "Existing resources (materials, suppliers, techniques, …) this entry uses — by name or slug, from the list in the prompt. Reuse only; do not invent.",
+            }
+            output_schema["properties"]["assets"] = {
+                "type": "array", "items": {"type": "string"},
+                "description": "Existing images/assets from this workspace that belong on this entry — by name or slug, from the list in the prompt. Reuse only; do not invent. The first is treated as the hero.",
             }
 
         # Context + vision images.
@@ -176,6 +179,7 @@ class AuthoringService:
             summary = fields.pop("summary", None)
             proposed_tags = fields.pop("tags", None)
             proposed_resources = fields.pop("resources", None)
+            proposed_assets = fields.pop("assets", None)
             allowed = schema_def.get_field_keys()
             # Drop empty-string / null values the model emits for fields it couldn't fill — an empty
             # string fails typed validation (e.g. a date field: "" is not ISO-8601), and "not provided"
@@ -183,13 +187,25 @@ class AuthoringService:
             # compose cleanly.
             data_json = {k: v for k, v in fields.items() if k in allowed and v not in ("", None)}
 
+            # Auto-attach existing assets the model surfaced from the grounded catalog (reuse-only),
+            # combined with any caller-supplied asset_ids — the caller's keep priority for the hero
+            # role (they lead the list). Recipe roles are assigned first→hero, then declared order.
+            extra_assets = self._resolve_asset_refs(proposed_assets, exclude_ids=asset_ids)
+            auto_asset_slugs = [slug for _, slug in extra_assets]
+            if extra_assets:
+                combined_ids = list(asset_ids) + [aid for aid, _ in extra_assets]
+                final_attachments = self.recipe_asset_attachments(combined_ids, entry_type)
+            else:
+                final_attachments = asset_attachments or None
+            recipe_warnings = self._validate_recipe_assets(recipe, final_attachments)
+
             entry = self.repos.entries.create({
                 "title": title,
                 "summary": summary,
                 "entry_type_id": entry_type.id,
                 "status": "inbox",  # draft — review before publishing
                 "data_json": data_json,
-                "asset_attachments": asset_attachments or None,
+                "asset_attachments": final_attachments,
                 "created_by": getattr(self.user, "id", None),
             })
             self.session.commit()
@@ -204,7 +220,8 @@ class AuthoringService:
 
             self._complete_execution(execution, completion, start, entity_id=entry.id, output={
                 "entry_id": str(entry.id), "title": title, "status": entry.status,
-                **({"fields": data_json, "tags": list(proposed_tags or []), "resources": attached_resources} if log_outputs else {}),
+                **({"fields": data_json, "tags": list(proposed_tags or []),
+                    "resources": attached_resources, "assets": auto_asset_slugs} if log_outputs else {}),
             })
         except Exception as e:
             self._fail_execution(execution, str(e), start)
@@ -216,6 +233,7 @@ class AuthoringService:
             "title": title,
             "tags": list(proposed_tags or []),
             "resources": attached_resources,
+            "assets": auto_asset_slugs,
             "warnings": recipe_warnings,
             "editUrl": f"/workspace/entries/{entry.id}",
             "executionId": str(execution.id),
@@ -469,6 +487,41 @@ class AuthoringService:
                 self.session.add(EntryResources(entry_id=entry_id, resource_id=resource.id, position=0))
                 attached.append(resource.slug)
         return attached
+
+    def _resolve_asset_refs(self, refs, exclude_ids=None) -> list:
+        """Resolve existing-asset refs (id, slug, OR name) to (id, slug), reuse-only, deduped and
+        excluding ids the caller already supplied. The grounded catalog lists assets by name, so the
+        model returns names — matching by name is essential. Unknown refs are ignored."""
+        if not isinstance(refs, (list, tuple)) or not refs:
+            return []
+        import uuid as _uuid
+
+        from marvin.db.models.platform import Assets
+
+        exclude = {str(x) for x in (exclude_ids or [])}
+        out: list = []
+        seen: set = set()
+        for raw in refs:
+            ref = str(raw).strip()
+            if not ref:
+                continue
+            asset = None
+            try:
+                asset = self.session.get(Assets, _uuid.UUID(ref))
+            except (ValueError, TypeError):
+                asset = (
+                    self.session.query(Assets)
+                    .filter(Assets.group_id == self.group_id)
+                    .filter((Assets.slug == ref) | (Assets.name == ref))
+                    .first()
+                )
+            if not asset or asset.group_id != self.group_id:
+                continue
+            if str(asset.id) in exclude or asset.id in seen:
+                continue
+            seen.add(asset.id)
+            out.append((asset.id, asset.slug))
+        return out
 
     def _emit_entry_updated(self, entry) -> None:
         """Dispatch entry_updated after a revise so reactions fire (re-embed, smart collections). Best-effort."""
