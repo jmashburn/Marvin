@@ -481,19 +481,28 @@ def get_collection_entries(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="list_tags",
-    description="List the workspace's tags with how many entries carry each (name, slug, entryCount). Use for questions about the tag vocabulary, or to pick an existing tag before attaching one.",
+    description="List the workspace's tags — the one shared vocabulary across entries, assets, and resources — with usage on each surface (name, slug, entryCount, assetCount, resourceCount). THIS is the tool for 'what tags exist / are available'; do not use search_content for that.",
     input_schema={"type": "object", "properties": {}},
 )
 def list_tags(ctx: ToolContext, _args: dict) -> str:
+    from marvin.db.models.platform.asset_tags import AssetTags
+    from marvin.db.models.platform.resource_tags import ResourceTags
+
+    def _counts(junction, fk):
+        return dict(
+            ctx.session.query(junction.tag_id, func.count(getattr(junction, fk)))
+            .join(Tags, Tags.id == junction.tag_id)
+            .filter(Tags.group_id == ctx.group_id)
+            .group_by(junction.tag_id)
+            .all()
+        )
+
     rows = ctx.session.query(Tags).filter(Tags.group_id == ctx.group_id).all()
-    counts = dict(
-        ctx.session.query(EntryTags.tag_id, func.count(EntryTags.entry_id))
-        .join(Tags, Tags.id == EntryTags.tag_id)
-        .filter(Tags.group_id == ctx.group_id)
-        .group_by(EntryTags.tag_id)
-        .all()
-    )
-    out = [{"id": str(t.id), "name": t.name, "slug": t.slug, "entryCount": counts.get(t.id, 0)} for t in rows]
+    ec, ac, rc = _counts(EntryTags, "entry_id"), _counts(AssetTags, "asset_id"), _counts(ResourceTags, "resource_id")
+    out = [{
+        "id": str(t.id), "name": t.name, "slug": t.slug,
+        "entryCount": ec.get(t.id, 0), "assetCount": ac.get(t.id, 0), "resourceCount": rc.get(t.id, 0),
+    } for t in rows]
     return json.dumps({"tags": out, "count": len(out)})
 
 

@@ -692,9 +692,14 @@ class AIOperationsController(BaseUserController):
         system = (
             f"You are {assistant_name}, the assistant for this headless CMS workspace. Use the provided tools to "
             "search, browse, and (only when asked) author content. Prefer tools over guessing and ground "
-            "your answer in what they return. Before proposing or attaching tags, resources, or assets, first "
-            "discover what already exists — call list_tags and search_content — and REUSE matches; only create "
-            "something new when nothing fits. To author, use compose_entry for a NEW entry and revise_entry to "
+            "your answer in what they return. To answer what EXISTS in the workspace — the tag vocabulary, "
+            "resources, entry types, or collections — call the matching list tool (list_tags, list_resources, "
+            "list_entry_types, list_collections). Reserve search_content for finding content by MEANING; it is "
+            "semantic, so it surfaces items that merely mention a word and must not be used to enumerate a "
+            "vocabulary (asking it 'what tags exist' returns content, not tags). Before proposing or attaching "
+            "tags, resources, or assets, first discover what already exists — call list_tags (then search_content "
+            "for related content) — and REUSE matches; only create something new when nothing fits. To author, "
+            "use compose_entry for a NEW entry and revise_entry to "
             "change an EXISTING one (never recreate). Authoring creates a DRAFT for human review — never claim "
             "anything is published. Be concise."
         )
