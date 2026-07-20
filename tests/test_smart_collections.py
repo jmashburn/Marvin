@@ -10,8 +10,10 @@ from types import SimpleNamespace
 from marvin.services.collections.smart_collections import entry_matches_rules
 
 
-def _entry(type_slug="bench-note", status="published", tags=None):
-    return SimpleNamespace(status=status, entry_type=SimpleNamespace(slug=type_slug), tags=tags)
+def _entry(type_slug="bench-note", status="published", tag_names=None):
+    # `tag_names` = the entry's tag SLUGS. The matcher reads `entry.tag_names` (a property over the
+    # real tags relationship), not `entry.tags` (which is now Tag objects).
+    return SimpleNamespace(status=status, entry_type=SimpleNamespace(slug=type_slug), tag_names=tag_names)
 
 
 def test_empty_rules_match_nothing():
@@ -48,14 +50,20 @@ def test_match_any_requires_only_one_dimension():
     assert entry_matches_rules(_entry("article", "inbox"), rules) is False     # neither
 
 
-def test_tags_dimension_is_forward_compatible():
+def test_tags_dimension_matches_on_slug_overlap():
     # entry carrying tags → matches on overlap
-    assert entry_matches_rules(_entry(tags=["leather", "waxed"]), {"tags": ["waxed"]}) is True
-    assert entry_matches_rules(_entry(tags=["leather"]), {"tags": ["waxed"]}) is False
-    # entry with no tags attribute value → inert, no crash
-    assert entry_matches_rules(_entry(tags=None), {"tags": ["waxed"]}) is False
+    assert entry_matches_rules(_entry(tag_names=["leather", "waxed"]), {"tags": ["waxed"]}) is True
+    assert entry_matches_rules(_entry(tag_names=["leather"]), {"tags": ["waxed"]}) is False
+    # entry with no tags → inert, no crash
+    assert entry_matches_rules(_entry(tag_names=None), {"tags": ["waxed"]}) is False
+
+
+def test_tags_rule_is_slugified_so_display_names_match():
+    # A rule may store the display name ("Waxed Canvas"); the entry carries the slug. They must match.
+    assert entry_matches_rules(_entry(tag_names=["waxed-canvas"]), {"tags": ["Waxed Canvas"]}) is True
+    assert entry_matches_rules(_entry(tag_names=["waxed-canvas"]), {"tags": ["waxed canvas"]}) is True
 
 
 def test_entry_without_entry_type_relationship_does_not_crash():
-    entry = SimpleNamespace(status="published", entry_type=None, tags=None)
+    entry = SimpleNamespace(status="published", entry_type=None, tag_names=None)
     assert entry_matches_rules(entry, {"entry_types": ["article"]}) is False

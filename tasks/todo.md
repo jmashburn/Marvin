@@ -459,17 +459,19 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       on a disabled workflow (consistent with the scheduled path, which already skips disabled); the
       builder's Run button is disabled on disabled cards. (Marvin, quick-win commit.)
 
-**H3 · Expression ergonomics — the sharp edges users will hit**
-- [ ] **Embedded `${...}` interpolation** — `interpolate` (`matcher.py:38`) only substitutes a string
-      that *starts* with `$`, so `"Summary: $previous.summary"` passes through as a literal. This
-      will surprise everyone who tries it.
-- [ ] **Named step outputs `$steps.<action-id>.output.*`** (keep `$previous` as an alias) — today only
-      the immediately preceding step is reachable, so reordering actions silently breaks a pipeline.
-- [ ] **`any` / `not` / nesting in conditions** — currently a flat AND-list. Plus operators `in`,
-      `starts_with`, and the change-aware `changed` / `changed_from` / `changed_to` (which only
-      become possible once H0's before/after lands).
-- [ ] **`MAX_ACTIONS = 10` truncates silently** (`engine.py:149`, `actions[:MAX_ACTIONS]`) — no error,
-      no warning. Reject at validation time instead.
+**H3 · Expression ergonomics — DONE (2026-07-20)** ✅ *(Marvin, this commit; SDK)*
+- [x] **Embedded `${...}` interpolation** ✅ — `interpolate` now substitutes embedded `${path}`
+      (stringified) AND a whole `${path}` returns the raw value (type preserved). Bare `$path` still
+      works. `"Summary: ${previous.summary}"` interpolates.
+- [x] **Named step outputs `$steps.<id>.output.*`** ✅ — the engine records each step's output under
+      `$steps.<position>` and `$steps.<id>` (action optional `id`); `$previous` stays as the
+      last-output alias. Reordering no longer silently breaks a later reference.
+- [x] **`any` / `not` / nesting in conditions + new operators** ✅ — `matches` evaluates
+      `{all:[…]}` / `{any:[…]}` / `{not:…}` groups (nestable); a top-level list stays implicit AND.
+      Operators added: `in` (list or CSV), `starts_with`, and change-aware `changed` / `changed_from`
+      / `changed_to` (key on the diff). Builder shows friendly op labels; groups are JSON-mode.
+- [x] **`MAX_ACTIONS` no longer silently truncates** ✅ — `validate_definition` warns when a workflow
+      has >MAX_ACTIONS steps (only the first run), and the engine logs when it truncates.
 
 **H4 · Simplifications & ideas worth taking**
 - [ ] **⭐ Make the Pydantic definition schema the ONE source of truth** — if trigger and action
@@ -764,11 +766,11 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
 > - Data today: **11 entries** carry `metadata_json.tags`; assets/resources have none.
 
 ### Phase 1 — entries, end to end
-- [ ] **T1. Model + migration.** `Tags` table (`id, group_id, name, slug`, uq(group_id, slug),
+- [x] **T1. Model + migration.** `Tags` table (`id, group_id, name, slug`, uq(group_id, slug),
       mirrors Collections) + `entry_tags` junction (`entry_id, tag_id` FKs, cascade, uq). Autogenerate
       the migration (works now). **Data promotion:** slugify/dedupe the 11 entries' `metadata_json.tags`
       into real tags + entry_tags; strip the now-redundant `metadata_json.tags` key.
-- [ ] **T2. `entry.tags` association** returning tag names (association_proxy over `secondary=entry_tags`,
+- [x] **T2. `entry.tags` association** returning tag names (association_proxy over `secondary=entry_tags`,
       like `entries.py:63-106`) — this is what makes smart collections work. Verify a tag smart-rule
       matches with no matcher change.
 - [ ] **T3. Tag CRUD + attach API** — copy the Collections controller/repo/schema pattern:

@@ -55,11 +55,14 @@ def entry_matches_rules(entry, rules: dict | None) -> bool:
     if statuses:
         dimensions.append(getattr(entry, "status", None) in statuses)
 
-    # Forward-compatible: inert until entries/assets/resources carry tags (shared vocabulary).
     tags = rules.get("tags")
     if tags:
-        entry_tags = getattr(entry, "tags", None) or []
-        dimensions.append(bool(set(tags) & set(entry_tags)))
+        # Compare on slugs so a rule matches whether it stored "Chore Coat" or "chore-coat".
+        # `entry.tags` is now the ORM relationship (Tag objects); `tag_names` gives the slugs.
+        from slugify import slugify
+        want = {slugify(str(t)) for t in tags}
+        have = set(getattr(entry, "tag_names", None) or [])
+        dimensions.append(bool(want & have))
 
     if not dimensions:
         return False

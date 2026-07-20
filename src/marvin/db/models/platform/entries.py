@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .entry_resources import EntryResources
     from .entry_types import EntryTypes
     from .resources import Resources
+    from .tags import Tags
 
 
 class Entries(SqlAlchemyBase, BaseMixins):
@@ -104,6 +105,23 @@ class Entries(SqlAlchemyBase, BaseMixins):
         cascade="all, delete-orphan",
         doc="Direct access to entry-asset associations with placement info",
     )
+
+    tags: Mapped[list["Tags"]] = orm.relationship(
+        "Tags",
+        secondary="entry_tags",
+        back_populates="entries",
+        doc="Tags applied to this entry (shared vocabulary)",
+    )
+
+    @property
+    def tag_names(self) -> list[str]:
+        """Tag slugs on this entry — what smart-collection rules match against.
+
+        `smart_collections.py` intersects a rule's `tags` against `entry.tags`; expose slugs
+        (the stable identity, what a rule stores) so tag-based smart collections work with no
+        matcher change. Kept a plain property (not a column) so it always reflects the junction.
+        """
+        return [t.slug for t in self.tags]
 
     __table_args__ = (
         sa.UniqueConstraint("group_id", "slug"),

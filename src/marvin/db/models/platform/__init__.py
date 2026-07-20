@@ -9,8 +9,10 @@ from .entry_collections import EntryCollections
 from .entry_resources import EntryResources
 from .entry_types import EntryTypes
 from .event_log import EventLogModel
+from .entry_tags import EntryTags
 from .resources import Resources
 from .scheduled_tasks import ScheduledTaskExecutionLogModel, ScheduledTaskModel
+from .tags import Tags
 
 # isort: split
 # CODE_GEN_ID: PLATFORM_MODEL_IMPORTS
@@ -24,11 +26,13 @@ __all__ = [
     "EntryAssets",
     "EntryCollections",
     "EntryResources",
+    "EntryTags",
     "EntryTypes",
     "EventLogModel",
     "Resources",
     "ScheduledTaskExecutionLogModel",
     "ScheduledTaskModel",
+    "Tags",
     # CODE_GEN_ID: PLATFORM_MODEL_ALL
     # END: PLATFORM_MODEL_ALL
 ]
