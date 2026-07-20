@@ -82,7 +82,8 @@ _TAG_SCHEMA = {"type": "object", "properties": {
     "filter": {"type": "object", "description": "select targets in bulk instead of naming them (dimensions mirror smart-collection rules)", "properties": {
         "entry_types": {"type": "array", "items": {"type": "string"}, "description": "entry type slugs — entries only"},
         "statuses": {"type": "array", "items": {"type": "string"}, "description": "entry statuses (e.g. ['published']) — entries only"},
-        "asset_types": {"type": "array", "items": {"type": "string"}, "description": "e.g. ['image','svg'] — assets only"},
+        "asset_types": {"type": "array", "items": {"type": "string"}, "description": "coarse bucket e.g. ['image','svg'] — assets only"},
+        "mime_types": {"type": "array", "items": {"type": "string"}, "description": "exact MIME e.g. ['image/svg+xml'] — assets only, finer than asset_types"},
         "resource_types": {"type": "array", "items": {"type": "string"}, "description": "resource types — resources only"},
         "tags": {"type": "array", "items": {"type": "string"}, "description": "select targets already carrying ANY of these tags (slug/name) — all types"},
         "query": {"type": "string", "description": "title/name/filename substring (all types)"},
@@ -139,6 +140,8 @@ def _resolve_targets(ctx: ToolContext, entity_type: str, args: dict) -> tuple[li
         q = s.query(Assets.id).filter(Assets.group_id == gid)
         if filt.get("asset_types"):
             q = q.filter(Assets.asset_type.in_(list(filt["asset_types"])))
+        if filt.get("mime_types"):
+            q = q.filter(Assets.mime_type.in_(list(filt["mime_types"])))
         if filt.get("query"):
             t = f"%{filt['query']}%"
             q = q.filter(Assets.original_filename.ilike(t) | Assets.name.ilike(t))

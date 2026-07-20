@@ -74,8 +74,8 @@ def test_entry_without_entry_type_relationship_does_not_crash():
 from marvin.services.collections.smart_collections import matches_rules
 
 
-def _asset(asset_type="image", tag_names=None):
-    return SimpleNamespace(asset_type=asset_type, tag_names=tag_names)
+def _asset(asset_type="image", tag_names=None, mime_type="image/jpeg"):
+    return SimpleNamespace(asset_type=asset_type, tag_names=tag_names, mime_type=mime_type)
 
 
 def _resource(resource_type="fabric", tag_names=None):
@@ -90,6 +90,19 @@ def test_asset_matches_on_asset_type_and_tags():
     rules = {"asset_types": ["image"], "tags": ["hero"], "match": "all"}
     assert matches_rules(_asset("image", ["hero"]), rules, "asset") is True
     assert matches_rules(_asset("image", ["other"]), rules, "asset") is False
+
+
+def test_asset_matches_on_exact_mime_type():
+    # mime_types is finer than asset_types: an SVG (image/svg+xml) is asset_type "svg", a JPEG is
+    # asset_type "image" — so mime_types distinguishes them where asset_types can't.
+    svg = _asset(asset_type="svg", mime_type="image/svg+xml")
+    jpg = _asset(asset_type="image", mime_type="image/jpeg")
+    assert matches_rules(svg, {"mime_types": ["image/svg+xml"]}, "asset") is True
+    assert matches_rules(jpg, {"mime_types": ["image/svg+xml"]}, "asset") is False
+    # combines (AND) with tags
+    rules = {"mime_types": ["image/svg+xml"], "tags": ["site-asset"], "match": "all"}
+    assert matches_rules(_asset("svg", ["site-asset"], "image/svg+xml"), rules, "asset") is True
+    assert matches_rules(_asset("image", ["site-asset"], "image/jpeg"), rules, "asset") is False
 
 
 def test_resource_matches_on_resource_type_and_tags():

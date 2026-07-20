@@ -43,7 +43,7 @@ def matches_rules(item, rules: dict | None, target_type: str = "entry") -> bool:
 
     Dimensions are type-specific except ``tags`` (universal, matched on slugs):
       entry    → entry_types (entry_type.slug), statuses (status)
-      asset    → asset_types (asset_type)
+      asset    → asset_types (asset_type), mime_types (mime_type, exact e.g. image/svg+xml)
       resource → resource_types (resource_type)
     An empty/None rule set — or one with no recognized dimension — matches nothing.
     """
@@ -63,6 +63,9 @@ def matches_rules(item, rules: dict | None, target_type: str = "entry") -> bool:
         asset_types = rules.get("asset_types")
         if asset_types:
             dimensions.append(getattr(item, "asset_type", None) in asset_types)
+        mime_types = rules.get("mime_types")
+        if mime_types:  # exact MIME (e.g. "image/svg+xml") — finer than the asset_type bucket
+            dimensions.append(getattr(item, "mime_type", None) in mime_types)
     elif target_type == "resource":
         resource_types = rules.get("resource_types")
         if resource_types:

@@ -96,6 +96,15 @@ def test_filter_by_asset_type_selects_matching(db_session, ws):
     assert len(ids) == 3  # 2 image + 1 svg, not the document
 
 
+def test_filter_by_mime_type_is_finer_than_asset_type(db_session, ws):
+    gid, _ = ws
+    # asset_type "image" covers jpeg; mime_types targets the exact type — svg only, no jpegs.
+    svg, _ = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"mime_types": ["image/svg+xml"]}})
+    assert len(svg) == 1  # only the logo.svg
+    jpg, _ = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"mime_types": ["image/jpeg"]}})
+    assert len(jpg) == 2  # the two photos
+
+
 def test_filter_by_query_matches_name(db_session, ws):
     gid, _ = ws
     ids, _ = _resolve_targets(_ctx(db_session, gid), "asset", {"filter": {"query": "Photo"}})
