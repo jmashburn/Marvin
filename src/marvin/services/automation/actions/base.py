@@ -1,0 +1,44 @@
+"""Action-executor registry for Flavor B automations.
+
+Each action `kind` registers an executor here; the engine dispatches by kind. Mirrors
+OPERATION_REGISTRY / TOOL_REGISTRY. Flavor B is NOT AI-specific — the engine and most executors have
+no AI dependency; the `operation` kind is the only AI-coupled one, and it's reachable only when an
+automation names an AI operation (and AI is enabled + the `automation` source is allowed).
+
+Executor contract:
+    execute(session, group_id, action: dict, context: dict, *, user_id=None) -> dict
+`context` carries {event, entry?, previous, depth}. Return a dict (becomes `$previous` for the next
+step). Raise :class:`AutomationActionError` on any failure — the engine logs and stops that pipeline.
+"""
+
+from typing import Callable
+
+
+class AutomationActionError(Exception):
+    """An action could not run (unknown kind, gate denied, missing config, or execution failed)."""
+
+
+ACTION_EXECUTORS: dict[str, Callable] = {}
+
+
+def register_action(kind: str) -> Callable:
+    """Decorator: register an executor for an action `kind`."""
+    def deco(fn: Callable) -> Callable:
+        ACTION_EXECUTORS[kind] = fn
+        return fn
+    return deco
+
+
+def available_kinds() -> list[str]:
+    """Action kinds that have a registered executor (drives the builder's options)."""
+    return sorted(ACTION_EXECUTORS)
+
+
+def run_action(session, group_id, action: dict, context: dict, *, user_id=None) -> dict:
+    """Dispatch one action to its registered executor by `kind`."""
+    kind = action.get("kind")
+    fn = ACTION_EXECUTORS.get(kind)
+    if fn is None:
+        raise AutomationActionError(f"unsupported action kind '{kind}'")
+    out = fn(session, group_id, action, context, user_id=user_id)
+    return out if isinstance(out, dict) else {}

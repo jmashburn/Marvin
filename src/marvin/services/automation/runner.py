@@ -1,0 +1,222 @@
+"""Execute a single Flavor B action against a workspace.
+
+v1 supports one action kind: ``operation`` — run an AI operation (e.g. ``generate-summary``) on an
+entry and optionally apply its write-back. Runs under the ``"automation"`` invocation source, so the
+same gate that protects the MCP/agent surfaces protects automations.
+
+This reuses the already-factored primitives (ContextBuilder, provider factory,
+``provider.execute_operation``, the entries repo). It deliberately does NOT import the operations
+*controller* — unifying the controller's ``execute_operation`` onto a shared runner is a follow-up
+(same debt as the scheduled-agent tool-builder extraction).
+"""
+
+import time
+from datetime import UTC, datetime
+from typing import Any
+
+from marvin.services.ai.operations import get_operation
+
+from .actions.base import AutomationActionError  # re-exported for callers importing from runner
+from .matcher import interpolate
+
+# Invocation source every automation-driven op call is stamped with.
+AUTOMATION_SOURCE = "automation"
+
+__all__ = ["AUTOMATION_SOURCE", "AutomationActionError", "run_operation_action"]
+
+
+def _gate_source(session, group_id, operation) -> None:
+    """Enforce the operation's declared sources ∩ workspace policy for ``"automation"``."""
+    if AUTOMATION_SOURCE not in operation.invocation_sources:
+        raise AutomationActionError(
+            f"operation '{operation.slug}' cannot be invoked from the automation source"
+        )
+    from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+
+    settings = session.query(WorkspaceAISettingsModel).filter_by(group_id=group_id).first()
+    policy = settings.invocation_sources if settings else None
+    if isinstance(policy, dict) and policy.get(AUTOMATION_SOURCE, True) is False:
+        raise AutomationActionError("this workspace has disabled AI from the automation source")
+
+
+def _resolve_model(session, group_id, settings) -> str | None:
+    """Default model for the workspace — mirrors the operations controller's `_default_model`.
+
+    settings.model → default provider's default model → (platform credential mode) the
+    admin-configured AppSettings model (e.g. OPENAI_MODEL), so platform-mode workspaces with no
+    per-workspace model still resolve.
+    """
+    if settings and settings.model:
+        return settings.model
+    from marvin.db.models.groups.ai_providers import AIModelModel, AIProviderModel
+
+    provider = (
+        session.query(AIProviderModel)
+        .filter_by(group_id=group_id, is_default=True, enabled=True)
+        .first()
+    )
+    if provider:
+        model = (
+            session.query(AIModelModel)
+            .filter_by(provider_id=provider.id, is_default=True, enabled=True)
+            .first()
+        )
+        if model:
+            return model.model_id
+    if settings and settings.credential_mode == "platform":
+        from marvin.core.config import get_app_settings
+
+        app = get_app_settings()
+        provider_type = settings.provider or getattr(app, "AI_DEFAULT_PROVIDER", "openai")
+        return getattr(app, f"{provider_type.upper()}_MODEL", None)
+    return None
+
+
+def run_operation_action(session, group_id, action: dict, context: dict, *, user_id=None) -> dict:
+    """Run one ``operation`` action; return its output_json (so ``$previous`` can reference it).
+
+    ``action`` = ``{"kind": "operation", "op": <slug>, "input": {...}, "entity_type": "entry",
+    "entity_id": "$event.entry_id", "write_back": true}``. entity_type/entity_id default to an entry
+    resolved from ``$event.entry_id``. Raises :class:`AutomationActionError` on any failure — the
+    engine logs and moves on; automations never break event dispatch.
+    """
+    from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+    from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
+    from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+
+    slug = action.get("op")
+    if not slug:
+        raise AutomationActionError("action is missing 'op'")
+    try:
+        operation = get_operation(slug)
+    except KeyError as e:
+        raise AutomationActionError(f"unknown operation '{slug}'") from e
+
+    _gate_source(session, group_id, operation)
+
+    # Resolve entity (slice: entries). entity_id may be a $event/$previous template.
+    entity_type = action.get("entity_type", "entry")
+    entity_id = interpolate(action.get("entity_id", "$event.entry_id"), context)
+    op_input = interpolate(action.get("input", {}) or {}, context)
+
+    try:
+        provider = get_workspace_ai_provider(session, group_id)
+    except AIDisabledError as e:
+        raise AutomationActionError(f"AI disabled: {e}") from e
+    except Exception as e:
+        raise AutomationActionError(f"provider error: {e}") from e
+
+    settings = session.query(WorkspaceAISettingsModel).filter_by(group_id=group_id).first()
+    model = _resolve_model(session, group_id, settings)
+    if not model:
+        raise AutomationActionError("no default model configured for this workspace")
+
+    builder = ContextBuilder(session, group_id).with_site_settings().with_variables()
+    if entity_type == "entry" and entity_id:
+        builder.with_entry(entity_id).with_assets(entity_id).with_resources(entity_id)
+    ctx = builder.build()
+
+    from marvin.db.models.groups.ai_executions import AIExecutionModel
+
+    execution = AIExecutionModel(
+        session=session,
+        group_id=group_id,
+        operation_slug=slug,
+        provider_type=provider.provider_type,
+        model_id=model,
+        status="running",
+        triggered_by=user_id,
+        trigger_type=AUTOMATION_SOURCE,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        input_json=op_input,
+        started_at=datetime.now(UTC),
+    )
+    session.add(execution)
+    session.commit()
+
+    start = time.monotonic()
+    try:
+        from marvin.core.config import get_app_settings
+        from marvin.services.ai.base import CompletionOptions
+
+        _app = get_app_settings()
+        opts = CompletionOptions(
+            temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
+            max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+        )
+        messages = operation.build_prompt(op_input, ctx)
+        messages = resolve_prompt_messages(messages, group_id, ctx.variables)
+        parsed, completion = provider.execute_operation(messages, model, operation.output_schema, opts)
+
+        from marvin.services.ai.pricing import estimate_cost
+
+        execution.status = "completed"
+        execution.completed_at = datetime.now(UTC)
+        execution.duration_ms = int((time.monotonic() - start) * 1000)
+        execution.output_json = parsed
+        execution.prompt_tokens = completion.prompt_tokens
+        execution.completion_tokens = completion.completion_tokens
+        execution.total_tokens = completion.total_tokens
+        execution.estimated_cost_usd = estimate_cost(
+            provider.provider_type, model, completion.prompt_tokens, completion.completion_tokens
+        )
+        session.commit()
+    except Exception as e:
+        execution.status = "failed"
+        execution.error_message = str(e)
+        execution.completed_at = datetime.now(UTC)
+        session.commit()
+        raise AutomationActionError(f"operation '{slug}' failed: {e}") from e
+
+    # Optional write-back: apply the operation's own writeback map to the entry (v1: apply directly).
+    if action.get("write_back") and entity_type == "entry" and entity_id and isinstance(parsed, dict):
+        writeback = getattr(operation, "writeback", None) or {}
+        proposed = {target: parsed[out] for out, target in writeback.items() if out in parsed}
+        if proposed:
+            depth = int(context.get("depth", 0))
+            _apply_writeback(session, group_id, entity_id, proposed, user_id, depth)
+
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _apply_writeback(session, group_id, entity_id, proposed: dict, user_id, depth: int = 0) -> None:
+    """Apply an op's write-back to an entry and emit entry_updated (so downstream reactions fire).
+
+    The emitted event carries ``reaction_depth = depth + 1`` so the depth loop-guard bounds any chain
+    (an automation whose write-back re-triggers automations can't cascade forever).
+    """
+    from marvin.db.models.platform.entries import Entries
+    from marvin.repos.repository_factory import AllRepositories
+
+    entry = session.get(Entries, entity_id)
+    if not entry or entry.group_id != group_id:
+        return
+    repos = AllRepositories(session, group_id=group_id)
+    repos.entries.apply_fields(entity_id, proposed)
+
+    from marvin.services.event_bus_service.event_bus_service import EventBusService
+    from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
+
+    try:
+        EventBusService(bg_tasks=None).dispatch(
+            integration_id="automation",  # loop-guard: automation listener ignores its own writes
+            group_id=group_id,
+            event_type=EventTypes.entry_updated,
+            document_data=EventEntryData(
+                operation=EventOperation.update,
+                entry_id=entry.id,
+                entry_title=entry.title,
+                entry_type=None,
+                workspace_id=group_id,
+                workspace_name=None,
+                author_id=user_id,
+            ),
+            message=f"Entry '{entry.title}' updated by automation write-back",
+            user_id=user_id,
+            entity_id=entry.id,
+            entity_type="entry",
+            reaction_depth=depth + 1,
+        )
+    except Exception:
+        pass  # best-effort; the write itself already succeeded

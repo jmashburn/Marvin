@@ -1,8 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getAIWorkflowSettings } from "@/lib/api/aiWorkflowSettings";
-import { fetchApi } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 
@@ -11,9 +10,10 @@ let secrets: any[] = [];
 let error: string | null = null;
 
 try {
+  const sdk = createSdkClient(authToken);
   [settings, secrets] = await Promise.all([
-    getAIWorkflowSettings(authToken),
-    fetchApi<any[]>(`/api/groups/secrets`, {}, authToken),
+    sdk.ai.settings.get(),
+    sdk.secrets.list(),
   ]);
 } catch (e) {
   console.error('[ai-workflow] Error loading settings:', e);
@@ -33,6 +33,8 @@ const s = {
   loggingConfig: settings?.loggingConfig ?? null,
   moderationConfig: settings?.moderationConfig ?? null,
   allowWorkspaceCredentials: settings?.allowWorkspaceCredentials ?? true,
+  assistantName: settings?.assistantName ?? null,
+  personaPrompt: settings?.personaPrompt ?? null,
 };
 
 const invSrc = s.invocationSources ?? {
@@ -206,7 +208,28 @@ const modCfg = s.moderationConfig ?? {};
       </div>
     </div>
 
-    <!-- 5. Advanced (collapsible) -->
+    <!-- 5. Persona -->
+    <div class="section-card ai-dependent">
+      <div class="section-title">
+        <h3>Persona</h3>
+        <p>Give the assistant a name and a voice for this workspace.</p>
+      </div>
+      <div class="form-row">
+        <label class="form-field">
+          <span class="label">Assistant name</span>
+          <input type="text" name="assistant_name" class="input" value={s.assistantName ?? ""} placeholder="Marvin" />
+          <small class="hint">Shown in place of the default name. Leave blank to use "Marvin".</small>
+        </label>
+      </div>
+      <label class="form-field">
+        <span class="label">Voice / tone</span>
+        <textarea name="persona_prompt" class="input persona-prompt" rows="4"
+          placeholder="e.g. Warm and upbeat; concise; a leathercraft studio's helper.">{s.personaPrompt ?? ""}</textarea>
+        <small class="hint">A free-text instruction appended to the assistant's system prompt. Leave blank for the default voice.</small>
+      </label>
+    </div>
+
+    <!-- 6. Advanced (collapsible) -->
     <details class="section-card ai-dependent advanced-section">
       <summary class="advanced-summary">Advanced Settings</summary>
 
@@ -278,7 +301,7 @@ const modCfg = s.moderationConfig ?? {};
 </AppLayout>
 
 <script>
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
 
   const form = document.getElementById('ai-settings-form');
   const enabledToggle = document.getElementById('ai-enabled');
@@ -287,11 +310,11 @@ const modCfg = s.moderationConfig ?? {};
 
   // Dependent sections dim when AI is disabled
   function syncEnabled() {
-    const on = enabledToggle?.checked;
+    const on = (enabledToggle as HTMLInputElement)?.checked;
     enabledText.textContent = on ? 'Enabled' : 'Disabled';
     document.querySelectorAll('.ai-dependent').forEach(el => {
-      el.style.opacity = on ? '' : '0.45';
-      el.style.pointerEvents = on ? '' : 'none';
+      (el as HTMLElement).style.opacity = on ? '' : '0.45';
+      (el as HTMLElement).style.pointerEvents = on ? '' : 'none';
     });
   }
   enabledToggle?.addEventListener('change', syncEnabled);
@@ -303,7 +326,7 @@ const modCfg = s.moderationConfig ?? {};
   const workspaceCreds = document.getElementById('workspace-creds');
 
   function syncMode() {
-    const mode = form?.querySelector('input[name="credential_mode"]:checked')?.value;
+    const mode = (form?.querySelector('input[name="credential_mode"]:checked') as HTMLInputElement)?.value;
     platformInfo.style.display = mode === 'platform' ? '' : 'none';
     workspaceCreds.style.display = mode === 'workspace' ? '' : 'none';
   }
@@ -324,20 +347,20 @@ const modCfg = s.moderationConfig ?? {};
   // Save handler
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fd = new FormData(form);
+    const fd = new FormData(form as HTMLFormElement);
 
     const invSrc = {};
     for (const key of ['editor', 'forms', 'actions', 'mcp', 'scheduledJobs']) {
       invSrc[key] = fd.has(`invocation_sources.${key}`);
     }
 
-    const budgetCfg = {};
+    const budgetCfg: Record<string, number> = {};
     const maxTokens = fd.get('budget.max_tokens_per_request');
     const maxReqs = fd.get('budget.max_requests_per_day');
     if (maxTokens) budgetCfg.max_tokens_per_request = Number(maxTokens);
     if (maxReqs) budgetCfg.max_requests_per_day = Number(maxReqs);
 
-    const logCfg = {
+    const logCfg: Record<string, unknown> = {
       log_inputs: fd.has('logging.log_inputs'),
       log_outputs: fd.has('logging.log_outputs'),
     };
@@ -349,31 +372,31 @@ const modCfg = s.moderationConfig ?? {};
       block_on_flag: fd.has('moderation.block_on_flag'),
     };
 
-    const mode = fd.get('credential_mode');
+    const mode = fd.get('credential_mode') as string;
+    // camelCase top-level fields for the SDK (AISettingsUpdate); the nested config dicts stay as-is
+    // (they're opaque JSON the backend reads by their own keys).
     const payload = {
       enabled: fd.has('enabled'),
-      credential_mode: mode,
-      approval_mode: fd.get('approval_mode'),
-      provider: mode === 'workspace' ? (fd.get('provider') || null) : null,
-      model: mode === 'workspace' ? (fd.get('model') || null) : null,
-      secret_ref: mode === 'workspace' ? (fd.get('secret_ref') || null) : null,
-      invocation_sources: invSrc,
-      budget_config: Object.keys(budgetCfg).length ? budgetCfg : null,
-      logging_config: logCfg,
-      moderation_config: modCfg,
+      credentialMode: mode,
+      approvalMode: fd.get('approval_mode') as string,
+      provider: mode === 'workspace' ? (fd.get('provider')?.toString() || null) : null,
+      model: mode === 'workspace' ? (fd.get('model')?.toString() || null) : null,
+      secretRef: mode === 'workspace' ? (fd.get('secret_ref')?.toString() || null) : null,
+      invocationSources: invSrc,
+      budgetConfig: Object.keys(budgetCfg).length ? budgetCfg : null,
+      loggingConfig: logCfg,
+      moderationConfig: modCfg,
+      assistantName: (fd.get('assistant_name')?.toString().trim() || null),
+      personaPrompt: (fd.get('persona_prompt')?.toString().trim() || null),
     };
 
-    const saveBtn = document.getElementById('save-btn');
+    const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
     saveBtn.disabled = true;
     saveStatus.textContent = 'Saving…';
     saveStatus.className = 'save-status';
 
     try {
-      await fetchApi('/api/groups/ai-settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      await createSdkClient().ai.settings.update(payload);
 
       saveStatus.textContent = 'Saved';
       saveStatus.className = 'save-status success';
@@ -571,6 +594,8 @@ const modCfg = s.moderationConfig ?? {};
   }
 
   .input:focus { border-color: var(--accent); outline: none; }
+
+  textarea.persona-prompt { resize: vertical; min-height: 84px; font-family: inherit; line-height: 1.5; }
 
   /* ── Advanced / collapsible ── */
   .advanced-section summary { list-style: none; }

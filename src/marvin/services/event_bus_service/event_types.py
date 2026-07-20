@@ -396,6 +396,10 @@ class EventTypes(EventTypeBase):
     """Event dispatched when workspace embeddings are (re)indexed for semantic search / RAG."""
     ai_budget_threshold_reached = auto()
     """Event dispatched when workspace AI spend crosses a budget warning threshold (~80%)."""
+    automation_ran = auto()
+    """A Flavor B automation finished running (its pipeline completed) — for chained triggers."""
+    automation_failed = auto()
+    """A Flavor B automation's pipeline failed a step — for on-error triggers."""
     ai_budget_exceeded = auto()
     """Event dispatched when the workspace monthly AI cost limit is reached."""
     ai_provider_quota_exceeded = auto()
@@ -993,6 +997,25 @@ class EventAIEmbeddingsData(EventDocumentDataBase):
     """The human-readable name of the workspace."""
 
 
+class EventAutomationData(EventDocumentDataBase):
+    """Data payload for automation lifecycle events (automation_ran / automation_failed).
+
+    Carries which Flavor B automation ran so chained / on-error triggers can key on it.
+    """
+
+    document_type: EventDocumentTypeBase = EventDocumentType.ai
+    operation: EventOperationBase = EventOperation.info
+    automation_id: UUID4
+    """The automation that ran (or failed)."""
+    automation_slug: str
+    """The automation's slug — chained/on-error triggers may target it by slug."""
+    ok: bool = True
+    """Whether the pipeline completed (True) or a step failed (False)."""
+    error: str | None = None
+    """Failure detail, when ok is False."""
+    workspace_id: UUID4 | None = None
+
+
 class EventAIBudgetData(EventDocumentDataBase):
     """Data payload for AI budget / quota events (threshold, exceeded, provider quota)."""
 
@@ -1099,14 +1122,18 @@ class Event(_MarvinModel):
     """Timestamp (UTC) of when the event object was created."""
 
     # Core identifiers for audit and filtering
-    workspace_id: UUID4
-    """The workspace this event pertains to."""
+    workspace_id: UUID4 | None = None
+    """The workspace this event pertains to (None for system-wide events, e.g. system scheduled tasks)."""
     user_id: UUID4 | None = None
     """The user who triggered this event (None for system events)."""
     entity_id: UUID4 | None = None
     """The ID of the primary entity this event is about (entry, asset, etc.)."""
     entity_type: str | None = None
     """The type of the primary entity (entry, asset, workspace, etc.)."""
+    reaction_depth: int = 0
+    """How many automation/reaction hops produced this event. A user/system action starts at 0; an
+    automation's `emit_event`/write-back re-dispatches at depth+1. The automation listener refuses to
+    react past a cap, so data-defined automations that emit events can't cascade infinitely."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """

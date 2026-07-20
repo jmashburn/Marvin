@@ -1,0 +1,67 @@
+"""`webhook` action — fire one of the workspace's configured webhooks (from `webhook_urls`). No AI.
+
+The workflow references a webhook by `webhook_id`; the executor loads that row and sends its
+configured url / method / headers, with its `custom_payload` (interpolated with `$event.*`/`$previous.*`)
+as the body. This reuses the webhooks the admin already set up rather than re-entering a URL.
+
+A raw `url` (+ optional `secret_ref` Bearer) is still accepted as an advanced escape hatch.
+"""
+
+from .base import AutomationActionError, register_action
+
+DEFAULT_TIMEOUT = 15.0
+
+
+def _bearer(secret_ref: str | None, group_id) -> dict:
+    ref = (secret_ref or "").strip()
+    if ref.startswith("{{") and ref.endswith("}}"):
+        ref = ref[2:-2].strip()
+    if not ref:
+        return {}
+    from marvin.services.secrets.resolver import resolve_secret
+
+    token = resolve_secret(ref, group_id)
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+@register_action("webhook")
+def run_webhook(session, group_id, action, context, *, user_id=None) -> dict:
+    import httpx
+
+    from ..matcher import interpolate
+
+    method = "POST"
+    headers = {"Content-Type": "application/json"}
+    body = interpolate(action.get("body") or {}, context)
+    url = interpolate(action.get("url"), context) if action.get("url") else None
+    webhook_id = action.get("webhook_id")
+
+    if webhook_id:
+        from marvin.db.models.groups.webhooks import GroupWebhooksModel
+
+        wh = session.get(GroupWebhooksModel, webhook_id)
+        if not wh or wh.group_id != group_id:
+            raise AutomationActionError("webhook not found for this workspace")
+        if wh.enabled is False:
+            raise AutomationActionError(f"webhook '{wh.name or webhook_id}' is disabled")
+        url = str(wh.url)
+        method = getattr(wh.method, "value", wh.method) or "POST"
+        if wh.headers_json:
+            headers.update(wh.headers_json)
+        if wh.custom_payload:
+            body = interpolate(wh.custom_payload, context)
+
+    if not url:
+        raise AutomationActionError("webhook action needs a webhook_id (or a raw url)")
+
+    headers.update(_bearer(action.get("secret_ref"), group_id))
+    method = str(method).upper()
+    try:
+        resp = httpx.request(
+            method, url,
+            json=None if method == "GET" else body,
+            headers=headers, timeout=DEFAULT_TIMEOUT,
+        )
+    except Exception as e:
+        raise AutomationActionError(f"webhook request failed: {e}") from e
+    return {"status_code": resp.status_code, "ok": resp.is_success, "webhook_id": webhook_id}

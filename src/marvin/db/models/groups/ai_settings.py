@@ -45,6 +45,16 @@ class WorkspaceAISettingsModel(SqlAlchemyBase, BaseMixins):
     # {enabled, block_on_flag}
     moderation_config: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
+    # Master switch for the agent drawing tools from registered external MCP servers (off by default).
+    external_mcp_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, default=False, nullable=False, server_default=sa.false()
+    )
+
+    # Per-workspace AI persona. Display name for the assistant (defaults to "Marvin" in code when unset).
+    assistant_name: Mapped[str | None] = mapped_column(sa.String, nullable=True)
+    # Free-text voice/tone instruction appended to the system prompt.
+    persona_prompt: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:
         pass

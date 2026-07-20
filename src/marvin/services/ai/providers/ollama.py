@@ -83,8 +83,29 @@ class OllamaProvider(AIProvider):
         if options.temperature != 0.7:
             payload.setdefault("options", {})["temperature"] = options.temperature
         resp = httpx.post(f"{self._base_url}/api/chat", json=payload, timeout=120)
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise self._error(resp, model, bool(tools))
         return resp.json()
+
+    @staticmethod
+    def _error(resp: httpx.Response, model: str, had_tools: bool) -> Exception:
+        """Turn Ollama's terse error body into an actionable message (raise_for_status hides it).
+
+        The common one: a text-only model (gemma, phi, …) asked to tool-call — Ollama returns
+        HTTP 400 `"<model> does not support tools"`, which surfaces to the user as a bare
+        "400 Bad Request". Point them at a tool-capable model instead.
+        """
+        try:
+            detail = (resp.json().get("error") or "").strip() or resp.text.strip()
+        except Exception:
+            detail = resp.text.strip()
+        if resp.status_code == 400 and had_tools and "does not support tools" in detail.lower():
+            return RuntimeError(
+                f"The Ollama model '{model}' can't use tools, which the agent requires. "
+                f"Pick a tool-capable model (e.g. qwen3-coder, qwen2.5, llama3.1) as this workspace's "
+                f"model — text-only models like gemma/phi still work for plain operations (summary, tags)."
+            )
+        return RuntimeError(f"Ollama /api/chat failed (HTTP {resp.status_code}): {detail or 'no detail'}")
 
     def complete_with_tools(
         self,
@@ -152,9 +173,27 @@ class OllamaProvider(AIProvider):
         out: list[list[float]] = []
         for t in texts:
             resp = httpx.post(f"{self._base_url}/api/embeddings", json={"model": model, "prompt": t}, timeout=60)
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise self._embed_error(resp, model)
             out.append(resp.json()["embedding"])
         return out
+
+    @staticmethod
+    def _embed_error(resp: httpx.Response, model: str) -> Exception:
+        """Unwrap Ollama's embed error (raise_for_status hides it). The common one: the embedding
+        model isn't pulled — Ollama returns 404 `"model ... not found, try pulling it first"`."""
+        try:
+            detail = (resp.json().get("error") or "").strip() or resp.text.strip()
+        except Exception:
+            detail = resp.text.strip()
+        if "not found" in detail.lower():
+            return RuntimeError(
+                f"The Ollama embedding model '{model}' isn't pulled. Run `ollama pull {model}` "
+                f"(embeddings power search/RAG). Or set OLLAMA_EMBEDDING_MODEL to an installed "
+                f"embedding model (e.g. nomic-embed-text, mxbai-embed-large) — a chat model like "
+                f"gemma3 can't embed."
+            )
+        return RuntimeError(f"Ollama embeddings failed (HTTP {resp.status_code}): {detail or 'no detail'}")
 
     def list_models(self) -> list[str]:
         resp = httpx.get(f"{self._base_url}/api/tags", timeout=10)

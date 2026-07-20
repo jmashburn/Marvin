@@ -17,6 +17,7 @@ from marvin.schemas.group.ai_execution import (
     AIExecutionRead,
     AIOperationExecuteRequest,
     AIReindexRequest,
+    AIToolInvokeRequest,
 )
 
 router = APIRouter(prefix="/ai", route_class=MarvinCrudRoute)
@@ -40,6 +41,100 @@ class AIOperationsController(BaseUserController):
             return get_operation(slug).info()
         except KeyError:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Operation '{slug}' not found.")
+
+    # ── Tools catalogue + generic execution (projected to MarvinMCP) ───
+
+    @router.get("/tools", summary="List AI Tools")
+    def list_tools(self) -> list[dict]:
+        """Return the core tool registry specs projectable to MCP, filtered by the user's role.
+
+        Mirror of `list_operations`: MarvinMCP reads this to auto-project each tool. A tool is
+        listed only when it declares the `mcp` source and the caller meets its min_role.
+        """
+        from marvin.services.ai.tools import list_tools as _list_tools
+        role = self._user_role()
+        return [t.info() for t in _list_tools() if "mcp" in t.sources and role >= t.min_role]
+
+    @router.get("/agent/tools", summary="List the agent's bound tools")
+    def list_agent_tools(self) -> list[dict]:
+        """The tool surface the `/agent` loop actually binds for THIS caller — so the UI can show
+        "what can Marvin reach right now" honestly.
+
+        Unlike `/tools` (the MCP projection), this is the live agent catalogue: built-in registry
+        tools + `compose_entry` + allowlisted external MCP tools (only when the `external_mcp_enabled`
+        master switch is on), all role-filtered. External tools are named `mcp__<server>__<tool>`;
+        we surface `source` and the originating server so the UI can group them. No tool is called —
+        this only reads names/descriptions off the bound tools (external servers are queried live for
+        their tool list, so an unreachable server is simply omitted).
+        """
+        catalog: list[dict] = []
+        for t in self._build_agent_tools(provider=None):
+            external = t.name.startswith("mcp__")
+            server = None
+            if external:
+                # description is "[Server Name] <desc>"; recover the label for grouping.
+                desc = t.description or ""
+                if desc.startswith("[") and "]" in desc:
+                    server = desc[1:desc.index("]")]
+            catalog.append({
+                "name": t.name,
+                "description": t.description,
+                "source": "external" if external else "builtin",
+                "server": server,
+            })
+        return catalog
+
+    @router.post("/tools/{name}/invoke", summary="Invoke an AI Tool")
+    def invoke_tool(self, name: str, body: AIToolInvokeRequest) -> dict:
+        """Generic execution endpoint every projected registry tool routes through.
+
+        Role-gates, checks the invocation source (tool's declared sources ∩ workspace policy),
+        builds a ToolContext, then calls the tool's handler with the raw `args` and returns the
+        JSON result. A provider is attached best-effort so tools that need one (semantic search)
+        can use it; tools that don't simply ignore it.
+        """
+        import json
+
+        from marvin.services.ai.factory import get_workspace_ai_provider
+        from marvin.services.ai.tools import ToolContext, get_tool
+
+        try:
+            spec = get_tool(name)
+        except KeyError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Tool '{name}' not found.")
+
+        if self._user_role() < spec.min_role:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role for this tool.")
+
+        # Invocation-source gate: tool's declared sources ∩ workspace policy.
+        self._check_invocation_source(body.source, spec.sources)
+
+        provider = None
+        try:
+            provider = get_workspace_ai_provider(self.session, self.group_id)
+        except Exception:
+            provider = None  # read tools work without a provider; search reports it's unavailable
+
+        ctx = ToolContext(
+            session=self.session,
+            group_id=self.group_id,
+            user=self.user,
+            provider=provider,
+            logger=self.logger,
+        )
+        # A handler raising is not fatal (mirrors the agent loop, which surfaces tool errors to
+        # the model): roll back any poisoned transaction and return a structured error.
+        try:
+            raw = spec.handler(ctx, body.args or {})
+        except Exception as e:
+            self.session.rollback()
+            self.logger.warning("AI tool '%s' handler failed: %s", name, e)
+            return {"error": str(e)}
+        # Handlers return a JSON string; hand back a JSON object to the caller.
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError):
+            return {"result": raw}
 
     # ── Execute ────────────────────────────────────────────────────────
 
@@ -590,12 +685,15 @@ class AIOperationsController(BaseUserController):
         _app = get_app_settings()
         max_steps = min(body.max_steps or getattr(_app, "AI_AGENT_MAX_STEPS", DEFAULT_MAX_STEPS), 12)
 
+        assistant_name, persona_prompt = self._persona()
         system = (
-            "You are Marvin, the assistant for this headless CMS workspace. Use the provided tools to "
+            f"You are {assistant_name}, the assistant for this headless CMS workspace. Use the provided tools to "
             "search, browse, and (only when asked) compose content. Prefer tools over guessing and ground "
             "your answer in what they return. Composing creates a DRAFT for human review — never claim "
             "anything is published. Be concise."
         )
+        if persona_prompt:
+            system += f"\n\nVoice and tone: {persona_prompt}"
         user_msg = body.message
         if body.entity_type and entity_id:
             user_msg += f"\n\n(Context: the user is currently looking at {body.entity_type} {entity_id}.)"
@@ -655,6 +753,93 @@ class AIOperationsController(BaseUserController):
             "estimatedCostUsd": execution.estimated_cost_usd,
         }
 
+    @router.post("/chat", summary="Plain chat completion (no tools, no RAG)")
+    def chat(self, body: AIAgentRequest) -> dict:
+        """A straight conversational completion — NO tools, NO retrieval — so any model works,
+        including text-only Ollama models (gemma, phi) that can't run the agent. Not grounded in
+        workspace content (use `/ask` for that); this is just talking to the model.
+        """
+        import time
+        from datetime import UTC, datetime
+
+        from marvin.core.config import get_app_settings
+        from marvin.services.ai.base import CompletionOptions, Message
+        from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
+        from marvin.services.ai.operations.base import ROLE_VIEWER
+        from marvin.services.ai.pricing import estimate_cost
+
+        # VIEWER or higher — chat is read-only (it changes nothing).
+        if self._user_role() < ROLE_VIEWER:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="VIEWER role or higher required.")
+
+        self._check_invocation_source(body.source, ("editor", "api", "agent", "mcp"))
+        self._check_budget()
+
+        try:
+            provider = get_workspace_ai_provider(self.session, self.group_id)
+        except AIDisabledError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}")
+
+        model = body.model_override or self._default_model()
+        if not model:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No model configured.")
+
+        _app = get_app_settings()
+        assistant_name, persona_prompt = self._persona()
+        gloomy = " (if faintly gloomy)" if assistant_name == "Marvin" else ""
+        system = (
+            f"You are {assistant_name}, a helpful{gloomy} assistant for this headless-CMS workspace. "
+            "Answer conversationally and concisely. You have no tools and no access to the workspace's "
+            "content here — if the user needs answers grounded in their entries, tell them to use /ask."
+        )
+        if persona_prompt:
+            system += f"\n\nVoice and tone: {persona_prompt}"
+        messages = [Message(role="system", content=system), Message(role="user", content=body.message)]
+
+        log_inputs, log_outputs = self._logging_policy()
+        execution = AIExecutionModel(
+            session=self.session, group_id=self.group_id, operation_slug="chat",
+            provider_type=provider.provider_type, model_id=model, status="running",
+            triggered_by=self.user.id, trigger_type=body.source,
+            input_json={"message": body.message} if log_inputs else None,
+        )
+        execution.started_at = datetime.now(UTC)
+        self.session.add(execution)
+        self.session.commit()
+
+        start = time.monotonic()
+        try:
+            opts = CompletionOptions(
+                temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
+                max_tokens=getattr(_app, "AI_DEFAULT_MAX_TOKENS", None),
+            )
+            result = provider.complete(messages, model, opts)
+        except Exception as e:
+            self._fail_execution(execution, str(e), start)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Chat failed: {e}")
+
+        execution.status = "completed"
+        execution.completed_at = datetime.now(UTC)
+        execution.duration_ms = int((time.monotonic() - start) * 1000)
+        execution.prompt_tokens = result.prompt_tokens
+        execution.completion_tokens = result.completion_tokens
+        execution.total_tokens = result.total_tokens
+        execution.estimated_cost_usd = estimate_cost(
+            provider.provider_type, model, result.prompt_tokens, result.completion_tokens,
+        )
+        execution.output_json = {"reply": result.content} if log_outputs else None
+        self.session.commit()
+
+        return {
+            "reply": result.content,
+            "model": model,
+            "totalTokens": result.total_tokens,
+            "estimatedCostUsd": execution.estimated_cost_usd,
+            "executionId": str(execution.id),
+        }
+
     def _require_tool_capable(self, provider, model: str) -> None:
         """Gate the agent to a tool-capable provider/model. Consumes AIModelModel.supports_tools
         when the model is registered (else trusts the provider-level capability)."""
@@ -677,222 +862,36 @@ class AIOperationsController(BaseUserController):
             )
 
     def _build_agent_tools(self, provider) -> list:
-        """Build the v1 agent tool set as closures over this controller (reusing repos + gating)."""
+        """Bind the core tool registry in-process for the agent, plus the compose special.
+
+        Each registry ToolSpec reachable from the "agent" source and allowed for this user's
+        role becomes an AgentTool whose run() calls the spec's handler with a ToolContext built
+        from this controller — no MCP hop. `compose_entry` stays controller-wired: it has its own
+        endpoint/SDK/MCP tool and needs the full execution + write-back machinery.
+        """
         import json
 
-        from sqlalchemy import func
-
-        from marvin.db.models.platform import EntryCollections
-        from marvin.db.models.platform.assets import Assets
-        from marvin.db.models.platform.collections import Collections
-        from marvin.db.models.platform.entries import Entries
-        from marvin.db.models.platform.entry_assets import EntryAssets
-        from marvin.db.models.platform.entry_resources import EntryResources
-        from marvin.db.models.platform.entry_types import EntryTypes
-        from marvin.db.models.platform.resources import Resources
         from marvin.services.ai.agent import AgentTool
+        from marvin.services.ai.tools import ToolContext, list_tools
 
-        def _resolve_collection(ident: str):
-            ident = (ident or "").strip()
-            if not ident:
-                return None
-            col = (
-                self.session.query(Collections)
-                .filter(Collections.group_id == self.group_id)
-                .filter((Collections.slug == ident) | (Collections.name.ilike(ident)))
-                .first()
+        ctx = ToolContext(
+            session=self.session,
+            group_id=self.group_id,
+            user=self.user,
+            provider=provider,
+            logger=self.logger,
+        )
+        role = self._user_role()
+        tools: list = [
+            AgentTool(
+                name=spec.name,
+                description=spec.description,
+                input_schema=spec.input_schema,
+                run=lambda args, s=spec: s.handler(ctx, args),
             )
-            if col:
-                return col
-            try:
-                import uuid as _uuid
-                col = self.session.get(Collections, _uuid.UUID(ident))
-            except (ValueError, TypeError):
-                return None
-            return col if (col and col.group_id == self.group_id) else None
-
-        def search_content(args: dict) -> str:
-            query = str(args.get("query") or "").strip()
-            if not query:
-                return json.dumps({"error": "query is required"})
-            from marvin.core.config import get_app_settings
-            from marvin.services.ai.context import ContextBuilder
-            from marvin.services.ai.embeddings import default_embedding_model
-            emb_model = default_embedding_model(provider.provider_type)
-            if not emb_model:
-                return json.dumps({"error": "semantic search unavailable (no embedding model configured)"})
-            top_k = getattr(get_app_settings(), "AI_RAG_TOP_K", 5)
-            ctx = (
-                ContextBuilder(self.session, self.group_id)
-                .with_semantic_search(query, provider, emb_model, limit=top_k, entity_types=["entry", "resource"])
-                .build()
-            )
-            retrieved = ctx.retrieved or []
-            sources = self._resolve_retrieved_sources(retrieved)
-            results = []
-            for i, chunk in enumerate(retrieved):
-                src = sources[i] if i < len(sources) else {}
-                text = chunk.get("text") or chunk.get("content") or ""
-                results.append({
-                    "title": src.get("title"),
-                    "entityType": src.get("entity_type"),
-                    "entityId": src.get("entity_id"),
-                    "snippet": text[:400],
-                    "score": src.get("score"),
-                })
-            return json.dumps({"results": results, "count": len(results)})
-
-        def find_entries(args: dict) -> str:
-            q = self.session.query(Entries).filter(Entries.group_id == self.group_id)
-            etype = args.get("entry_type")
-            if etype:
-                q = q.join(EntryTypes, Entries.entry_type_id == EntryTypes.id).filter(EntryTypes.slug == etype)
-            st = args.get("status")
-            if st:
-                q = q.filter(Entries.status == st)
-            text = args.get("query")
-            if text:
-                q = q.filter(Entries.title.ilike(f"%{text}%"))
-            # Asset filters: entries that have any attached asset, or specifically an image.
-            if args.get("has_images") or args.get("has_assets"):
-                q = q.join(EntryAssets, EntryAssets.entry_id == Entries.id)
-                if args.get("has_images"):
-                    q = q.join(Assets, Assets.id == EntryAssets.asset_id).filter(Assets.asset_type == "image")
-                q = q.distinct()
-            # Resource filter: entries that have an attached reusable resource.
-            if args.get("has_resources"):
-                q = q.join(EntryResources, EntryResources.entry_id == Entries.id).distinct()
-            total = q.count()  # true total, independent of the row cap below
-            limit = min(int(args.get("limit") or 10), 50)
-            rows = q.limit(limit).all()
-            out = [
-                {
-                    "id": str(e.id),
-                    "title": e.title,
-                    "slug": e.slug,
-                    "status": e.status,
-                    "entryType": e.entry_type.slug if e.entry_type else None,
-                }
-                for e in rows
-            ]
-            # `count` is the full match count; `entries` is a sample capped at `limit`.
-            return json.dumps({"entries": out, "count": total, "returned": len(out)})
-
-        def get_entry(args: dict) -> str:
-            ident = str(args.get("id_or_slug") or args.get("id") or args.get("slug") or "").strip()
-            if not ident:
-                return json.dumps({"error": "id_or_slug is required"})
-            eid = self._resolve_entity_id("entry", ident)
-            entry = self.session.get(Entries, eid) if eid else None
-            if not entry or entry.group_id != self.group_id:
-                return json.dumps({"error": f"entry '{ident}' not found"})
-            # Return the FULL object — attached assets (with type/mime), resources, and collections —
-            # so the model can reason ("which asset types?", "is it in Inbox?") without a bespoke tool.
-            assets = (
-                self.session.query(Assets)
-                .join(EntryAssets, EntryAssets.asset_id == Assets.id)
-                .filter(EntryAssets.entry_id == entry.id)
-                .all()
-            )
-            resources = (
-                self.session.query(Resources)
-                .join(EntryResources, EntryResources.resource_id == Resources.id)
-                .filter(EntryResources.entry_id == entry.id)
-                .all()
-            )
-            collections = (
-                self.session.query(Collections)
-                .join(EntryCollections, EntryCollections.collection_id == Collections.id)
-                .filter(EntryCollections.entry_id == entry.id)
-                .all()
-            )
-            return json.dumps({
-                "id": str(entry.id),
-                "title": entry.title,
-                "slug": entry.slug,
-                "status": entry.status,
-                "summary": entry.summary,
-                "entryType": entry.entry_type.slug if entry.entry_type else None,
-                "data": entry.data_json,
-                "assets": [
-                    {"id": str(a.id), "filename": a.original_filename or a.filename,
-                     "assetType": a.asset_type, "mimeType": a.mime_type}
-                    for a in assets
-                ],
-                "resources": [
-                    {"id": str(r.id), "name": r.name, "resourceType": r.resource_type} for r in resources
-                ],
-                "collections": [{"slug": c.slug, "name": c.name} for c in collections],
-            })
-
-        def list_collections(_args: dict) -> str:
-            rows = self.session.query(Collections).filter(Collections.group_id == self.group_id).all()
-            counts = dict(
-                self.session.query(EntryCollections.collection_id, func.count(EntryCollections.entry_id))
-                .join(Collections, Collections.id == EntryCollections.collection_id)
-                .filter(Collections.group_id == self.group_id)
-                .group_by(EntryCollections.collection_id)
-                .all()
-            )
-            out = [
-                {
-                    "id": str(c.id),
-                    "name": c.name,
-                    "slug": c.slug,
-                    "isSmart": c.is_smart,
-                    "isSystem": c.is_system,
-                    "entryCount": counts.get(c.id, 0),
-                }
-                for c in rows
-            ]
-            return json.dumps({"collections": out, "count": len(out)})
-
-        def get_collection_entries(args: dict) -> str:
-            col = _resolve_collection(str(args.get("collection") or args.get("id_or_slug") or args.get("slug") or ""))
-            if not col:
-                return json.dumps({"error": "collection not found — pass its name or slug (e.g. 'inbox')"})
-            rows = (
-                self.session.query(Entries)
-                .join(EntryCollections, EntryCollections.entry_id == Entries.id)
-                .filter(EntryCollections.collection_id == col.id)
-                .all()
-            )
-            out = [
-                {
-                    "id": str(e.id),
-                    "title": e.title,
-                    "slug": e.slug,
-                    "status": e.status,
-                    "entryType": e.entry_type.slug if e.entry_type else None,
-                }
-                for e in rows
-            ]
-            return json.dumps({"collection": col.slug, "entries": out, "count": len(out)})
-
-        def list_resources(args: dict) -> str:
-            q = self.session.query(Resources).filter(Resources.group_id == self.group_id)
-            rtype = args.get("resource_type")
-            if rtype:
-                q = q.filter(Resources.resource_type == rtype)
-            total = q.count()
-            rows = q.limit(min(int(args.get("limit") or 20), 50)).all()
-            out = [
-                {"id": str(r.id), "name": r.name, "slug": r.slug, "resourceType": r.resource_type}
-                for r in rows
-            ]
-            return json.dumps({"resources": out, "count": total, "returned": len(out)})
-
-        def list_entry_types(_args: dict) -> str:
-            rows = (
-                self.session.query(EntryTypes)
-                .filter((EntryTypes.group_id == self.group_id) | (EntryTypes.group_id.is_(None)))
-                .all()
-            )
-            out = []
-            for t in rows:
-                fields = [f.get("key") for f in (t.schema_json or {}).get("fields", []) if isinstance(f, dict)]
-                out.append({"slug": t.slug, "name": t.name, "fields": fields})
-            return json.dumps({"entryTypes": out, "count": len(out)})
+            for spec in list_tools()
+            if "agent" in spec.sources and role >= spec.min_role
+        ]
 
         def compose_entry(args: dict) -> str:
             etype = str(args.get("entry_type") or "").strip()
@@ -907,58 +906,7 @@ class AIOperationsController(BaseUserController):
                 "editUrl": res.get("editUrl"),
             })
 
-        return [
-            AgentTool(
-                name="search_content",
-                description="Semantic search over workspace entries and resources. Returns the most relevant snippets with their entity ids/titles. Use this to ground answers.",
-                input_schema={"type": "object", "properties": {"query": {"type": "string", "description": "what to search for"}}, "required": ["query"]},
-                run=search_content,
-            ),
-            AgentTool(
-                name="find_entries",
-                description="Find entries with filters: entry_type (slug), status, a title substring (query), has_images (entries with an image asset), has_assets (any attachment), or has_resources (a linked resource). Returns `count` (the true total match) plus a sample of entries. Use `count` to answer 'how many'.",
-                input_schema={"type": "object", "properties": {
-                    "entry_type": {"type": "string"}, "status": {"type": "string"},
-                    "query": {"type": "string"},
-                    "has_images": {"type": "boolean", "description": "only entries that have an image asset"},
-                    "has_assets": {"type": "boolean", "description": "only entries that have any attached asset"},
-                    "has_resources": {"type": "boolean", "description": "only entries that have a linked resource"},
-                    "limit": {"type": "integer"},
-                }},
-                run=find_entries,
-            ),
-            AgentTool(
-                name="list_resources",
-                description="List the workspace's reusable resources (materials, tools, suppliers, …), optionally filtered by resource_type. Returns `count` (true total) plus a sample. Use for questions about resources.",
-                input_schema={"type": "object", "properties": {
-                    "resource_type": {"type": "string"}, "limit": {"type": "integer"},
-                }},
-                run=list_resources,
-            ),
-            AgentTool(
-                name="get_entry",
-                description="Get one entry in full by id or slug: its fields, status, summary, plus its attached assets (each with assetType + mimeType), linked resources, and collections. Use this to answer questions about an entry's media/resources/membership.",
-                input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string"}}, "required": ["id_or_slug"]},
-                run=get_entry,
-            ),
-            AgentTool(
-                name="list_collections",
-                description="List the workspace's collections with their entryCount (name, slug, smart/system flags). Use for questions about collections, how content is organized, or how many entries a collection holds.",
-                input_schema={"type": "object", "properties": {}},
-                run=list_collections,
-            ),
-            AgentTool(
-                name="get_collection_entries",
-                description="List the entries in one collection by name or slug (e.g. 'inbox', 'drafts'). Returns each entry and the total count. Use this for 'what/how many is in <collection>' — collections like Inbox/Drafts are how entries are organized, not entry statuses.",
-                input_schema={"type": "object", "properties": {"collection": {"type": "string", "description": "collection name or slug"}}, "required": ["collection"]},
-                run=get_collection_entries,
-            ),
-            AgentTool(
-                name="list_entry_types",
-                description="List the workspace's entry types and their field keys. Use before composing to pick a type.",
-                input_schema={"type": "object", "properties": {}},
-                run=list_entry_types,
-            ),
+        tools.append(
             AgentTool(
                 name="compose_entry",
                 description="Compose a DRAFT entry of entry_type (slug) from a short brief. Creates an inbox draft for human review; does not publish. Returns the new entry id + edit url.",
@@ -966,8 +914,68 @@ class AIOperationsController(BaseUserController):
                     "entry_type": {"type": "string"}, "brief": {"type": "string"},
                 }, "required": ["entry_type", "brief"]},
                 run=compose_entry,
-            ),
-        ]
+            )
+        )
+
+        # Growth plane: allowlisted tools from the workspace's enabled external MCP servers.
+        tools.extend(self._external_mcp_tools())
+        return tools
+
+    def _external_mcp_tools(self) -> list:
+        """Load allowlisted tools from the workspace's ENABLED external MCP servers as AgentTools.
+
+        Gated by the `external_mcp_enabled` master switch. Deny-by-default: only tools named in a
+        server's `allowed_tools` are exposed, prefixed `mcp__<serverslug>__<tool>` to avoid
+        collisions. A server that's unreachable or errors is skipped (logged), never fatal to the
+        agent; a tool call that fails is surfaced to the model as a JSON error, not raised.
+        """
+        import json
+        import re
+
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        if not settings or not getattr(settings, "external_mcp_enabled", False):
+            return []
+
+        from marvin.db.models.groups.mcp_servers import WorkspaceMcpServerModel
+        from marvin.services.ai import mcp_client
+        from marvin.services.ai.agent import AgentTool
+
+        servers = (
+            self.session.query(WorkspaceMcpServerModel)
+            .filter_by(group_id=self.group_id, enabled=True)
+            .all()
+        )
+        tools: list = []
+        for server in servers:
+            allow = set(server.allowed_tools or [])
+            if not allow:
+                continue  # deny-by-default: nothing allowlisted → expose nothing
+            try:
+                available = mcp_client.list_server_tools(server, timeout=10.0)
+            except Exception as e:
+                self.logger.warning("external MCP '%s' tools/list failed: %s", server.slug, e)
+                continue
+            prefix = re.sub(r"[^a-zA-Z0-9]+", "_", server.slug)
+            for t in available:
+                if t.name not in allow:
+                    continue
+
+                def _run(args, s=server, tn=t.name):
+                    try:
+                        text, _is_error = mcp_client.call_server_tool(s, tn, args or {}, timeout=20.0)
+                        return text or json.dumps({"error": "empty result"})
+                    except Exception as e:  # unreachable/timeout — non-fatal, surfaced to the model
+                        return json.dumps({"error": str(e)})
+
+                tools.append(
+                    AgentTool(
+                        name=f"mcp__{prefix}__{t.name}"[:64],
+                        description=f"[{server.name}] {t.description}".strip(),
+                        input_schema=t.input_schema or {"type": "object", "properties": {}},
+                        run=_run,
+                    )
+                )
+        return tools
 
     # ── Helpers ────────────────────────────────────────────────────────
 
@@ -988,34 +996,9 @@ class AIOperationsController(BaseUserController):
     def _resolve_retrieved_sources(self, retrieved: list[dict]) -> list[dict]:
         """Map retrieved chunks (in citation order) to their entity + resolved title.
 
-        The LLM cites sources by their 1-based [n] index, which aligns with this ordered list,
-        so the UI can turn each citation into a link. Titles are looked up in bulk per type.
-        """
-        from marvin.db.models.platform.entries import Entries
-        from marvin.db.models.platform.resources import Resources
-
-        entry_ids = {c["entity_id"] for c in retrieved if c.get("entity_type") == "entry"}
-        resource_ids = {c["entity_id"] for c in retrieved if c.get("entity_type") == "resource"}
-        titles: dict[tuple[str, str], str] = {}
-        if entry_ids:
-            for e in self.session.query(Entries).filter(Entries.id.in_(entry_ids)).all():
-                titles[("entry", str(e.id))] = e.title or "Untitled entry"
-        if resource_ids:
-            for r in self.session.query(Resources).filter(Resources.id.in_(resource_ids)).all():
-                titles[("resource", str(r.id))] = r.name or "Untitled resource"
-
-        sources: list[dict] = []
-        for i, c in enumerate(retrieved):
-            et = c.get("entity_type")
-            eid = str(c.get("entity_id"))
-            sources.append({
-                "index": i + 1,
-                "entity_type": et,
-                "entity_id": eid,
-                "title": titles.get((et, eid), f"{et} {eid[:8]}"),
-                "score": c.get("score"),
-            })
-        return sources
+        Thin wrapper over the shared helper (also used by the search_content tool handler)."""
+        from marvin.services.ai.entity_resolve import resolve_retrieved_sources
+        return resolve_retrieved_sources(self.session, retrieved)
 
     def _reindex_targets(self, body: AIReindexRequest) -> list[tuple[str, object, str]]:
         from marvin.db.models.platform.entries import Entries
@@ -1057,6 +1040,17 @@ class AIOperationsController(BaseUserController):
         """Workspace approval_mode: suggest-only | allow-draft-update | allow-automatic-update."""
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         return (settings.approval_mode if settings and settings.approval_mode else "suggest-only")
+
+    def _persona(self) -> tuple[str, str]:
+        """(assistant_name, persona_prompt) from the workspace AI settings.
+
+        Defaults preserve prior behavior: the assistant is named "Marvin" and no extra
+        voice/tone instruction is appended when unset.
+        """
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        name = (settings.assistant_name if settings and settings.assistant_name else None) or "Marvin"
+        persona = (settings.persona_prompt if settings and settings.persona_prompt else "") or ""
+        return name, persona
 
     def _write_back(self, operation, entity_type, entity_id, output_json, execution_id) -> str | None:
         """Apply or stage an operation's output onto an entry, gated by approval_mode.
@@ -1123,38 +1117,19 @@ class AIOperationsController(BaseUserController):
     def _resolve_entity_id(self, entity_type: str | None, entity_id):
         """Accept a UUID or a slug for entity_id so MCP/CLI callers can work in slugs.
 
-        Returns the entity's UUID (resolving a slug for entry/asset/resource within this
-        workspace), or the input unchanged when it's already a UUID or can't be resolved
-        (downstream loaders then 404 exactly as before).
-        """
-        if not entity_id:
-            return entity_id
+        Thin wrapper over the shared helper (also used by the get_entry tool handler)."""
+        from marvin.services.ai.entity_resolve import resolve_entity_id
+        return resolve_entity_id(self.session, self.group_id, entity_type, entity_id)
 
-        import uuid as _uuid
-        try:
-            return _uuid.UUID(str(entity_id))  # already a UUID — normalize
-        except (ValueError, TypeError):
-            pass
-
-        model = None
-        if entity_type == "entry":
-            from marvin.db.models.platform.entries import Entries
-            model = Entries
-        elif entity_type == "resource":
-            from marvin.db.models.platform.resources import Resources
-            model = Resources
-        elif entity_type == "asset":
-            from marvin.db.models.platform.assets import Assets
-            model = Assets
-        if model is None:
-            return entity_id
-
-        row = (
-            self.session.query(model)
-            .filter_by(group_id=self.group_id, slug=str(entity_id))
-            .first()
-        )
-        return row.id if row else entity_id
+    def _user_role(self) -> int:
+        """The calling user's numeric workspace role for this group (platform admins → OWNER)."""
+        from marvin.services.ai.operations.base import ROLE_OWNER
+        if self.user.admin:
+            return ROLE_OWNER
+        for m in self.user.workspace_memberships:
+            if m.group_id == self.group_id:
+                return m.workspace_role.value
+        return 0
 
     def _check_invocation_source(self, source: str, operation_sources) -> None:
         """Gate a call by its invocation surface.

@@ -18,6 +18,11 @@ class WorkspaceAISettingsCreate(_MarvinModel):
     budget_config: dict | None = None
     logging_config: dict | None = None
     moderation_config: dict | None = None
+    # Master switch: may the agent draw tools from registered external MCP servers?
+    external_mcp_enabled: bool = False
+    # Per-workspace AI persona: display name and a free-text voice/tone instruction.
+    assistant_name: str | None = None
+    persona_prompt: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -35,6 +40,9 @@ class WorkspaceAISettingsUpdate(_MarvinModel):
     budget_config: dict | None = None
     logging_config: dict | None = None
     moderation_config: dict | None = None
+    external_mcp_enabled: bool | None = None
+    assistant_name: str | None = None
+    persona_prompt: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

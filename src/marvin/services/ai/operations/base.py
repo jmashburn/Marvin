@@ -16,7 +16,7 @@ ROLE_OWNER = 5
 # call is the INTERSECTION of the operation's declared sources and the per-workspace
 # invocation_sources policy (ai_settings). This gates *which surfaces* may run AI; min_role
 # is the separate per-user authorization wall.
-INVOCATION_SOURCES = ("editor", "forms", "actions", "mcp", "scheduled", "agent", "api")
+INVOCATION_SOURCES = ("editor", "forms", "actions", "mcp", "scheduled", "agent", "automation", "api")
 
 OPERATION_REGISTRY: dict[str, "AIOperation"] = {}
 

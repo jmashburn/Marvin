@@ -984,6 +984,69 @@ class SmartCollectionReactionListener(EventListenerBase):
                 )
 
 
+class AutomationReactionListener(EventListenerBase):
+    """Flavor B: run the workspace's *user-configured* automations for a triggering event.
+
+    Where the reaction listeners above are hardcoded (Flavor A — developer-defined), this one loads
+    data-defined automations (`WorkspaceAutomationModel`) and runs their `event → conditions →
+    actions` pipelines via the automation engine. Best-effort: any failure is logged and swallowed,
+    so an automation can never break event dispatch.
+
+    Loop-guard: an automation's `emit_event`/write-back re-dispatches at `reaction_depth + 1`; we
+    refuse to react once depth reaches `MAX_REACTION_DEPTH`, so data-defined chains stay finite.
+    """
+
+    # Events that can trigger an event-type automation (the automation self-filters by its exact
+    # trigger.event). Entry lifecycle for now; asset/form/resource families can join with their own
+    # context mapping later.
+    _TRIGGERS = (
+        EventTypes.entry_created,
+        EventTypes.entry_updated,
+        EventTypes.entry_published,
+        EventTypes.entry_deleted,
+    )
+    # Automation lifecycle events drive the chained / on-error trigger types.
+    _AUTOMATION_EVENTS = (EventTypes.automation_ran, EventTypes.automation_failed)
+
+    def __init__(self, group_id: UUID4) -> None:
+        from .publisher import ConsolePublisher  # We act on the event; we don't publish through it.
+
+        super().__init__(group_id, ConsolePublisher())
+
+    def get_subscribers(self, event: Event) -> list[str]:
+        from marvin.services.automation.engine import MAX_REACTION_DEPTH
+
+        if getattr(event, "reaction_depth", 0) >= MAX_REACTION_DEPTH:
+            return []  # loop-guard: a chain has gone deep enough — stop reacting
+        if event.event_type in self._TRIGGERS or event.event_type in self._AUTOMATION_EVENTS:
+            return ["automation"]
+        return []
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
+        dd = event.document_data
+        entry_id = getattr(dd, "entry_id", None) or event.entity_id
+        automation_id = getattr(dd, "automation_id", None)
+        event_ctx = {
+            "event_type": event.event_type.name,
+            "entry_id": entry_id,
+            "automation_id": str(automation_id) if automation_id else None,
+            "automation_slug": getattr(dd, "automation_slug", None),
+            "user_id": event.user_id,
+            "reaction_depth": getattr(event, "reaction_depth", 0),
+        }
+        from marvin.services.automation.engine import run_automations_for_event
+
+        with self.ensure_session() as session:
+            try:
+                ran = run_automations_for_event(session, self.group_id, event_ctx, logger=self.logger)
+            except Exception as e:
+                session.rollback()
+                self.logger.warning(f"AutomationReactionListener: engine error: {e}")
+                return
+        if ran:
+            self.logger.info(f"Ran {ran} automation(s) for {event.event_type.name}")
+
+
 class ConsoleEventListener(EventListenerBase):
     """
     Event listener that logs all events to the console for debugging.

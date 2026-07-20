@@ -1,0 +1,237 @@
+"""CRUD + builder-options routes for workspace automations (Flavor B orchestration).
+
+ADMIN/OWNER-managed (an automation runs AI ops unattended, so registering one is a trust decision).
+The `/options` endpoint advertises the builder's vocabulary — trigger events, condition operators,
+action kinds, and the operations available as actions — so the UI is backend-driven.
+"""
+
+import re
+
+from fastapi import APIRouter, HTTPException, status
+from pydantic import UUID4
+
+from marvin.db.models.groups.automations import WorkspaceAutomationModel
+from marvin.routes._base import MarvinCrudRoute
+from marvin.routes._base.base_controllers import BaseUserController
+from marvin.routes._base.controller import controller
+from marvin.schemas.group.automation import (
+    AutomationActionOption,
+    AutomationCreate,
+    AutomationOptions,
+    AutomationRead,
+    AutomationTargetOption,
+    AutomationUpdate,
+    AutomationWebhookOption,
+)
+
+router = APIRouter(prefix="/automations", route_class=MarvinCrudRoute)
+
+
+def _require_admin(user, group_id: UUID4) -> None:
+    if user.admin:
+        return
+    for m in user.workspace_memberships:
+        if m.group_id == group_id and m.workspace_role.value >= 4:  # ADMIN=4, OWNER=5
+            return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN or OWNER role required.")
+
+
+def _slugify(name: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return s or "automation"
+
+
+def _get_or_404(session, automation_id: UUID4, group_id: UUID4) -> WorkspaceAutomationModel:
+    row = session.get(WorkspaceAutomationModel, automation_id)
+    if not row or row.group_id != group_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Automation not found.")
+    return row
+
+
+@controller(router)
+class AutomationsController(BaseUserController):
+    """Manage the workspace's automations (ADMIN/OWNER only)."""
+
+    @router.get("", response_model=list[AutomationRead], summary="List Automations")
+    def list_automations(self) -> list[AutomationRead]:
+        _require_admin(self.user, self.group_id)
+        rows = (
+            self.session.query(WorkspaceAutomationModel)
+            .filter_by(group_id=self.group_id)
+            .order_by(WorkspaceAutomationModel.name)
+            .all()
+        )
+        return [AutomationRead.model_validate(r) for r in rows]
+
+    @router.get("/options", response_model=AutomationOptions, summary="Automation builder options")
+    def options(self) -> AutomationOptions:
+        """Advertise the builder's vocabulary so the UI doesn't hardcode triggers/ops/operators.
+
+        Action kinds come from the executor registry. AI `operations` are listed ONLY when AI is
+        enabled for the workspace and the `automation` invocation source is allowed — Flavor B works
+        with AI off, so the builder just won't offer AI actions there.
+        """
+        _require_admin(self.user, self.group_id)
+        from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+        from marvin.services.ai.operations import list_operations
+        from marvin.services.automation.actions import available_kinds
+        from marvin.services.automation.matcher import _OPS
+        from marvin.services.automation.runner import AUTOMATION_SOURCE
+        from marvin.services.event_bus_service.event_bus_listener import AutomationReactionListener
+
+        triggers = [t.name for t in AutomationReactionListener._TRIGGERS]
+
+        # AI operations are available only when AI is enabled AND the automation source isn't disabled.
+        settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        ai_on = bool(settings and getattr(settings, "enabled", False))
+        policy = settings.invocation_sources if settings else None
+        source_ok = not (isinstance(policy, dict) and policy.get(AUTOMATION_SOURCE, True) is False)
+        operations = []
+        if ai_on and source_ok:
+            operations = [
+                AutomationActionOption(
+                    op=op.slug,
+                    name=op.name,
+                    description=op.description,
+                    entity_types=op.entity_types,
+                    writes_back=bool(getattr(op, "writeback", None)),
+                )
+                for op in list_operations()
+                if AUTOMATION_SOURCE in op.invocation_sources
+            ]
+
+        # The workspace's configured webhooks, offered to the `webhook` action.
+        from marvin.db.models.groups.webhooks import GroupWebhooksModel
+
+        webhooks = [
+            AutomationWebhookOption(
+                id=w.id,
+                name=w.name or str(w.url),
+                url=str(w.url),
+                method=getattr(w.method, "value", w.method) or "POST",
+            )
+            for w in self.session.query(GroupWebhooksModel).filter_by(group_id=self.group_id).all()
+        ]
+
+        # Other automations, for chained / on-error triggers to target.
+        targets = [
+            AutomationTargetOption(id=a.id, slug=a.slug, name=a.name)
+            for a in self.session.query(WorkspaceAutomationModel)
+            .filter_by(group_id=self.group_id)
+            .order_by(WorkspaceAutomationModel.name)
+            .all()
+        ]
+
+        return AutomationOptions(
+            trigger_types=["event", "manual", "schedule", "chained", "on_error", "mcp"],  # incoming webhook later
+            triggers=triggers,
+            condition_ops=list(_OPS),
+            action_kinds=available_kinds(),
+            operations=operations,
+            webhooks=webhooks,
+            automations=targets,
+        )
+
+    @router.post("/{automation_id}/run", summary="Run an automation now (manual trigger)")
+    def run_automation(self, automation_id: UUID4) -> dict:
+        """Run the automation's steps immediately — the Manual trigger / Run button. Skips the
+        trigger + condition gates (the caller asked for it explicitly)."""
+        _require_admin(self.user, self.group_id)
+        row = _get_or_404(self.session, automation_id, self.group_id)
+        from marvin.services.automation.engine import run_automation_now
+
+        try:
+            res = run_automation_now(self.session, self.group_id, row, user_id=self.user.id)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        return {"status": "ran", **res}
+
+    @router.post("", response_model=AutomationRead, status_code=status.HTTP_201_CREATED, summary="Create Automation")
+    def create_automation(self, data: AutomationCreate) -> AutomationRead:
+        _require_admin(self.user, self.group_id)
+        slug = data.slug or _slugify(data.name)
+        if self.session.query(WorkspaceAutomationModel).filter_by(group_id=self.group_id, slug=slug).first():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Automation slug '{slug}' already exists.")
+
+        payload = data.model_dump()
+        payload["slug"] = slug
+        row = WorkspaceAutomationModel(
+            session=self.session, group_id=self.group_id, created_by=self.user.id, **payload
+        )
+        self.session.add(row)
+        self.session.commit()
+        self.session.refresh(row)
+        self._sync_schedule(row)
+        return AutomationRead.model_validate(row)
+
+    @router.get("/{automation_id}", response_model=AutomationRead, summary="Get Automation")
+    def get_automation(self, automation_id: UUID4) -> AutomationRead:
+        _require_admin(self.user, self.group_id)
+        return AutomationRead.model_validate(_get_or_404(self.session, automation_id, self.group_id))
+
+    @router.patch("/{automation_id}", response_model=AutomationRead, summary="Update Automation")
+    def update_automation(self, automation_id: UUID4, data: AutomationUpdate) -> AutomationRead:
+        _require_admin(self.user, self.group_id)
+        row = _get_or_404(self.session, automation_id, self.group_id)
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(row, field, value)
+        self.session.commit()
+        self.session.refresh(row)
+        self._sync_schedule(row)
+        return AutomationRead.model_validate(row)
+
+    @router.delete("/{automation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete Automation")
+    def delete_automation(self, automation_id: UUID4) -> None:
+        _require_admin(self.user, self.group_id)
+        row = _get_or_404(self.session, automation_id, self.group_id)
+        self._delete_schedule(row.id)
+        self.session.delete(row)
+        self.session.commit()
+
+    # ── Schedule-trigger backing task (trigger.type="schedule") ────────────
+    def _schedule_slug(self, automation_id) -> str:
+        return f"wf-{automation_id}"
+
+    def _find_schedule_task(self, automation_id):
+        from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
+
+        return (
+            self.session.query(ScheduledTaskModel)
+            .filter_by(group_id=self.group_id, slug=self._schedule_slug(automation_id))
+            .first()
+        )
+
+    def _sync_schedule(self, automation) -> None:
+        """Keep the backing `run_automation` scheduled task in sync with the automation's trigger.
+
+        trigger.type="schedule" → upsert a task (`schedule_type`/`schedule_config` from the trigger,
+        e.g. interval_seconds); any other trigger type → remove the backing task if one exists.
+        """
+        trig = (automation.definition or {}).get("trigger") or {}
+        existing = self._find_schedule_task(automation.id)
+
+        if trig.get("type") != "schedule":
+            if existing:
+                self.session.delete(existing)
+                self.session.commit()
+            return
+
+        payload = {
+            "name": f"Workflow: {automation.name}",
+            "description": f"Runs the '{automation.name}' workflow on a schedule.",
+            "enabled": bool(automation.enabled),
+            "schedule_type": trig.get("schedule_type", "interval"),
+            "schedule_config": trig.get("schedule_config") or {},
+            "task_type": "run_automation",
+            "task_config": {"automation_id": str(automation.id)},
+        }
+        if existing:
+            self.repos.scheduled_tasks.update(existing.id, payload)
+        else:
+            self.repos.scheduled_tasks.create({**payload, "slug": self._schedule_slug(automation.id)})
+
+    def _delete_schedule(self, automation_id) -> None:
+        existing = self._find_schedule_task(automation_id)
+        if existing:
+            self.session.delete(existing)
+            self.session.commit()

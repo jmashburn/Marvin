@@ -75,3 +75,15 @@ class AIAgentRequest(_MarvinModel):
     source: str = "agent"                    # invocation surface; gated by workspace policy
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AIToolInvokeRequest(_MarvinModel):
+    """Invoke a core AI tool by name with raw args (the generic execution endpoint).
+
+    This is the one endpoint MarvinMCP routes every projected registry tool through: the tool's
+    handler receives `args` verbatim and returns its JSON result.
+    """
+    args: dict = {}                          # tool args matching the tool's input schema
+    source: str = "mcp"                      # invocation surface; gated by workspace policy
+
+    model_config = ConfigDict(from_attributes=True)

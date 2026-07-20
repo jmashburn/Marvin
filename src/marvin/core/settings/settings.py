@@ -703,12 +703,30 @@ class AppSettings(BaseSettings):
     rejected + hidden in the UI."""
     ANTHROPIC_API_KEY: MaskedNoneString = None
     """Anthropic API key for platform credential mode (masked)."""
+    ANTHROPIC_BASE_URL: str | None = None
+    """Override the Anthropic API base URL. Leave unset for the default endpoint."""
     ANTHROPIC_MODEL: str = "claude-sonnet-5"
     """Default Anthropic model for platform credential mode."""
+
     GOOGLE_API_KEY: MaskedNoneString = None
     """Google Gemini API key for platform credential mode (masked)."""
+    GOOGLE_BASE_URL: str | None = None
+    """Override the Google API base URL. Leave unset for the default endpoint."""
     GOOGLE_MODEL: str = "gemini-2.0-flash"
     """Default Google model for platform credential mode."""
+
+    AZURE_API_KEY: MaskedNoneString = None
+    """Azure OpenAI API key for platform credential mode (masked)."""
+    AZURE_BASE_URL: str | None = None
+    """Azure OpenAI endpoint, e.g. https://<resource>.openai.azure.com — required for the azure provider.
+    Note: a custom api_version can only be set via a workspace provider row's metadata, not env;
+    platform mode uses the provider default."""
+
+    OLLAMA_API_KEY: MaskedNoneString = None
+    """Unused — Ollama requires no API key. Declared so platform-mode credential lookup is explicit."""
+    OLLAMA_BASE_URL: str | None = None
+    """Ollama REST endpoint. Leave unset to use http://localhost:11434
+    (e.g. http://host.docker.internal:11434 when the backend runs in Docker)."""
 
     AI_BUDGET_WARNING_PERCENT: float = 80.0
     """Percent (0-100) of a workspace's monthly AI cost limit at which to fire the

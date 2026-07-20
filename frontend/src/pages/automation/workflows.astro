@@ -1,0 +1,601 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { createSdkClient } from "@/lib/sdk";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+const sdk = createSdkClient(authToken);
+
+let workspace: any = null;
+let automations: any[] = [];
+let options: any = { triggers: [], conditionOps: [], actionKinds: [], operations: [] };
+let error: string | null = null;
+
+try {
+  workspace = await getCurrentWorkspace(authToken);
+  if (workspace) {
+    [automations, options] = await Promise.all([
+      sdk.automations.list(),
+      sdk.automations.options(),
+    ]);
+  }
+} catch (e) {
+  console.error("[workflows] Error loading:", e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+// Serialize server data for the client script (read via JSON.parse, so the module script can import).
+const optionsJson = JSON.stringify(options).replace(/</g, "\\u003c");
+const listJson = JSON.stringify(automations).replace(/</g, "\\u003c");
+const aiActionsAvailable = (options.operations ?? []).length > 0;
+---
+
+<AppLayout title="Workflows" eyebrow="Automation">
+ <div class="workflows-page">
+  <div class="toolbar">
+    <div>
+      <h2>Workflows</h2>
+      <p>When something happens, run steps automatically — no code. AI steps are optional.</p>
+    </div>
+    <div class="toolbar-actions">
+      <button id="wf-new" class="button">New workflow</button>
+    </div>
+  </div>
+
+  <div class="page-container">
+    {error && <div class="banner error">{error}</div>}
+
+    {!aiActionsAvailable && (
+      <div class="banner info">
+        AI actions aren’t available — <a href="/workspace/settings/ai-workflow">enable AI</a> (and allow the
+        <code>automation</code> source) to add steps like “generate summary”. Event, task, and webhook steps work regardless.
+      </div>
+    )}
+
+    <!-- Builder (hidden until New/Edit) -->
+    <section id="wf-builder" class="builder" hidden>
+      <div class="builder-head">
+        <h3 id="wf-builder-title">New workflow</h3>
+        <button id="wf-json-toggle" type="button" class="linkish">Edit as JSON</button>
+      </div>
+
+      <div id="wf-guided">
+        <div class="form-field">
+          <label class="label" for="wf-name">Name</label>
+          <input class="input" id="wf-name" placeholder="Summarize published bench notes" />
+        </div>
+
+        <div class="form-field">
+          <label class="label" for="wf-trigger-type">Trigger</label>
+          <select class="input" id="wf-trigger-type"></select>
+        </div>
+
+        <div class="form-field" id="wf-event-field">
+          <label class="label" for="wf-trigger">On event</label>
+          <select class="input" id="wf-trigger"></select>
+          <span class="hint">The event that starts the workflow.</span>
+        </div>
+        <p class="hint" id="wf-manual-hint" hidden>Runs when you press <strong>Run</strong> on the workflow (or via the API). No event needed.</p>
+        <p class="hint" id="wf-mcp-hint" hidden>Exposed as a named MCP tool (<code>marvin_wf_&lt;slug&gt;</code>) so external MCP hosts can run it. Also runnable via <strong>Run</strong>.</p>
+
+        <div class="form-field" id="wf-schedule-field" hidden>
+          <label class="label" for="wf-sched-n">Every</label>
+          <div class="inline">
+            <input class="input" id="wf-sched-n" type="number" min="1" value="1" />
+            <select class="input" id="wf-sched-unit">
+              <option value="60">minutes</option>
+              <option value="3600">hours</option>
+              <option value="86400" selected>days</option>
+            </select>
+          </div>
+          <span class="hint">How often to run it. Adds a task to your Scheduler.</span>
+        </div>
+
+        <div class="form-field" id="wf-chained-field" hidden>
+          <label class="label" for="wf-chained-target">Workflow</label>
+          <select class="input" id="wf-chained-target"></select>
+          <span class="hint" id="wf-chained-hint">Runs after the selected workflow completes.</span>
+        </div>
+
+        <div class="form-field">
+          <label class="label">Only if <span class="muted">(all conditions must match — optional)</span></label>
+          <div id="wf-conditions" class="rows"></div>
+          <button type="button" class="linkish" id="wf-add-condition">+ Add condition</button>
+        </div>
+
+        <div class="form-field">
+          <label class="label">Then do <span class="muted">(steps run in order; each can use the previous step’s output)</span></label>
+          <div id="wf-actions" class="rows"></div>
+          <button type="button" class="linkish" id="wf-add-action">+ Add step</button>
+        </div>
+
+        <label class="check"><input type="checkbox" id="wf-enabled" /> Enabled</label>
+      </div>
+
+      <div id="wf-json-editor" hidden>
+        <div class="form-field">
+          <label class="label" for="wf-json">Definition (JSON)</label>
+          <textarea class="input mono" id="wf-json" rows="16" spellcheck="false"></textarea>
+          <span class="hint">Advanced: the raw <code>{`{ trigger, conditions, actions }`}</code> definition.</span>
+        </div>
+      </div>
+
+      <div class="builder-actions">
+        <button id="wf-save" class="button">Save workflow</button>
+        <button id="wf-cancel" class="button secondary" type="button">Cancel</button>
+        <span id="wf-status" class="status"></span>
+      </div>
+    </section>
+
+    <!-- Workflow list -->
+    <div id="wf-list" class="wf-list"></div>
+    <div id="wf-empty" class="empty" hidden>No workflows yet. Create one to automate a repetitive step.</div>
+  </div>
+
+  <script type="application/json" id="wf-options-data" is:inline set:html={optionsJson}></script>
+  <script type="application/json" id="wf-list-data" is:inline set:html={listJson}></script>
+ </div>
+</AppLayout>
+
+<script>
+  import {
+    createAutomation,
+    updateAutomation,
+    deleteAutomation,
+    runAutomation,
+  } from "@/lib/api/automations";
+
+  const read = (id: string) => JSON.parse(document.getElementById(id)!.textContent || "null");
+  const OPTIONS = read("wf-options-data") || { triggers: [], conditionOps: [], actionKinds: [], operations: [] };
+  let workflows: any[] = read("wf-list-data") || [];
+
+  const $ = (id: string) => document.getElementById(id)!;
+  const esc = (s: unknown) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+  const builder = $("wf-builder");
+  const guided = $("wf-guided");
+  const jsonEditor = $("wf-json-editor");
+  const statusEl = $("wf-status");
+  let editingId: string | null = null; // null = creating
+  let jsonMode = false;
+
+  // ── Option-driven controls ────────────────────────────────────────────────
+  const prettyEvent = (e: string) => e.replace(/_/g, " ");
+  const TRIGGER_TYPE_LABELS: Record<string, string> = {
+    event: "Event", manual: "Manual (Run button)", schedule: "Schedule",
+    chained: "After another workflow", on_error: "When a workflow fails",
+    mcp: "MCP tool (external hosts)",
+  };
+  function automationName(ref: string | undefined): string {
+    if (!ref || ref === "any") return "any workflow";
+    const a = (OPTIONS.automations || []).find((x: any) => x.slug === ref || x.id === ref);
+    return a ? a.name : ref;
+  }
+  function humanInterval(secs: number): string {
+    if (!secs) return "—";
+    const [n, unit] = secs % 86400 === 0 ? [secs / 86400, "day"]
+      : secs % 3600 === 0 ? [secs / 3600, "hour"]
+      : [Math.max(1, Math.round(secs / 60)), "minute"];
+    return `${n} ${unit}${n === 1 ? "" : "s"}`;
+  }
+
+  function fillTriggers() {
+    const typeSel = $("wf-trigger-type") as HTMLSelectElement;
+    typeSel.innerHTML = (OPTIONS.triggerTypes || ["event"])
+      .map((t: string) => `<option value="${esc(t)}">${esc(TRIGGER_TYPE_LABELS[t] || t)}</option>`)
+      .join("");
+    const evSel = $("wf-trigger") as HTMLSelectElement;
+    evSel.innerHTML = (OPTIONS.triggers || [])
+      .map((t: string) => `<option value="${esc(t)}">${esc(prettyEvent(t))}</option>`)
+      .join("");
+    const chSel = $("wf-chained-target") as HTMLSelectElement;
+    chSel.innerHTML = `<option value="any">Any workflow</option>` +
+      (OPTIONS.automations || []).map((a: any) => `<option value="${esc(a.slug)}">${esc(a.name)}</option>`).join("");
+  }
+  function syncTriggerType() {
+    const t = ($("wf-trigger-type") as HTMLSelectElement).value;
+    const isChain = t === "chained" || t === "on_error";
+    $("wf-event-field").toggleAttribute("hidden", t !== "event");
+    $("wf-manual-hint").toggleAttribute("hidden", t !== "manual");
+    $("wf-mcp-hint").toggleAttribute("hidden", t !== "mcp");
+    $("wf-schedule-field").toggleAttribute("hidden", t !== "schedule");
+    $("wf-chained-field").toggleAttribute("hidden", !isChain);
+    if (isChain) {
+      $("wf-chained-hint").textContent = t === "on_error"
+        ? "Runs when the selected workflow fails."
+        : "Runs after the selected workflow completes.";
+    }
+  }
+  const KIND_LABELS: Record<string, string> = {
+    operation: "AI operation",
+    emit_event: "Emit event",
+    handler: "Run task",
+    webhook: "Call webhook",
+  };
+  // Most-useful-first (backend returns kinds alphabetically). New steps default to the first
+  // available — an AI operation when AI is on, otherwise the first non-AI kind.
+  const KIND_ORDER = ["operation", "handler", "webhook", "emit_event"];
+  const orderedKinds = (): string[] => {
+    const avail = OPTIONS.actionKinds || [];
+    return KIND_ORDER.filter((k) => avail.includes(k)).concat(avail.filter((k: string) => !KIND_ORDER.includes(k)));
+  };
+  const defaultKind = (): string =>
+    (OPTIONS.operations || []).length ? "operation" : (orderedKinds().find((k) => k !== "operation") || orderedKinds()[0] || "operation");
+
+  // ── Condition rows ────────────────────────────────────────────────────────
+  function conditionRow(c: any = {}) {
+    const row = document.createElement("div");
+    row.className = "row cond-row";
+    const ops = (OPTIONS.conditionOps || []).map((o: string) => `<option ${c.op === o ? "selected" : ""}>${esc(o)}</option>`).join("");
+    row.innerHTML = `
+      <input class="input c-field" list="wf-fields" placeholder="entry.entry_type" value="${esc(c.field ?? "")}" />
+      <select class="input c-op">${ops}</select>
+      <input class="input c-value" placeholder="value" value="${esc(c.value ?? "")}" />
+      <button type="button" class="icon-btn" title="Remove">✕</button>`;
+    row.querySelector(".icon-btn")!.addEventListener("click", () => row.remove());
+    return row;
+  }
+
+  // ── Action rows (kind-dependent fields) ───────────────────────────────────
+  function actionRow(a: any = {}) {
+    const row = document.createElement("div");
+    row.className = "row action-row";
+    const selectedKind = a.kind || defaultKind();
+    const kinds = orderedKinds()
+      .map((k: string) => `<option value="${esc(k)}" ${selectedKind === k ? "selected" : ""}>${esc(KIND_LABELS[k] || k)}</option>`)
+      .join("");
+    row.innerHTML = `
+      <div class="action-head">
+        <select class="input a-kind">${kinds}</select>
+        <button type="button" class="icon-btn" title="Remove step">✕</button>
+      </div>
+      <div class="a-fields"></div>`;
+    const kindSel = row.querySelector(".a-kind") as HTMLSelectElement;
+    const fields = row.querySelector(".a-fields") as HTMLElement;
+    const render = () => { fields.innerHTML = ""; fields.appendChild(kindFields(kindSel.value, a)); };
+    kindSel.addEventListener("change", () => render());
+    row.querySelector(".icon-btn")!.addEventListener("click", () => row.remove());
+    render();
+    return row;
+  }
+
+  function kindFields(kind: string, a: any): HTMLElement {
+    const wrap = document.createElement("div");
+    if (kind === "operation") {
+      const ops = (OPTIONS.operations || []);
+      if (!ops.length) {
+        wrap.innerHTML = `<p class="muted small">Enable AI to use AI operations here.</p>`;
+        return wrap;
+      }
+      const optList = ops.map((o: any) => `<option value="${esc(o.op)}" ${a.op === o.op ? "selected" : ""}>${esc(o.name)}</option>`).join("");
+      wrap.innerHTML = `
+        <select class="input a-op">${optList}</select>
+        <label class="check small"><input type="checkbox" class="a-writeback" ${a.write_back ? "checked" : ""}/> Write the result back to the entry</label>`;
+    } else if (kind === "emit_event") {
+      const evs = (OPTIONS.triggers || []).map((t: string) => `<option value="${esc(t)}" ${a.event === t ? "selected" : ""}>${esc(prettyEvent(t))}</option>`).join("");
+      wrap.innerHTML = `<select class="input a-event">${evs}</select><span class="hint small">Re-emits this event so other workflows can react.</span>`;
+    } else if (kind === "handler") {
+      wrap.innerHTML = `<input class="input a-task" list="wf-handlers" placeholder="request_site_rebuild" value="${esc(a.task ?? "")}" /><span class="hint small">An internal task to run (e.g. request_site_rebuild, ai_reindex_embeddings).</span>`;
+    } else if (kind === "webhook") {
+      const whs = OPTIONS.webhooks || [];
+      if (!whs.length) {
+        wrap.innerHTML = `<p class="muted small">No webhooks configured yet — <a href="/automation/webhooks">add one</a> first.</p>`;
+        return wrap;
+      }
+      const opts = whs.map((w: any) => `<option value="${esc(w.id)}" ${a.webhook_id === w.id ? "selected" : ""}>${esc(w.name)} · ${esc(w.method)}</option>`).join("");
+      wrap.innerHTML = `<select class="input a-webhook">${opts}</select><span class="hint small">Fires one of your configured webhooks (its URL, method, headers, and payload).</span>`;
+    }
+    return wrap;
+  }
+
+  // ── Build / read the definition ───────────────────────────────────────────
+  function readDefinition() {
+    const conditions = [...document.querySelectorAll(".cond-row")].map((r) => {
+      const field = (r.querySelector(".c-field") as HTMLInputElement).value.trim();
+      const op = (r.querySelector(".c-op") as HTMLSelectElement).value;
+      const value = (r.querySelector(".c-value") as HTMLInputElement).value;
+      return field ? { field, op, value } : null;
+    }).filter(Boolean);
+
+    const actions = [...document.querySelectorAll(".action-row")].map((r) => {
+      const kind = (r.querySelector(".a-kind") as HTMLSelectElement).value;
+      if (kind === "operation") {
+        const op = (r.querySelector(".a-op") as HTMLSelectElement | null)?.value;
+        if (!op) return null;
+        return { kind, op, write_back: (r.querySelector(".a-writeback") as HTMLInputElement)?.checked || false };
+      }
+      if (kind === "emit_event") return { kind, event: (r.querySelector(".a-event") as HTMLSelectElement).value };
+      if (kind === "handler") {
+        const task = (r.querySelector(".a-task") as HTMLInputElement).value.trim();
+        return task ? { kind, task } : null;
+      }
+      if (kind === "webhook") {
+        const webhookId = (r.querySelector(".a-webhook") as HTMLSelectElement | null)?.value;
+        return webhookId ? { kind, webhook_id: webhookId } : null;
+      }
+      return null;
+    }).filter(Boolean);
+
+    const ttype = ($("wf-trigger-type") as HTMLSelectElement).value;
+    let trigger: any;
+    if (ttype === "event") {
+      trigger = { type: "event", event: ($("wf-trigger") as HTMLSelectElement).value };
+    } else if (ttype === "schedule") {
+      const n = Math.max(1, parseInt(($("wf-sched-n") as HTMLInputElement).value || "1", 10));
+      const unit = parseInt(($("wf-sched-unit") as HTMLSelectElement).value, 10);
+      trigger = { type: "schedule", schedule_type: "interval", schedule_config: { interval_seconds: n * unit } };
+    } else if (ttype === "chained" || ttype === "on_error") {
+      const target = ($("wf-chained-target") as HTMLSelectElement).value;
+      trigger = { type: ttype, ...(target && target !== "any" ? { automation: target } : {}) };
+    } else {
+      trigger = { type: ttype };
+    }
+    return { trigger, conditions, actions };
+  }
+
+  // ── Open / close the builder ──────────────────────────────────────────────
+  function openBuilder(wf: any = null) {
+    editingId = wf?.id ?? null;
+    $("wf-builder-title").textContent = wf ? `Edit: ${wf.name}` : "New workflow";
+    ($("wf-name") as HTMLInputElement).value = wf?.name ?? "";
+    ($("wf-enabled") as HTMLInputElement).checked = wf?.enabled ?? false;
+    fillTriggers();
+    const def = wf?.definition ?? {};
+    const trig = def.trigger ?? {};
+    ($("wf-trigger-type") as HTMLSelectElement).value = trig.type || "event";
+    if (trig.event) ($("wf-trigger") as HTMLSelectElement).value = trig.event;
+    if (trig.type === "schedule") {
+      const secs = trig.schedule_config?.interval_seconds || 86400;
+      const unit = secs % 86400 === 0 ? 86400 : secs % 3600 === 0 ? 3600 : 60;
+      ($("wf-sched-n") as HTMLInputElement).value = String(Math.max(1, Math.round(secs / unit)));
+      ($("wf-sched-unit") as HTMLSelectElement).value = String(unit);
+    }
+    if (trig.type === "chained" || trig.type === "on_error") {
+      ($("wf-chained-target") as HTMLSelectElement).value = trig.automation || "any";
+    }
+    syncTriggerType();
+
+    const condWrap = $("wf-conditions"); condWrap.innerHTML = "";
+    (def.conditions ?? []).forEach((c: any) => condWrap.appendChild(conditionRow(c)));
+    const actWrap = $("wf-actions"); actWrap.innerHTML = "";
+    (def.actions?.length ? def.actions : [{}]).forEach((a: any) => actWrap.appendChild(actionRow(a)));
+
+    ($("wf-json") as HTMLTextAreaElement).value = JSON.stringify(def, null, 2);
+    setJsonMode(false);
+    statusEl.textContent = "";
+    builder.removeAttribute("hidden");
+    builder.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function closeBuilder() { builder.setAttribute("hidden", ""); editingId = null; }
+
+  function setJsonMode(on: boolean) {
+    jsonMode = on;
+    guided.toggleAttribute("hidden", on);
+    jsonEditor.toggleAttribute("hidden", !on);
+    $("wf-json-toggle").textContent = on ? "Use guided builder" : "Edit as JSON";
+    // keep them in sync when switching
+    if (on) ($("wf-json") as HTMLTextAreaElement).value = JSON.stringify(readDefinition(), null, 2);
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  async function save() {
+    const name = ($("wf-name") as HTMLInputElement).value.trim();
+    if (!name) { statusEl.textContent = "Name is required."; return; }
+    let definition: any;
+    try {
+      definition = jsonMode ? JSON.parse(($("wf-json") as HTMLTextAreaElement).value) : readDefinition();
+    } catch (e: any) { statusEl.textContent = `Invalid JSON: ${e.message}`; return; }
+    if (!definition.actions?.length) { statusEl.textContent = "Add at least one step."; return; }
+
+    const enabled = ($("wf-enabled") as HTMLInputElement).checked;
+    statusEl.textContent = "Saving…";
+    try {
+      if (editingId) await updateAutomation(editingId, { name, enabled, definition });
+      else await createAutomation({ name, enabled, definition });
+      location.reload();
+    } catch (e: any) {
+      statusEl.textContent = e?.message || "Save failed.";
+    }
+  }
+
+  // ── List rendering ─────────────────────────────────────────────────────────
+  const OP_SYMBOL: Record<string, string> = { eq: "=", neq: "≠", contains: "contains", exists: "exists" };
+  function stepChip(a: any): string {
+    const base = KIND_LABELS[a.kind] || a.kind;
+    const webhookName = a.webhook_id
+      ? ((OPTIONS.webhooks || []).find((w: any) => w.id === a.webhook_id)?.name ?? "webhook")
+      : (a.url ? "raw url" : "");
+    const detail = a.op || a.task || (a.event ? prettyEvent(a.event) : "") || webhookName;
+    const text = detail ? `${base} · ${detail}` : base;
+    return `<span class="chip step k-${esc(a.kind)}">${esc(text)}</span>`;
+  }
+  function lane(label: string, chips: string[]): string {
+    if (!chips.length) return "";
+    return `<div class="lane"><span class="lane-label">${label}</span><div class="chips">${chips.join("")}</div></div>`;
+  }
+  function summarize(wf: any): string {
+    const d = wf.definition || {};
+    const conds = (d.conditions || []).map(
+      (c: any) => `<span class="chip cond">${esc(c.field)} <em>${esc(OP_SYMBOL[c.op] || c.op)}</em> ${esc(c.value ?? "")}</span>`,
+    );
+    const steps = (d.actions || []).map(stepChip);
+    const t = d.trigger || {};
+    const trigText = t.type === "manual" ? "run manually"
+      : t.type === "mcp" ? "MCP tool"
+      : t.type === "schedule" ? `every ${humanInterval(t.schedule_config?.interval_seconds)}`
+      : t.type === "chained" ? `after ${automationName(t.automation)}`
+      : t.type === "on_error" ? `if ${automationName(t.automation)} fails`
+      : prettyEvent(t.event || "—");
+    const trigChip = `<span class="chip trigger">${esc(trigText)}</span>`;
+    return `<div class="flow">
+      ${lane("When", [trigChip])}
+      ${lane("If", conds)}
+      ${lane("Then", steps)}
+    </div>`;
+  }
+
+  function renderList() {
+    const host = $("wf-list");
+    $("wf-empty").toggleAttribute("hidden", workflows.length > 0);
+    host.innerHTML = workflows.map((wf) => `
+      <div class="wf-card ${wf.enabled ? "" : "off"}" data-id="${esc(wf.id)}">
+        <div class="wf-main">
+          <div class="wf-title">
+            <strong>${esc(wf.name)}</strong>
+            <span class="badge ${wf.enabled ? "on" : "muted"}">${wf.enabled ? "Enabled" : "Disabled"}</span>
+          </div>
+          ${summarize(wf)}
+        </div>
+        <div class="wf-actions">
+          <button class="wf-btn primary js-run">Run</button>
+          <button class="wf-btn js-toggle">${wf.enabled ? "Disable" : "Enable"}</button>
+          <button class="wf-btn js-edit">Edit</button>
+          <button class="wf-btn danger js-delete">Delete</button>
+        </div>
+      </div>`).join("");
+
+    host.querySelectorAll(".wf-card").forEach((card) => {
+      const id = (card as HTMLElement).dataset.id!;
+      const wf = workflows.find((w) => w.id === id);
+      card.querySelector(".js-run")!.addEventListener("click", async (e) => {
+        const btn = e.currentTarget as HTMLButtonElement;
+        btn.disabled = true; const orig = btn.textContent; btn.textContent = "Running…";
+        try {
+          const res = await runAutomation(id);
+          alert(res.ok ? "Workflow ran." : "Workflow ran with errors — check the Event Log.");
+        } catch (err: any) {
+          alert(err?.message || "Run failed.");
+        } finally { btn.disabled = false; btn.textContent = orig; }
+      });
+      card.querySelector(".js-edit")!.addEventListener("click", () => openBuilder(wf));
+      card.querySelector(".js-toggle")!.addEventListener("click", async () => {
+        try { await updateAutomation(id, { enabled: !wf.enabled }); location.reload(); }
+        catch (e: any) { alert(e?.message || "Failed to toggle."); }
+      });
+      card.querySelector(".js-delete")!.addEventListener("click", async () => {
+        if (!confirm(`Delete workflow “${wf.name}”?`)) return;
+        try { await deleteAutomation(id); location.reload(); }
+        catch (e: any) { alert(e?.message || "Failed to delete."); }
+      });
+    });
+  }
+
+  // ── Wire up ─────────────────────────────────────────────────────────────────
+  $("wf-new").addEventListener("click", () => openBuilder());
+  $("wf-cancel").addEventListener("click", closeBuilder);
+  $("wf-save").addEventListener("click", save);
+  $("wf-trigger-type").addEventListener("change", syncTriggerType);
+  $("wf-add-condition").addEventListener("click", () => $("wf-conditions").appendChild(conditionRow()));
+  $("wf-add-action").addEventListener("click", () => $("wf-actions").appendChild(actionRow()));
+  $("wf-json-toggle").addEventListener("click", () => setJsonMode(!jsonMode));
+
+  // datalists for field/handler hints
+  const dl = document.createElement("datalist"); dl.id = "wf-fields";
+  ["entry.entry_type", "entry.status", "entry.title", "entry.slug"].forEach((f) => {
+    const o = document.createElement("option"); o.value = f; dl.appendChild(o);
+  });
+  document.body.appendChild(dl);
+  const dh = document.createElement("datalist"); dh.id = "wf-handlers";
+  ["request_site_rebuild", "ai_reindex_embeddings", "publish_scheduled_entries"].forEach((f) => {
+    const o = document.createElement("option"); o.value = f; dh.appendChild(o);
+  });
+  document.body.appendChild(dh);
+
+  renderList();
+</script>
+
+<style>
+  /* Most content on this page is injected by the client script; Astro scoped styles don't reach
+     JS-created nodes, so component rules are :global() (scoped to .workflows-page so they don't leak). */
+  /* `.hint`/`.form-field` set display, which would override the [hidden] attribute — force it. */
+  .workflows-page :global([hidden]) { display: none !important; }
+  .workflows-page :global(.toolbar) { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+  .workflows-page :global(.toolbar h2) { margin: 0; font-size: 22px; }
+  .workflows-page :global(.toolbar p) { margin: 4px 0 0; color: var(--muted); font-size: 14px; max-width: 60ch; }
+  .workflows-page :global(.page-container) { max-width: 900px; }
+
+  .workflows-page :global(.banner) { padding: 11px 14px; border-radius: 10px; margin: 14px 0; font-size: 13.5px; line-height: 1.5; }
+  .workflows-page :global(.banner.error) { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+  .workflows-page :global(.banner.info) { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  .workflows-page :global(.banner a) { color: var(--accent); }
+  .workflows-page :global(.banner code) { font-family: ui-monospace, monospace; font-size: 0.9em; background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
+
+  /* Builder */
+  .workflows-page :global(.builder) { border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin: 16px 0 20px; background: var(--panel); }
+  .workflows-page :global(.builder-head) { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .workflows-page :global(.builder-head h3) { margin: 0; font-size: 16px; }
+  .workflows-page :global(.builder-actions) { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .workflows-page :global(.status) { color: var(--muted); font-size: 13px; }
+
+  .workflows-page :global(.form-field) { margin: 16px 0; }
+  .workflows-page :global(.label) { display: block; font-weight: 600; font-size: 13px; margin-bottom: 7px; }
+  .workflows-page :global(.hint) { display: block; color: var(--muted); font-size: 12px; margin-top: 5px; }
+  .workflows-page :global(.muted) { color: var(--muted); font-weight: 400; }
+  .workflows-page :global(.small) { font-size: 12px; }
+  .workflows-page :global(.input) { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--ink); font: inherit; font-size: 14px; }
+  .workflows-page :global(.input:focus) { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .workflows-page :global(.mono) { font-family: ui-monospace, monospace; }
+  .workflows-page :global(.check) { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; }
+  .workflows-page :global(.inline) { display: flex; gap: 8px; align-items: center; }
+  .workflows-page :global(.inline #wf-sched-n) { max-width: 90px; }
+  .workflows-page :global(.inline #wf-sched-unit) { max-width: 140px; }
+
+  /* Builder rows (conditions + steps) */
+  .workflows-page :global(.rows) { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+  .workflows-page :global(.row) { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--bg); }
+  .workflows-page :global(.cond-row) { display: grid; grid-template-columns: 1.5fr 0.9fr 1.3fr auto; gap: 8px; align-items: center; }
+  .workflows-page :global(.action-head) { display: flex; gap: 8px; align-items: center; }
+  .workflows-page :global(.action-head .a-kind) { flex: 0 0 190px; font-weight: 600; }
+  .workflows-page :global(.a-fields) { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-left: 2px; }
+  .workflows-page :global(.icon-btn) { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 4px 6px; border-radius: 6px; margin-left: auto; }
+  .workflows-page :global(.icon-btn:hover) { color: var(--color-error); background: color-mix(in srgb, var(--color-error) 10%, transparent); }
+  .workflows-page :global(.linkish) { border: none; background: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 3px 6px; border-radius: 6px; font-weight: 500; }
+  .workflows-page :global(.linkish:hover) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .workflows-page :global(.linkish.danger) { color: var(--color-error); }
+  .workflows-page :global(.linkish.danger:hover) { background: color-mix(in srgb, var(--color-error) 12%, transparent); }
+
+  /* Workflow cards */
+  .workflows-page :global(.wf-list) { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+  .workflows-page :global(.wf-card) { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; background: var(--bg); transition: border-color 0.15s, box-shadow 0.15s; }
+  .workflows-page :global(.wf-card:hover) { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); box-shadow: 0 2px 12px rgb(0 0 0 / 0.05); }
+  .workflows-page :global(.wf-card.off) { opacity: 0.6; }
+  .workflows-page :global(.wf-main) { flex: 1; min-width: 0; }
+  .workflows-page :global(.wf-title) { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .workflows-page :global(.wf-title strong) { font-size: 15px; }
+  .workflows-page :global(.wf-actions) { display: flex; flex-direction: row; align-items: center; gap: 6px; flex: none; }
+  .workflows-page :global(.wf-btn) { font-size: 12px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--muted); cursor: pointer; font-weight: 500; transition: color 0.12s, border-color 0.12s, background 0.12s; }
+  .workflows-page :global(.wf-btn:hover) { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .workflows-page :global(.wf-btn.primary) { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); font-weight: 600; }
+  .workflows-page :global(.wf-btn.primary:hover) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .workflows-page :global(.wf-btn:disabled) { opacity: 0.55; cursor: default; }
+  .workflows-page :global(.wf-btn.danger:hover) { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 45%, var(--line)); background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+  .workflows-page :global(.badge) { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); }
+  .workflows-page :global(.badge.on) { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border-color: transparent; }
+  .workflows-page :global(.badge.muted) { color: var(--muted); }
+
+  /* When / If / Then lanes */
+  .workflows-page :global(.flow) { display: flex; flex-direction: column; gap: 7px; }
+  .workflows-page :global(.lane) { display: flex; align-items: baseline; gap: 10px; }
+  .workflows-page :global(.lane-label) { flex: 0 0 40px; text-align: right; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding-top: 2px; }
+  .workflows-page :global(.chips) { display: flex; flex-wrap: wrap; gap: 6px; }
+  .workflows-page :global(.chip) { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+  .workflows-page :global(.chip.trigger) { background: var(--panel); font-weight: 600; }
+  .workflows-page :global(.chip.cond) { color: var(--muted); }
+  .workflows-page :global(.chip.cond em) { font-style: normal; color: var(--ink); font-weight: 600; padding: 0 2px; }
+  .workflows-page :global(.chip.step) { background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: transparent; }
+  .workflows-page :global(.chip.k-webhook) { background: color-mix(in srgb, #3b82f6 14%, transparent); }
+  .workflows-page :global(.chip.k-emit_event) { background: color-mix(in srgb, #a855f7 14%, transparent); }
+  .workflows-page :global(.chip.k-handler) { background: color-mix(in srgb, #22c55e 14%, transparent); }
+
+  .workflows-page :global(.empty) { color: var(--muted); text-align: center; padding: 40px; border: 1px dashed var(--line); border-radius: 14px; margin-top: 8px; }
+
+  @media (max-width: 640px) {
+    .workflows-page :global(.cond-row) { grid-template-columns: 1fr 1fr; }
+    .workflows-page :global(.wf-card) { flex-direction: column; }
+    .workflows-page :global(.wf-actions) { flex-direction: row; align-items: flex-start; }
+    .workflows-page :global(.lane) { flex-direction: column; gap: 3px; }
+    .workflows-page :global(.lane-label) { text-align: left; }
+  }
+</style>

@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getAIWorkflowSettings } from "@/lib/api/aiWorkflowSettings";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const authed = !!authToken;
@@ -12,7 +12,7 @@ let settingsError: string | null = null;
 // Gate the surface on AI being enabled AND valid auth (see ai-frontend-gating).
 if (authed) {
   try {
-    const settings = await getAIWorkflowSettings(authToken);
+    const settings = await createSdkClient(authToken).ai.settings.get();
     aiEnabled = (settings as any)?.enabled !== false;
   } catch (e) {
     settingsError = e instanceof Error ? e.message : String(e);
@@ -79,7 +79,7 @@ if (authed) {
 </AppLayout>
 
 <script>
-  import { fetchApi } from '@/lib/api/client';
+  import { createSdkClient } from '@/lib/sdk';
 
   const questionEl = document.getElementById('question') as HTMLTextAreaElement | null;
   const askBtn = document.getElementById('ask-btn') as HTMLButtonElement | null;
@@ -110,10 +110,8 @@ if (authed) {
     askStatus!.className = 'status';
 
     try {
-      const exec = await fetchApi<any>('/api/ai/operations/answer-workspace-question/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: { question } }),
+      const exec: any = await createSdkClient().ai.operations.execute('answer-workspace-question', {
+        input: { question },
       });
 
       const out = exec?.outputJson ?? exec?.output_json ?? {};
@@ -170,11 +168,7 @@ if (authed) {
     reindexStatus!.textContent = 'Reindexing…';
     reindexStatus!.className = 'status';
     try {
-      const res = await fetchApi<any>('/api/ai/embeddings/reindex', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: 'workspace' }),
-      });
+      const res: any = await createSdkClient().ai.operations.reindex({ scope: 'workspace' });
       const entities = res?.entities_indexed ?? 0;
       const chunks = res?.chunks_indexed ?? 0;
       reindexStatus!.textContent = `Indexed ${entities} items (${chunks} chunks).`;

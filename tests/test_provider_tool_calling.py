@@ -236,6 +236,7 @@ def test_ollama_complete_with_tools_synthesizes_ids():
     import httpx
 
     fake_resp = MagicMock()
+    fake_resp.status_code = 200
     fake_resp.json.return_value = data
     fake_resp.raise_for_status.return_value = None
     provider_post = MagicMock(return_value=fake_resp)

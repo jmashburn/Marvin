@@ -24,6 +24,7 @@ from marvin.services import BaseService  # Base service class for common functio
 # Event listener implementations
 from marvin.services.event_bus_service.event_bus_listener import (
     AIEmbeddingReactionListener,
+    AutomationReactionListener,
     SmartCollectionReactionListener,
     AppriseEventListener,
     AuditLogListener,
@@ -151,6 +152,7 @@ class EventBusService(BaseService):
             AuditLogListener(group_id),  # Persists all events to event_log table (MUST BE FIRST).
             ScheduledTaskListener(group_id),  # Executes scheduled tasks when triggered.
             AIEmbeddingReactionListener(group_id),  # Auto-embeds an entry into the RAG index on publish.
+            AutomationReactionListener(group_id),  # Flavor B: runs user-configured automations on trigger events.
             SmartCollectionReactionListener(group_id),  # Materializes smart-collection membership on entry changes.
             ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
@@ -199,6 +201,7 @@ class EventBusService(BaseService):
         user_id: UUID4 | None = None,  # User who triggered the event
         entity_id: UUID4 | None = None,  # Primary entity the event is about
         entity_type: str | None = None,  # Type of the primary entity
+        reaction_depth: int = 0,  # Automation/reaction hop count (loop-guard); 0 for user/system actions
     ) -> None:
         """
         Dispatches an event to the event bus.
@@ -232,6 +235,7 @@ class EventBusService(BaseService):
             user_id=user_id,
             entity_id=entity_id,
             entity_type=entity_type,
+            reaction_depth=reaction_depth,
         )
 
         event_name = event_type.name if hasattr(event_type, "name") else str(event_type)

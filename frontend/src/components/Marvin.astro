@@ -13,6 +13,7 @@
         <span class="marvin-name">Marvin</span>
         <span id="marvin-sub" class="marvin-sub">here to help, allegedly</span>
       </div>
+      <button id="marvin-clear" class="marvin-clear" aria-label="Clear conversation" title="Clear conversation" hidden>Clear</button>
       <button id="marvin-close" class="marvin-close" aria-label="Close">×</button>
     </div>
     <div id="marvin-log" class="marvin-log"></div>
@@ -49,17 +50,70 @@
     const form = document.getElementById('marvin-form') as HTMLFormElement;
     const input = document.getElementById('marvin-input') as HTMLInputElement;
     const sub = document.getElementById('marvin-sub')!;
+    const clear = document.getElementById('marvin-clear')!;
     let greeted = false;
     let busy = false;
     let taglineTimer: number | undefined;
 
-    function addMsg(who: 'user' | 'marvin', html: string): HTMLElement {
+    // ── Session memory: keep the transcript across page navigations (per-tab) ──
+    // sessionStorage, so the conversation follows you as you move around the workspace but doesn't
+    // linger forever or leak between tabs. Only committed turns are stored — never the transient
+    // "thinking…" placeholder, which is replaced in place by the final answer.
+    const MEM_KEY = 'marvin.transcript';
+    const MEM_CAP = 60; // keep the last N turns; guards both quota and scrollback bloat
+    type Turn = { who: 'user' | 'marvin'; html: string };
+    let transcript: Turn[] = [];
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(MEM_KEY) || '[]');
+      if (Array.isArray(saved)) transcript = saved;
+    } catch { /* ignore corrupt transcript */ }
+
+    function saveTranscript() {
+      try {
+        transcript = transcript.slice(-MEM_CAP);
+        sessionStorage.setItem(MEM_KEY, JSON.stringify(transcript));
+      } catch { /* quota or disabled storage — degrade to in-memory only */ }
+      clear.toggleAttribute('hidden', transcript.length === 0);
+    }
+
+    function appendNode(who: 'user' | 'marvin', html: string): HTMLElement {
       const div = document.createElement('div');
       div.className = `mv-msg mv-${who}`;
       div.innerHTML = html;
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
       return div;
+    }
+
+    // Add a message to the log. Committed turns persist; pass persist=false for the transient
+    // "thinking…" placeholder (its final answer is committed via commitReply once it resolves).
+    function addMsg(who: 'user' | 'marvin', html: string, persist = true): HTMLElement {
+      const div = appendNode(who, html);
+      if (persist) { transcript.push({ who, html }); saveTranscript(); }
+      return div;
+    }
+
+    // Commit a marvin reply that replaced a "thinking…" node in place.
+    function commitReply(node: HTMLElement, html: string) {
+      node.innerHTML = html;
+      transcript.push({ who: 'marvin', html });
+      saveTranscript();
+    }
+
+    function clearTranscript() {
+      transcript = [];
+      try { sessionStorage.removeItem(MEM_KEY); } catch { /* ignore */ }
+      log.innerHTML = '';
+      clear.setAttribute('hidden', '');
+      greeted = false;
+      if (panel.classList.contains('open')) { greeted = true; addMsg('marvin', esc(pick(GREETINGS)), false); }
+    }
+
+    // Rehydrate a stored conversation on page load (before any greeting).
+    if (transcript.length) {
+      for (const t of transcript) appendNode(t.who, t.html);
+      greeted = true; // don't greet over a restored conversation
+      clear.removeAttribute('hidden');
     }
 
     function rotateTagline() { sub.textContent = pick(TAGLINES); }
@@ -82,7 +136,7 @@
       taglineTimer = window.setInterval(rotateTagline, 7000); // cycle like a login fortune
       if (!greeted) {
         greeted = true;
-        addMsg('marvin', esc(pick(GREETINGS)));
+        addMsg('marvin', esc(pick(GREETINGS)), false); // flavor line, not part of the saved transcript
       }
       input.focus();
     }
@@ -137,6 +191,7 @@
       panel.classList.contains('open') ? closePanel() : openPanel();
     });
     close.addEventListener('click', closePanel);
+    clear.addEventListener('click', clearTranscript);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
 
     form.addEventListener('submit', async (e) => {
@@ -152,15 +207,15 @@
         addMsg('marvin', "I don't know that command. Try <code>/help</code> — not that it'll lift the mood.");
         return;
       }
-      if (!arg) { addMsg('marvin', "You'll have to give me something to work with."); return; }
+      if (!arg && !cap.noArg) { addMsg('marvin', "You'll have to give me something to work with."); return; }
 
       busy = true;
-      const thinking = addMsg('marvin', `<span class="mv-thinking">${esc(pick(THINKING))}</span>`);
+      const thinking = addMsg('marvin', `<span class="mv-thinking">${esc(pick(THINKING))}</span>`, false);
       try {
         const res = await cap.run(arg);
-        thinking.innerHTML = res.html;
+        commitReply(thinking, res.html);
       } catch (err: any) {
-        thinking.innerHTML = `<span class="mv-error">${esc(pick(ERRORS))} (${esc(err?.message || 'error')})</span>`;
+        commitReply(thinking, `<span class="mv-error">${esc(pick(ERRORS))} (${esc(err?.message || 'error')})</span>`);
       } finally {
         busy = false;
         log.scrollTop = log.scrollHeight;
@@ -202,6 +257,12 @@
   .marvin-id { display: flex; flex-direction: column; }
   .marvin-name { font-weight: 600; font-size: 15px; color: var(--ink); }
   .marvin-sub { font-size: 11px; color: var(--muted); }
+  .marvin-clear {
+    margin-left: auto; margin-right: 4px;
+    background: none; border: none; cursor: pointer;
+    font-size: 11px; line-height: 1; color: var(--muted); padding: 2px 4px;
+  }
+  .marvin-clear:hover { color: var(--ink); }
   .marvin-close {
     background: none; border: none; cursor: pointer;
     font-size: 22px; line-height: 1; color: var(--muted); padding: 0 4px;
@@ -235,7 +296,35 @@
     align-self: flex-start; background: var(--bg); color: var(--ink);
     border: 1px solid var(--line); border-bottom-left-radius: 4px;
   }
-  .marvin-log :global(.mv-answer) { white-space: pre-wrap; }
+  /* Rendered markdown: tighten default block spacing so the bubble stays compact. */
+  .marvin-log :global(.mv-answer > :first-child) { margin-top: 0; }
+  .marvin-log :global(.mv-answer > :last-child) { margin-bottom: 0; }
+  .marvin-log :global(.mv-answer p) { margin: 6px 0; }
+  .marvin-log :global(.mv-answer ul), .marvin-log :global(.mv-answer ol) { margin: 6px 0; padding-left: 20px; }
+  .marvin-log :global(.mv-answer li) { margin: 2px 0; }
+  .marvin-log :global(.mv-answer h1), .marvin-log :global(.mv-answer h2),
+  .marvin-log :global(.mv-answer h3), .marvin-log :global(.mv-answer h4) {
+    margin: 10px 0 4px; font-size: 14px; font-weight: 650; line-height: 1.3;
+  }
+  .marvin-log :global(.mv-answer pre) {
+    margin: 6px 0; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; overflow-x: auto; font-size: 12px;
+  }
+  .marvin-log :global(.mv-answer pre code) { background: none; border: 0; padding: 0; }
+  .marvin-log :global(.mv-answer img) { max-width: 100%; height: auto; border-radius: 6px; }
+  .marvin-log :global(.mv-answer blockquote) {
+    margin: 6px 0; padding-left: 10px; border-left: 3px solid var(--line); color: var(--muted);
+  }
+  /* Deterministic thumbnail strip from tool image assets. */
+  .marvin-log :global(.mv-thumbs) {
+    margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .marvin-log :global(.mv-thumb) {
+    display: block; width: 64px; height: 64px; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--line); background: var(--panel); flex: 0 0 auto;
+  }
+  .marvin-log :global(.mv-thumb img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .marvin-log :global(a.mv-thumb:hover) { border-color: var(--accent); }
   .marvin-log :global(.mv-sources) {
     margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
     font-size: 12px; color: var(--muted);
@@ -246,6 +335,18 @@
   .marvin-log :global(.mv-help code), .marvin-log :global(.mv-marvin code) {
     font-size: 12px; background: var(--panel); border: 1px solid var(--line);
     border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, monospace;
+  }
+  .marvin-log :global(.mv-tools-group) { margin: 8px 0; }
+  .marvin-log :global(.mv-tools-head) {
+    display: block; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--muted); margin-bottom: 2px;
+  }
+  .marvin-log :global(.mv-tools ul) { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+  .marvin-log :global(.mv-tools li) { display: flex; gap: 6px; align-items: baseline; font-size: 12px; }
+  .marvin-log :global(.mv-tools li span) { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .marvin-log :global(.mv-tools code) {
+    font-size: 12px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, monospace; flex: none;
   }
   .marvin-log :global(.mv-thinking) { color: var(--muted); font-style: italic; }
   .marvin-log :global(.mv-error) { color: var(--color-error); }
