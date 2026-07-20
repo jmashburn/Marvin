@@ -886,8 +886,14 @@ list filter + deep-link). Deferred by request: create-flow attach; AI generate-t
       **UI done** (2026-07-20): reusable `SuggestionBanner.astro` (current→proposed diff + Apply/Reject)
       wired into asset + resource editors; Apply/Reject POST to same-origin Astro routes proxying the
       backend endpoints. Live: staged generate-tags suggestion → banner → Apply links real tags + clears.
-- [ ] **Deferred:** smart collections of assets/resources (collections only hold entries today —
-      separate feature).
+- [x] **Smart collections of assets/resources** ✅ (2026-07-20) — collections gained `target_type`
+      (entry/asset/resource) + `collection_assets`/`collection_resources` junctions; generalized
+      matcher (`matches_rules(item, rules, target_type)` — asset_types/resource_types + universal tags)
+      and `sync_collection`/`sync_item`. Reactive: asset/resource create/update + tag attach/detach
+      re-materialize membership. `list_collections` counts the right junction; `GET /collections/{id}/members`
+      returns typed members. UI: `SmartCollectionFields` "Collect" target selector + type-aware hints;
+      detail page shows members + target badge. 12 matcher tests; live: created a resource smart collection
+      (resource_types: [material]) via the UI → 12 members. **Publish API exposure deferred by request.**
 
 ### Phase 3 — AI integration (after, or with attach/create's junction-writeback work)
 - [ ] Repoint `generate-tags` writeback (`system.py:72`) off `metadata_json.tags` onto real tags —
