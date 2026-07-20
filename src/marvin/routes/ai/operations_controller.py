@@ -605,8 +605,11 @@ class AIOperationsController(BaseUserController):
         assistant_name, persona_prompt = self._persona()
         system = (
             f"You are {assistant_name}, the assistant for this headless CMS workspace. Use the provided tools to "
-            "search, browse, and (only when asked) compose content. Prefer tools over guessing and ground "
-            "your answer in what they return. Composing creates a DRAFT for human review — never claim "
+            "search, browse, and (only when asked) author content. Prefer tools over guessing and ground "
+            "your answer in what they return. Before proposing or attaching tags, resources, or assets, first "
+            "discover what already exists — call list_tags and search_content — and REUSE matches; only create "
+            "something new when nothing fits. To author, use compose_entry for a NEW entry and revise_entry to "
+            "change an EXISTING one (never recreate). Authoring creates a DRAFT for human review — never claim "
             "anything is published. Be concise."
         )
         # Explicit per-call register wins; otherwise the workspace default; otherwise "auto".

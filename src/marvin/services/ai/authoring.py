@@ -23,6 +23,32 @@ from typing import Any
 from marvin.core.root_logger import get_logger
 
 
+def default_authoring_model(session, group_id, provider=None) -> str | None:
+    """The workspace's default model id (settings → default provider/model → platform app default).
+
+    Shared by the agent's authoring tools so they use the same model the compose endpoint would.
+    """
+    from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+
+    settings = session.query(WorkspaceAISettingsModel).filter_by(group_id=group_id).first()
+    if settings and settings.model:
+        return settings.model
+    from marvin.db.models.groups.ai_providers import AIModelModel, AIProviderModel
+
+    prov = session.query(AIProviderModel).filter_by(group_id=group_id, is_default=True, enabled=True).first()
+    if prov:
+        model = session.query(AIModelModel).filter_by(provider_id=prov.id, is_default=True, enabled=True).first()
+        if model:
+            return model.model_id
+    if settings and settings.credential_mode == "platform":
+        from marvin.core.config import get_app_settings
+
+        app = get_app_settings()
+        provider_type = settings.provider or getattr(app, "AI_DEFAULT_PROVIDER", "openai")
+        return getattr(app, f"{provider_type.upper()}_MODEL", None)
+    return None
+
+
 class AuthoringService:
     """Composes and revises entries. Construct with the request's session/user/provider/model."""
 
