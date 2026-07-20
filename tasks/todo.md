@@ -878,8 +878,15 @@ list filter + deep-link). Deferred by request: create-flow attach; AI generate-t
       + regen · reusable `TagChips.astro` chip UI on asset + resource editors · tag admin "Uses" count
       (entries+assets+resources via `usage_count`). 4 tests; suite 286. Live: resource chip add→save→persist,
       admin Uses 1→2→1 on revert.
+- [x] **Lift the entries-only `_write_back` guard** ✅ (2026-07-20) — added `suggestion_json` to the
+      assets + resources tables (migration); shared `SuggestionWritebackMixin` (stage/apply/clear) +
+      per-repo `apply_fields` (real-tags "tags" target, metadata paths, columns); `_write_back` dispatches
+      entry/asset/resource (assets/resources always-draft, no published lifecycle); apply/reject endpoints
+      + `suggestionJson` on Asset/Resource Read. Live: resource stage→apply + auto-apply link real tags.
+      **Remaining:** the editor diff/apply UI on asset/resource pages (entries have it; assets/resources
+      expose `suggestionJson` for it but the banner isn't wired yet).
 - [ ] **Deferred:** smart collections of assets/resources (collections only hold entries today —
-      separate feature) · lift the entries-only `_write_back` guard (couples to Phase 3).
+      separate feature).
 
 ### Phase 3 — AI integration (after, or with attach/create's junction-writeback work)
 - [ ] Repoint `generate-tags` writeback (`system.py:72`) off `metadata_json.tags` onto real tags —
