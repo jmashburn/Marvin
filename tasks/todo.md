@@ -864,9 +864,16 @@ list filter + deep-link). Deferred by request: create-flow attach; AI generate-t
       verified live. Note: browser SDK mutations need matching host (localhost↔localhost), not
       127.0.0.1 — cross-host drops the cookie.
 
-### Phase 2 — assets + resources (fast follow)
-- [ ] `asset_tags` + `resource_tags` junctions + `.tags` associations · lift the entries-only guard in
-      `_write_back` · attach API + chip UI on asset/resource pages · smart collections of assets/resources.
+### Phase 2 — assets + resources ✅ COMPLETE (2026-07-20, verified live)
+- [x] `asset_tags` + `resource_tags` junctions (+ migration/indexes) · `.tags`/`tag_names` on
+      Assets/Resources · `tag_ids` on asset/resource update (resource create too) · `tags` slugs on
+      AssetRead/ResourceRead + published schemas · attach/detach API (`/tags/{id}/assets|resources/{id}`) ·
+      MCP asset/resource serializers · backup/restore round-trip (shared `_link_tags`) · SDK attach/detach
+      + regen · reusable `TagChips.astro` chip UI on asset + resource editors · tag admin "Uses" count
+      (entries+assets+resources via `usage_count`). 4 tests; suite 286. Live: resource chip add→save→persist,
+      admin Uses 1→2→1 on revert.
+- [ ] **Deferred:** smart collections of assets/resources (collections only hold entries today —
+      separate feature) · lift the entries-only `_write_back` guard (couples to Phase 3).
 
 ### Phase 3 — AI integration (after, or with attach/create's junction-writeback work)
 - [ ] Repoint `generate-tags` writeback (`system.py:72`) off `metadata_json.tags` onto real tags —
