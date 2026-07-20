@@ -156,6 +156,35 @@ def detach_asset(ctx: ToolContext, args: dict) -> str:
 _MAX_IMPORT_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
+def _public_url_error(url: str) -> str | None:
+    """SSRF fence: reject a fetch URL that isn't http(s) or whose host resolves to a non-public
+    address (loopback / private / link-local / reserved — e.g. 127.0.0.1, 169.254.169.254, 10.x).
+    Returns an error string, or None if the URL is safe to fetch. Callers must also disable redirect
+    following so a public host can't 302 into an internal one."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    parsed = urlparse(str(url))
+    if parsed.scheme not in ("http", "https"):
+        return "url must be http(s)"
+    host = parsed.hostname
+    if not host:
+        return "url has no host"
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        return f"could not resolve host: {e}"
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            continue
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            return "url resolves to a non-public address — blocked"
+    return None
+
+
 @register_tool(
     name="import_asset",
     description=(
@@ -186,12 +215,17 @@ def import_asset(ctx: ToolContext, args: dict) -> str:
     url, data = args.get("url"), args.get("data")
     # 1) Get the bytes + a filename.
     if url:
-        if not str(url).lower().startswith(("http://", "https://")):
-            return json.dumps({"error": "url must be http(s)"})
+        ssrf = _public_url_error(url)
+        if ssrf:
+            return json.dumps({"error": ssrf})
         try:
             import httpx
 
-            resp = httpx.get(str(url), timeout=15.0, follow_redirects=True)
+            # follow_redirects=False so a public host can't 302 the request into an internal address
+            # (the SSRF fence only validated the initial host). A redirect is reported, not chased.
+            resp = httpx.get(str(url), timeout=15.0, follow_redirects=False)
+            if resp.is_redirect:
+                return json.dumps({"error": "url redirects — provide the direct image URL"})
             resp.raise_for_status()
             raw = resp.content
         except Exception as e:  # noqa: BLE001
