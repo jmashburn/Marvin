@@ -276,6 +276,9 @@ class EventTypes(EventTypeBase):
     """Event dispatched when an API client is enabled."""
     api_client_disabled = auto()
     """Event dispatched when an API client is disabled."""
+    incoming_webhook = auto()
+    """An external system POSTed to a tokened incoming-webhook URL. Carries the request payload so
+    automations (and any other subscriber) can react — the ingress side of the webhook story."""
 
     # ==========================================================================
     # Resource Events
@@ -858,6 +861,30 @@ class EventAPIClientData(EventDocumentDataBase):
     """The prefix of the token (for token rotation events)."""
     created_by_name: str | None = None
     """The full name of the user who created/manages the API client."""
+
+
+class EventIncomingWebhookData(EventDocumentDataBase):
+    """Data payload for an `incoming_webhook` event.
+
+    Carries which ingress webhook fired plus the raw request `payload`, so an automation's
+    `incoming_webhook` trigger can key on the webhook slug and its conditions/actions can reach the
+    body via `$event.payload.*`.
+    """
+
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
+    operation: EventOperationBase = EventOperation.info
+    webhook_id: UUID4
+    """The incoming webhook that received the request."""
+    webhook_slug: str
+    """The webhook's slug — an `incoming_webhook` trigger may target it by slug."""
+    webhook_name: str
+    """The webhook's human-readable name."""
+    payload: dict = {}
+    """The parsed JSON request body (empty dict if none / unparseable)."""
+    source_ip: str | None = None
+    """The caller's IP address, best-effort."""
+    workspace_id: UUID4
+    """The workspace the webhook belongs to."""
 
 
 class EventEntryTypeData(EventDocumentDataBase):

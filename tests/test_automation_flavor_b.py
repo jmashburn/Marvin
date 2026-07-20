@@ -285,3 +285,71 @@ class TestTriggerMatching:
         for et in (EventTypes.automation_ran, EventTypes.automation_failed):
             ev = SimpleNamespace(event_type=et, reaction_depth=0)
             assert listener.get_subscribers(ev) == ["automation"]
+
+
+# ── Incoming-webhook trigger (T5) ─────────────────────────────────────────────
+class TestIncomingWebhookTrigger:
+    def _m(self, trig, ev):
+        from marvin.services.automation.engine import _trigger_matches
+        return _trigger_matches(trig, ev)
+
+    def test_listener_subscribes_to_incoming_webhook(self):
+        listener = AutomationReactionListener(group_id=uuid4())
+        ev = SimpleNamespace(event_type=EventTypes.incoming_webhook, reaction_depth=0)
+        assert listener.get_subscribers(ev) == ["automation"]
+
+    def test_targeted_slug_matches_only_that_webhook(self):
+        trig = {"type": "incoming_webhook", "webhook": "stripe"}
+        assert self._m(trig, {"event_type": "incoming_webhook", "webhook_slug": "stripe"})
+        assert not self._m(trig, {"event_type": "incoming_webhook", "webhook_slug": "github"})
+
+    def test_any_webhook_and_wrong_event(self):
+        assert self._m({"type": "incoming_webhook"}, {"event_type": "incoming_webhook", "webhook_slug": "x"})
+        assert self._m({"type": "incoming_webhook", "webhook": "any"}, {"event_type": "incoming_webhook", "webhook_slug": "x"})
+        # a non-webhook event never fires an incoming_webhook trigger
+        assert not self._m({"type": "incoming_webhook", "webhook": "x"}, {"event_type": "entry_published"})
+
+    def test_engine_runs_webhook_automation_with_payload_condition(self):
+        # An incoming_webhook automation gated on a nested payload field, run through the engine.
+        auto = SimpleNamespace(
+            slug="on-paid", enabled=True, group_id="G",
+            definition={
+                "trigger": {"type": "incoming_webhook", "webhook": "stripe"},
+                "conditions": [{"field": "event.payload.type", "op": "eq", "value": "payment.succeeded"}],
+                "actions": [{"kind": "emit_event", "event": "noted"}],
+            },
+        )
+        runner = _recording_runner()
+        ctx = {"event_type": "incoming_webhook", "webhook_slug": "stripe",
+               "payload": {"type": "payment.succeeded", "amount": 999}, "user_id": None}
+        ran = engine.run_automations_for_event(_FakeSession([auto]), "G", ctx, run_action=runner)
+        assert ran == 1
+        assert len(runner.calls) == 1
+
+    def test_engine_skips_when_payload_condition_fails(self):
+        auto = SimpleNamespace(
+            slug="on-paid", enabled=True, group_id="G",
+            definition={
+                "trigger": {"type": "incoming_webhook", "webhook": "stripe"},
+                "conditions": [{"field": "event.payload.type", "op": "eq", "value": "payment.succeeded"}],
+                "actions": [{"kind": "emit_event", "event": "noted"}],
+            },
+        )
+        runner = _recording_runner()
+        ctx = {"event_type": "incoming_webhook", "webhook_slug": "stripe",
+               "payload": {"type": "payment.refunded"}, "user_id": None}
+        ran = engine.run_automations_for_event(_FakeSession([auto]), "G", ctx, run_action=runner)
+        assert ran == 0
+        assert runner.calls == []
+
+    def test_fan_out_two_automations_same_webhook(self):
+        mk = lambda slug: SimpleNamespace(  # noqa: E731
+            slug=slug, enabled=True, group_id="G",
+            definition={"trigger": {"type": "incoming_webhook", "webhook": "stripe"},
+                        "conditions": [], "actions": [{"kind": "emit_event", "event": "noted"}]},
+        )
+        runner = _recording_runner()
+        ctx = {"event_type": "incoming_webhook", "webhook_slug": "stripe", "payload": {}, "user_id": None}
+        ran = engine.run_automations_for_event(_FakeSession([mk("a"), mk("b")]), "G", ctx, run_action=runner)
+        assert ran == 2
+        assert len(runner.calls) == 2

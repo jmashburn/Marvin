@@ -17,6 +17,7 @@ from marvin.routes._base.controller import controller
 from marvin.schemas.group.automation import (
     AutomationActionOption,
     AutomationCreate,
+    AutomationIncomingWebhookOption,
     AutomationOptions,
     AutomationRead,
     AutomationTargetOption,
@@ -122,14 +123,28 @@ class AutomationsController(BaseUserController):
             .all()
         ]
 
+        # The workspace's incoming (ingress) webhooks, offered to the `incoming_webhook` trigger.
+        from marvin.db.models.groups.incoming_webhooks import WorkspaceIncomingWebhookModel
+
+        incoming_webhooks = [
+            AutomationIncomingWebhookOption(
+                id=w.id, slug=w.slug, name=w.name, enabled=bool(w.enabled), has_token=bool(w.token)
+            )
+            for w in self.session.query(WorkspaceIncomingWebhookModel)
+            .filter_by(group_id=self.group_id)
+            .order_by(WorkspaceIncomingWebhookModel.name)
+            .all()
+        ]
+
         return AutomationOptions(
-            trigger_types=["event", "manual", "schedule", "chained", "on_error", "mcp"],  # incoming webhook later
+            trigger_types=["event", "manual", "schedule", "chained", "on_error", "incoming_webhook", "mcp"],
             triggers=triggers,
             condition_ops=list(_OPS),
             action_kinds=available_kinds(),
             operations=operations,
             webhooks=webhooks,
             automations=targets,
+            incoming_webhooks=incoming_webhooks,
         )
 
     @router.post("/{automation_id}/run", summary="Run an automation now (manual trigger)")

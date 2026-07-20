@@ -595,6 +595,18 @@ CATALOG: list[CatalogEntry] = [
 
     # ── Connect: Webhooks ─────────────────────────────────────────────────────
     CatalogEntry(
+        event_type="incoming_webhook",
+        name="Incoming Webhook Received",
+        description="An external system POSTed to a tokened incoming-webhook URL. Automations can "
+                    "react to this and read the request body via $event.payload.",
+        category="Connect",
+        variables=COMMON_VARS + [
+            EventVariable("webhook_slug", "Slug of the incoming webhook that fired", "stripe-payments", type="string"),
+            EventVariable("webhook_name", "Name of the incoming webhook", "Stripe Payments", type="name"),
+            EventVariable("source_ip", "IP address the request came from", "203.0.113.7", type="string"),
+        ],
+    ),
+    CatalogEntry(
         event_type="webhook_created",
         name="Webhook Created",
         description="A new webhook was configured.",

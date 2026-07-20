@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from .ai_providers import AIProviderModel
     from .ai_settings import WorkspaceAISettingsModel
     from .automations import WorkspaceAutomationModel
+    from .incoming_webhooks import WorkspaceIncomingWebhookModel
     from .mcp_servers import WorkspaceMcpServerModel
     from .events import GroupEventNotifierModel
     from .invite_tokens import GroupInviteToken
@@ -139,6 +140,11 @@ class Groups(SqlAlchemyBase, BaseMixins):
     # Relationship to WorkspaceAutomationModel (one-to-many) — Flavor B user-configured automations.
     automations: Mapped[list["WorkspaceAutomationModel"]] = orm.relationship(
         "WorkspaceAutomationModel", **_common_relationship_args, doc="User-configured automations for this workspace."
+    )
+
+    # Relationship to WorkspaceIncomingWebhookModel (one-to-many) — tokened ingress endpoints.
+    incoming_webhooks: Mapped[list["WorkspaceIncomingWebhookModel"]] = orm.relationship(
+        "WorkspaceIncomingWebhookModel", **_common_relationship_args, doc="Incoming (ingress) webhooks for this workspace."
     )
 
     model_config = ConfigDict(

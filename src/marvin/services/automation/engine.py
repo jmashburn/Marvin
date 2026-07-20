@@ -86,6 +86,12 @@ def _trigger_matches(trig: dict, event_ctx: dict) -> bool:
     etype = event_ctx.get("event_type")
     if ttype == "event":
         return trig.get("event") == etype
+    if ttype == "incoming_webhook":
+        # Fire on an incoming_webhook event; an empty/"any" target matches any webhook, else the slug.
+        if etype != "incoming_webhook":
+            return False
+        target = trig.get("webhook")
+        return not target or target == "any" or target == event_ctx.get("webhook_slug")
     if ttype == "chained":
         return etype == "automation_ran" and _target_ok(trig, event_ctx)
     if ttype == "on_error":

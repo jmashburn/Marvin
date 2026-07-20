@@ -8,6 +8,7 @@ from .events import *
 from .groups import *
 from .invite_tokens import *
 from .automations import *
+from .incoming_webhooks import *
 from .mcp_servers import *
 from .notification_execution_logs import *
 from .preferences import *

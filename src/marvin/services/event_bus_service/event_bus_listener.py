@@ -1004,6 +1004,7 @@ class AutomationReactionListener(EventListenerBase):
         EventTypes.entry_updated,
         EventTypes.entry_published,
         EventTypes.entry_deleted,
+        EventTypes.incoming_webhook,
     )
     # Automation lifecycle events drive the chained / on-error trigger types.
     _AUTOMATION_EVENTS = (EventTypes.automation_ran, EventTypes.automation_failed)
@@ -1031,6 +1032,10 @@ class AutomationReactionListener(EventListenerBase):
             "entry_id": entry_id,
             "automation_id": str(automation_id) if automation_id else None,
             "automation_slug": getattr(dd, "automation_slug", None),
+            # Incoming-webhook triggers key on the webhook slug; conditions/actions reach the request
+            # body via $event.payload.*
+            "webhook_slug": getattr(dd, "webhook_slug", None),
+            "payload": getattr(dd, "payload", None),
             "user_id": event.user_id,
             "reaction_depth": getattr(event, "reaction_depth", 0),
         }

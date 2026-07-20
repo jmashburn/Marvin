@@ -69,6 +69,17 @@ class AutomationTargetOption(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AutomationIncomingWebhookOption(_MarvinModel):
+    """One of the workspace's incoming webhooks — an `incoming_webhook` trigger targets it by slug."""
+    id: UUID4
+    slug: str
+    name: str
+    enabled: bool = False
+    has_token: bool = False          # whether a token has been minted (the endpoint is live)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AutomationOptions(_MarvinModel):
     """The builder's vocabulary — so the UI doesn't hardcode triggers/ops/operators."""
     trigger_types: list[str] = []        # event | manual (schedule/webhook/chat/mcp/… as they land)
@@ -76,7 +87,8 @@ class AutomationOptions(_MarvinModel):
     condition_ops: list[str] = []        # eq | neq | contains | exists
     action_kinds: list[str] = []         # operation / emit_event / handler / webhook
     operations: list[AutomationActionOption] = []
-    webhooks: list[AutomationWebhookOption] = []   # the workspace's configured webhooks
+    webhooks: list[AutomationWebhookOption] = []   # the workspace's configured (outgoing) webhooks
     automations: list[AutomationTargetOption] = []  # other automations (chained/on-error targets)
+    incoming_webhooks: list[AutomationIncomingWebhookOption] = []  # ingress webhooks (incoming_webhook trigger)
 
     model_config = ConfigDict(from_attributes=True)
