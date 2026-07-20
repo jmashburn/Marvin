@@ -16,12 +16,15 @@ from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
 from marvin.schemas.group.automation import (
     AutomationActionOption,
+    AutomationConditionField,
     AutomationCreate,
     AutomationIncomingWebhookOption,
     AutomationOptions,
     AutomationRead,
     AutomationTargetOption,
     AutomationUpdate,
+    AutomationValidateRequest,
+    AutomationValidateResult,
     AutomationWebhookOption,
 )
 
@@ -136,16 +139,35 @@ class AutomationsController(BaseUserController):
             .all()
         ]
 
+        from marvin.services.automation.validation import condition_field_catalog
+
+        condition_fields = {
+            ttype: [AutomationConditionField(**f) for f in fields]
+            for ttype, fields in condition_field_catalog().items()
+        }
+
         return AutomationOptions(
             trigger_types=["event", "manual", "schedule", "chained", "on_error", "incoming_webhook", "mcp"],
             triggers=triggers,
             condition_ops=list(_OPS),
+            condition_fields=condition_fields,
             action_kinds=available_kinds(),
             operations=operations,
             webhooks=webhooks,
             automations=targets,
             incoming_webhooks=incoming_webhooks,
         )
+
+    @router.post("/validate", response_model=AutomationValidateResult, summary="Validate an automation definition")
+    def validate(self, data: AutomationValidateRequest) -> AutomationValidateResult:
+        """Advisory coherence check for a definition — flags conditions/actions that reference a
+        namespace the trigger doesn't provide (e.g. entry.* under a webhook trigger). Never rejects;
+        the builder shows the issues as warnings."""
+        _require_admin(self.user, self.group_id)
+        from marvin.services.automation.validation import validate_definition
+
+        issues = validate_definition(data.definition)
+        return AutomationValidateResult(issues=issues)
 
     @router.post("/{automation_id}/run", summary="Run an automation now (manual trigger)")
     def run_automation(self, automation_id: UUID4) -> dict:

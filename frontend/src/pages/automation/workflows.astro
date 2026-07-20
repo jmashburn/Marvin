@@ -127,6 +127,8 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
         </div>
       </div>
 
+      <div id="wf-warnings" class="banner warn" hidden></div>
+
       <div class="builder-actions">
         <button id="wf-save" class="button">Save workflow</button>
         <button id="wf-cancel" class="button secondary" type="button">Cancel</button>
@@ -150,6 +152,7 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     updateAutomation,
     deleteAutomation,
     runAutomation,
+    validateAutomation,
   } from "@/lib/api/automations";
 
   const read = (id: string) => JSON.parse(document.getElementById(id)!.textContent || "null");
@@ -223,6 +226,32 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
       $("wf-chained-hint").textContent = t === "on_error"
         ? "Runs when the selected workflow fails."
         : "Runs after the selected workflow completes.";
+    }
+    populateFieldDatalist(t);
+    revalidate();
+  }
+
+  // ── Live coherence check (advisory) ───────────────────────────────────────
+  let revalidateTimer: any;
+  function revalidate() {
+    clearTimeout(revalidateTimer);
+    revalidateTimer = setTimeout(runRevalidate, 350);
+  }
+  async function runRevalidate() {
+    const banner = $("wf-warnings");
+    if (jsonMode) { banner.setAttribute("hidden", ""); return; }  // JSON mode: don't fight the editor
+    let def: any;
+    try { def = readDefinition(); } catch { banner.setAttribute("hidden", ""); return; }
+    try {
+      const res = await validateAutomation(def);
+      const issues = res?.issues ?? [];
+      if (!issues.length) { banner.setAttribute("hidden", ""); banner.innerHTML = ""; return; }
+      banner.innerHTML = `<strong>Heads up:</strong><ul>${
+        issues.map((i: any) => `<li>${esc(i.message)}</li>`).join("")
+      }</ul><span class="warn-note">These are warnings — you can still save.</span>`;
+      banner.removeAttribute("hidden");
+    } catch {
+      banner.setAttribute("hidden", "");  // never block the builder on the validator
     }
   }
   const KIND_LABELS: Record<string, string> = {
@@ -511,16 +540,29 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   $("wf-cancel").addEventListener("click", closeBuilder);
   $("wf-save").addEventListener("click", save);
   $("wf-trigger-type").addEventListener("change", syncTriggerType);
-  $("wf-add-condition").addEventListener("click", () => $("wf-conditions").appendChild(conditionRow()));
-  $("wf-add-action").addEventListener("click", () => $("wf-actions").appendChild(actionRow()));
+  $("wf-add-condition").addEventListener("click", () => { $("wf-conditions").appendChild(conditionRow()); revalidate(); });
+  $("wf-add-action").addEventListener("click", () => { $("wf-actions").appendChild(actionRow()); revalidate(); });
+  // Any edit inside the builder re-runs the advisory coherence check (debounced).
+  builder.addEventListener("input", revalidate);
+  builder.addEventListener("change", revalidate);
   $("wf-json-toggle").addEventListener("click", () => setJsonMode(!jsonMode));
 
-  // datalists for field/handler hints
+  // Condition-field datalist — repopulated per trigger so the picker offers the fields the
+  // trigger's context actually exposes (entry.* for entry triggers, event.payload.* for webhooks).
   const dl = document.createElement("datalist"); dl.id = "wf-fields";
-  ["entry.entry_type", "entry.status", "entry.title", "entry.slug"].forEach((f) => {
-    const o = document.createElement("option"); o.value = f; dl.appendChild(o);
-  });
   document.body.appendChild(dl);
+  function populateFieldDatalist(triggerType: string) {
+    const fields = (OPTIONS.conditionFields || {})[triggerType]
+      || (OPTIONS.conditionFields || {}).event || [];
+    dl.innerHTML = "";
+    for (const f of fields) {
+      const o = document.createElement("option");
+      o.value = f.field;
+      o.label = f.description ? `${f.label} — ${f.description}` : f.label;
+      dl.appendChild(o);
+    }
+  }
+  populateFieldDatalist("event");
   const dh = document.createElement("datalist"); dh.id = "wf-handlers";
   ["request_site_rebuild", "ai_reindex_embeddings", "publish_scheduled_entries"].forEach((f) => {
     const o = document.createElement("option"); o.value = f; dh.appendChild(o);
@@ -544,6 +586,11 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   .workflows-page :global(.banner.error) { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
   .workflows-page :global(.banner.info) { background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
   .workflows-page :global(.banner a) { color: var(--accent); }
+  .workflows-page :global(.banner.warn) { background: color-mix(in srgb, #d9a441 13%, transparent); border: 1px solid color-mix(in srgb, #d9a441 42%, transparent); color: var(--ink); }
+  .workflows-page :global(.banner.warn[hidden]) { display: none; }
+  .workflows-page :global(.banner.warn ul) { margin: 6px 0 4px; padding-left: 18px; }
+  .workflows-page :global(.banner.warn li) { margin: 2px 0; }
+  .workflows-page :global(.banner.warn .warn-note) { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; }
   .workflows-page :global(.banner code) { font-family: ui-monospace, monospace; font-size: 0.9em; background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
 
   /* Builder */

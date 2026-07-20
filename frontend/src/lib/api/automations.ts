@@ -9,9 +9,16 @@ import type {
   AutomationCreate,
   AutomationUpdate,
   AutomationOptions,
+  AutomationDefinition,
+  AutomationValidateResult,
 } from '@inneropen/marvin-sdk/platform';
 
 export type { Automation, AutomationCreate, AutomationUpdate, AutomationOptions };
+
+/** Advisory coherence check for a definition (warnings, non-blocking). */
+export async function validateAutomation(definition: AutomationDefinition, authToken?: string): Promise<AutomationValidateResult> {
+  return createSdkClient(authToken).automations.validate(definition);
+}
 
 export async function listAutomations(authToken?: string): Promise<Automation[]> {
   return createSdkClient(authToken).automations.list();

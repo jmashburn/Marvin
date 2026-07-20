@@ -80,15 +80,49 @@ class AutomationIncomingWebhookOption(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AutomationConditionField(_MarvinModel):
+    """A field a condition can reference, suggested per trigger context (guided builder)."""
+    field: str                           # dotted path, e.g. "entry.entry_type" or "event.payload."
+    label: str
+    description: str = ""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AutomationOptions(_MarvinModel):
     """The builder's vocabulary — so the UI doesn't hardcode triggers/ops/operators."""
     trigger_types: list[str] = []        # event | manual (schedule/webhook/chat/mcp/… as they land)
     triggers: list[str] = []             # event names, for trigger_type="event"
     condition_ops: list[str] = []        # eq | neq | contains | exists
+    # Suggested condition fields per trigger type — so the builder offers the right fields and can't
+    # silently pair an entry.* condition with a trigger that has no entry.
+    condition_fields: dict[str, list[AutomationConditionField]] = {}
     action_kinds: list[str] = []         # operation / emit_event / handler / webhook
     operations: list[AutomationActionOption] = []
     webhooks: list[AutomationWebhookOption] = []   # the workspace's configured (outgoing) webhooks
     automations: list[AutomationTargetOption] = []  # other automations (chained/on-error targets)
     incoming_webhooks: list[AutomationIncomingWebhookOption] = []  # ingress webhooks (incoming_webhook trigger)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationValidationIssue(_MarvinModel):
+    """One advisory coherence issue in a definition (not a hard error)."""
+    level: str                           # "warning" | "error"
+    message: str
+    where: str                           # "trigger" | "condition" | "action"
+    index: int | None = None             # position within conditions/actions, when applicable
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationValidateRequest(_MarvinModel):
+    definition: dict = {}
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutomationValidateResult(_MarvinModel):
+    issues: list[AutomationValidationIssue] = []
 
     model_config = ConfigDict(from_attributes=True)

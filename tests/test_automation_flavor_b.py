@@ -353,3 +353,65 @@ class TestIncomingWebhookTrigger:
         ran = engine.run_automations_for_event(_FakeSession([mk("a"), mk("b")]), "G", ctx, run_action=runner)
         assert ran == 2
         assert len(runner.calls) == 2
+
+
+# ── Definition validation: catch the silent-no-op footgun ─────────────────────
+class TestValidateDefinition:
+    def _v(self, definition):
+        from marvin.services.automation.validation import validate_definition
+        return validate_definition(definition)
+
+    def test_entry_condition_under_webhook_trigger_warns(self):
+        # The exact real-world bug: an entry.* condition paired with a webhook trigger never matches.
+        issues = self._v({
+            "trigger": {"type": "incoming_webhook", "webhook": "x"},
+            "conditions": [{"field": "entry.entry_type", "op": "eq", "value": "page"}],
+            "actions": [{"kind": "operation", "op": "generate-tags"}],
+        })
+        msgs = " ".join(i["message"] for i in issues)
+        assert "entry.entry_type" in msgs and "no entry" in msgs           # condition flagged
+        assert any(i["where"] == "condition" for i in issues)
+        assert any(i["where"] == "action" for i in issues)                 # entry-shaped action flagged too
+
+    def test_entry_condition_under_entry_trigger_is_clean(self):
+        assert self._v({
+            "trigger": {"type": "event", "event": "entry_published"},
+            "conditions": [{"field": "entry.entry_type", "op": "eq", "value": "recipe"}],
+            "actions": [{"kind": "operation", "op": "generate-summary"}],
+        }) == []
+
+    def test_webhook_payload_condition_is_clean(self):
+        assert self._v({
+            "trigger": {"type": "incoming_webhook", "webhook": "x"},
+            "conditions": [{"field": "event.payload.type", "op": "eq", "value": "paid"}],
+            "actions": [{"kind": "emit_event", "event": "noted"}],
+        }) == []
+
+    def test_previous_in_condition_warns(self):
+        issues = self._v({
+            "trigger": {"type": "event", "event": "entry_published"},
+            "conditions": [{"field": "previous.summary", "op": "exists"}],
+            "actions": [{"kind": "emit_event", "event": "noted"}],
+        })
+        assert any("step outputs aren't available" in i["message"] for i in issues)
+
+    def test_no_actions_warns(self):
+        issues = self._v({"trigger": {"type": "manual"}, "conditions": [], "actions": []})
+        assert any(i["where"] == "action" and "no steps" in i["message"] for i in issues)
+
+    def test_unknown_operator_warns(self):
+        issues = self._v({
+            "trigger": {"type": "event", "event": "entry_published"},
+            "conditions": [{"field": "entry.status", "op": "regex", "value": ".*"}],
+            "actions": [{"kind": "emit_event", "event": "noted"}],
+        })
+        assert any("operator" in i["message"] for i in issues)
+
+    def test_catalog_covers_all_trigger_types(self):
+        from marvin.services.automation.validation import condition_field_catalog
+        cat = condition_field_catalog()
+        for t in ("event", "incoming_webhook", "chained", "on_error", "manual", "schedule", "mcp"):
+            assert t in cat and cat[t]
+        # entry trigger offers entry fields; webhook offers a payload prefix
+        assert any(f["field"].startswith("entry.") for f in cat["event"])
+        assert any(f["field"].startswith("event.payload") for f in cat["incoming_webhook"])
