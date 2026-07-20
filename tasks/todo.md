@@ -377,14 +377,14 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
 - [x] **T1 · event-expansion + Manual [Run]** ✅ — `trigger.type`; events widened to entry lifecycle
       (created/updated/published/deleted); `POST /api/automations/{id}/run` + Run button (also the
       test-it affordance); builder trigger-type selector (event/manual). SDK `automations.run()`.
-- [ ] **⭐ Generalize event triggers to ANY (sensible) event** (decided 2026-07-19, from the user's
-      "why limit to lifecycle?") — NOT a hard limit; two pieces: (1) **flatten each event's
-      `document_data` into `event.*`** in the engine context so `$event.<field>` + conditions work for
-      non-entry events (asset/form/resource/publish/…); keep the `entry.*` object as a convenience
-      when an entry_id is present. (2) **Curated trigger catalog** — widen `_TRIGGERS`/`options.triggers`
-      to a *meaningful* grouped allowlist (Entries/Assets/Forms/Resources/Publishing…), NOT the raw
-      EventTypes firehose (exclude internal/audit noise: ai_operation_executed, *_delivery_*,
-      scheduled_task_*, embeddings_reindexed). Do this as part of the trigger work.
+- [x] **⭐ Generalize event triggers to ANY (sensible) event DONE (2026-07-20)** ✅ — both pieces:
+      (1) the listener **flattens each event's `document_data` into `event.*`** (via jsonable_encoder,
+      snake_case) so `$event.asset_type`/`$event.resource_type`/… conditions fire for non-entry
+      events; the curated explicit keys (entry_id/payload/changed_fields) still override. (2)
+      `services/automation/triggers.py` — a **curated grouped catalog** (Entries/Collections/Assets/
+      Resources/Forms/Entry types = 26 emitted events; internal/audit noise excluded). Listener
+      subscribes name-based off it; `/options` returns `triggers` + `trigger_groups`; builder renders
+      the event dropdown as optgroups. Verified live (6 groups / 26 options). (Marvin, this commit.)
 - [x] **T2 · Schedule** ✅ (2026-07-19) — `trigger.type=schedule` → upsert a `run_automation` ScheduledTaskModel on the
       existing Scheduler (interval/cron); a `RunAutomationHandler`. "rebuild nightly."
 - [x] **T3 · Chat / Chained / On-error DONE (2026-07-19)** ✅ — `run_workflow` agent tool (min_role AUTHOR, also projected to MarvinMCP) lets chat run any workflow; engine emits `automation_ran`/`automation_failed`; `chained` + `on_error` trigger types (target a specific workflow or any). 114 tests.
@@ -443,12 +443,15 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       `definition_snapshot` JSON column on `automation_executions` (part of the tables above).
 
 **H2 · Honesty pass — cheap, removes user-visible lies**
-- [ ] **54 of 122 `EventTypes` members are never emitted**, yet the catalog advertises ~100
-      subscribable events — the Events UI offers subscriptions that can never deliver. All 8
-      site/publishing events, all 3 form-submission events, and both asset attach/detach events are
-      declared and dead. Delete them or gate the catalog to events with a real emitter.
-- [ ] **Add `test_every_catalog_entry_has_an_emitter`** — would have caught all 54. Cheap, and stops
-      the drift recurring.
+- [x] **Gate the ~40 advertised-but-dead events DONE (2026-07-20)** ✅ — `_NO_EMITTER` frozenset in
+      event_catalog.py forces the 40 EventTypes with no dispatch site to `enabled=False`, so
+      `list_event_types` stops advertising subscriptions that can never deliver (site/publishing,
+      form-submission, asset attach/detach, backups, approvals, comments, webhook CRUD/delivery,
+      api_token, storage_quota, etc.). Enum members kept (no migration risk). (Marvin, this commit.)
+- [x] **Add `test_every_catalog_entry_has_an_emitter` DONE (2026-07-20)** ✅ — `tests/
+      test_event_catalog.py` scans src for real `EventTypes.X` references and asserts every
+      *subscribable* catalog entry has an emitter (+ that `_NO_EMITTER` only hides genuinely-dead
+      events). Catches the drift recurring. 3 tests.
 - [x] **Fix the false comment at `runner.py:203` DONE (2026-07-20)** ✅ — moot: `_apply_writeback`
       was rewritten to route through EntryService (H0), and its new docstring states the loop-guard
       is the depth counter (not integration_id). The false claim is gone.
@@ -743,13 +746,55 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       compose / publish; flag (warn) vs gate (block) per config. Ties: theme cascade (defines
       the aesthetic to compare to) + recipe.enrichment (declare the check per type) + a new
       flavour of moderation. Store the fit score/flag in asset metadata for review.
-- [ ] **Tagging system — entries + assets + resources (one shared vocabulary)** — a tagging
-      system spanning all three (freeform + maybe relational/related-tags), so the same tags drive
-      search, filtering, and **smart-collection rules** (the `tags` rule dimension is already wired
-      forward-compatibly — it goes live the moment entries carry tags). Also grow
-      `resources.resourceType` into a richer/extensible taxonomy. Ties: `generate-tags` AI op ·
-      recipe resource-extraction · smart collections (of entries now; of assets/resources once they
-      share the tag vocabulary).
+## ▶ ACTIVE PLAN — Tagging system (shared vocabulary)
+> Planned 2026-07-20 off a full research pass. **Decisions (confirmed):** ① entries-first,
+> assets/resources as a fast phase 2 · ② **create-on-type** (freeform, find-or-create by slug) ·
+> ③ **defer** AI integration — `generate-tags` keeps staging to `metadata_json.tags`; the chip UI
+> is the real-tag write path (wiring the AI to real tags shares the junction-writeback gap with
+> attach/create, so it comes later).
+>
+> **Two facts that shape it:**
+> - 🎁 Smart collections ALREADY have a `tags` matcher (`smart_collections.py:59-62`), inert only
+>   because `entry.tags` doesn't exist. Expose `entry.tags` returning tag NAMES and tag-based smart
+>   collections light up with **zero matcher changes**. Design to that.
+> - Convention is **concrete named junctions** (entry_assets/entry_resources/entry_collections),
+>   NOT polymorphic. Mirror it: a group-scoped `tags` table (like Collections) + `entry_tags`
+>   junction. Copy the **Collections full stack** (model→repo→schema→controller + entry-side attach)
+>   as the template.
+> - Data today: **11 entries** carry `metadata_json.tags`; assets/resources have none.
+
+### Phase 1 — entries, end to end
+- [ ] **T1. Model + migration.** `Tags` table (`id, group_id, name, slug`, uq(group_id, slug),
+      mirrors Collections) + `entry_tags` junction (`entry_id, tag_id` FKs, cascade, uq). Autogenerate
+      the migration (works now). **Data promotion:** slugify/dedupe the 11 entries' `metadata_json.tags`
+      into real tags + entry_tags; strip the now-redundant `metadata_json.tags` key.
+- [ ] **T2. `entry.tags` association** returning tag names (association_proxy over `secondary=entry_tags`,
+      like `entries.py:63-106`) — this is what makes smart collections work. Verify a tag smart-rule
+      matches with no matcher change.
+- [ ] **T3. Tag CRUD + attach API** — copy the Collections controller/repo/schema pattern:
+      `GET/POST/PATCH/DELETE /api/tags`, `find-or-create` on attach, `POST/DELETE /entries/{id}/tags/{tag}`,
+      and `tag_ids` accepted on entry create/update (beside `collection_ids`/`asset_ids`).
+- [ ] **T4. Expose tags where they must be wired explicitly** (nothing but `EntryRead` auto-propagates):
+      `EntryRead` (auto — verify) · publish `Published*` schemas + builders (`publishing_controller.py`) ·
+      MCP `builtins.py` `get_entry`/`find_entries` handlers · MarvinMCP `serializeEntry` pick-list ·
+      new `?tag=` filter on `list_published_entries`.
+- [ ] **T5. Entry editor chip UI** — token/chip input beside the Metadata field (`entries/[id].astro`),
+      create-on-type; posts `tag_ids`/new names. Replaces the raw-JSON-only path.
+- [ ] **T6. Entries list tag filter** — `data-tags` attribute + a tag filter chip, following the
+      existing type/status filter pattern (`entries.astro`).
+- [ ] **Verify:** promotion migration idempotent + reversible · smart-collection-by-tag matches ·
+      chip add/remove round-trips · published entry exposes tags · tests.
+
+### Phase 2 — assets + resources (fast follow)
+- [ ] `asset_tags` + `resource_tags` junctions + `.tags` associations · lift the entries-only guard in
+      `_write_back` · attach API + chip UI on asset/resource pages · smart collections of assets/resources.
+
+### Phase 3 — AI integration (after, or with attach/create's junction-writeback work)
+- [ ] Repoint `generate-tags` writeback (`system.py:72`) off `metadata_json.tags` onto real tags —
+      needs a `tags` writeback target (a mini junction-writeback grammar; shares the gap with
+      attach/create). Until then generate-tags stages to metadata_json.tags and the user promotes
+      via the chip UI.
+- [ ] Also: grow `resources.resourceType` into a richer/extensible taxonomy (related backlog thread).
 - [x] **Asset/Resource as first-class schema field types** ✅ — `EntryTypeSchemaDefinition` excludes
       them today ("handled via the UI sidebar"), but entry types already carry `asset`/`resource`
       field types in schema_json → strict validation fails (only preserved via a warning). Add
