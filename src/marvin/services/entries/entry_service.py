@@ -295,6 +295,165 @@ class EntryService:
                    reaction_depth=reaction_depth)
         return "detached"
 
+    # ── Tag attachments ────────────────────────────────────────────────────────
+    def _resolve_tag(self, tag_ref, *, create: bool):
+        """Resolve a tag by name/slug in this workspace. ``create`` find-or-creates (attach); else
+        returns the existing row or None (detach)."""
+        if create:
+            return self.repos.tags.find_or_create(str(tag_ref))
+        from marvin.db.models.platform.tags import Tags
+
+        return (
+            self.session.query(Tags)
+            .filter(Tags.group_id == self.group_id)
+            .filter((Tags.slug == str(tag_ref)) | (Tags.name == str(tag_ref)))
+            .first()
+        )
+
+    def attach_tag(self, entry_id, tag_ref, *, reaction_depth: int = 0) -> str | None:
+        """Attach a tag to an entry (idempotent, find-or-creates the tag by name/slug). Returns
+        ``"attached"`` (emits `entry_tag_attached`), ``"exists"`` (already linked), or ``None`` (entry
+        not found / blank tag)."""
+        from marvin.db.models.platform.entry_tags import EntryTags
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        tag = self._resolve_tag(tag_ref, create=True)
+        if not tag:
+            return None
+        existing = (
+            self.session.query(EntryTags)
+            .filter(EntryTags.entry_id == entry.id, EntryTags.tag_id == tag.id)
+            .first()
+        )
+        if existing:
+            return "exists"
+        self.session.add(EntryTags(entry_id=entry.id, tag_id=tag.id))
+        self.session.commit()
+        self._emit(entry, EventTypes.entry_tag_attached, EventOperation.update,
+                   f"Tag '{tag.name}' attached to entry '{entry.title}'", self._names(entry),
+                   reaction_depth=reaction_depth)
+        return "attached"
+
+    def detach_tag(self, entry_id, tag_ref, *, reaction_depth: int = 0) -> str | None:
+        """Detach a tag from an entry (idempotent). Returns ``"detached"`` (emits `entry_tag_detached`),
+        ``"absent"`` (wasn't linked), or ``None`` (entry or tag not found)."""
+        from marvin.db.models.platform.entry_tags import EntryTags
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        tag = self._resolve_tag(tag_ref, create=False)
+        if not tag:
+            return None
+        deleted = (
+            self.session.query(EntryTags)
+            .filter(EntryTags.entry_id == entry.id, EntryTags.tag_id == tag.id)
+            .delete()
+        )
+        if not deleted:
+            return "absent"
+        self.session.commit()
+        self._emit(entry, EventTypes.entry_tag_detached, EventOperation.update,
+                   f"Tag '{tag.name}' detached from entry '{entry.title}'", self._names(entry),
+                   reaction_depth=reaction_depth)
+        return "detached"
+
+    # ── Asset attachments ──────────────────────────────────────────────────────
+    def _resolve_asset(self, asset_ref):
+        """Resolve an asset within this workspace by id or slug. Returns the row or None."""
+        import uuid as _uuid
+
+        from marvin.db.models.platform.assets import Assets
+
+        ref = asset_ref
+        if isinstance(ref, _uuid.UUID) or (isinstance(ref, str) and _is_uuid(ref)):
+            a = self.session.get(Assets, ref if isinstance(ref, _uuid.UUID) else _uuid.UUID(str(ref)))
+            return a if a and a.group_id == self.group_id else None
+        return self.session.query(Assets).filter(Assets.group_id == self.group_id, Assets.slug == str(ref)).first()
+
+    def attach_asset(self, entry_id, asset_ref, *, role: str | None = None, reaction_depth: int = 0) -> str | None:
+        """Attach an asset to an entry (idempotent). Returns ``"attached"`` (emits
+        `asset_attached_to_entry`), ``"exists"`` (already linked), or ``None`` (entry or asset not
+        found in this workspace)."""
+        import sqlalchemy as sa
+
+        from marvin.db.models.platform.entry_assets import EntryAssets
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        asset = self._resolve_asset(asset_ref)
+        if not asset:
+            return None
+        existing = (
+            self.session.query(EntryAssets)
+            .filter(EntryAssets.entry_id == entry.id, EntryAssets.asset_id == asset.id)
+            .first()
+        )
+        if existing:
+            return "exists"
+        max_pos = (
+            self.session.query(sa.func.max(EntryAssets.position))
+            .filter(EntryAssets.entry_id == entry.id)
+            .scalar()
+        )
+        self.session.add(EntryAssets(entry_id=entry.id, asset_id=asset.id, role=role, position=(max_pos or -1) + 1))
+        self.session.commit()
+        self._emit_asset_link(entry, asset, EventTypes.asset_attached_to_entry,
+                              f"Asset '{asset.name}' attached to entry '{entry.title}'", reaction_depth)
+        return "attached"
+
+    def detach_asset(self, entry_id, asset_ref, *, reaction_depth: int = 0) -> str | None:
+        """Detach an asset from an entry (idempotent). Returns ``"detached"`` (emits
+        `asset_detached_from_entry`), ``"absent"`` (wasn't linked), or ``None`` (not found)."""
+        from marvin.db.models.platform.entry_assets import EntryAssets
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        asset = self._resolve_asset(asset_ref)
+        if not asset:
+            return None
+        deleted = (
+            self.session.query(EntryAssets)
+            .filter(EntryAssets.entry_id == entry.id, EntryAssets.asset_id == asset.id)
+            .delete()
+        )
+        if not deleted:
+            return "absent"
+        self.session.commit()
+        self._emit_asset_link(entry, asset, EventTypes.asset_detached_from_entry,
+                              f"Asset '{asset.name}' detached from entry '{entry.title}'", reaction_depth)
+        return "detached"
+
+    def _emit_asset_link(self, entry, asset, event_type, message: str, reaction_depth: int) -> None:
+        """Dispatch an asset↔entry link event (EventAssetData, keyed to the entry so automations can
+        react on $event.entry_id). Best-effort — never breaks the write."""
+        from marvin.services.event_bus_service.event_types import EventAssetData
+
+        _, workspace_name, _ = self._names(entry)
+        try:
+            self.event_bus.dispatch(
+                integration_id=self.integration_id,
+                group_id=self.group_id,
+                event_type=event_type,
+                document_data=EventAssetData(
+                    operation=EventOperation.update,
+                    asset_id=asset.id, slug=asset.slug, name=asset.name,
+                    mime_type=asset.mime_type, asset_type=asset.asset_type, storage_key=asset.storage_key,
+                    workspace_id=self.group_id, workspace_name=workspace_name, uploader_id=self.actor_id,
+                ),
+                message=message,
+                user_id=self.actor_id,
+                entity_id=entry.id,
+                entity_type="entry",
+                reaction_depth=reaction_depth,
+            )
+        except Exception as e:  # noqa: BLE001 — event dispatch is best-effort
+            logger.error(f"Failed to dispatch {getattr(event_type, 'name', event_type)} event: {e}", exc_info=True)
+
     # ── Emission ──────────────────────────────────────────────────────────────
     def _emit_updated_and_transitions(self, old, entry, verb: str, reaction_depth: int) -> None:
         """Emit `entry_updated` first, then any status-transition events (published/unpublished/

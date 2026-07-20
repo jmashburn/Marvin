@@ -351,6 +351,26 @@ CATALOG: list[CatalogEntry] = [
             EventVariable("resource_name", "Name of the resource", "Waxed Canvas", type="name"),
         ],
     ),
+    CatalogEntry(
+        event_type="entry_tag_attached",
+        name="Tag Attached to Entry",
+        description="A tag was attached to an entry.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the entry", "My Post", type="title"),
+            EventVariable("tag_name", "Name of the tag", "waxed", type="name"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="entry_tag_detached",
+        name="Tag Detached from Entry",
+        description="A tag was detached from an entry.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the entry", "My Post", type="title"),
+            EventVariable("tag_name", "Name of the tag", "waxed", type="name"),
+        ],
+    ),
 
     # ── Content: Entry Types ──────────────────────────────────────────────────
     CatalogEntry(
@@ -1113,7 +1133,8 @@ CATALOG: list[CatalogEntry] = [
 _NO_EMITTER: frozenset[str] = frozenset({
     "api_rate_limit_exceeded", "api_token_created", "api_token_revoked", "api_token_rotated",
     "approval_granted", "approval_rejected", "approval_requested",
-    "asset_attached_to_entry", "asset_detached_from_entry",
+    # asset_attached_to_entry / asset_detached_from_entry now have emitters (EntryService.attach_asset
+    # / detach_asset) — no longer dead.
     "backup_completed", "backup_failed", "backup_started",
     "comment_added", "comment_deleted", "comment_updated",
     "entry_shared",

@@ -220,10 +220,13 @@ per-field status line or a floating toast.
 - [x] D1. Entry AI menu on `entries/[id].astro` — one `✨ AI` menu for *entry-level* actions:
       Generate summary · Generate tags · Review & suggest. Field-level actions (Summary generate,
       per-field Improve) stay inline next to their field.
-- [x] D2. Wire `generate-tags` — pass current tags as `existing_tags`; it has
-      `writeback = {"tags": "metadata_json.tags"}` so under `suggest-only` it **stages**. UI must
-      say "staged for review" and surface the suggestion banner (banner already understands
-      `metadata_json.` targets), not claim it applied.
+- [x] D2. Wire `generate-tags` — pass current tags as `existing_tags`; **UPDATE (2026-07-20):** the
+      writeback target is now `{"tags": "tags"}` (NOT `metadata_json.tags`) — it find-or-creates the
+      real workspace Tag vocabulary (group-scoped, by slug) and links via `EntryTags`, unioning with
+      existing. Verified live: a generate-tags run created **8 real `EntryTags` rows** (metadata.tags
+      empty). Under `suggest-only` it still **stages** (banner); `allow-*` applies. So the earlier
+      "placeholder awaiting a real tag system" notes (§Tagging system, and the promotion plan later in
+      this doc) are **superseded** — real-tag write-back is done.
       **Decision:** re-render the banner **in place** (fetch the entry's suggestion, no reload) —
       an auto-reload would silently discard unsaved edits elsewhere in the form.
 - [x] D3. "Review & suggest" → dispatch a `marvin:ask` CustomEvent; `Marvin.astro` listens,

@@ -479,6 +479,24 @@ def get_collection_entries(ctx: ToolContext, args: dict) -> str:
 
 
 @register_tool(
+    name="list_tags",
+    description="List the workspace's tags with how many entries carry each (name, slug, entryCount). Use for questions about the tag vocabulary, or to pick an existing tag before attaching one.",
+    input_schema={"type": "object", "properties": {}},
+)
+def list_tags(ctx: ToolContext, _args: dict) -> str:
+    rows = ctx.session.query(Tags).filter(Tags.group_id == ctx.group_id).all()
+    counts = dict(
+        ctx.session.query(EntryTags.tag_id, func.count(EntryTags.entry_id))
+        .join(Tags, Tags.id == EntryTags.tag_id)
+        .filter(Tags.group_id == ctx.group_id)
+        .group_by(EntryTags.tag_id)
+        .all()
+    )
+    out = [{"id": str(t.id), "name": t.name, "slug": t.slug, "entryCount": counts.get(t.id, 0)} for t in rows]
+    return json.dumps({"tags": out, "count": len(out)})
+
+
+@register_tool(
     name="list_resources",
     description="List the workspace's reusable resources (materials, tools, suppliers, …), optionally filtered by resource_type. Returns `count` (true total) plus a sample. Use for questions about resources.",
     input_schema={"type": "object", "properties": {

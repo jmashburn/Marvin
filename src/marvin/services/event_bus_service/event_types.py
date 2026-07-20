@@ -198,6 +198,10 @@ class EventTypes(EventTypeBase):
     """Event dispatched when a resource is attached to an entry."""
     entry_resource_detached = auto()
     """Event dispatched when a resource is detached from an entry."""
+    entry_tag_attached = auto()
+    """Event dispatched when a tag is attached to an entry."""
+    entry_tag_detached = auto()
+    """Event dispatched when a tag is detached from an entry."""
 
     # ==========================================================================
     # Asset Events (Media Management)
