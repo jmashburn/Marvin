@@ -194,6 +194,10 @@ class EventTypes(EventTypeBase):
     """Event dispatched when an entry is added to a collection."""
     entry_removed_from_collection = auto()
     """Event dispatched when an entry is removed from a collection."""
+    entry_resource_attached = auto()
+    """Event dispatched when a resource is attached to an entry."""
+    entry_resource_detached = auto()
+    """Event dispatched when a resource is detached from an entry."""
 
     # ==========================================================================
     # Asset Events (Media Management)

@@ -331,6 +331,26 @@ CATALOG: list[CatalogEntry] = [
             EventVariable("collection_name", "Name of the collection", "Featured Posts", type="name"),
         ],
     ),
+    CatalogEntry(
+        event_type="entry_resource_attached",
+        name="Resource Attached to Entry",
+        description="A reusable resource (material, technique, supplier, …) was attached to an entry.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the entry", "My Post", type="title"),
+            EventVariable("resource_name", "Name of the resource", "Waxed Canvas", type="name"),
+        ],
+    ),
+    CatalogEntry(
+        event_type="entry_resource_detached",
+        name="Resource Detached from Entry",
+        description="A reusable resource was detached from an entry.",
+        category="Content",
+        variables=COMMON_VARS + [
+            EventVariable("entry_title", "Title of the entry", "My Post", type="title"),
+            EventVariable("resource_name", "Name of the resource", "Waxed Canvas", type="name"),
+        ],
+    ),
 
     # ── Content: Entry Types ──────────────────────────────────────────────────
     CatalogEntry(

@@ -216,6 +216,85 @@ class EntryService:
                    reaction_depth=reaction_depth)
         return "removed"
 
+    # ── Resource attachments ───────────────────────────────────────────────────
+    def _resolve_resource(self, resource_ref):
+        """Resolve a resource within this workspace by id, slug, or name. Returns the row or None."""
+        import uuid as _uuid
+
+        from marvin.db.models.platform.resources import Resources
+
+        ref = resource_ref
+        if isinstance(ref, _uuid.UUID) or (isinstance(ref, str) and _is_uuid(ref)):
+            res = self.session.get(Resources, ref if isinstance(ref, _uuid.UUID) else _uuid.UUID(str(ref)))
+            return res if res and res.group_id == self.group_id else None
+        return (
+            self.session.query(Resources)
+            .filter(Resources.group_id == self.group_id)
+            .filter((Resources.slug == str(ref)) | (Resources.name == str(ref)))
+            .first()
+        )
+
+    def attach_resource(self, entry_id, resource_ref, *, role: str | None = None, reaction_depth: int = 0) -> str | None:
+        """Attach a reusable resource to an entry (idempotent). Returns ``"attached"`` (newly linked,
+        emits `entry_resource_attached`), ``"exists"`` (already linked — no-op, no event), or ``None``
+        (entry or resource not found in this workspace)."""
+        import sqlalchemy as sa
+
+        from marvin.db.models.platform.entry_resources import EntryResources
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        resource = self._resolve_resource(resource_ref)
+        if not resource:
+            return None
+
+        existing = (
+            self.session.query(EntryResources)
+            .filter(EntryResources.entry_id == entry.id, EntryResources.resource_id == resource.id)
+            .first()
+        )
+        if existing:
+            return "exists"
+
+        max_pos = (
+            self.session.query(sa.func.max(EntryResources.position))
+            .filter(EntryResources.entry_id == entry.id)
+            .scalar()
+        )
+        self.session.add(EntryResources(entry_id=entry.id, resource_id=resource.id, role=role, position=(max_pos or -1) + 1))
+        self.session.commit()
+        self._emit(entry, EventTypes.entry_resource_attached, EventOperation.update,
+                   f"Resource '{resource.name}' attached to entry '{entry.title}'", self._names(entry),
+                   reaction_depth=reaction_depth)
+        return "attached"
+
+    def detach_resource(self, entry_id, resource_ref, *, reaction_depth: int = 0) -> str | None:
+        """Detach a resource from an entry (idempotent). Returns ``"detached"`` (emits
+        `entry_resource_detached`), ``"absent"`` (wasn't linked — no-op, no event), or ``None``
+        (entry or resource not found in this workspace)."""
+        from marvin.db.models.platform.entry_resources import EntryResources
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        resource = self._resolve_resource(resource_ref)
+        if not resource:
+            return None
+
+        deleted = (
+            self.session.query(EntryResources)
+            .filter(EntryResources.entry_id == entry.id, EntryResources.resource_id == resource.id)
+            .delete()
+        )
+        if not deleted:
+            return "absent"
+        self.session.commit()
+        self._emit(entry, EventTypes.entry_resource_detached, EventOperation.update,
+                   f"Resource '{resource.name}' detached from entry '{entry.title}'", self._names(entry),
+                   reaction_depth=reaction_depth)
+        return "detached"
+
     # ── Emission ──────────────────────────────────────────────────────────────
     def _emit_updated_and_transitions(self, old, entry, verb: str, reaction_depth: int) -> None:
         """Emit `entry_updated` first, then any status-transition events (published/unpublished/
