@@ -295,70 +295,23 @@ class EntryService:
                    reaction_depth=reaction_depth)
         return "detached"
 
-    # ── Tag attachments ────────────────────────────────────────────────────────
-    def _resolve_tag(self, tag_ref, *, create: bool):
-        """Resolve a tag by name/slug in this workspace. ``create`` find-or-creates (attach); else
-        returns the existing row or None (detach)."""
-        if create:
-            return self.repos.tags.find_or_create(str(tag_ref))
-        from marvin.db.models.platform.tags import Tags
-
-        return (
-            self.session.query(Tags)
-            .filter(Tags.group_id == self.group_id)
-            .filter((Tags.slug == str(tag_ref)) | (Tags.name == str(tag_ref)))
-            .first()
-        )
-
+    # ── Tag attachments (entry-scoped convenience over the shared tagging service) ──────
     def attach_tag(self, entry_id, tag_ref, *, reaction_depth: int = 0) -> str | None:
-        """Attach a tag to an entry (idempotent, find-or-creates the tag by name/slug). Returns
-        ``"attached"`` (emits `entry_tag_attached`), ``"exists"`` (already linked), or ``None`` (entry
-        not found / blank tag)."""
-        from marvin.db.models.platform.entry_tags import EntryTags
+        """Attach a tag to an entry (idempotent, find-or-creates the tag). Delegates to the shared
+        tagging service (which also tags assets/resources). Returns attached/exists/None; emits
+        `entry_tag_attached`."""
+        from marvin.services.tagging import link_tag
 
-        entry = self.repos.entries.get_one(entry_id)
-        if not entry or entry.group_id != self.group_id:
-            return None
-        tag = self._resolve_tag(tag_ref, create=True)
-        if not tag:
-            return None
-        existing = (
-            self.session.query(EntryTags)
-            .filter(EntryTags.entry_id == entry.id, EntryTags.tag_id == tag.id)
-            .first()
-        )
-        if existing:
-            return "exists"
-        self.session.add(EntryTags(entry_id=entry.id, tag_id=tag.id))
-        self.session.commit()
-        self._emit(entry, EventTypes.entry_tag_attached, EventOperation.update,
-                   f"Tag '{tag.name}' attached to entry '{entry.title}'", self._names(entry),
-                   reaction_depth=reaction_depth)
-        return "attached"
+        return link_tag(self.session, self.group_id, "entry", entry_id, tag_ref, attach=True,
+                        actor_id=self.actor_id, event_bus=self._event_bus, reaction_depth=reaction_depth)
 
     def detach_tag(self, entry_id, tag_ref, *, reaction_depth: int = 0) -> str | None:
-        """Detach a tag from an entry (idempotent). Returns ``"detached"`` (emits `entry_tag_detached`),
-        ``"absent"`` (wasn't linked), or ``None`` (entry or tag not found)."""
-        from marvin.db.models.platform.entry_tags import EntryTags
+        """Detach a tag from an entry (idempotent). Returns detached/absent/None; emits
+        `entry_tag_detached`."""
+        from marvin.services.tagging import link_tag
 
-        entry = self.repos.entries.get_one(entry_id)
-        if not entry or entry.group_id != self.group_id:
-            return None
-        tag = self._resolve_tag(tag_ref, create=False)
-        if not tag:
-            return None
-        deleted = (
-            self.session.query(EntryTags)
-            .filter(EntryTags.entry_id == entry.id, EntryTags.tag_id == tag.id)
-            .delete()
-        )
-        if not deleted:
-            return "absent"
-        self.session.commit()
-        self._emit(entry, EventTypes.entry_tag_detached, EventOperation.update,
-                   f"Tag '{tag.name}' detached from entry '{entry.title}'", self._names(entry),
-                   reaction_depth=reaction_depth)
-        return "detached"
+        return link_tag(self.session, self.group_id, "entry", entry_id, tag_ref, attach=False,
+                        actor_id=self.actor_id, event_bus=self._event_bus, reaction_depth=reaction_depth)
 
     # ── Asset attachments ──────────────────────────────────────────────────────
     def _resolve_asset(self, asset_ref):

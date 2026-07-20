@@ -68,25 +68,46 @@ def detach_resource(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="detach_resource", ref_key="resource")
 
 
-# ── Tags ──────────────────────────────────────────────────────────────────────
+# ── Tags (entry / asset / resource — one shared vocabulary) ───────────────────
+_TAG_SCHEMA = {"type": "object", "properties": {
+    "entity_type": {"type": "string", "enum": ["entry", "asset", "resource"], "description": "what to tag (default 'entry')"},
+    "entity": {"type": "string", "description": "the entry/asset/resource by slug or id"},
+    "tag": {"type": "string", "description": "the tag name or slug"},
+}, "required": ["entity", "tag"]}
+
+
+def _tag_link(ctx: ToolContext, args: dict, *, attach: bool) -> str:
+    from marvin.services.tagging import TAGGABLE, link_tag
+
+    entity_type = str(args.get("entity_type") or "entry").lower()
+    if entity_type not in TAGGABLE:
+        return json.dumps({"error": f"entity_type must be one of {list(TAGGABLE)}"})
+    entity_id = resolve_entity_id(ctx.session, ctx.group_id, entity_type, args.get("entity"))
+    result = link_tag(ctx.session, ctx.group_id, entity_type, entity_id, str(args.get("tag") or ""),
+                      attach=attach, actor_id=getattr(ctx.user, "id", None))
+    if result is None:
+        return json.dumps({"error": f"{entity_type} or tag not found in this workspace"})
+    return json.dumps({"entity_type": entity_type, "entity": str(args.get("entity")), "tag": str(args.get("tag")), "result": result})
+
+
 @register_tool(
     name="attach_tag",
-    description="Attach a tag to an entry. Find-or-creates the tag by name/slug in the workspace vocabulary, then links it. Idempotent.",
-    input_schema=_link_schema("tag", "the tag name or slug (created if new)"),
+    description="Attach a tag to an entry, asset, or resource (set entity_type). Find-or-creates the tag in the one shared workspace vocabulary, then links it. Idempotent.",
+    input_schema=_TAG_SCHEMA,
     min_role=ROLE_AUTHOR, read_only=False,
 )
 def attach_tag(ctx: ToolContext, args: dict) -> str:
-    return _entry_link(ctx, args, method="attach_tag", ref_key="tag")
+    return _tag_link(ctx, args, attach=True)
 
 
 @register_tool(
     name="detach_tag",
-    description="Detach a tag from an entry. Idempotent (the tag itself stays in the vocabulary).",
-    input_schema=_link_schema("tag", "the tag name or slug"),
+    description="Detach a tag from an entry, asset, or resource (set entity_type). Idempotent (the tag itself stays in the vocabulary).",
+    input_schema=_TAG_SCHEMA,
     min_role=ROLE_AUTHOR, read_only=False,
 )
 def detach_tag(ctx: ToolContext, args: dict) -> str:
-    return _entry_link(ctx, args, method="detach_tag", ref_key="tag")
+    return _tag_link(ctx, args, attach=False)
 
 
 # ── Collections ───────────────────────────────────────────────────────────────

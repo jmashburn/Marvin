@@ -8,7 +8,7 @@ import uuid
 
 from pytest import fixture
 
-from marvin.db.models.platform import Assets, Entries, EntryAssets, EntryTags, EntryTypes, Tags
+from marvin.db.models.platform import Assets, AssetTags, Entries, EntryAssets, EntryTags, EntryTypes, Tags
 from marvin.services.entries import EntryService
 
 
@@ -58,6 +58,7 @@ def workspace(db_session):
     yield gid, entry.id, aid
 
     db_session.query(EntryTags).delete()
+    db_session.query(AssetTags).delete()
     db_session.query(EntryAssets).delete()
     db_session.query(Tags).filter(Tags.group_id == gid).delete()
     db_session.query(Entries).filter(Entries.group_id == gid).delete()
@@ -100,6 +101,40 @@ def test_attach_tag_unknown_entry_returns_none(db_session, workspace):
     gid, _, _ = workspace
     svc, _ = _svc(db_session, gid)
     assert svc.attach_tag(uuid.uuid4(), "waxed") is None
+
+
+def test_link_tag_spans_entry_and_asset_one_vocabulary(db_session, workspace):
+    # THE point: the same tag vocabulary links to entries AND assets (and resources) via link_tag.
+    from marvin.db.models.platform.asset_tags import AssetTags
+    from marvin.services.tagging import link_tag
+
+    gid, entry_id, aid = workspace
+    bus = _SpyBus()  # spy so no real event_log rows are persisted (they'd block group teardown)
+    assert link_tag(db_session, gid, "entry", entry_id, "Shared", attach=True, event_bus=bus) == "attached"
+    assert link_tag(db_session, gid, "asset", aid, "shared", attach=True, event_bus=bus) == "attached"   # same slug, other junction
+    assert link_tag(db_session, gid, "asset", aid, "shared", attach=True, event_bus=bus) == "exists"      # idempotent
+
+    assert db_session.query(Tags).filter(Tags.group_id == gid, Tags.slug == "shared").count() == 1  # ONE tag
+    assert db_session.query(EntryTags).filter(EntryTags.entry_id == entry_id).count() == 1
+    assert db_session.query(AssetTags).filter(AssetTags.asset_id == aid).count() == 1
+    assert bus.events == ["entry_tag_attached", "asset_updated"]  # entry gets its tag event; asset reuses asset_updated
+
+    assert link_tag(db_session, gid, "asset", aid, "shared", attach=False, event_bus=bus) == "detached"
+    assert link_tag(db_session, gid, "asset", aid, "shared", attach=False, event_bus=bus) == "absent"
+
+
+def test_link_tag_rejects_unknown_entity_type():
+    from marvin.services.tagging import link_tag
+    assert link_tag(None, uuid.uuid4(), "widget", uuid.uuid4(), "x", attach=True) is None
+
+
+def test_attach_tag_tool_validates_entity_type():
+    import json
+
+    from marvin.services.ai.tools import ToolContext, get_tool
+    ctx = ToolContext(session=None, group_id=uuid.uuid4(), user=None)
+    out = json.loads(get_tool("attach_tag").handler(ctx, {"entity_type": "widget", "entity": "x", "tag": "y"}))
+    assert "entity_type" in out["error"]
 
 
 # ── Assets ────────────────────────────────────────────────────────────────────
