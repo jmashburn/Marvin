@@ -809,36 +809,34 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     }
   });
 
-  // Notification connect/disconnect
-  document.querySelectorAll('[data-notifier-id]').forEach(btn => {
+  // Notification connect/disconnect is wired in the bundled SDK script below (it needs the SDK,
+  // which an inline define:vars script can't import).
+</script>
+
+<!-- Bundled (Vite-processed) script: uses the marvin-sdk client so the notifier routes/payloads
+     stay in sync with the SDK instead of hand-rolled fetch paths. Reads button data-* attrs. -->
+<script>
+  document.querySelectorAll('[data-notifier-id]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const notifierId = btn.dataset.notifierId;
-      const isConnected = btn.dataset.connected === 'true';
-      const optionSlug = 'core.' + type;
+      const el = btn as HTMLElement;
+      const notifierId = el.dataset.notifierId!;
+      const eventType = el.dataset.eventType || '';
+      const isConnected = el.dataset.connected === 'true';
+      const optionSlug = 'core.' + eventType;
+      if (isConnected) {
+        alert('To disconnect, edit the notification from the Notifications page.');
+        return;
+      }
       try {
-        if (isConnected) {
-          alert('To disconnect, edit the notification from the Notifications page.');
-          return;
-        }
-        const res = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, { credentials: 'include' });
-        if (!res.ok) throw new Error(`GET HTTP ${res.status}`);
-        const notif = await res.json();
-        // The read model returns options as objects ({option: "core.foo"}); the update schema wants
-        // a list of slug STRINGS. Map before appending, or the PUT fails list[str] validation.
+        const { createSdkClient } = await import('@/lib/sdk');
+        const sdk = createSdkClient();
+        const notif: any = await sdk.notifications.get(notifierId);
+        // Read model returns option OBJECTS; the update wants slug STRINGS. Map before appending.
         const currentSlugs = (notif.options ?? [])
-          .map((o) => o.option || o.slug)
+          .map((o: any) => o.option || o.slug)
           .filter(Boolean);
         if (currentSlugs.includes(optionSlug)) { window.location.reload(); return; }
-        const putRes = await fetch(`${apiUrl}/api/groups/notifications/${notifierId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ ...notif, options: [...currentSlugs, optionSlug] }),
-        });
-        if (!putRes.ok) {
-          const detail = await putRes.text().catch(() => '');
-          throw new Error(`PUT HTTP ${putRes.status} ${detail}`);
-        }
+        await sdk.notifications.update(notifierId, { ...notif, options: [...currentSlugs, optionSlug] });
         window.location.reload();
       } catch (e) {
         alert('Failed to update notification subscription: ' + (e instanceof Error ? e.message : String(e)));
