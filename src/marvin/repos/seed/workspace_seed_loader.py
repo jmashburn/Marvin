@@ -93,6 +93,7 @@ class WorkspaceSeedLoader:
         self._overwrite = overwrite
         results = {
             "collections": 0,
+            "tags": 0,
             "entry_types": 0,
             "entries": 0,
             "resources": 0,
@@ -134,6 +135,19 @@ class WorkspaceSeedLoader:
                     results["collections"] += 1
                 except Exception as e:
                     self.logger.error(f"Failed to create collection {coll_data.get('slug')}: {e}")
+                    results["errors"] += 1
+
+        # 1.5 Tags — recreate the vocabulary (slug + name + color) before entries so entry tag
+        # links resolve. Find-or-create by slug, so re-importing is idempotent.
+        tags_data = data.get("tags", [])
+        if tags_data:
+            self.logger.info(f"Creating {len(tags_data)} tags...")
+            for tag_data in tags_data:
+                try:
+                    self._create_tag(tag_data)
+                    results["tags"] += 1
+                except Exception as e:
+                    self.logger.error(f"Failed to create tag {tag_data.get('slug')}: {e}")
                     results["errors"] += 1
 
         # 2. Entry Types
@@ -180,6 +194,7 @@ class WorkspaceSeedLoader:
 
         self.logger.info(
             f"Seed loaded: {results['collections']} collections, "
+            f"{results['tags']} tags, "
             f"{results['entry_types']} entry types, "
             f"{results['entries']} entries, "
             f"{results['resources']} resources, "
@@ -498,11 +513,12 @@ class WorkspaceSeedLoader:
             self.logger.info(f"Overwrote entry: {data['slug']}")
 
             # Clear junction rows and rebuild from bundle
-            from marvin.db.models.platform import EntryAssets, EntryCollections, EntryResources
+            from marvin.db.models.platform import EntryAssets, EntryCollections, EntryResources, EntryTags
 
             self.repos.session.query(EntryCollections).filter(EntryCollections.entry_id == existing.id).delete()
             self.repos.session.query(EntryResources).filter(EntryResources.entry_id == existing.id).delete()
             self.repos.session.query(EntryAssets).filter(EntryAssets.entry_id == existing.id).delete()
+            self.repos.session.query(EntryTags).filter(EntryTags.entry_id == existing.id).delete()
             self.repos.session.commit()
 
             entry_id = existing.id
@@ -538,6 +554,11 @@ class WorkspaceSeedLoader:
         asset_assignments = data.get("assets", [])
         if asset_assignments:
             self._assign_to_assets(entry_id, asset_assignments)
+
+        # Handle tag membership (slug list) — resolve/create each tag and link it.
+        tag_slugs = data.get("tags", [])
+        if tag_slugs:
+            self._assign_to_tags(entry_id, tag_slugs)
 
     def _get_seed_user_id(self) -> str | None:
         """Get a user ID for seed-created records.
@@ -629,6 +650,45 @@ class WorkspaceSeedLoader:
             except Exception as e:
                 self.repos.session.rollback()
                 self.logger.error(f"Failed to link resource {resource_slug}: {e}")
+
+    def _create_tag(self, data: dict[str, Any]) -> None:
+        """Create (or find) a tag from the exported vocabulary. Idempotent by slug.
+
+        Args:
+            data: {slug, name, color?} dict from the seed file
+        """
+        from marvin.schemas.platform import TagCreate
+
+        name = data.get("name") or data.get("slug")
+        # TagsRepository.create is find-or-create by slug, so re-import doesn't duplicate.
+        self.repos.tags.create(TagCreate(name=name, slug=data.get("slug"), color=data.get("color")))
+
+    def _assign_to_tags(self, entry_id: str, tag_slugs: list[str]) -> None:
+        """Link an entry to tags by slug, creating any missing tag on the fly.
+
+        Args:
+            entry_id: UUID of the entry
+            tag_slugs: List of tag slugs
+        """
+        from marvin.db.models.platform import EntryTags
+
+        for slug in tag_slugs:
+            tag = self.repos.tags.find_or_create(slug)
+            if tag is None:
+                continue
+            try:
+                exists = (
+                    self.repos.session.query(EntryTags)
+                    .filter(EntryTags.entry_id == entry_id, EntryTags.tag_id == tag.id)
+                    .first()
+                )
+                if exists is None:
+                    self.repos.session.add(EntryTags(entry_id=entry_id, tag_id=tag.id))
+                    self.repos.session.commit()
+                    self.logger.debug(f"Tagged entry with: {slug}")
+            except Exception as e:
+                self.repos.session.rollback()
+                self.logger.error(f"Failed to tag entry with {slug}: {e}")
 
     def _assign_to_collections(self, entry_id: str, assignments: list[dict[str, Any]]) -> None:
         """Assign an entry to collections with order.

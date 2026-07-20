@@ -46,6 +46,7 @@ class WorkspaceExporter:
             "workspace": self._export_workspace_metadata(),
             "site": self._export_site_preferences(),
             "collections": self._export_collections(),
+            "tags": self._export_tags(),
             "entry_types": self._export_entry_types(include_system_types),
             "entries": self._export_entries(),
             "assets": self._export_assets(),
@@ -54,6 +55,7 @@ class WorkspaceExporter:
 
         self.logger.info(
             f"Export complete: {len(export_data['collections'])} collections, "
+            f"{len(export_data['tags'])} tags, "
             f"{len(export_data['entry_types'])} entry types, "
             f"{len(export_data['entries'])} entries, "
             f"{len(export_data['assets'])} assets, "
@@ -204,6 +206,18 @@ class WorkspaceExporter:
 
         return exported
 
+    def _export_tags(self) -> list[dict[str, Any]]:
+        """Export the workspace tag vocabulary (slug is the identity; name + color for display).
+
+        Per-entry membership is exported as a slug list on each entry (see _export_entries), so a
+        restore can recreate the vocabulary and relink entries without losing display names/colors.
+        """
+        tags = self.repos.tags.get_all(limit=None, order_by="slug")
+        return [
+            {"name": tag.name, "slug": tag.slug, "color": tag.color}
+            for tag in tags
+        ]
+
     def _export_entry_types(self, include_system: bool) -> list[dict[str, Any]]:
         """Export entry types.
 
@@ -292,6 +306,12 @@ class WorkspaceExporter:
             resources_data = self._get_entry_resources(entry.id)
             if resources_data:
                 entry_dict["resources"] = resources_data
+
+            # Tag membership as a slug list — EntryRead.tags is already the slug list (see T4);
+            # resolved against the exported vocabulary on import.
+            tag_slugs = list(entry.tags or [])
+            if tag_slugs:
+                entry_dict["tags"] = tag_slugs
 
             exported.append(entry_dict)
 
