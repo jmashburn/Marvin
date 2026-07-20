@@ -127,7 +127,7 @@ def _resolve_collection(ctx: ToolContext, ident: str):
 
 @register_tool(
     name="search_content",
-    description="Semantic search over workspace entries and resources. Returns the most relevant snippets with their entity ids/titles, and (for entry hits) lean image refs so results can show thumbnails. The index gives relevance + ids; call get_entry for the full record. Use this to ground answers.",
+    description="Semantic search over workspace content (entries, resources, and assets). Returns the most relevant snippets with their entity ids/titles, and (for entry hits) lean image refs so results can show thumbnails. The index gives relevance + ids; call get_entry for the full record. Use this to ground answers.",
     input_schema={"type": "object", "properties": {"query": {"type": "string", "description": "what to search for"}}, "required": ["query"]},
 )
 def search_content(ctx: ToolContext, args: dict) -> str:
@@ -141,13 +141,14 @@ def search_content(ctx: ToolContext, args: dict) -> str:
     from marvin.core.config import get_app_settings
     from marvin.services.ai.context import ContextBuilder
     from marvin.services.ai.embeddings import default_embedding_model
+    from marvin.services.ai.embeddings_registry import indexable_types
     emb_model = default_embedding_model(ctx.provider.provider_type)
     if not emb_model:
         return json.dumps({"error": "semantic search unavailable (no embedding model configured)"})
     top_k = getattr(get_app_settings(), "AI_RAG_TOP_K", 5)
     built = (
         ContextBuilder(ctx.session, ctx.group_id)
-        .with_semantic_search(query, ctx.provider, emb_model, limit=top_k, entity_types=["entry", "resource"])
+        .with_semantic_search(query, ctx.provider, emb_model, limit=top_k, entity_types=indexable_types())
         .build()
     )
     retrieved = built.retrieved or []

@@ -202,11 +202,12 @@ class AIOperationsController(BaseUserController):
         if getattr(operation, "requires_retrieval", False):
             from marvin.core.config import get_app_settings
             from marvin.services.ai.embeddings import default_embedding_model
+            from marvin.services.ai.embeddings_registry import indexable_types
             emb_model = default_embedding_model(provider.provider_type)
             query = body.input.get("question") or body.input.get("query") or ""
             if emb_model:
                 top_k = getattr(get_app_settings(), "AI_RAG_TOP_K", 5)
-                builder.with_semantic_search(query, provider, emb_model, limit=top_k, entity_types=["entry", "resource"])
+                builder.with_semantic_search(query, provider, emb_model, limit=top_k, entity_types=indexable_types())
         ctx = builder.build()
 
         # Workspace logging policy: whether to persist inputs/outputs on the execution.
@@ -1023,29 +1024,21 @@ class AIOperationsController(BaseUserController):
         return resolve_retrieved_sources(self.session, retrieved)
 
     def _reindex_targets(self, body: AIReindexRequest) -> list[tuple[str, object, str]]:
-        from marvin.db.models.platform.entries import Entries
-        from marvin.db.models.platform.resources import Resources
-
-        def entry_text(e) -> str:
-            return "\n".join(filter(None, [e.title, e.summary, e.description, str(e.data_json or "")]))
-
-        def resource_text(r) -> str:
-            return "\n".join(filter(None, [r.name, r.description, r.url]))
+        # Derives targets from the indexable-type registry, so a newly registered type is covered
+        # by workspace reindex and single-entity reindex with no change here.
+        from marvin.services.ai.embeddings_registry import REGISTRY
 
         targets: list[tuple[str, object, str]] = []
         if body.scope == "workspace":
-            for e in self.session.query(Entries).filter_by(group_id=self.group_id).all():
-                targets.append(("entry", e.id, entry_text(e)))
-            for r in self.session.query(Resources).filter_by(group_id=self.group_id).all():
-                targets.append(("resource", r.id, resource_text(r)))
-        elif body.entity_type == "entry" and body.entity_id:
-            e = self.session.get(Entries, body.entity_id)
-            if e and e.group_id == self.group_id:
-                targets.append(("entry", e.id, entry_text(e)))
-        elif body.entity_type == "resource" and body.entity_id:
-            r = self.session.get(Resources, body.entity_id)
-            if r and r.group_id == self.group_id:
-                targets.append(("resource", r.id, resource_text(r)))
+            for desc in REGISTRY.values():
+                for obj in self.session.query(desc.model).filter_by(group_id=self.group_id).all():
+                    targets.append((desc.entity_type, obj.id, desc.text(obj)))
+        elif body.entity_type and body.entity_id:
+            desc = REGISTRY.get(body.entity_type)
+            if desc:
+                obj = self.session.get(desc.model, body.entity_id)
+                if obj and obj.group_id == self.group_id:
+                    targets.append((desc.entity_type, obj.id, desc.text(obj)))
         return targets
 
     def _logging_policy(self) -> tuple[bool, bool]:

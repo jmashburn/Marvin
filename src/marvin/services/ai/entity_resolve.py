@@ -51,11 +51,13 @@ def resolve_retrieved_sources(session, retrieved: list[dict]) -> list[dict]:
     The LLM cites sources by their 1-based [n] index, which aligns with this ordered list,
     so the UI can turn each citation into a link. Titles are looked up in bulk per type.
     """
+    from marvin.db.models.platform.assets import Assets
     from marvin.db.models.platform.entries import Entries
     from marvin.db.models.platform.resources import Resources
 
     entry_ids = {c["entity_id"] for c in retrieved if c.get("entity_type") == "entry"}
     resource_ids = {c["entity_id"] for c in retrieved if c.get("entity_type") == "resource"}
+    asset_ids = {c["entity_id"] for c in retrieved if c.get("entity_type") == "asset"}
     titles: dict[tuple[str, str], str] = {}
     if entry_ids:
         for e in session.query(Entries).filter(Entries.id.in_(entry_ids)).all():
@@ -63,6 +65,9 @@ def resolve_retrieved_sources(session, retrieved: list[dict]) -> list[dict]:
     if resource_ids:
         for r in session.query(Resources).filter(Resources.id.in_(resource_ids)).all():
             titles[("resource", str(r.id))] = r.name or "Untitled resource"
+    if asset_ids:
+        for a in session.query(Assets).filter(Assets.id.in_(asset_ids)).all():
+            titles[("asset", str(a.id))] = a.name or "Untitled asset"
 
     sources: list[dict] = []
     for i, c in enumerate(retrieved):

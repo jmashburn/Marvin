@@ -782,27 +782,20 @@ class ScheduledTaskListener(EventListenerBase):
         )
 
 
-class AIEmbeddingReactionListener(EventListenerBase):
+class IndexingReactionListener(EventListenerBase):
     """
-    Reaction listener that keeps the RAG index fresh: when an entry is published
-    (or a live entry's content is edited) it embeds that single entry so it is
-    immediately answerable via semantic search (answer-workspace-question) with no
-    manual or scheduled reindex.
+    Reaction listener that keeps the RAG index fresh for every registered indexable type.
 
-    This is a code-defined "reaction" (event -> action). It is deliberately:
-      - best-effort: any failure is logged and swallowed, so it can never break publish;
+    Driven entirely by the indexable-type registry (``embeddings_registry``): it reacts to each
+    type's index/delete events, (re)embeds on index events (gated per-type via ``should_index``),
+    and purges embeddings on delete events. Adding a new indexable type needs NO change here — just
+    a ``register_indexable(...)``.
+
+    Deliberately:
+      - best-effort: any failure is logged and swallowed, so it can never break a write;
       - a no-op when the workspace has AI disabled or a provider without embeddings;
-      - acyclic: it only emits ai_embeddings_reindexed (which re-triggers nothing here),
-        so there is no cascade. A depth/provenance guard is only needed once a reaction
-        can mutate content and re-fire entry events.
+      - acyclic: it only emits ai_embeddings_reindexed, which re-triggers nothing here.
     """
-
-    # Events that should refresh an entry's embeddings.
-    #   entry_published: a (re)publish transition — (re)index the entry.
-    #   entry_updated:   a content edit of an already-live, already-indexed entry — re-index.
-    # entry_updated fires on *every* save (drafts, inbox, etc.), so it is gated hard in
-    # publish_to_subscribers; see _should_index_on_update for the judgment call.
-    _TRIGGERS = (EventTypes.entry_published, EventTypes.entry_updated)
 
     def __init__(self, group_id: UUID4) -> None:
         from .publisher import ConsolePublisher  # We act on the event; we don't publish through it.
@@ -810,16 +803,34 @@ class AIEmbeddingReactionListener(EventListenerBase):
         super().__init__(group_id, ConsolePublisher())
 
     def get_subscribers(self, event: Event) -> list[str]:
-        """Act only on the trigger events; cheap check, no DB access."""
-        return ["ai_embed"] if event.event_type in self._TRIGGERS else []
+        """Act only on events some indexable type cares about; cheap check, no DB access."""
+        from marvin.services.ai.embeddings_registry import trigger_events
+
+        return ["ai_index"] if event.event_type in trigger_events() else []
 
     def publish_to_subscribers(self, event: Event, subscribers: list[str]) -> None:
-        entry_id = getattr(event.document_data, "entry_id", None) or event.entity_id
-        if not entry_id:
-            self.logger.error("AIEmbeddingReactionListener: event carried no entry_id")
+        from marvin.services.ai.embeddings_registry import delete_descriptor_for, index_descriptor_for
+
+        del_desc = delete_descriptor_for(event.event_type)
+        idx_desc = index_descriptor_for(event.event_type)
+        desc = idx_desc or del_desc
+        if desc is None:
+            return
+        entity_id = getattr(event.document_data, desc.id_field, None) or event.entity_id
+        if not entity_id:
+            self.logger.error(f"IndexingReactionListener: {event.event_type} carried no {desc.id_field}")
             return
 
-        from marvin.services.ai.embeddings import default_embedding_model, index_entry
+        from marvin.services.ai.embeddings import default_embedding_model, index_entity, purge_embeddings
+
+        # Delete → purge the entity's embeddings; no provider needed.
+        if del_desc is not None:
+            with self.ensure_session() as session:
+                n = purge_embeddings(session, self.group_id, del_desc.entity_type, entity_id)
+            self.logger.info(f"Purged {n} embedding chunk(s) for deleted {del_desc.entity_type} {entity_id}")
+            return
+
+        # Index → (re)embed, gated by the type's should_index.
         from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
 
         with self.ensure_session() as session:
@@ -829,75 +840,44 @@ class AIEmbeddingReactionListener(EventListenerBase):
             except AIDisabledError:
                 return
             except Exception as e:
-                self.logger.warning(f"AIEmbeddingReactionListener: provider unavailable: {e}")
+                self.logger.warning(f"IndexingReactionListener: provider unavailable: {e}")
                 return
-
             if not getattr(provider, "supports_embeddings", False):
                 return
             model = default_embedding_model(provider.provider_type)
             if not model:
                 return
 
-            from marvin.db.models.platform.entries import Entries
-            entry = session.get(Entries, entry_id)
-            if not entry or entry.group_id != self.group_id:
-                self.logger.warning(f"AIEmbeddingReactionListener: entry {entry_id} not found for this workspace")
+            obj = session.get(idx_desc.model, entity_id)
+            if not obj or obj.group_id != self.group_id:
+                self.logger.warning(f"IndexingReactionListener: {idx_desc.entity_type} {entity_id} not found for this workspace")
                 return
-
-            # An entry_updated fires on every save. Only re-embed a live entry whose
-            # content actually changed, and never double-embed the publish transition
-            # (which emits entry_updated *and* entry_published). See _should_index_on_update.
-            is_update = event.event_type == EventTypes.entry_updated
-            if is_update and not self._should_index_on_update(
-                entry.status, self._has_embedding_index(session, entry_id, model)
-            ):
+            has_index = self._has_index(session, idx_desc.entity_type, entity_id, model)
+            if not idx_desc.should_index(obj, event.event_type, has_index):
                 return
 
             try:
-                chunks = index_entry(session, self.group_id, entry, provider, model)
+                chunks = index_entity(session, self.group_id, idx_desc.entity_type, obj.id, idx_desc.text(obj), provider, model)
             except Exception as e:
-                self.logger.warning(f"AIEmbeddingReactionListener: embed failed for entry {entry_id}: {e}")
+                self.logger.warning(f"IndexingReactionListener: embed failed for {idx_desc.entity_type} {entity_id}: {e}")
                 return
 
-        verb = "on update" if is_update else "on publish"
-        self.logger.info(f"Auto-embedded entry {entry_id} ({chunks} chunk(s)) {verb}")
-        self._emit_reindexed(model, chunks, verb)
+        verb = "on " + event.event_type.name.split("_", 1)[-1]  # e.g. "on published", "on updated"
+        self.logger.info(f"Auto-indexed {idx_desc.entity_type} {entity_id} ({chunks} chunk(s)) {verb}")
+        self._emit_reindexed(model, chunks, idx_desc.entity_type, verb)
 
-    @staticmethod
-    def _should_index_on_update(status: str, has_existing_index: bool) -> bool:
-        """
-        Gate for re-embedding on entry_updated (the key judgment call).
-
-        Re-embed ONLY when both hold:
-          1. the entry is currently published — never index draft/inbox/archived saves,
-             which would otherwise fire on every keystroke-save; and
-          2. the entry already has an embedding index for this model — i.e. it is a
-             live, already-indexed entry whose content changed.
-
-        Condition (2) also prevents a redundant double-embed on the publish transition:
-        the controller emits entry_updated *then* entry_published for the same request,
-        but on first publish there is no prior index yet, so entry_updated no-ops here
-        and entry_published owns the initial indexing.
-        """
-        return status == "published" and has_existing_index
-
-    def _has_embedding_index(self, session: Session, entry_id: UUID4, model: str) -> bool:
-        """True if this entry already has embedding chunks for the given model."""
+    def _has_index(self, session: Session, entity_type: str, entity_id: UUID4, model: str) -> bool:
+        """True if this entity already has embedding chunks for the given model."""
         from marvin.db.models.groups.ai_embeddings import AIEmbeddingModel
 
         return (
             session.query(AIEmbeddingModel)
-            .filter_by(
-                group_id=self.group_id,
-                entity_type="entry",
-                entity_id=entry_id,
-                model_id=model,
-            )
+            .filter_by(group_id=self.group_id, entity_type=entity_type, entity_id=entity_id, model_id=model)
             .first()
             is not None
         )
 
-    def _emit_reindexed(self, model: str, chunks: int, verb: str = "on publish") -> None:
+    def _emit_reindexed(self, model: str, chunks: int, entity_type: str = "entry", verb: str = "on publish") -> None:
         """Surface the auto-index as an ai_embeddings_reindexed event (audit log + notifications)."""
         from marvin.services.event_bus_service.event_bus_service import EventBusService
 
@@ -919,10 +899,10 @@ class AIEmbeddingReactionListener(EventListenerBase):
                     workspace_id=self.group_id,
                     workspace_name=workspace_name,
                 ),
-                message=f"Auto-indexed 1 entry ({chunks} chunks) {verb}",
+                message=f"Auto-indexed 1 {entity_type} ({chunks} chunks) {verb}",
             )
         except Exception as e:
-            self.logger.error(f"AIEmbeddingReactionListener: failed to emit reindexed event: {e}")
+            self.logger.error(f"IndexingReactionListener: failed to emit reindexed event: {e}")
 
 
 class SmartCollectionReactionListener(EventListenerBase):

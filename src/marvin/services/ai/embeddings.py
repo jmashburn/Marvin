@@ -102,12 +102,38 @@ def index_entity(
     return len(chunks)
 
 
+def _tags_line(obj) -> str | None:
+    """A 'Tags: …' line (display names, human words) so tag vocabulary is semantically searchable."""
+    tags = getattr(obj, "tags", None)
+    if not tags:
+        return None
+    names = [getattr(t, "name", None) or getattr(t, "slug", "") for t in tags]
+    names = [n for n in names if n]
+    return ("Tags: " + ", ".join(names)) if names else None
+
+
 def _entry_text(e) -> str:
-    return "\n".join(filter(None, [e.title, e.summary, e.description, str(e.data_json or "")]))
+    return "\n".join(filter(None, [e.title, e.summary, e.description, str(e.data_json or ""), _tags_line(e)]))
 
 
 def _resource_text(r) -> str:
-    return "\n".join(filter(None, [r.name, r.description, r.url]))
+    return "\n".join(filter(None, [r.name, r.description, r.url, _tags_line(r)]))
+
+
+def _asset_text(a) -> str:
+    return "\n".join(filter(None, [a.name, a.alt_text, a.description, _tags_line(a)]))
+
+
+def purge_embeddings(session: Session, group_id: UUID4, entity_type: str, entity_id: UUID4, model: str | None = None) -> int:
+    """Remove an entity's embedding chunks (all models, or one). Called when the entity is deleted."""
+    from marvin.db.models.groups.ai_embeddings import AIEmbeddingModel
+
+    q = session.query(AIEmbeddingModel).filter_by(group_id=group_id, entity_type=entity_type, entity_id=entity_id)
+    if model:
+        q = q.filter_by(model_id=model)
+    n = q.delete()
+    session.commit()
+    return n
 
 
 def index_entry(session: Session, group_id: UUID4, entry, provider, model: str) -> int:
@@ -116,23 +142,21 @@ def index_entry(session: Session, group_id: UUID4, entry, provider, model: str) 
 
 
 def reindex_workspace(session: Session, group_id: UUID4, provider, model: str) -> tuple[int, int]:
-    """(Re)index every entry and resource in a workspace. Returns (entities, chunks)."""
-    from marvin.db.models.platform.entries import Entries
-    from marvin.db.models.platform.resources import Resources
+    """(Re)index every indexable entity in a workspace. Returns (entities, chunks).
+
+    Iterates the indexable-type registry, so a newly registered type is included automatically.
+    """
+    from marvin.services.ai.embeddings_registry import REGISTRY
 
     entities = chunks = 0
-    for e in session.query(Entries).filter_by(group_id=group_id).all():
-        try:
-            chunks += index_entity(session, group_id, "entry", e.id, _entry_text(e), provider, model)
-            entities += 1
-        except Exception:
-            continue  # skip a failing entity rather than aborting the whole workspace
-    for r in session.query(Resources).filter_by(group_id=group_id).all():
-        try:
-            chunks += index_entity(session, group_id, "resource", r.id, _resource_text(r), provider, model)
-            entities += 1
-        except Exception:
-            continue
+    for desc in REGISTRY.values():
+        for obj in session.query(desc.model).filter_by(group_id=group_id).all():
+            try:
+                chunks += index_entity(session, group_id, desc.entity_type, obj.id, desc.text(obj), provider, model)
+                entities += 1
+            except Exception:
+                continue  # skip a failing entity rather than aborting the whole workspace
+    return entities, chunks
     return entities, chunks
 
 
