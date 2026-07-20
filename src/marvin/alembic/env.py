@@ -8,6 +8,30 @@ from alembic import context
 from marvin.core.config import get_app_settings
 from marvin.db.models import SqlAlchemyBase
 
+
+def _import_all_models() -> None:
+    """Import every model module so its table lands in SqlAlchemyBase.metadata.
+
+    Autogenerate only compares what's in the metadata, and `include_object` below skips
+    anything absent from it — so a model whose module never gets imported is INVISIBLE:
+    alembic emits no diff for it, silently, with no error. (Before this, `forms`,
+    `form_submissions` and `form_rate_limits` were unreachable that way — 41 of 44 tables
+    were visible.) Walking the package keeps this correct as models are added, rather than
+    relying on an import list nobody remembers to update.
+    """
+    import importlib
+    import pkgutil
+
+    import marvin.db.models as models_pkg
+
+    for module in pkgutil.walk_packages(models_pkg.__path__, prefix=f"{models_pkg.__name__}."):
+        if "._model_utils" in module.name:  # helpers/type decorators, not tables
+            continue
+        importlib.import_module(module.name)
+
+
+_import_all_models()
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

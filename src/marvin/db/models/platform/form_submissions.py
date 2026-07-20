@@ -3,7 +3,6 @@
 from datetime import datetime
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
@@ -35,7 +34,10 @@ class FormSubmissions(SqlAlchemyBase, BaseMixins):
     status: Mapped[str] = mapped_column(sa.String, nullable=False, default="received", server_default="received")
     """Submission status: received | processed | failed."""
 
-    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
+    # sa.String, not postgresql.INET: the column has always been VARCHAR in the schema (the
+    # initial migration created it as sa.String), and INET is unrenderable on SQLite — it broke
+    # autogenerate outright. Portable type, matching what's actually stored.
+    ip_address: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     """Submitter IP address."""
 
     user_agent: Mapped[str | None] = mapped_column(sa.String, nullable=True)

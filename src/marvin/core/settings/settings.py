@@ -146,6 +146,15 @@ class AppSettings(BaseSettings):
     #   - Compliance requirements (SOC2, HIPAA, etc.)
     TOKEN_TIME: int = 48
 
+    AUTO_MIGRATE: bool = True
+    """Apply pending Alembic migrations automatically at startup.
+
+    Set to false in development to get a review gate: the dev server reloads on file changes and
+    runs migrations at startup, so a freshly generated revision otherwise reaches the database
+    before anyone has read it. When off, startup logs which revisions are pending and leaves the
+    schema alone — apply them yourself with `task py:migrate:apply`.
+    Leave true for deployments, where migrating on boot is the desired behaviour."""
+
     LOG_CONFIG_OVERRIDE: Path | None = None
     """ path to custom logging configuration file"""
 
@@ -650,7 +659,7 @@ class AppSettings(BaseSettings):
     """The base URL for the OpenAI API. Leave this unset for most use cases."""
     OPENAI_API_KEY: MaskedNoneString = None
     """Your OpenAI API key. Required to enable OpenAI features (masked)."""
-    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MODEL: str = "gpt-4o-mini"
     """Which OpenAI model to send requests to. Leave this unset for most use cases."""
     OPENAI_CUSTOM_HEADERS: dict[str, str] = {}
     """Custom HTTP headers to send with each OpenAI request."""

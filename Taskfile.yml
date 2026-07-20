@@ -132,6 +132,16 @@ tasks:
     cmds:
       - uv run scripts/server.py 8000 &
 
+  py:migrate:apply:
+    desc: applies pending database migrations (use after reviewing a generated migration)
+    cmds:
+      - uv run alembic --config src/marvin/alembic.ini upgrade head
+
+  py:migrate:pending:
+    desc: shows migrations the database has not applied yet
+    cmds:
+      - uv run alembic --config src/marvin/alembic.ini history -r current:head
+
   py:migrate:
     desc: generates a new database migration file e.g. task py:migrate -- "add new column"
     cmds:

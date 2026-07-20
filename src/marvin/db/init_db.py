@@ -199,6 +199,32 @@ def include_name(name: str, type_: str, parent_names: dict[str, Any]) -> bool:
     return True
 
 
+def pending_revisions(alembic_cfg: config.Config) -> list[str]:
+    """Revision ids the database has not applied yet, oldest first.
+
+    Used to report what a review gate is holding back. Best-effort: reporting must never be
+    the reason startup fails, so any problem resolving history yields an empty list.
+    """
+    try:
+        directory = script.ScriptDirectory.from_config(alembic_cfg)
+        connectable = engine.create_engine(get_app_settings().DB_URL)
+        with connectable.connect() as connection:
+            ctx = migration.MigrationContext.configure(
+                connection=connection,
+                opts={
+                    "version_table": alembic_cfg.get_main_option("version_table") or "alembic_version",
+                    "include_name": include_name,
+                },
+            )
+            current_rev = ctx.get_current_revision()
+        # iterate_revisions(upper, lower) walks head -> lower, excluding lower itself.
+        # Reverse it so the report reads in the order they'd be applied.
+        revisions = directory.iterate_revisions("heads", current_rev)
+        return [rev.revision for rev in reversed(list(revisions))]
+    except Exception:  # pragma: no cover - diagnostics only
+        return []
+
+
 def db_is_at_head(alembic_cfg: config.Config) -> bool:
     """
     Checks if the database is migrated to the latest Alembic revision (head).
@@ -296,6 +322,17 @@ def main() -> None:
 
             if db_is_at_head(alembic_cfg):
                 logger.debug(f"Migration not needed for {name}.")
+            elif not get_app_settings().AUTO_MIGRATE:
+                # Review gate. The dev server reloads on file changes and this runs at startup,
+                # so a freshly generated revision would otherwise hit the database before anyone
+                # had read it. With AUTO_MIGRATE off, say what's pending and let a human apply it.
+                pending = pending_revisions(alembic_cfg)
+                logger.warning(
+                    "AUTO_MIGRATE is off and %s has %d pending migration(s): %s. "
+                    "Review them, then apply with `task py:migrate:apply`. "
+                    "The app is running against an OUT-OF-DATE schema until you do.",
+                    name, len(pending), ", ".join(pending) or "unknown",
+                )
             else:
                 logger.debug(f"Migration needed. Performing migration for {name}...")
                 command.upgrade(alembic_cfg, "head")
