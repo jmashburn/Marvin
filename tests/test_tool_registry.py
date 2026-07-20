@@ -40,6 +40,24 @@ def test_builtins_are_registered():
     assert "compose_entry" not in names
 
 
+def test_insights_tools_are_registered_and_projected():
+    # The insights surface (executions/events/tasks) moved out of MarvinMCP into the registry, so the
+    # agent binds them in-process AND MarvinMCP projects them (they must declare the "mcp" source).
+    import marvin.services.ai.tools  # noqa: F401
+    from marvin.services.ai.tools import get_tool, list_tools
+
+    insights = {
+        "list_ai_executions", "get_ai_execution", "get_ai_settings",
+        "list_events", "get_entity_history", "list_scheduled_tasks", "get_scheduled_task_history",
+    }
+    names = {t.name for t in list_tools()}
+    assert insights <= names
+    for n in insights:
+        spec = get_tool(n)
+        assert "mcp" in spec.sources and "agent" in spec.sources  # projected AND agent-bound
+        assert spec.read_only is True
+
+
 def test_register_and_get_roundtrip():
     @register_tool(
         name="_probe_tool",

@@ -1,4 +1,5 @@
 from . import builtins  # registers all built-in tools on import  # noqa: F401
+from . import builtins_insights  # registers insights tools (executions/events/tasks)  # noqa: F401
 from .base import (
     TOOL_REGISTRY,
     ToolContext,
