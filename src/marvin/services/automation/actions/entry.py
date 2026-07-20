@@ -1,11 +1,16 @@
-"""`entry` action — act on an entry (publish / unpublish / archive / restore). No AI.
+"""`entry` action — act on an entry. No AI.
 
-Runs through EntryService, so the mutation and its events (entry_published / entry_unpublished /
-entry_archived / entry_restored) fire correctly and chains stay reliable. It targets the triggering
-entry (`$event.entry_id`) by default, an entry by slug (`entity_slug`), or an explicit id — so it
-pairs with the target selector to act on a whole query: "publish all drafts matching X" is a
-`target` selecting drafts + this action, since each matched entry is bound to `$event.entry_id` for
-its fan-out row.
+Two families, both through EntryService so the right events fire and chains stay reliable:
+  * **status** — publish / unpublish / archive / restore (emits entry_published / entry_unpublished /
+    entry_archived / entry_restored), and
+  * **collection membership** — add_to_collection / remove_from_collection (emits
+    entry_added_to_collection / entry_removed_from_collection), idempotent.
+
+It targets the triggering entry (`$event.entry_id`) by default, an entry by slug (`entity_slug`), or
+an explicit id — so it pairs with the target selector to act on a whole query: "add all drafts
+matching X to the Featured collection" is a `target` selecting drafts + an add_to_collection action,
+since each matched entry is bound to `$event.entry_id` for its fan-out row. Collection ops take a
+`collection_slug` (or `collection_id`), which may itself be a `$event.*` template.
 
 `entry.delete` is deliberately NOT offered here.
 """
@@ -15,7 +20,7 @@ import uuid
 from ..matcher import interpolate
 from .base import AutomationActionError, register_action
 
-# entry op → the status the transition moves the entry to. The specific event (published/archived/…)
+# Status op → the status the transition moves the entry to. The specific event (published/archived/…)
 # is derived by EntryService from the entry's prior status, so these stay declarative.
 ENTRY_OPS: dict[str, str] = {
     "publish": "published",
@@ -23,6 +28,14 @@ ENTRY_OPS: dict[str, str] = {
     "archive": "archived",
     "restore": "draft",
 }
+
+# Collection-membership ops → the EntryService method that performs (and emits) them.
+COLLECTION_OPS: dict[str, str] = {
+    "add_to_collection": "add_to_collection",
+    "remove_from_collection": "remove_from_collection",
+}
+
+ALL_OPS = (*ENTRY_OPS, *COLLECTION_OPS)
 
 
 def _resolve_target(session, group_id, action: dict, context: dict):
@@ -45,6 +58,19 @@ def _resolve_target(session, group_id, action: dict, context: dict):
         raise AutomationActionError("entry action needs a valid entry id or slug") from e
 
 
+def _resolve_collection_ref(action: dict, context: dict):
+    """The collection a membership op targets — collection_slug (preferred, may be a template) or id."""
+    ref = interpolate(action.get("collection_slug"), context) if action.get("collection_slug") else None
+    if not ref:
+        ref = interpolate(action.get("collection_id"), context) if action.get("collection_id") else None
+    if not ref:
+        raise AutomationActionError(
+            "collection action needs a target collection — set collection_slug (e.g. 'featured' or "
+            "$event.payload.collection_slug)"
+        )
+    return str(ref)
+
+
 @register_action("entry")
 def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=None, dry_run=False) -> dict:
     from marvin.services.entries import EntryService
@@ -52,19 +78,31 @@ def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=
     from ..authz import ENTRY_ACTION_MIN_ROLE, ROLE_OWNER, require_role
 
     op = action.get("op")
-    if op not in ENTRY_OPS:
-        raise AutomationActionError(f"unknown entry action op '{op}' (expected: {', '.join(ENTRY_OPS)})")
+    if op not in ALL_OPS:
+        raise AutomationActionError(f"unknown entry action op '{op}' (expected: {', '.join(ALL_OPS)})")
 
     require_role(ROLE_OWNER if authorizer_role is None else authorizer_role, ENTRY_ACTION_MIN_ROLE, f"entry action '{op}'")
 
     entity_id = _resolve_target(session, group_id, action, context)
+    # Emitted events chain at depth+1 so the loop-guard bounds any cascade.
+    depth = int(context.get("depth", 0)) + 1
 
+    # ── Collection membership ──────────────────────────────────────────────────
+    if op in COLLECTION_OPS:
+        collection_ref = _resolve_collection_ref(action, context)
+        if dry_run:  # resolve target + collection, but don't construct the service or mutate
+            return {"dry_run": True, "kind": "entry", "op": op,
+                    "entity_id": str(entity_id), "collection": collection_ref}
+        svc = EntryService(session, group_id, actor_id=user_id, integration_id="automation")
+        result = getattr(svc, COLLECTION_OPS[op])(entity_id, collection_ref, reaction_depth=depth)
+        if result is None:
+            raise AutomationActionError(f"entry {entity_id} or collection '{collection_ref}' not found in this workspace")
+        return {"entry_id": str(entity_id), "op": op, "collection": collection_ref, "result": result}
+
+    # ── Status transition ──────────────────────────────────────────────────────
     if dry_run:
         return {"dry_run": True, "kind": "entry", "op": op,
                 "entity_id": str(entity_id), "would_set_status": ENTRY_OPS[op]}
-
-    # Emitted events chain at depth+1 so the loop-guard bounds any cascade.
-    depth = int(context.get("depth", 0)) + 1
     svc = EntryService(session, group_id, actor_id=user_id, integration_id="automation")
     entry = svc.set_status(entity_id, ENTRY_OPS[op], reaction_depth=depth)
     if entry is None:

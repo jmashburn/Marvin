@@ -163,6 +163,14 @@ def validate_definition(definition: dict | None) -> list[dict]:
                 "Point it at one with entity_slug (e.g. $event.payload.entry_slug), add a Run-on target, "
                 "or use an entry trigger.",
                 "action", i))
+        # A collection-membership entry action needs a target collection.
+        if kind == "entry" and act.get("op") in ("add_to_collection", "remove_from_collection") \
+                and not act.get("collection_slug") and not act.get("collection_id"):
+            issues.append(_issue(
+                "warning",
+                f"Step “{act.get('op')}” needs a target collection — set collection_slug "
+                "(e.g. 'featured' or $event.payload.collection_slug).",
+                "action", i))
 
     return issues
 

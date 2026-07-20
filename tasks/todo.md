@@ -526,8 +526,18 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       triggering entry by default or one by slug (`entity_slug`); pairs with the target selector
       ("publish all inbox entries matching X"). Builder op+target fields, validation, recorder label.
       Verified live. `entry.delete` deliberately omitted. (Marvin 153dbd5, SDK 26cbaa4.)
-- [ ] `entry.add_to_collection` · `entry.remove_from_collection` — still open; needs collection
-      membership extracted into EntryService first (currently in the controller).
+- [x] **`entry.add_to_collection` · `entry.remove_from_collection` DONE (2026-07-20)** ✅ — first
+      extracted collection membership into `EntryService.add_to_collection`/`remove_from_collection`
+      (idempotent: `added`/`exists`/`removed`/`absent`/`None`; emits `entry_added_to_collection` /
+      `entry_removed_from_collection` only on an actual change; resolves the collection by slug/name/id
+      in the workspace). The entry controller now delegates to it (dropped ~90 lines of inline junction
+      + event code, plus a dead helper + 3 unused imports). Then the `entry` action gained the two ops
+      (targets a collection via `collection_slug`/`collection_id`, may be a `$event.*` template);
+      pairs with the target selector ("add all drafts matching X to Featured"), honors authz (AUTHOR),
+      dry-run previews without mutating, and structural + advisory validation cover them. Builder op +
+      collection field (revealed only for membership ops). Verified live (validate clean; missing-
+      collection warns; create 201; builder toggles). 6 DB-backed EntryService tests + 7 action tests.
+      (Marvin, this commit; SDK.)
 
 **H6 · Also shipped this session (2026-07-20) — beyond the review's list**
 - [x] **⭐ Set-based target selector ("FROM" clause) + dry-run preview** ✅ — a workflow can carry a

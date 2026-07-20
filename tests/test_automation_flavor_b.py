@@ -532,6 +532,19 @@ class TestDefinitionSchema:
         from marvin.services.automation.validation import structural_issues
         assert structural_issues({"actions": [{"kind": "entry", "op": "nuke"}]})
 
+    def test_collection_ops_are_valid_entry_ops(self):
+        from marvin.services.automation.validation import structural_issues
+        for op in ("add_to_collection", "remove_from_collection"):
+            assert structural_issues({"actions": [{"kind": "entry", "op": op, "collection_slug": "featured"}]}) == []
+
+    def test_entry_model_ops_match_the_executor(self):
+        # Drift guard: the EntryAction op literal must list exactly the executor's ops.
+        from typing import get_args, get_type_hints
+        from marvin.schemas.group.automation_definition import EntryAction
+        from marvin.services.automation.actions.entry import ALL_OPS
+        literal = get_args(get_type_hints(EntryAction)["op"])
+        assert set(literal) == set(ALL_OPS)
+
     def test_unknown_trigger_type_is_an_error(self):
         from marvin.services.automation.validation import structural_issues
         issues = structural_issues({"trigger": {"type": "telepathy"}, "actions": []})
@@ -913,7 +926,7 @@ class TestGeneralizedTriggers:
 # ── Entry actions (publish/unpublish/archive/restore) ─────────────────────────
 class TestEntryAction:
     def _spy_service(self, monkeypatch):
-        calls = {"set_status": []}
+        calls = {"set_status": [], "add_to_collection": [], "remove_from_collection": []}
 
         class SpySvc:
             def __init__(self, *a, **k):
@@ -922,6 +935,14 @@ class TestEntryAction:
             def set_status(self, eid, status, *, reaction_depth=0):
                 calls["set_status"].append((str(eid), status, reaction_depth))
                 return object()  # non-None = found
+
+            def add_to_collection(self, eid, ref, *, reaction_depth=0):
+                calls["add_to_collection"].append((str(eid), ref, reaction_depth))
+                return "added"
+
+            def remove_from_collection(self, eid, ref, *, reaction_depth=0):
+                calls["remove_from_collection"].append((str(eid), ref, reaction_depth))
+                return "removed"
 
         import marvin.services.entries as entries_mod
         monkeypatch.setattr(entries_mod, "EntryService", SpySvc)
@@ -969,6 +990,55 @@ class TestEntryAction:
     def test_registered_as_an_action_kind(self):
         from marvin.services.automation.actions import available_kinds
         assert "entry" in available_kinds()
+
+    # ── Collection membership ops ───────────────────────────────────────────────
+    def test_add_to_collection_calls_service_with_ref_at_depth_plus_one(self, monkeypatch):
+        from marvin.services.automation.actions.entry import run_entry_action
+        calls = self._spy_service(monkeypatch)
+        eid = uuid4()
+        out = run_entry_action(None, "G",
+                               {"kind": "entry", "op": "add_to_collection", "collection_slug": "featured"},
+                               {"event": {"entry_id": str(eid)}, "depth": 0})
+        assert calls["add_to_collection"] == [(str(eid), "featured", 1)]
+        assert out == {"entry_id": str(eid), "op": "add_to_collection", "collection": "featured", "result": "added"}
+
+    def test_remove_from_collection_calls_service(self, monkeypatch):
+        from marvin.services.automation.actions.entry import run_entry_action
+        calls = self._spy_service(monkeypatch)
+        eid = uuid4()
+        run_entry_action(None, "G",
+                         {"kind": "entry", "op": "remove_from_collection", "collection_slug": "featured"},
+                         {"event": {"entry_id": str(eid)}, "depth": 0})
+        assert calls["remove_from_collection"] and calls["remove_from_collection"][0][1] == "featured"
+
+    def test_collection_ref_is_interpolated_from_event(self, monkeypatch):
+        from marvin.services.automation.actions.entry import run_entry_action
+        calls = self._spy_service(monkeypatch)
+        eid = uuid4()
+        run_entry_action(None, "G",
+                         {"kind": "entry", "op": "add_to_collection", "collection_slug": "$event.payload.coll"},
+                         {"event": {"entry_id": str(eid), "payload": {"coll": "specials"}}, "depth": 0})
+        assert calls["add_to_collection"][0][1] == "specials"  # resolved from the payload
+
+    def test_collection_op_without_collection_raises(self, monkeypatch):
+        from marvin.services.automation.actions.entry import run_entry_action
+        self._spy_service(monkeypatch)
+        with pytest.raises(AutomationActionError):
+            run_entry_action(None, "G", {"kind": "entry", "op": "add_to_collection"},
+                             {"event": {"entry_id": str(uuid4())}, "depth": 0})
+
+    def test_collection_dry_run_previews_without_calling_service(self, monkeypatch):
+        import marvin.services.entries as entries_mod
+        from marvin.services.automation.actions.entry import run_entry_action
+
+        monkeypatch.setattr(entries_mod, "EntryService",
+                            lambda *a, **k: (_ for _ in ()).throw(AssertionError("no service in dry run")))
+        eid = uuid4()
+        out = run_entry_action(None, "G",
+                               {"kind": "entry", "op": "add_to_collection", "collection_slug": "featured"},
+                               {"event": {"entry_id": str(eid)}, "depth": 0}, dry_run=True)
+        assert out == {"dry_run": True, "kind": "entry", "op": "add_to_collection",
+                       "entity_id": str(eid), "collection": "featured"}
 
 
 # ── Change detection: conditions on what an update changed ────────────────────

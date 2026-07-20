@@ -30,6 +30,16 @@ logger = get_logger("entry_service")
 _TRACKED_FIELDS = ("status", "title", "slug")
 
 
+def _is_uuid(value: str) -> bool:
+    import uuid as _uuid
+
+    try:
+        _uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+
 def _diff(old, new) -> tuple[list[str], dict, dict]:
     """(changed_fields, before, after) over the tracked scalar fields. before/after carry ONLY the
     changed fields, so `event.after.status == X` reads as "status changed to X"."""
@@ -125,6 +135,86 @@ class EntryService:
         from marvin.schemas.platform import EntryUpdate
 
         return self.update(entry_id, EntryUpdate(status=new_status), reaction_depth=reaction_depth)
+
+    # ── Collection membership ──────────────────────────────────────────────────
+    def _resolve_collection(self, collection_ref):
+        """Resolve a collection within this workspace by id, slug, or name (same vocabulary the
+        target selector uses). Returns the Collections row or None."""
+        import uuid as _uuid
+
+        from marvin.db.models.platform.collections import Collections
+
+        ref = collection_ref
+        if isinstance(ref, _uuid.UUID) or (isinstance(ref, str) and _is_uuid(ref)):
+            coll = self.session.get(Collections, ref if isinstance(ref, _uuid.UUID) else _uuid.UUID(str(ref)))
+            return coll if coll and coll.group_id == self.group_id else None
+        return (
+            self.session.query(Collections)
+            .filter(Collections.group_id == self.group_id)
+            .filter((Collections.slug == str(ref)) | (Collections.name == str(ref)))
+            .first()
+        )
+
+    def add_to_collection(self, entry_id, collection_ref, *, reaction_depth: int = 0) -> str | None:
+        """Add an entry to a collection (idempotent). Returns ``"added"`` (newly added, emits
+        `entry_added_to_collection`), ``"exists"`` (already a member — no-op, no event), or ``None``
+        (entry or collection not found in this workspace)."""
+        import sqlalchemy as sa
+
+        from marvin.db.models.platform.entry_collections import EntryCollections
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        collection = self._resolve_collection(collection_ref)
+        if not collection:
+            return None
+
+        existing = (
+            self.session.query(EntryCollections)
+            .filter(EntryCollections.entry_id == entry.id, EntryCollections.collection_id == collection.id)
+            .first()
+        )
+        if existing:
+            return "exists"
+
+        max_sort = (
+            self.session.query(sa.func.max(EntryCollections.sort_order))
+            .filter(EntryCollections.collection_id == collection.id)
+            .scalar()
+        )
+        self.session.add(EntryCollections(entry_id=entry.id, collection_id=collection.id, sort_order=(max_sort or -1) + 1))
+        self.session.commit()
+        self._emit(entry, EventTypes.entry_added_to_collection, EventOperation.update,
+                   f"Entry '{entry.title}' added to collection '{collection.name}'", self._names(entry),
+                   reaction_depth=reaction_depth)
+        return "added"
+
+    def remove_from_collection(self, entry_id, collection_ref, *, reaction_depth: int = 0) -> str | None:
+        """Remove an entry from a collection (idempotent). Returns ``"removed"`` (emits
+        `entry_removed_from_collection`), ``"absent"`` (wasn't a member — no-op, no event), or ``None``
+        (entry or collection not found in this workspace)."""
+        from marvin.db.models.platform.entry_collections import EntryCollections
+
+        entry = self.repos.entries.get_one(entry_id)
+        if not entry or entry.group_id != self.group_id:
+            return None
+        collection = self._resolve_collection(collection_ref)
+        if not collection:
+            return None
+
+        deleted = (
+            self.session.query(EntryCollections)
+            .filter(EntryCollections.entry_id == entry.id, EntryCollections.collection_id == collection.id)
+            .delete()
+        )
+        if not deleted:
+            return "absent"
+        self.session.commit()
+        self._emit(entry, EventTypes.entry_removed_from_collection, EventOperation.update,
+                   f"Entry '{entry.title}' removed from collection '{collection.name}'", self._names(entry),
+                   reaction_depth=reaction_depth)
+        return "removed"
 
     # ── Emission ──────────────────────────────────────────────────────────────
     def _emit_updated_and_transitions(self, old, entry, verb: str, reaction_depth: int) -> None:

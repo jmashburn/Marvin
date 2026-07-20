@@ -108,9 +108,11 @@ class OperationAction(_DefnBase):
 
 class EntryAction(_DefnBase):
     kind: Literal["entry"]
-    op: Literal["publish", "unpublish", "archive", "restore"]
+    op: Literal["publish", "unpublish", "archive", "restore", "add_to_collection", "remove_from_collection"]
     entity_id: str | None = None
     entity_slug: str | None = None
+    collection_id: str | None = None    # for add_to_collection / remove_from_collection…
+    collection_slug: str | None = None  # …preferred: a collection slug/name (may be a $event.* template)
     id: str | None = None
 
 

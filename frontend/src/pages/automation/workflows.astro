@@ -305,7 +305,9 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
   };
   const ENTRY_OP_LABELS: Record<string, string> = {
     publish: "Publish", unpublish: "Unpublish", archive: "Archive", restore: "Restore from archive",
+    add_to_collection: "Add to collection", remove_from_collection: "Remove from collection",
   };
+  const COLLECTION_OPS = new Set(["add_to_collection", "remove_from_collection"]);
   const COND_OP_LABELS: Record<string, string> = {
     eq: "equals", neq: "not equals", contains: "contains", in: "is one of",
     starts_with: "starts with", exists: "exists", changed: "changed",
@@ -375,10 +377,17 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
     } else if (kind === "entry") {
       const opList = Object.entries(ENTRY_OP_LABELS)
         .map(([op, label]) => `<option value="${esc(op)}" ${a.op === op ? "selected" : ""}>${esc(label)}</option>`).join("");
+      const showColl = COLLECTION_OPS.has(a.op);
       wrap.innerHTML = `
         <select class="input a-op">${opList}</select>
         <input class="input a-entity-slug" placeholder="Target entry by slug — e.g. $event.payload.entry_slug" value="${esc(a.entity_slug ?? "")}" />
-        <span class="hint small">Which entry to act on. Leave blank to use the triggering entry (or each entry a Run-on target matches); or point at one by slug (e.g. <code>$event.payload.entry_slug</code>).</span>`;
+        <span class="hint small">Which entry to act on. Leave blank to use the triggering entry (or each entry a Run-on target matches); or point at one by slug (e.g. <code>$event.payload.entry_slug</code>).</span>
+        <label class="a-collection-wrap tf" ${showColl ? "" : "hidden"}><span>Collection</span>
+          <input class="input a-collection" placeholder="slug or name — e.g. featured" value="${esc(a.collection_slug ?? "")}" /></label>`;
+      // Toggle the collection field when the op switches to/from a membership op.
+      const opSel = wrap.querySelector(".a-op") as HTMLSelectElement;
+      const collWrap = wrap.querySelector(".a-collection-wrap") as HTMLElement;
+      opSel.addEventListener("change", () => collWrap.toggleAttribute("hidden", !COLLECTION_OPS.has(opSel.value)));
     } else if (kind === "emit_event") {
       const evs = (OPTIONS.triggers || []).map((t: string) => `<option value="${esc(t)}" ${a.event === t ? "selected" : ""}>${esc(prettyEvent(t))}</option>`).join("");
       wrap.innerHTML = `<select class="input a-event">${evs}</select><span class="hint small">Re-emits this event so other workflows can react.</span>`;
@@ -421,6 +430,10 @@ const aiActionsAvailable = (options.operations ?? []).length > 0;
         const slug = (r.querySelector(".a-entity-slug") as HTMLInputElement | null)?.value.trim();
         const step: any = { kind, op };
         if (slug) step.entity_slug = slug;
+        if (COLLECTION_OPS.has(op)) {
+          const coll = (r.querySelector(".a-collection") as HTMLInputElement | null)?.value.trim();
+          if (coll) step.collection_slug = coll;
+        }
         return step;
       }
       if (kind === "emit_event") return { kind, event: (r.querySelector(".a-event") as HTMLSelectElement).value };
