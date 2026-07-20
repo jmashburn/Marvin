@@ -883,8 +883,9 @@ list filter + deep-link). Deferred by request: create-flow attach; AI generate-t
       per-repo `apply_fields` (real-tags "tags" target, metadata paths, columns); `_write_back` dispatches
       entry/asset/resource (assets/resources always-draft, no published lifecycle); apply/reject endpoints
       + `suggestionJson` on Asset/Resource Read. Live: resource stage→apply + auto-apply link real tags.
-      **Remaining:** the editor diff/apply UI on asset/resource pages (entries have it; assets/resources
-      expose `suggestionJson` for it but the banner isn't wired yet).
+      **UI done** (2026-07-20): reusable `SuggestionBanner.astro` (current→proposed diff + Apply/Reject)
+      wired into asset + resource editors; Apply/Reject POST to same-origin Astro routes proxying the
+      backend endpoints. Live: staged generate-tags suggestion → banner → Apply links real tags + clears.
 - [ ] **Deferred:** smart collections of assets/resources (collections only hold entries today —
       separate feature).
 
