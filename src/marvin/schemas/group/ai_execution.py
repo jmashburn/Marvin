@@ -68,6 +68,21 @@ class AIComposeEntryRequest(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AIReviseEntryRequest(_MarvinModel):
+    """Revise an EXISTING entry in place per an instruction — never recreate it.
+
+    The counterpart to compose: same shared AuthoringService, but it enriches an entry that
+    already exists (e.g. "determine the tags and attach any relevant resources", "tighten the
+    summary") rather than authoring a new draft.
+    """
+    entry: str                               # the entry to revise, by slug or id
+    instruction: str                         # what to determine / change
+    model_override: str | None = None
+    source: str = "editor"                   # invocation surface; gated by workspace policy
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AIAgentTurn(_MarvinModel):
     """One prior turn of the conversation, replayed to give the agent short-term memory."""
     role: str                                # "user" | "assistant" (anything else is dropped)
