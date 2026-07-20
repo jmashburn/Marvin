@@ -840,8 +840,18 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       tags (T4, live) · editor + list pages compile & render 200 · 230 backend + 126 MCP tests green.
 
 **Phase 1 COMPLETE (T1–T6).** Real queryable tags, tag-based smart collections, full read/write API,
-editor chip UI, and list filter — end to end. Deferred by request: create-flow attach; AI generate-tags
-repoint (Phase 3).
+editor chip UI, and list filter — end to end. Verified live in-browser (chip add/save/remove round-trip,
+list filter + deep-link). Deferred by request: create-flow attach; AI generate-tags repoint (Phase 3).
+
+**Follow-ups delivered (2026-07-20, verified live):**
+- [x] **Backup/restore includes tags** — exporter emits a top-level tag vocabulary (slug+name+color) +
+      per-entry slug lists; seed loader rebuilds the vocabulary and relinks (find-or-create, idempotent,
+      clears entry_tags on overwrite). 3 round-trip tests. (Dev directory seeder left as-is — not the
+      backup path, collections still a TODO there.)
+- [x] **Tag admin UI** — settings "Entry Types" tab renamed to "Content Model"; new /workspace/tags
+      full-CRUD page (recolor, rename w/ stable slug, delete, entry counts, add-tag). Rename round-trip
+      verified live. Note: browser SDK mutations need matching host (localhost↔localhost), not
+      127.0.0.1 — cross-host drops the cookie.
 
 ### Phase 2 — assets + resources (fast follow)
 - [ ] `asset_tags` + `resource_tags` junctions + `.tags` associations · lift the entries-only guard in
