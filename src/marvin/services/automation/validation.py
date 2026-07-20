@@ -169,3 +169,39 @@ def validate_definition(definition: dict | None) -> list[dict]:
 
 def _pretty(trigger_type: str) -> str:
     return {"incoming_webhook": "incoming-webhook", "on_error": "on-error"}.get(trigger_type, trigger_type)
+
+
+# ── Structural validation (from the Pydantic source of truth) ─────────────────
+# validate_definition (above) is advisory/semantic: "this is coherent but won't match anything".
+# structural_issues is the shape gate: "this isn't a well-formed definition at all" (unknown action
+# kind, missing required field, wrong type). It's derived entirely from AutomationDefinition, so the
+# models are the single source of truth — and the write path gates on it (create/update 422).
+
+_WHERE_BY_HEAD = {"actions": "action", "conditions": "condition", "trigger": "trigger"}
+
+
+def _structural_issue(err: dict) -> dict:
+    """Map one Pydantic error to the {level, message, where, index?} issue shape used everywhere."""
+    loc = err.get("loc", ()) or ()
+    where = _WHERE_BY_HEAD.get(loc[0], "trigger") if loc else "trigger"
+    index = loc[1] if len(loc) > 1 and isinstance(loc[1], int) else None
+    path = ".".join(str(p) for p in loc)
+    msg = err.get("msg", "invalid")
+    issue = {"level": "error", "message": f"{path}: {msg}" if path else msg, "where": where}
+    if index is not None:
+        issue["index"] = index
+    return issue
+
+
+def structural_issues(definition: dict | None) -> list[dict]:
+    """Shape errors from the Pydantic definition model, as ERROR-level issues (same shape as
+    ``validate_definition``'s warnings). Empty list = the definition is structurally well-formed."""
+    from pydantic import ValidationError
+
+    from marvin.schemas.group.automation_definition import AutomationDefinition
+
+    try:
+        AutomationDefinition.model_validate(definition or {})
+        return []
+    except ValidationError as e:
+        return [_structural_issue(err) for err in e.errors()]

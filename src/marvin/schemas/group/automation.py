@@ -105,6 +105,9 @@ class AutomationOptions(_MarvinModel):
     webhooks: list[AutomationWebhookOption] = []   # the workspace's configured (outgoing) webhooks
     automations: list[AutomationTargetOption] = []  # other automations (chained/on-error targets)
     incoming_webhooks: list[AutomationIncomingWebhookOption] = []  # ingress webhooks (incoming_webhook trigger)
+    # JSON Schema of the definition (trigger/action/condition/target discriminated unions) — the one
+    # structural declaration the builder + SDK mirror. dict-typed to pass the schema through verbatim.
+    definition_schema: dict = {}
 
     model_config = ConfigDict(from_attributes=True)
 

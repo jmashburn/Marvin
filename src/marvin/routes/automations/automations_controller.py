@@ -57,6 +57,21 @@ def _get_or_404(session, automation_id: UUID4, group_id: UUID4) -> WorkspaceAuto
     return row
 
 
+def _require_valid_definition(definition: dict | None) -> None:
+    """Gate the write path on the definition's *structure* (the Pydantic source of truth). Rejects a
+    malformed definition — unknown action kind / trigger type, missing required field, wrong type —
+    with a 422 carrying the structured issues. Semantic 'won't match anything' warnings are advisory
+    (POST /validate) and do NOT block here."""
+    from marvin.services.automation.validation import structural_issues
+
+    issues = structural_issues(definition)
+    if issues:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "The workflow definition is not well-formed.", "issues": issues},
+        )
+
+
 @controller(router)
 class AutomationsController(BaseUserController):
     """Manage the workspace's automations (ADMIN/OWNER only)."""
@@ -144,6 +159,7 @@ class AutomationsController(BaseUserController):
             .all()
         ]
 
+        from marvin.schemas.group.automation_definition import definition_json_schema
         from marvin.services.automation.validation import condition_field_catalog
 
         condition_fields = {
@@ -162,17 +178,21 @@ class AutomationsController(BaseUserController):
             webhooks=webhooks,
             automations=targets,
             incoming_webhooks=incoming_webhooks,
+            # The definition's JSON Schema — the one structural declaration the builder + SDK mirror.
+            definition_schema=definition_json_schema(),
         )
 
     @router.post("/validate", response_model=AutomationValidateResult, summary="Validate an automation definition")
     def validate(self, data: AutomationValidateRequest) -> AutomationValidateResult:
-        """Advisory coherence check for a definition — flags conditions/actions that reference a
-        namespace the trigger doesn't provide (e.g. entry.* under a webhook trigger). Never rejects;
-        the builder shows the issues as warnings."""
+        """Check a definition before saving. Returns two levels of issue: structural **errors** (a
+        shape the definition model rejects — unknown action kind, missing required field, wrong type;
+        these block a save) and advisory **warnings** (coherent but won't match anything, e.g. entry.*
+        under a webhook trigger). The builder surfaces both; only errors gate the save."""
         _require_admin(self.user, self.group_id)
-        from marvin.services.automation.validation import validate_definition
+        from marvin.services.automation.validation import structural_issues, validate_definition
 
-        issues = validate_definition(data.definition)
+        # Errors first (most severe), then advisory warnings.
+        issues = structural_issues(data.definition) + validate_definition(data.definition)
         return AutomationValidateResult(issues=issues)
 
     @router.post("/preview", response_model=AutomationPreviewResult, summary="Dry-run a target selector")
@@ -274,6 +294,7 @@ class AutomationsController(BaseUserController):
         slug = data.slug or _slugify(data.name)
         if self.session.query(WorkspaceAutomationModel).filter_by(group_id=self.group_id, slug=slug).first():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Automation slug '{slug}' already exists.")
+        _require_valid_definition(data.definition)
 
         payload = data.model_dump()
         payload["slug"] = slug
@@ -295,6 +316,8 @@ class AutomationsController(BaseUserController):
     def update_automation(self, automation_id: UUID4, data: AutomationUpdate) -> AutomationRead:
         _require_admin(self.user, self.group_id)
         row = _get_or_404(self.session, automation_id, self.group_id)
+        if data.definition is not None:
+            _require_valid_definition(data.definition)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(row, field, value)
         self.session.commit()

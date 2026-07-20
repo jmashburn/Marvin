@@ -474,11 +474,24 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       has >MAX_ACTIONS steps (only the first run), and the engine logs when it truncates.
 
 **H4 · Simplifications & ideas worth taking**
-- [ ] **⭐ Make the Pydantic definition schema the ONE source of truth** — if trigger and action
-      inputs are discriminated-union models, validation + the `/options` catalog JSON Schema + SDK
-      types + the MarvinMCP tool projection all fall out of a single declaration. The suggestions doc
-      treats the registry, the schemas, and the catalog as separate deliverables; they're one thing.
-      Biggest simplification available.
+- [x] **⭐ Pydantic definition schema as the ONE source of truth DONE (2026-07-20)** ✅ — new
+      `schemas/group/automation_definition.py`: a discriminated-union model (triggers on `type`,
+      actions on `kind` — one model per registered executor, conditions recursive leaf-or-group, plus
+      the target selector). snake_case + `extra="allow"` (the engine reads the raw dict by literal
+      key, untouched; models validate, don't re-serialize). From it fall out: (1) **structural
+      validation gating the write path** — create/update now 422 on a malformed definition (unknown
+      kind/type, missing required, bad literal) where before *zero* validation ran; lenient on extra
+      keys so forward-compatible defs still save; (2) **`/validate` returns errors + warnings** —
+      structural errors (block) merged ahead of the advisory 'won't match anything' warnings; (3) the
+      **definition JSON Schema shipped in `/api/automations/options`** (`definition_schema`) so builder
+      + SDK mirror one declaration; (4) SDK types point at the server as source of truth +
+      `AutomationOptions.definitionSchema`. **Drift guards**: tests assert `ACTION_MODELS` == executor
+      registry and `TRIGGER_MODELS` == validation trigger catalog, so a new executor can't ship without
+      its model. Verified live (422 rejects `kind:delete_everything` and doesn't persist; valid def
+      still 201s; existing DB automations all validate). 12 tests; full suite 260 green. *Full SDK
+      codegen from the schema (vs the aligned hand-written types) deferred as its own follow-up; the
+      MarvinMCP `marvin_wf_*` projection takes no structured input, so it's unaffected.* (Marvin, this
+      commit; SDK.)
 - [x] **`dry_run` as a flag on the engine DONE (2026-07-20)** ✅ — a `dry_run` bool threads through
       `run_automations_for_event` / `run_automation_now` → `_run_targets` → `_run_pipeline` → the
       executor contract. Each executor still gates (authz + source) and resolves its inputs

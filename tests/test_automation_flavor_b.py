@@ -497,6 +497,79 @@ class TestActionRoleGates:
         assert executed == []                            # the privileged handler never ran
 
 
+# ── Definition schema: the one structural source of truth ─────────────────────
+class TestDefinitionSchema:
+    def _valid(self):
+        return {
+            "trigger": {"type": "event", "event": "entry_published"},
+            "target": {"entity": "entry", "query": {"status": "draft"}},
+            "conditions": [{"field": "entry.entry_type", "op": "eq", "value": "recipe"}],
+            "actions": [
+                {"kind": "operation", "op": "generate-summary", "write_back": True, "id": "s1"},
+                {"kind": "entry", "op": "publish"},
+            ],
+        }
+
+    def test_full_definition_validates(self):
+        from marvin.services.automation.validation import structural_issues
+        assert structural_issues(self._valid()) == []
+
+    def test_empty_definition_is_valid(self):
+        from marvin.services.automation.validation import structural_issues
+        assert structural_issues({}) == []
+        assert structural_issues(None) == []
+
+    def test_unknown_action_kind_is_a_structural_error(self):
+        from marvin.services.automation.validation import structural_issues
+        issues = structural_issues({"actions": [{"kind": "delete_everything"}]})
+        assert issues and issues[0]["level"] == "error" and issues[0]["where"] == "action" and issues[0]["index"] == 0
+
+    def test_missing_required_field_is_an_error(self):
+        from marvin.services.automation.validation import structural_issues
+        assert any("op" in i["message"] for i in structural_issues({"actions": [{"kind": "operation"}]}))
+
+    def test_bad_entry_op_literal_is_an_error(self):
+        from marvin.services.automation.validation import structural_issues
+        assert structural_issues({"actions": [{"kind": "entry", "op": "nuke"}]})
+
+    def test_unknown_trigger_type_is_an_error(self):
+        from marvin.services.automation.validation import structural_issues
+        issues = structural_issues({"trigger": {"type": "telepathy"}, "actions": []})
+        assert issues and issues[0]["where"] == "trigger"
+
+    def test_extra_keys_are_allowed(self):
+        # Lenient on unknown keys (forward-compat) — a typo/extra doesn't block a save.
+        from marvin.services.automation.validation import structural_issues
+        assert structural_issues({"actions": [{"kind": "handler", "task": "x", "future_flag": True}]}) == []
+
+    def test_trigger_without_type_defaults_to_event(self):
+        from marvin.schemas.group.automation_definition import AutomationDefinition
+        d = AutomationDefinition.model_validate({"trigger": {"event": "entry_updated"}, "actions": []})
+        assert d.trigger.type == "event" and d.trigger.event == "entry_updated"
+
+    def test_condition_group_with_not(self):
+        from marvin.services.automation.validation import structural_issues
+        assert structural_issues({"conditions": {"not": {"field": "entry.status", "op": "eq", "value": "draft"}}, "actions": []}) == []
+
+    def test_json_schema_generates(self):
+        from marvin.schemas.group.automation_definition import definition_json_schema
+        s = definition_json_schema()
+        assert "$defs" in s and "properties" in s
+
+    # ── Drift guards: the models must stay in lockstep with the registries ──────
+    def test_action_models_match_executor_registry(self):
+        from marvin.schemas.group.automation_definition import ACTION_MODELS
+        from marvin.services.automation.actions import available_kinds
+        assert set(ACTION_MODELS) == set(available_kinds()), \
+            "an action executor exists without a matching definition model (or vice versa)"
+
+    def test_trigger_models_match_validation_catalog(self):
+        from marvin.schemas.group.automation_definition import TRIGGER_MODELS
+        from marvin.services.automation.validation import _TRIGGER_CONTEXT
+        assert set(TRIGGER_MODELS) == set(_TRIGGER_CONTEXT), \
+            "a trigger type is modeled without a validation context (or vice versa)"
+
+
 # ── Dry run: resolve inputs, execute nothing ──────────────────────────────────
 class TestDryRun:
     def test_handler_dry_run_previews_without_executing(self, monkeypatch):
