@@ -102,11 +102,16 @@ class AuthoringService:
         schema_def = EntryTypeSchemaDefinition.model_validate(entry_type.schema_json or {})
         recipe = EntryTypeRecipe.model_validate(entry_type.recipe_json or {})
         output_schema = entry_type_to_output_schema(schema_def, entry_type.name)
-        # Let the model return tags so it can REUSE the existing vocabulary (grounded below).
+        # Let the model return tags + resources so it can REUSE the existing vocabulary/catalog
+        # (both grounded below). Resources are linked reuse-only after create (like revise).
         if isinstance(output_schema, dict) and isinstance(output_schema.get("properties"), dict):
             output_schema["properties"]["tags"] = {
                 "type": "array", "items": {"type": "string"},
                 "description": "Relevant tags. Reuse the existing tag names listed in the prompt where they fit; only add a new tag when none match.",
+            }
+            output_schema["properties"]["resources"] = {
+                "type": "array", "items": {"type": "string"},
+                "description": "Existing resources (materials, suppliers, techniques, …) this entry uses — by name or slug, from the list in the prompt. Reuse only; do not invent.",
             }
 
         # Context + vision images.
@@ -124,6 +129,7 @@ class AuthoringService:
             + (", using the attached image(s) as the subject." if asset_ids else ".")
             + f"\n\nBrief:\n{brief}"
             + grounding
+            + self._recipe_resource_hint(recipe)
         )
         parts: list = [instruction]
         for a in ctx.assets or []:
@@ -168,8 +174,13 @@ class AuthoringService:
             title = fields.pop("title", None) or f"Untitled {entry_type.name}"
             summary = fields.pop("summary", None)
             proposed_tags = fields.pop("tags", None)
+            proposed_resources = fields.pop("resources", None)
             allowed = schema_def.get_field_keys()
-            data_json = {k: v for k, v in fields.items() if k in allowed}
+            # Drop empty-string / null values the model emits for fields it couldn't fill — an empty
+            # string fails typed validation (e.g. a date field: "" is not ISO-8601), and "not provided"
+            # should be omitted, not a broken value. This lets types with optional date/number fields
+            # compose cleanly.
+            data_json = {k: v for k, v in fields.items() if k in allowed and v not in ("", None)}
 
             entry = self.repos.entries.create({
                 "title": title,
@@ -184,11 +195,15 @@ class AuthoringService:
             # Link the model's tags onto the draft — find-or-create by slug, reusing the vocabulary.
             if isinstance(proposed_tags, (list, tuple)) and proposed_tags:
                 self.repos.entries.apply_fields(entry.id, {"tags": list(proposed_tags)})
+            # Link the resources it references — reuse-only (existing catalog), like revise. So a recipe
+            # that extracts suppliers/materials lands them linked, without inventing duplicate resources.
+            attached_resources = self._attach_existing_resources(entry.id, proposed_resources)
+            self.session.commit()
             self._emit_entry_created(entry, entry_type)
 
             self._complete_execution(execution, completion, start, entity_id=entry.id, output={
                 "entry_id": str(entry.id), "title": title, "status": entry.status,
-                **({"fields": data_json} if log_outputs else {}),
+                **({"fields": data_json, "tags": list(proposed_tags or []), "resources": attached_resources} if log_outputs else {}),
             })
         except Exception as e:
             self._fail_execution(execution, str(e), start)
@@ -198,6 +213,8 @@ class AuthoringService:
             "entryId": str(entry.id),
             "status": entry.status,
             "title": title,
+            "tags": list(proposed_tags or []),
+            "resources": attached_resources,
             "editUrl": f"/workspace/entries/{entry.id}",
             "executionId": str(execution.id),
             "totalTokens": execution.total_tokens,
@@ -342,19 +359,48 @@ class AuthoringService:
             "estimatedCostUsd": execution.estimated_cost_usd,
         }
 
+    def _recipe_resource_hint(self, recipe) -> str:
+        """A prompt fragment for the entry type's recipe.resources.extract rules — tells the model which
+        kinds of resource to pull from which field, so composed drafts execute the recipe's extraction
+        (reusing existing resources). Empty when the recipe declares no extraction."""
+        extract = getattr(recipe.resources, "extract", None) if getattr(recipe, "resources", None) else None
+        if not extract:
+            return ""
+        types = ", ".join(sorted({e.type for e in extract if getattr(e, "type", None)}))
+        sources = ", ".join(sorted({getattr(e, "source", None) or "body" for e in extract})) or "the content"
+        if not types:
+            return ""
+        return (
+            f"\n\nThis entry type extracts resources: identify the {types} referenced in {sources} and list them "
+            f"by name in `resources`. Reuse the existing resource names above where they match; do not invent new ones."
+        )
+
     def _attach_existing_resources(self, entry_id, refs) -> list[str]:
-        """Attach only resources that already exist (reuse); ignore unknown refs. Returns attached slugs."""
+        """Attach only resources that already exist (reuse); ignore unknown refs. Returns attached slugs.
+
+        Resolves each ref by id, slug, OR name — the grounding lists resources by *name*, so the model
+        returns names; matching by name is essential (slug-only resolution silently linked nothing)."""
         if not isinstance(refs, (list, tuple)) or not refs:
             return []
         import uuid as _uuid
 
         from marvin.db.models.platform import EntryResources, Resources
-        from marvin.services.ai.entity_resolve import resolve_entity_id
 
         attached: list[str] = []
         for ref in refs:
-            rid = resolve_entity_id(self.session, self.group_id, "resource", str(ref))
-            resource = self.session.get(Resources, rid) if isinstance(rid, _uuid.UUID) else None
+            ref = str(ref).strip()
+            if not ref:
+                continue
+            resource = None
+            try:
+                resource = self.session.get(Resources, _uuid.UUID(ref))
+            except (ValueError, TypeError):
+                resource = (
+                    self.session.query(Resources)
+                    .filter(Resources.group_id == self.group_id)
+                    .filter((Resources.slug == ref) | (Resources.name == ref))
+                    .first()
+                )
             if not resource or resource.group_id != self.group_id:
                 continue
             exists = self.session.query(EntryResources).filter_by(entry_id=entry_id, resource_id=resource.id).first()
