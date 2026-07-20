@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import TagChips from "@/components/TagChips.astro";
+import SuggestionBanner from "@/components/SuggestionBanner.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
 import { listTags, type TagRead } from "@/lib/api/tags";
@@ -76,6 +77,8 @@ const showAiPanel = aiEnabled && isImage;
           <a class="button secondary" href="/workspace/assets">Back</a>
         </div>
       </div>
+
+      <SuggestionBanner suggestion={(asset as any)?.suggestionJson} entity={asset} apiBase="/api/assets" entityId={id!} />
 
       <div class="editor-layout">
         <section class="main-section">
