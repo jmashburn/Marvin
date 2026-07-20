@@ -27,15 +27,17 @@ AUTOMATION_ALLOWED_HANDLERS: frozenset[str] = frozenset({
 
 
 @register_action("handler")
-def run_handler(session, group_id, action, context, *, user_id=None) -> dict:
+def run_handler(session, group_id, action, context, *, user_id=None, authorizer_role=None) -> dict:
     from marvin.services.event_bus_service.event_bus_service import EventBusService
     from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
 
+    from ..authz import HANDLER_MIN_ROLE, ROLE_OWNER, require_role
     from ..matcher import interpolate
 
     task_type = action.get("task")
     if not task_type:
         raise AutomationActionError("handler action is missing 'task'")
+    require_role(ROLE_OWNER if authorizer_role is None else authorizer_role, HANDLER_MIN_ROLE, f"handler '{task_type}'")
     if task_type not in AUTOMATION_ALLOWED_HANDLERS:
         # Distinguish "not a task at all" from "real task, not automation-safe" for a useful message.
         if TaskHandlerRegistry.is_registered(task_type):

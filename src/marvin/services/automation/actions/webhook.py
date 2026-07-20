@@ -25,10 +25,13 @@ def _bearer(secret_ref: str | None, group_id) -> dict:
 
 
 @register_action("webhook")
-def run_webhook(session, group_id, action, context, *, user_id=None) -> dict:
+def run_webhook(session, group_id, action, context, *, user_id=None, authorizer_role=None) -> dict:
     import httpx
 
+    from ..authz import ROLE_OWNER, WEBHOOK_MIN_ROLE, require_role
     from ..matcher import interpolate
+
+    require_role(ROLE_OWNER if authorizer_role is None else authorizer_role, WEBHOOK_MIN_ROLE, "webhook action")
 
     method = "POST"
     headers = {"Content-Type": "application/json"}

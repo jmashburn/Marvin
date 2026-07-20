@@ -14,15 +14,17 @@ from .base import AutomationActionError, register_action
 
 
 @register_action("emit_event")
-def run_emit_event(session, group_id, action, context, *, user_id=None) -> dict:
+def run_emit_event(session, group_id, action, context, *, user_id=None, authorizer_role=None) -> dict:
     from marvin.services.event_bus_service.event_bus_service import EventBusService
     from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
 
+    from ..authz import EMIT_EVENT_MIN_ROLE, ROLE_OWNER, require_role
     from ..matcher import interpolate
 
     ev_name = action.get("event")
     if not ev_name:
         raise AutomationActionError("emit_event action is missing 'event'")
+    require_role(ROLE_OWNER if authorizer_role is None else authorizer_role, EMIT_EVENT_MIN_ROLE, f"emit_event '{ev_name}'")
     try:
         event_type = EventTypes[ev_name]
     except KeyError as e:

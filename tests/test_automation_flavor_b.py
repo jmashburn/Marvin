@@ -226,7 +226,7 @@ def _entry(entry_type="recipe", status="published"):
 def _recording_runner():
     calls = []
 
-    def run(session, group_id, action, context, *, user_id=None):
+    def run(session, group_id, action, context, *, user_id=None, authorizer_role=None):
         calls.append({"action": action, "previous": dict(context.get("previous", {}))})
         return {"summary": "generated"}
 
@@ -290,7 +290,7 @@ class TestEngine:
         ])
         seen = []
 
-        def runner(session, group_id, action, context, *, user_id=None):
+        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None):
             seen.append({k: dict(v) for k, v in context.get("steps", {}).items()})
             return {"val": action["op"]}
 
@@ -316,7 +316,7 @@ class TestEngine:
         ])
         calls = []
 
-        def failing(session, group_id, action, context, *, user_id=None):
+        def failing(session, group_id, action, context, *, user_id=None, authorizer_role=None):
             calls.append(action["op"])
             raise AutomationActionError("nope")
 
@@ -377,6 +377,124 @@ class TestHandlerAllowlist:
         with pytest.raises(AutomationActionError) as e:
             self._run("totally_made_up_task")
         assert "unknown" in str(e.value).lower()
+
+
+# ── Per-user authorization at execution (definer's rights) ────────────────────
+class _RoleSession:
+    """A session whose get(Users, id) returns a preset fake user (for authz resolution)."""
+    def __init__(self, user=None):
+        self._user = user
+
+    def get(self, _model, _id):
+        return self._user
+
+
+def _fake_user(*, admin=False, role_value=None, group_id="G"):
+    role = SimpleNamespace(value=role_value) if role_value is not None else None
+    return SimpleNamespace(admin=admin, get_workspace_role=lambda gid: role if str(gid) == str(group_id) else None)
+
+
+class TestResolveAuthorizerRole:
+    def test_none_author_is_owner_backcompat(self):
+        from marvin.services.automation.authz import ROLE_OWNER, resolve_authorizer_role
+        # Legacy/system automations with no created_by → OWNER (only an admin could have made one).
+        assert resolve_authorizer_role(_RoleSession(), "G", None) == ROLE_OWNER
+
+    def test_removed_author_fails_closed_to_zero(self):
+        from marvin.services.automation.authz import resolve_authorizer_role
+        # created_by set but the user no longer exists → role 0 (fail closed).
+        assert resolve_authorizer_role(_RoleSession(user=None), "G", uuid4()) == 0
+
+    def test_platform_admin_is_owner(self):
+        from marvin.services.automation.authz import ROLE_OWNER, resolve_authorizer_role
+        s = _RoleSession(user=_fake_user(admin=True))
+        assert resolve_authorizer_role(s, "G", uuid4()) == ROLE_OWNER
+
+    def test_member_gets_their_role_value(self):
+        from marvin.services.automation.authz import ROLE_AUTHOR, resolve_authorizer_role
+        s = _RoleSession(user=_fake_user(role_value=ROLE_AUTHOR))
+        assert resolve_authorizer_role(s, "G", uuid4()) == ROLE_AUTHOR
+
+    def test_non_member_author_fails_closed(self):
+        from marvin.services.automation.authz import resolve_authorizer_role
+        # A real user, but not a member of THIS workspace → 0.
+        s = _RoleSession(user=_fake_user(role_value=None))
+        assert resolve_authorizer_role(s, "G", uuid4()) == 0
+
+
+class TestActionRoleGates:
+    """Each action kind refuses to run when the automation's author lacks its required role."""
+
+    def test_handler_below_admin_is_rejected(self):
+        from marvin.services.automation.actions.handler import run_handler
+        from marvin.services.automation.authz import ROLE_AUTHOR
+        with pytest.raises(AutomationActionError) as e:
+            run_handler(None, "G", {"kind": "handler", "task": "request_site_rebuild"},
+                        {"event": {}, "depth": 0}, authorizer_role=ROLE_AUTHOR)
+        assert "role" in str(e.value).lower()  # gate fired before the allowlist/registry
+
+    def test_webhook_below_admin_is_rejected(self):
+        from marvin.services.automation.actions.webhook import run_webhook
+        from marvin.services.automation.authz import ROLE_EDITOR
+        with pytest.raises(AutomationActionError) as e:
+            run_webhook(None, "G", {"kind": "webhook", "url": "https://example.test"},
+                        {"event": {}, "depth": 0}, authorizer_role=ROLE_EDITOR)
+        assert "role" in str(e.value).lower()
+
+    def test_entry_below_author_is_rejected(self):
+        from marvin.services.automation.actions.entry import run_entry_action
+        from marvin.services.automation.authz import ROLE_VIEWER
+        with pytest.raises(AutomationActionError) as e:
+            run_entry_action(None, "G", {"kind": "entry", "op": "publish"},
+                             {"event": {}, "depth": 0}, authorizer_role=ROLE_VIEWER)
+        assert "role" in str(e.value).lower()
+
+    def test_sufficient_role_passes_the_gate(self, monkeypatch):
+        # An ADMIN author clears the handler gate — it then runs the real (allowlisted) handler.
+        from marvin.services.automation.actions.handler import run_handler
+        from marvin.services.automation.authz import ROLE_ADMIN
+        from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
+
+        class _Fake:
+            def execute(self, task, _bus):
+                return "ran"
+
+        monkeypatch.setattr(TaskHandlerRegistry, "get_handler", staticmethod(lambda _t: _Fake()))
+        out = run_handler(None, "G", {"kind": "handler", "task": "request_site_rebuild"},
+                          {"event": {}, "depth": 0}, authorizer_role=ROLE_ADMIN)
+        assert out == {"result": "ran"}
+
+    def test_default_no_authz_is_owner_for_direct_callers(self, monkeypatch):
+        # A direct caller that doesn't thread authz (tests/tools) is treated as OWNER — no regression.
+        from marvin.services.automation.actions.handler import run_handler
+        from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
+
+        class _Fake:
+            def execute(self, task, _bus):
+                return "ran"
+
+        monkeypatch.setattr(TaskHandlerRegistry, "get_handler", staticmethod(lambda _t: _Fake()))
+        assert run_handler(None, "G", {"kind": "handler", "task": "request_site_rebuild"},
+                           {"event": {}, "depth": 0}) == {"result": "ran"}
+
+    def test_engine_gates_privileged_action_by_authors_role(self, monkeypatch):
+        # End-to-end: an automation whose author resolves to a low role never executes its handler.
+        from marvin.services.automation import engine
+        from marvin.services.automation.authz import ROLE_VIEWER
+        from marvin.services.scheduled_tasks.handlers import TaskHandlerRegistry
+
+        monkeypatch.setattr(engine, "resolve_authorizer_role", lambda *a, **k: ROLE_VIEWER)
+        executed = []
+        monkeypatch.setattr(TaskHandlerRegistry, "get_handler",
+                            staticmethod(lambda _t: SimpleNamespace(execute=lambda *a: executed.append(1))))
+
+        auto = SimpleNamespace(slug="a", created_by=uuid4(), definition={
+            "trigger": {"type": "manual"},
+            "actions": [{"kind": "handler", "task": "request_site_rebuild"}],
+        })
+        res = engine.run_automation_now(_FakeSession([]), "G", auto)
+        assert res["ok"] is False and res["ran"] == 1  # attempted, but the gate stopped it
+        assert executed == []                            # the privileged handler never ran
 
 
 # ── Trigger matching: event / chained / on-error (T3) ─────────────────────────
@@ -737,7 +855,7 @@ class TestTargetSelector:
         monkeypatch.setattr(selector, "resolve_target_entities", lambda *a, **k: (ents, 2))
         seen = []
 
-        def runner(session, group_id, action, context, *, user_id=None):
+        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None):
             seen.append(context.get("entry", {}).get("slug"))  # per-entity context is bound
             return {}
 
@@ -753,7 +871,7 @@ class TestTargetSelector:
         monkeypatch.setattr(selector, "resolve_target_entities", lambda *a, **k: (ents, 2))
         seen = []
 
-        def runner(session, group_id, action, context, *, user_id=None):
+        def runner(session, group_id, action, context, *, user_id=None, authorizer_role=None):
             seen.append(context.get("entry", {}).get("slug"))
             return {}
 

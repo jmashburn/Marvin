@@ -46,12 +46,16 @@ def _resolve_target(session, group_id, action: dict, context: dict):
 
 
 @register_action("entry")
-def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=None) -> dict:
+def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=None) -> dict:
     from marvin.services.entries import EntryService
+
+    from ..authz import ENTRY_ACTION_MIN_ROLE, ROLE_OWNER, require_role
 
     op = action.get("op")
     if op not in ENTRY_OPS:
         raise AutomationActionError(f"unknown entry action op '{op}' (expected: {', '.join(ENTRY_OPS)})")
+
+    require_role(ROLE_OWNER if authorizer_role is None else authorizer_role, ENTRY_ACTION_MIN_ROLE, f"entry action '{op}'")
 
     entity_id = _resolve_target(session, group_id, action, context)
 

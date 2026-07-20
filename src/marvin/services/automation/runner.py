@@ -72,7 +72,7 @@ def _resolve_model(session, group_id, settings) -> str | None:
     return None
 
 
-def run_operation_action(session, group_id, action: dict, context: dict, *, user_id=None) -> dict:
+def run_operation_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=None) -> dict:
     """Run one ``operation`` action; return its output_json (so ``$previous`` can reference it).
 
     ``action`` = ``{"kind": "operation", "op": <slug>, "input": {...}, "entity_type": "entry",
@@ -93,6 +93,13 @@ def run_operation_action(session, group_id, action: dict, context: dict, *, user
         raise AutomationActionError(f"unknown operation '{slug}'") from e
 
     _gate_source(session, group_id, operation)
+    # Definer's rights: the op runs under the automation author's authority, so enforce the op's own
+    # min_role against the author's *current* role (fail-closed if they were demoted/removed). None =
+    # a direct caller that didn't thread authz (tests) → treated as OWNER.
+    from .authz import ROLE_OWNER, require_role
+
+    require_role(ROLE_OWNER if authorizer_role is None else authorizer_role,
+                 operation.min_role, f"operation '{operation.slug}'")
 
     # Resolve entity (slice: entries). entity_id may be a $event/$previous template. An action may
     # instead target an entry by SLUG (`entity_slug`) — humans reference entries by slug, not UUID,

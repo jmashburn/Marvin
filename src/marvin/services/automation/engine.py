@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Callable
 
 from .actions import AutomationActionError, run_action as _registry_run_action
+from .authz import resolve_authorizer_role
 from .matcher import matches
 from .recorder import NullRecorder, new_correlation_id
 
@@ -80,7 +81,8 @@ def run_automations_for_event(
             continue
         ran_this, ok = _run_targets(
             session, group_id, automation, context,
-            user_id=user_id, logger=logger, run_action=run_action, gate_conditions=True,
+            user_id=user_id, authorizer_role=resolve_authorizer_role(session, group_id, getattr(automation, "created_by", None)),
+            logger=logger, run_action=run_action, gate_conditions=True,
             recorder=recorder,
         )
         if ran_this:
@@ -97,7 +99,7 @@ def _target_context(base_context: dict, entity_ref: dict) -> dict:
     return {**base_context, "event": {**base_event, "entry_id": entity_ref["id"]}, "entry": entity_ref}
 
 
-def _run_targets(session, group_id, automation, base_context: dict, *, user_id, logger, run_action,
+def _run_targets(session, group_id, automation, base_context: dict, *, user_id, authorizer_role, logger, run_action,
                  gate_conditions: bool, recorder) -> tuple[int, bool]:
     """Run the automation's pipeline over its target set (the `target` selector) — or, with no
     target, over the single trigger context — recording the run + each step.
@@ -144,7 +146,8 @@ def _run_targets(session, group_id, automation, base_context: dict, *, user_id, 
         if gate and not matches(conditions, ctx):
             continue
         ok, s_ok, s_failed = _run_pipeline(
-            session, group_id, automation, ctx, user_id=user_id, logger=logger, run_action=run_action,
+            session, group_id, automation, ctx, user_id=user_id, authorizer_role=authorizer_role,
+            logger=logger, run_action=run_action,
             recorder=recorder, exec_id=exec_id, target_index=target_index, target_ref=ref,
         )
         ok_all = ok_all and ok
@@ -216,7 +219,7 @@ def _announce(session, group_id, automation, ok: bool, depth: int, user_id, cont
         pass
 
 
-def _run_pipeline(session, group_id, automation, context: dict, *, user_id, logger, run_action,
+def _run_pipeline(session, group_id, automation, context: dict, *, user_id, authorizer_role, logger, run_action,
                   recorder=None, exec_id=None, target_index: int = 0, target_ref=None) -> tuple[bool, int, int]:
     """Run one automation's action pipeline in order, recording each step. Returns
     ``(all_ok, steps_ok, steps_failed)``.
@@ -238,7 +241,7 @@ def _run_pipeline(session, group_id, automation, context: dict, *, user_id, logg
     for action_index, action in enumerate(actions[:MAX_ACTIONS]):
         started = datetime.now(UTC)
         try:
-            out = run_action(session, group_id, action, context, user_id=user_id)
+            out = run_action(session, group_id, action, context, user_id=user_id, authorizer_role=authorizer_role)
             recorder.action(exec_id, target_index=target_index, target_ref=target_ref,
                             action_index=action_index, action=action, status="success",
                             output=out, duration_ms=_ms_since(started))
@@ -278,7 +281,8 @@ def run_automation_now(session, group_id, automation, *, user_id=None, logger=No
     # it. But when a `target` selects a set, its conditions are the WHERE over that set and DO apply.
     ran, ok = _run_targets(
         session, group_id, automation, context,
-        user_id=user_id, logger=logger, run_action=run_action, gate_conditions=False,
+        user_id=user_id, authorizer_role=resolve_authorizer_role(session, group_id, getattr(automation, "created_by", None)),
+        logger=logger, run_action=run_action, gate_conditions=False,
         recorder=recorder or NullRecorder(),
     )
     _announce(session, group_id, automation, ok, 0, user_id, context)

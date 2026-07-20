@@ -489,9 +489,16 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       jobs (remove_orphaned_assets, prune_*), session/invite pruning, and `run_automation` itself — is
       rejected even though it's a valid registry entry, with a message naming the allowlist. Builder
       datalist matches. 4 tests. (Marvin, quick-win commit.) *(New safe handlers must be opted in.)*
-- [ ] **Per-user authorization at execution** — `user_id` is provenance only, never authorization.
-      An AUTHOR publishing an entry can trip an admin-authored automation that runs privileged
-      handlers and webhooks under full workspace authority.
+- [x] **Per-user authorization at execution DONE (2026-07-20)** ✅ — **definer's rights**: an
+      automation's actions now run under its *author's* (`created_by`) current authority, not the
+      tripping user's (which stays provenance-only). New `services/automation/authz.py` resolves the
+      author's live role (`resolve_authorizer_role`: None→OWNER back-compat, removed/demoted→fail
+      closed to 0) and `require_role` gates each action: operations enforce their declared `min_role`,
+      `entry`/`emit_event` need AUTHOR, `handler`/`webhook` need ADMIN. Threaded `authorizer_role`
+      through the engine (`run_automations_for_event`/`run_automation_now` → `_run_targets` →
+      `_run_pipeline` → the executor contract). A denied action fails cleanly and is recorded on the
+      execution row (visible in the Runs history), never runs with stale authority. 11 tests. (Marvin,
+      this commit.) *Closes the last Flavor B security gap.*
 
 **H5 · Entry action surface** *(thin once H0 lands — deliberately sequenced last)*
 - [x] **`entry` action kind DONE (2026-07-20)** ✅ — `publish` / `unpublish` / `archive` / `restore`
