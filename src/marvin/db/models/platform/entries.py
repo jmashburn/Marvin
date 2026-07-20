@@ -5,7 +5,6 @@ from datetime import datetime
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
@@ -44,7 +43,7 @@ class Entries(SqlAlchemyBase, BaseMixins):
     slug: Mapped[str] = mapped_column(sa.String, nullable=False)
     summary: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
-    data_json: Mapped[dict] = mapped_column("data_json", JSONB, nullable=False, default=dict, server_default="{}")
+    data_json: Mapped[dict] = mapped_column("data_json", sa.JSON, nullable=False, default=dict, server_default="{}")
     """Schema-driven content data structured according to entry_type.schema_json."""
     status: Mapped[str] = mapped_column(sa.String, nullable=False, default="inbox", server_default="inbox")
     published_at: Mapped[datetime | None] = mapped_column(NaiveDateTime, nullable=True)

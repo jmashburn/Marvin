@@ -5,10 +5,10 @@ This module provides the database models for Marvin's scheduled task subsystem,
 enabling proactive automation by executing tasks on a schedule.
 """
 
+import sqlalchemy as sa
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
@@ -56,7 +56,7 @@ class ScheduledTaskModel(SqlAlchemyBase, BaseMixins):
     schedule_type: Mapped[str] = mapped_column(String, nullable=False)
     """Schedule type: 'cron', 'interval', or 'once'."""
 
-    schedule_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    schedule_config: Mapped[dict] = mapped_column(sa.JSON, nullable=False)
     """Schedule configuration (cron_expression, interval_seconds, timezone, etc.)."""
 
     # Execution state
@@ -79,10 +79,10 @@ class ScheduledTaskModel(SqlAlchemyBase, BaseMixins):
     task_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     """Task type identifier (e.g., 'publish', 'cleanup', 'metadata_extraction')."""
 
-    task_config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    task_config: Mapped[dict] = mapped_column(sa.JSON, nullable=False, default=dict, server_default="{}")
     """Task-specific configuration parameters."""
 
-    retry_policy: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    retry_policy: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     """Retry policy: {max_retries, backoff_multiplier, timeout_seconds}."""
 
     __table_args__ = (

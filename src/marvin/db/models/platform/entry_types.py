@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
@@ -43,7 +42,7 @@ class EntryTypes(SqlAlchemyBase, BaseMixins):
     sort_order: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default="0")
     is_system: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default="false")
     is_rendered: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.text("0"))
-    schema_json: Mapped[dict] = mapped_column("schema_json", JSONB, nullable=False, default=dict, server_default="{}")
+    schema_json: Mapped[dict] = mapped_column("schema_json", sa.JSON, nullable=False, default=dict, server_default="{}")
     """Schema definition for this entry type (EntryTypeSchemaDefinition)."""
 
     rendering_json: Mapped[dict | None] = mapped_column("rendering_json", sa.JSON, nullable=True)

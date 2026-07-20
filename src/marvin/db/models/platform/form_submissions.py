@@ -3,7 +3,7 @@
 from datetime import datetime
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .. import BaseMixins, SqlAlchemyBase
@@ -26,10 +26,10 @@ class FormSubmissions(SqlAlchemyBase, BaseMixins):
     form_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("forms.id", ondelete="CASCADE"), nullable=False, index=True)
     group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    data_json: Mapped[dict] = mapped_column("data_json", JSONB, nullable=False, default=dict, server_default="{}")
+    data_json: Mapped[dict] = mapped_column("data_json", sa.JSON, nullable=False, default=dict, server_default="{}")
     """Submitted field values."""
 
-    metadata_json: Mapped[dict | None] = mapped_column("metadata_json", JSONB, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column("metadata_json", sa.JSON, nullable=True)
     """Request metadata (API client ID, referrer, etc.)."""
 
     status: Mapped[str] = mapped_column(sa.String, nullable=False, default="received", server_default="received")

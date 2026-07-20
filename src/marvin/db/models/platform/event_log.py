@@ -5,10 +5,10 @@ This model creates an audit trail of all events that occur within workspaces,
 enabling event history queries, entity timelines, and user activity tracking.
 """
 
+import sqlalchemy as sa
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
@@ -22,7 +22,7 @@ class EventLogModel(SqlAlchemyBase, BaseMixins):
     This table creates a complete audit trail of everything that happens in Marvin.
     Events are immutable once created - they represent facts that already occurred.
 
-    The event_data JSONB column contains the full event payload for queryability,
+    The event_data sa.JSON column contains the full event payload for queryability,
     while message_title and message_body provide human-readable summaries.
     """
 
@@ -59,8 +59,8 @@ class EventLogModel(SqlAlchemyBase, BaseMixins):
     operation: Mapped[str | None] = mapped_column(String, nullable=True)
     """The operation type (create, update, delete, info)."""
 
-    # Full event payload (JSONB for queryability)
-    event_data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    # Full event payload (sa.JSON for queryability)
+    event_data: Mapped[dict] = mapped_column(sa.JSON, nullable=False)
     """Complete event payload as JSON for rich queries."""
 
     # Human-readable summary
