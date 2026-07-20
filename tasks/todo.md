@@ -421,10 +421,11 @@ automation) · chat (agent) · mcp tool (project workflow as an MCP tool) · on-
       `event.after.status == needs_review` reads as "status changed to needs_review". Exposed in the
       engine context ($event.changed_fields/before/after) + advertised in the condition catalog;
       works with existing operators. Verified live. (Marvin 2cac535.)
-- [~] **Validate `definition` with a Pydantic discriminated union** — PARTIAL: shipped an advisory
-      `validate_definition()` + `POST /api/automations/validate` + per-trigger condition-field catalog
-      + live warning banner (catches the entry.*-under-webhook silent no-op). NOT the full
-      discriminated-union-as-source-of-truth (H4). (Marvin 04447cc, SDK d39396c.)
+- [x] **Validate `definition` with a Pydantic discriminated union DONE (2026-07-20)** ✅ — first an
+      advisory `validate_definition()` + `POST /api/automations/validate` + per-trigger condition-field
+      catalog + live warning banner (catches the entry.*-under-webhook silent no-op; Marvin 04447cc,
+      SDK d39396c), then the full **discriminated-union-as-source-of-truth** (see H4 ⭐): structural
+      validation now gates create/update and the JSON Schema ships in `/options`.
 
 **H1 · Observability — makes the thing debuggable**
 - [x] **⭐ `automation_executions` + `automation_action_executions` tables DONE (2026-07-20)** ✅ —
