@@ -21,6 +21,20 @@ try {
   error = e instanceof Error ? e.message : String(e);
 }
 
+// Same tab set as /workspace/settings — this dashboard is the "Overview" landing, and the
+// banner navigates into each settings section (kept in sync with settings/index.astro).
+const settingsTabs = [
+  { id: 'general', label: 'General', icon: '⚙' },
+  { id: 'members', label: 'Members', icon: '👥' },
+  { id: 'entry-types', label: 'Content Model', icon: '◈' },
+  { id: 'email', label: 'Email', icon: '📧' },
+  { id: 'publishing', label: 'Publishing', icon: '🌐' },
+  { id: 'automation', label: 'Automation', icon: '⚡' },
+  { id: 'ai', label: 'AI', icon: '✨' },
+  { id: 'integrations', label: 'Integrations', icon: '🔌' },
+  { id: 'statistics', label: 'Statistics', icon: '📊' },
+];
+
 const recentActivity: any[] = dashboard?.recentActivity ?? dashboard?.recent_activity ?? [];
 const attention = dashboard?.attention ?? {};
 const drafts: number = attention.drafts ?? 0;
@@ -52,8 +66,17 @@ function relTime(iso?: string | null): string {
     <div class="workspace-dashboard">
       <div class="welcome-section">
         <h2>{workspace?.workspace?.name || 'Workspace'}</h2>
-        <p>Manage your workspace settings and resources</p>
+        <p>Overview of your workspace — jump into any section below</p>
       </div>
+
+      <nav class="tabs" aria-label="Workspace settings">
+        {settingsTabs.map(tab => (
+          <a href={`/workspace/settings?tab=${tab.id}`} class="tab">
+            <span class="tab-icon">{tab.icon}</span>
+            <span class="tab-label">{tab.label}</span>
+          </a>
+        ))}
+      </nav>
 
       <div class="stats-grid">
         <a href="/entries" class="stat-card">
@@ -147,43 +170,6 @@ function relTime(iso?: string | null): string {
         </section>
       </div>
 
-      <div class="quick-links">
-        <a href="/workspace/settings" class="quick-link-card">
-          <div class="card-icon">⚙</div>
-          <h3>Workspace Settings</h3>
-          <p>Configure workspace name and preferences</p>
-        </a>
-
-        <a href="/workspace/members" class="quick-link-card">
-          <div class="card-icon">👥</div>
-          <h3>Members</h3>
-          <p>Manage team members and permissions</p>
-        </a>
-
-        <a href="/workspace/invites" class="quick-link-card">
-          <div class="card-icon">✉️</div>
-          <h3>Invitations</h3>
-          <p>Create and manage invitation links</p>
-        </a>
-
-        <a href="/workspace/resources" class="quick-link-card">
-          <div class="card-icon">📦</div>
-          <h3>Resources</h3>
-          <p>Track materials, tools, and suppliers</p>
-        </a>
-
-        <a href="/workspace/notifications" class="quick-link-card">
-          <div class="card-icon">🔔</div>
-          <h3>Notifications</h3>
-          <p>Configure event notifications</p>
-        </a>
-
-        <a href="/workspace/webhooks" class="quick-link-card">
-          <div class="card-icon">🔗</div>
-          <h3>Webhooks</h3>
-          <p>Integrate with external services</p>
-        </a>
-      </div>
     </div>
   )}
 </AppLayout>
@@ -206,6 +192,49 @@ function relTime(iso?: string | null): string {
   .welcome-section p {
     margin: 0;
     color: var(--muted);
+    font-size: 16px;
+  }
+
+  /* Settings tab banner — mirrors /workspace/settings so the two pages feel like one surface. */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 32px;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow-x: auto;
+  }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .tab:hover {
+    background: var(--panel-2);
+    color: inherit;
+  }
+
+  .tab.active {
+    background: var(--bg);
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .tab-icon {
     font-size: 16px;
   }
 
@@ -392,100 +421,6 @@ function relTime(iso?: string | null): string {
   .attention-label {
     font-size: 14px;
     color: var(--ink);
-  }
-
-  .quick-links {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-    margin-bottom: 40px;
-  }
-
-  .quick-link-card {
-    display: flex;
-    flex-direction: column;
-    padding: 24px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    text-decoration: none;
-    color: inherit;
-    transition: all 0.2s;
-    position: relative;
-  }
-
-  .quick-link-card:hover {
-    border-color: var(--accent);
-    box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
-    transform: translateY(-2px);
-  }
-
-  .card-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-    opacity: 0.6;
-  }
-
-  .quick-link-card h3 {
-    margin: 0 0 8px;
-    font-size: 18px;
-    font-weight: 600;
-  }
-
-  .quick-link-card p {
-    margin: 0;
-    font-size: 14px;
-    color: var(--muted);
-  }
-
-  .card-stat {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent);
-  }
-
-  .workspace-info {
-    padding: 24px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-  }
-
-  .workspace-info h3 {
-    margin: 0 0 20px;
-    font-size: 18px;
-    font-weight: 600;
-  }
-
-  .info-grid {
-    display: grid;
-    gap: 16px;
-  }
-
-  .info-item {
-    display: grid;
-    gap: 6px;
-  }
-
-  .info-label {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--muted);
-  }
-
-  .info-value {
-    font-size: 14px;
-  }
-
-  code.info-value {
-    font-family: ui-monospace, monospace;
-    font-size: 13px;
-    color: var(--accent);
   }
 
   .alert {

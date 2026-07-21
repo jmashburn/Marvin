@@ -77,7 +77,8 @@ const navGroups = [
   {
     label: "Workspace",
     items: [
-      { href: "/workspace/settings", label: "Settings", icon: "⚙" },
+      // Lands on the workspace dashboard (/workspace); its tab banner navigates into each settings section.
+      { href: "/workspace", label: "Settings", icon: "⚙" },
     ]
   },
 ];
@@ -107,6 +108,11 @@ if (isSuperAdmin) {
 function isActive(itemPath: string, currentPath: string): boolean {
   if (itemPath === "/") {
     return currentPath === "/";
+  }
+  // The Workspace "Settings" item lands on /workspace (dashboard) and owns the settings
+  // sections, but NOT sibling content routes like /workspace/entries or /workspace/assets.
+  if (itemPath === "/workspace") {
+    return currentPath === "/workspace" || currentPath.startsWith("/workspace/settings");
   }
   return currentPath === itemPath || currentPath.startsWith(itemPath + "/");
 }
