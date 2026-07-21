@@ -259,7 +259,9 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                         description=entry_type_schema.description,
                         sort_order=entry_type_schema.sort_order,
                         is_system=entry_type_schema.is_system,
-                        is_rendered=entry_type_schema.is_rendered,
+                        # Raw insert bypasses the ORM default=False, and the schema field is optional
+                        # (None) — coerce so a NOT NULL boolean column never receives NULL (Postgres).
+                        is_rendered=bool(entry_type_schema.is_rendered),
                         schema_json=entry_type_schema.content_schema or {},
                         rendering_json=entry_type_schema.rendering,
                         capabilities_json=entry_type_schema.capabilities,
@@ -271,6 +273,10 @@ class SystemEntryTypeSeeder(AbstractSeeder):
                     count_seeded += 1
 
             except Exception as e:  # Catch database errors or other issues
+                # Postgres aborts the whole transaction on a failed statement; roll back so the next
+                # item — and everything init_db does after this seeder — isn't poisoned. (SQLite got
+                # away without this because each item commits individually.)
+                self.repos.session.rollback()
                 self.logger.error(f"Failed to seed system entry type '{entry_type_schema.slug}': {e}")
                 count_errors += 1
 
