@@ -22,15 +22,18 @@ def upgrade() -> None:
     # Add body_markdown column
     op.add_column('email_templates', sa.Column('body_markdown', sa.Text(), nullable=True))
 
-    # Migrate existing content: concatenate structured fields into body_markdown
-    op.execute("""
-        UPDATE email_templates
-        SET body_markdown = COALESCE(message_top, '') ||
-            CASE WHEN message_bottom IS NOT NULL AND message_bottom != ''
-                 THEN char(10) || char(10) || message_bottom
-                 ELSE '' END
-        WHERE message_top IS NOT NULL OR message_bottom IS NOT NULL
-    """)
+    # Migrate existing content: concatenate structured fields into body_markdown.
+    # Use two literal newline chars in the SQL string (portable) rather than char(10) — that's a
+    # SQLite function; Postgres spells it chr(10) and reads bare `char(...)` as a type.
+    nl = chr(10)
+    op.execute(
+        "UPDATE email_templates "
+        "SET body_markdown = COALESCE(message_top, '') || "
+        "    CASE WHEN message_bottom IS NOT NULL AND message_bottom != '' "
+        f"         THEN '{nl}{nl}' || message_bottom "
+        "         ELSE '' END "
+        "WHERE message_top IS NOT NULL OR message_bottom IS NOT NULL"
+    )
 
     # Drop the structured content columns
     with op.batch_alter_table('email_templates') as batch_op:

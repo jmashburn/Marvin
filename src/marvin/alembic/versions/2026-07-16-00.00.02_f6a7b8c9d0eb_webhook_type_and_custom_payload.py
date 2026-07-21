@@ -22,23 +22,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("webhook_urls") as batch_op:
-        batch_op.add_column(sa.Column("custom_payload", sa.JSON(), nullable=True))
-        # Recreate webhook_type with the new WebhookMode enum values.
-        # SQLite stores enum values as strings so existing 'generic'/'user' rows
-        # are automatically valid under the new enum.
-        batch_op.alter_column(
-            "webhook_type",
-            existing_type=sa.Enum("generic", "user", name="eventdocumenttype"),
-            type_=sa.Enum("generic", "user", "entries", "event_driven", name="webhookmode"),
-            existing_nullable=True,
+    bind = op.get_bind()
+    old_enum = sa.Enum("generic", "user", name="eventdocumenttype")
+    new_enum = sa.Enum("generic", "user", "entries", "event_driven", name="webhookmode")
+    op.add_column("webhook_urls", sa.Column("custom_payload", sa.JSON(), nullable=True))
+    if bind.dialect.name == "postgresql":
+        # Postgres enums are real types: create the new one, then cast the column into it (text
+        # bridge handles the cross-enum change). Postgres can ALTER COLUMN directly.
+        new_enum.create(bind, checkfirst=True)
+        op.alter_column(
+            "webhook_urls", "webhook_type",
+            existing_type=old_enum, type_=new_enum, existing_nullable=True,
+            postgresql_using="webhook_type::text::webhookmode",
         )
-        # Make scheduled_time nullable (event_driven webhooks have no schedule).
-        batch_op.alter_column(
-            "scheduled_time",
-            existing_type=sa.DateTime(timezone=True),
-            nullable=True,
-        )
+        op.alter_column("webhook_urls", "scheduled_time", existing_type=sa.DateTime(timezone=True), nullable=True)
+    else:
+        # SQLite cannot ALTER COLUMN outside batch mode — both changes must ride the table rebuild.
+        with op.batch_alter_table("webhook_urls") as batch_op:
+            batch_op.alter_column(
+                "webhook_type", existing_type=old_enum, type_=new_enum, existing_nullable=True,
+            )
+            batch_op.alter_column("scheduled_time", existing_type=sa.DateTime(timezone=True), nullable=True)
 
 
 def downgrade() -> None:
