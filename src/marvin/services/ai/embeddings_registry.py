@@ -32,6 +32,10 @@ class Indexable:
     delete_on: tuple = field(default_factory=tuple)  # EventTypes that purge it from the index
     # Per-type gate, given (obj, event_type, has_existing_index) → whether to index this occurrence.
     should_index: Callable[..., bool] = lambda obj, event_type, has_index: True
+    # Content gate, given (obj) → whether this object has enough substance to be worth embedding.
+    # Honored by BOTH the reactive listener and the full reindex, so a content-thin object never
+    # enters the index (or is purged if it becomes thin). Default: everything is worth indexing.
+    content_ok: Callable[[object], bool] = lambda obj: True
 
 
 REGISTRY: dict[str, Indexable] = {}
@@ -67,6 +71,15 @@ def delete_descriptor_for(event_type) -> Indexable | None:
 
 # ── Per-type gates ────────────────────────────────────────────────────────────
 
+def _asset_content_ok(asset) -> bool:
+    """An asset earns a place in the semantic index only if it carries descriptive text — a
+    description or alt text. A bare icon/logo (name + tags only, e.g. an SVG "Envelope\\nTags:
+    site asset") embeds to near-nothing but its tag, hijacking tag-adjacent searches; skip it.
+    Its tags remain discoverable via list_tags and structured tag filters, not RAG."""
+    return bool((getattr(asset, "description", None) or "").strip()
+                or (getattr(asset, "alt_text", None) or "").strip())
+
+
 def _entry_should_index(entry, event_type, has_index: bool) -> bool:
     """Entries: always index on publish; on a bare update only re-embed a live, already-indexed
     entry. Skips draft/inbox/archived saves and avoids double-embedding the publish transition
@@ -94,6 +107,7 @@ def _register_defaults() -> None:
         entity_type="asset", model=Assets, text=_asset_text, id_field="asset_id",
         index_on=(EventTypes.asset_uploaded, EventTypes.asset_updated),
         delete_on=(EventTypes.asset_deleted,),
+        content_ok=_asset_content_ok,  # skip content-thin icons/logos (name+tags only)
     ))
 
 

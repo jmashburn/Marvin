@@ -152,11 +152,13 @@ def reindex_workspace(session: Session, group_id: UUID4, provider, model: str) -
     for desc in REGISTRY.values():
         for obj in session.query(desc.model).filter_by(group_id=group_id).all():
             try:
+                if not desc.content_ok(obj):
+                    purge_embeddings(session, group_id, desc.entity_type, obj.id, model)  # drop if it went thin
+                    continue
                 chunks += index_entity(session, group_id, desc.entity_type, obj.id, desc.text(obj), provider, model)
                 entities += 1
             except Exception:
                 continue  # skip a failing entity rather than aborting the whole workspace
-    return entities, chunks
     return entities, chunks
 
 

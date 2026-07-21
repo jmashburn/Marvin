@@ -855,6 +855,14 @@ class IndexingReactionListener(EventListenerBase):
             has_index = self._has_index(session, idx_desc.entity_type, entity_id, model)
             if not idx_desc.should_index(obj, event.event_type, has_index):
                 return
+            # Content gate: a too-thin object (e.g. a bare icon/logo asset) doesn't belong in the
+            # semantic index. Skip it — and purge any stale embedding if it just lost its content.
+            if not idx_desc.content_ok(obj):
+                if has_index:
+                    from marvin.services.ai.embeddings import purge_embeddings
+                    purge_embeddings(session, self.group_id, idx_desc.entity_type, entity_id, model)
+                    session.commit()
+                return
 
             try:
                 chunks = index_entity(session, self.group_id, idx_desc.entity_type, obj.id, idx_desc.text(obj), provider, model)
