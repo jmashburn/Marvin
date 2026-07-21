@@ -27,7 +27,10 @@ const isSystem = entryType?.isSystem ?? false;
 const rendering = (entryType?.renderingJson ?? {}) as Record<string, unknown>;
 const capabilities = (entryType?.capabilitiesJson ?? {}) as Record<string, unknown>;
 const recipe = (entryType?.recipeJson ?? {}) as Record<string, unknown>;
-const recipeStr = Object.keys(recipe).length ? JSON.stringify(recipe, null, 2) : '';
+// The authoring instructions get their own prose box; the JSON textarea holds the structured contract.
+const recipeInstructions = typeof recipe.instructions === 'string' ? recipe.instructions : '';
+const { instructions: _omitInstructions, ...recipeStructured } = recipe;
+const recipeStr = Object.keys(recipeStructured).length ? JSON.stringify(recipeStructured, null, 2) : '';
 ---
 
 <AppLayout
@@ -194,9 +197,22 @@ const recipeStr = Object.keys(recipe).length ? JSON.stringify(recipe, null, 2) :
             <details id="recipe-details" open={Object.keys(recipe).length > 0}>
               <summary class="section-heading">Recipe (authoring)</summary>
               <div class="config-fields">
+                <label for="recipe_instructions" style="display:block;font-weight:600;margin:0 0 4px;">Authoring instructions</label>
+                <p style="margin:0 0 6px;color:var(--muted);font-size:13px;">
+                  Plain-language directions the AI follows when composing this type. e.g. "A short
+                  navigation page. No images. One-line blurb linking to a URL."
+                </p>
+                <textarea
+                  id="recipe_instructions"
+                  rows="4"
+                  placeholder="Describe how to author this type…"
+                  style="width:100%;font-size:14px;line-height:1.5;padding:10px;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);color:var(--ink);margin-bottom:14px;"
+                >{recipeInstructions}</textarea>
+
+                <label for="recipe_json" style="display:block;font-weight:600;margin:0 0 4px;">Structured contract</label>
                 <p style="margin:0 0 8px;color:var(--muted);font-size:13px;">
-                  What to gather &amp; derive to build one — assets contract (min/max + roles like
-                  hero/gallery, with derive), resource extraction, enrichment. JSON for now.
+                  What to gather &amp; derive — assets contract (min/max + roles like hero/gallery, with
+                  derive), resource extraction, enrichment. JSON for now.
                 </p>
                 <textarea
                   name="recipe_json"
@@ -398,6 +414,22 @@ const recipeStr = Object.keys(recipe).length ? JSON.stringify(recipe, null, 2) :
       routable: (document.getElementById('cap_routable') as HTMLInputElement).checked,
     });
   }
+
+  // Fold the prose Instructions box back into recipe_json on save (it's edited separately so authors
+  // don't have to hand-write the "instructions" key inside the JSON).
+  function syncRecipeJson() {
+    const instr = (document.getElementById('recipe_instructions') as HTMLTextAreaElement)?.value.trim() ?? '';
+    const jsonEl = document.getElementById('recipe_json') as HTMLTextAreaElement;
+    const raw = jsonEl.value.trim();
+    let obj: Record<string, unknown> = {};
+    if (raw) {
+      try { obj = JSON.parse(raw); }
+      catch { return; }  // invalid structured JSON — let the server reject it rather than silently drop it
+    }
+    if (instr) obj.instructions = instr; else delete obj.instructions;
+    jsonEl.value = Object.keys(obj).length ? JSON.stringify(obj, null, 2) : '';
+  }
+  document.querySelector('form[action*="/update"]')?.addEventListener('submit', syncRecipeJson);
 
   document.getElementById('renderer_name')?.addEventListener('input', syncRenderingJson);
   document.getElementById('renderer_package')?.addEventListener('input', syncRenderingJson);
