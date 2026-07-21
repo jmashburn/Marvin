@@ -110,14 +110,36 @@ class EmailService(BaseService):
 
         self.logger.debug(f"Loading {self.templates_dir} in {self.default_template}")
 
-        # Use provided sender or instantiate DefaultEmailSender
-        self.sender: ABCEmailSender = sender or DefaultEmailSender()
+        # Sender resolution:
+        #  - explicit sender wins
+        #  - otherwise, when scoped to a workspace, route through its active SMTP profile
+        #    (WorkspaceEmailSender falls back to global settings when none is active)
+        #  - unscoped falls back to the global DefaultEmailSender
+        if sender is not None:
+            self.sender: ABCEmailSender = sender
+        elif group_id:
+            from marvin.services.email.email_senders import WorkspaceEmailSender
+
+            self.sender = WorkspaceEmailSender(group_id)
+        else:
+            self.sender = DefaultEmailSender()
 
         # Placeholder for localization/translation functionality.
         # If uncommented, `local_provider` would need to be defined and return a Translator instance.
         # self.translator: Translator = local_provider(locale)
         # For now, string keys in EmailTemplate will be used as-is if no translation occurs.
         self.logger.info(f"EmailService initialized. Sender: {type(self.sender).__name__}. Locale: {locale or 'default'}.")
+
+    def _can_send(self) -> bool:
+        """Whether email can be dispatched: global SMTP is configured, OR this service is
+        scoped to a workspace that has an active SMTP profile of its own."""
+        if self.settings.SMTP_ENABLED:
+            return True
+        from marvin.services.email.email_senders import WorkspaceEmailSender
+
+        if isinstance(self.sender, WorkspaceEmailSender):
+            return self.sender._active_profile() is not None
+        return False
 
     def send_email(self, email_to: str, email_data: EmailTemplate) -> bool:  # Renamed `data` to `email_data`
         """
@@ -136,7 +158,7 @@ class EmailService(BaseService):
                   False otherwise. Note: Returning True when SMTP is disabled might
                   be misleading; consider alternative return or logging.
         """
-        if not self.settings.SMTP_ENABLED:
+        if not self._can_send():
             self.logger.info(f"SMTP is disabled. Email not sent to {email_to} (Subject: {email_data.subject}).")
             # Returning False might be more indicative that no email was actually sent.
             # However, if the intent is "operation considered successful if SMTP off", True is okay.
@@ -349,7 +371,7 @@ class EmailService(BaseService):
             return False
 
         # Send via configured sender
-        if not self.settings.SMTP_ENABLED:
+        if not self._can_send():
             self.logger.info(f"SMTP is disabled. Email not sent to {recipient_address} (Subject: {subject}).")
             return False
 

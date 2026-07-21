@@ -29,7 +29,7 @@ class PlatformEmailController(BaseUserController):
         """Send a test email. Uses provided subject/message if given, otherwise generic defaults."""
         from marvin.services.email.email_service import EmailTemplate
 
-        email_service = EmailService(locale=accept_language)
+        email_service = EmailService(locale=accept_language, group_id=str(self.group_id))
         try:
             if data.subject or data.message:
                 from marvin.services.secrets.resolver import resolve
@@ -159,7 +159,7 @@ class PlatformEmailController(BaseUserController):
 
             warning = None
             try:
-                email_service = EmailService()
+                email_service = EmailService(group_id=str(self.group_id))
                 success = email_service._send_db_template(data.recipient_email, template, test_variables)
                 if not success:
                     raise HTTPException(
@@ -172,7 +172,7 @@ class PlatformEmailController(BaseUserController):
                 warning = str(e)
                 self.logger.warning(f"Test send bypassing validation: {e}")
                 try:
-                    email_service = EmailService()
+                    email_service = EmailService(group_id=str(self.group_id))
                     from marvin.services.email.email_service import EmailTemplate
                     from marvin.services.secrets.resolver import resolve
                     group_id = template.group_id

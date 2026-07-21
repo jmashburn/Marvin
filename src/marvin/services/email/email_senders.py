@@ -244,3 +244,98 @@ class DefaultEmailSender(ABCEmailSender, BaseService):
             )
 
         return smtp_response.success
+
+
+class WorkspaceEmailSender(ABCEmailSender, BaseService):
+    """Email sender that routes through a workspace's **active** SMTP profile.
+
+    When the workspace has an active `WorkspaceSMTPProfileModel`, mail is sent via that
+    profile's server/credentials/From. When it has none, this transparently falls back to
+    `DefaultEmailSender` (the global SMTP settings), so behaviour is unchanged until a
+    workspace activates a profile.
+    """
+
+    def __init__(self, group_id) -> None:
+        self.group_id = group_id
+
+    def _active_profile(self) -> dict | None:
+        """Return the active profile's fields as a plain dict, or None. Read into a dict so the
+        values remain usable after the session closes (detached-instance safe)."""
+        from sqlalchemy import select
+
+        from marvin.db.db_setup import session_context
+        from marvin.db.models.groups.smtp_profiles import WorkspaceSMTPProfileModel
+
+        try:
+            with session_context() as session:
+                row = (
+                    session.execute(
+                        select(WorkspaceSMTPProfileModel).where(
+                            WorkspaceSMTPProfileModel.group_id == self.group_id,
+                            WorkspaceSMTPProfileModel.is_active.is_(True),
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if row is None:
+                    return None
+                return {
+                    "name": row.name,
+                    "host": row.host,
+                    "port": row.port,
+                    "username": row.username,
+                    "password_encrypted": row.password_encrypted,
+                    "from_name": row.from_name,
+                    "from_email": row.from_email,
+                    "auth_strategy": row.auth_strategy,
+                }
+        except Exception as e:
+            self.logger.warning(f"Could not load active SMTP profile for group {self.group_id}: {e}")
+            return None
+
+    def send(self, email_to: str, subject: str, html_content: str) -> bool:
+        profile = self._active_profile()
+        if not profile:
+            # No active profile — behave exactly like the global sender.
+            return DefaultEmailSender().send(email_to, subject, html_content)
+
+        from_email = profile["from_email"] or self.settings.SMTP_FROM_EMAIL
+        from_name = profile["from_name"] or self.settings.SMTP_FROM_NAME or "Marvin"
+        if not from_email:
+            self.logger.error(
+                f"Active SMTP profile '{profile['name']}' has no From address and no global SMTP_FROM_EMAIL fallback."
+            )
+            return False
+
+        password = None
+        if profile["password_encrypted"]:
+            from marvin.services.secrets.backends.database import _get_fernet
+
+            try:
+                password = _get_fernet().decrypt(profile["password_encrypted"].encode()).decode()
+            except Exception:
+                self.logger.error(f"Could not decrypt password for SMTP profile '{profile['name']}'.")
+                return False
+
+        strategy = (profile["auth_strategy"] or "TLS").upper()
+        options = EmailOptions(
+            host=profile["host"],
+            port=int(profile["port"]),
+            username=profile["username"] or None,
+            password=password,
+            tls=strategy == "TLS",
+            ssl=strategy == "SSL",
+        )
+        message = Message(
+            subject=subject,
+            html=html_content,
+            mail_from_name=from_name,
+            mail_from_address=from_email,
+        )
+        result = message.send(to_address=email_to, smtp_config=options)
+        if result.success:
+            self.logger.info(f"Email '{subject}' sent to {email_to} via SMTP profile '{profile['name']}'.")
+        else:
+            self.logger.error(f"SMTP profile '{profile['name']}' failed to send '{subject}' to {email_to}: {result.message}")
+        return result.success
