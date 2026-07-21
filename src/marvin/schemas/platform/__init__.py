@@ -8,6 +8,7 @@ from .api_clients import (
     APIClientWithToken,
 )
 from .assets import (
+    AssetBulkUploadResult,
     AssetCreate,
     AssetCreateInternal,
     AssetPlacement,
@@ -76,6 +77,7 @@ __all__ = [
     "AssetCreate",
     "AssetCreateInternal",
     "AssetPlacement",
+    "AssetBulkUploadResult",
     "AssetRead",
     "AssetSummary",
     "AssetUpdate",

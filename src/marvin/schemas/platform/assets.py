@@ -189,6 +189,17 @@ class AssetRead(AssetSummary):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+class AssetBulkUploadResult(_MarvinModel):
+    """Result of a bulk asset upload — the created assets plus, when attached to an entry, how they
+    filled the entry type's recipe (roles assigned, derivatives generated, and anything unmet)."""
+
+    assets: list[AssetRead] = Field(default_factory=list)
+    attached_to: str | None = None
+    attached: list[dict] = Field(default_factory=list)   # [{asset_id, role, status}]
+    derived: list[dict] = Field(default_factory=list)    # [{role, slug, from}] — auto-generated variants
+    unmet: list[dict] = Field(default_factory=list)      # recipe requirements no upload/derive could satisfy
+
+
 class AssetPlacement(_MarvinModel):
     """How an asset is used by a specific entry."""
 
