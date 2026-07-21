@@ -33,6 +33,15 @@ def _create_test_schema() -> Generator[None, None, None]:
     with contextlib.suppress(Exception):
         SqlAlchemyBase.metadata.drop_all(bind=engine)
     with engine.begin() as conn:
+        # Alembic's batch_alter_table temp tables (_alembic_tmp_*) aren't model-known, so drop_all
+        # misses them; a partial migration can leave one and wedge the next run's batch op with
+        # "table _alembic_tmp_X already exists". Sweep them for a truly clean slate.
+        if conn.dialect.name == "sqlite":
+            leftovers = conn.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_alembic_tmp_%'"
+            ).all()
+            for (name,) in leftovers:
+                conn.exec_driver_sql(f'DROP TABLE IF EXISTS "{name}"')
         conn.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
 
     cfg = Config(str(Path(__file__).resolve().parents[1] / "src" / "marvin" / "alembic.ini"))
