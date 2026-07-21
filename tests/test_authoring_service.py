@@ -158,16 +158,28 @@ def test_alt_text_requested_reads_enrichment_flag_and_role_derive(db_session, wo
     assert svc._alt_text_requested(EntryTypeRecipe.model_validate({"enrichment": {"voice": "wry"}})) is False
 
 
-def test_recipe_asset_hint_lists_roles_and_is_empty_without_them(db_session, workspace):
+def test_recipe_asset_hint_keys_off_required_vs_optional(db_session, workspace):
     from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
 
     gid, _, _ = workspace
     svc = _svc(db_session, gid)
 
-    hint = svc._recipe_asset_hint(
-        EntryTypeRecipe.model_validate({"assets": {"roles": [{"role": "hero"}, {"role": "gallery"}]}})
-    )
-    assert "hero, gallery" in hint and "`assets`" in hint  # names the roles + the output field
+    # A required role → the hint URGES attachment.
+    req = svc._recipe_asset_hint(EntryTypeRecipe.model_validate({"assets": {"roles": [{"role": "hero", "required": True}]}}))
+    assert "needs images" in req.lower() and "hero" in req
+
+    # min > 0 also counts as needed.
+    m = svc._recipe_asset_hint(EntryTypeRecipe.model_validate({"assets": {"roles": [{"role": "hero", "min": 1}]}}))
+    assert "needs images" in m.lower()
+
+    # All-optional (like page-with-navigation) → gated on the brief, does NOT urge; states the max.
+    opt = svc._recipe_asset_hint(EntryTypeRecipe.model_validate(
+        {"assets": {"max": 5, "roles": [{"role": "hero", "max": 1}, {"role": "gallery", "max": 4}]}}
+    ))
+    assert "optional" in opt.lower() and "brief explicitly calls" in opt
+    assert "needs images" not in opt.lower()
+    assert "at most 5" in opt
+
     assert svc._recipe_asset_hint(EntryTypeRecipe.model_validate({"assets": {"min": 1}})) == ""  # no roles → no hint
     assert svc._recipe_asset_hint(EntryTypeRecipe.model_validate({})) == ""
 

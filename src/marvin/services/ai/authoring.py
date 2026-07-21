@@ -192,6 +192,11 @@ class AuthoringService:
             # combined with any caller-supplied asset_ids — the caller's keep priority for the hero
             # role (they lead the list). Recipe roles are assigned first→hero, then declared order.
             extra_assets = self._resolve_asset_refs(proposed_assets, exclude_ids=asset_ids)
+            # Respect the recipe's overall image ceiling for AUTO-suggested assets (caller-supplied
+            # ones are an explicit choice and aren't trimmed). No cap → attach what the model chose.
+            recipe_max = getattr(recipe.assets, "max", None) if getattr(recipe, "assets", None) else None
+            if recipe_max is not None:
+                extra_assets = extra_assets[: max(0, recipe_max - len(asset_ids))]
             auto_asset_slugs = [slug for _, slug in extra_assets]
             if extra_assets:
                 combined_ids = list(asset_ids) + [aid for aid, _ in extra_assets]
@@ -526,18 +531,45 @@ class AuthoringService:
         )
 
     def _recipe_asset_hint(self, recipe) -> str:
-        """A prompt fragment nudging the model to attach relevant EXISTING images from the grounded
-        catalog, keyed to the entry type's asset roles (first → hero). Mirrors _recipe_resource_hint.
-        Empty when the recipe declares no asset roles."""
+        """A prompt fragment about attaching EXISTING images, driven by the recipe's asset contract.
+
+        Keys off the recipe, not just role declaration: it URGES attachment only for roles the type
+        actually needs (``required`` or ``min > 0``), treats every other declared role as optional —
+        attach one only if the brief explicitly calls for an image — and states the overall ``max``.
+        So an optional-image type (e.g. a nav page whose hero is merely allowed) no longer gets a hero
+        stapled on unbidden. Empty when the recipe declares no asset roles.
+        """
         assets = getattr(recipe, "assets", None)
-        roles = [r.role for r in (assets.roles or [])] if assets else []
+        roles = list(getattr(assets, "roles", None) or []) if assets else []
         if not roles:
             return ""
-        return (
-            f"\n\nThis entry type illustrates with images in these roles: {', '.join(roles)}. If the workspace "
-            f"list above includes an image that fits this entry, name it in `assets` (by name or slug) to attach it "
-            f"— the first becomes the hero. Reuse only; do not invent, and omit `assets` when none are a good fit."
-        )
+
+        def _needed(r) -> bool:
+            return bool(getattr(r, "required", False) or (getattr(r, "min", 0) or 0) > 0)
+
+        def _label(r) -> str:
+            return f"{r.role} (up to {r.max})" if getattr(r, "max", None) else r.role
+
+        required = [r for r in roles if _needed(r)]
+        optional = [r for r in roles if not _needed(r)]
+        parts: list[str] = []
+        if required:
+            parts.append(
+                "This entry type needs images for: " + ", ".join(_label(r) for r in required)
+                + ". Attach a fitting EXISTING image for each in `assets` (reuse only, by name or slug from the "
+                "list above); the first becomes the hero."
+            )
+        if optional:
+            lead = "Optional image slot(s): " if required else "Images are optional here — "
+            parts.append(
+                lead + ", ".join(_label(r) for r in optional)
+                + ". Only attach one if the brief explicitly calls for an image and an existing one clearly fits; "
+                "otherwise leave `assets` empty."
+            )
+        total_max = getattr(assets, "max", None)
+        if total_max:
+            parts.append(f"Attach at most {total_max} image(s) in total, and never invent images.")
+        return "\n\n" + " ".join(parts)
 
     def _attach_existing_resources(self, entry_id, refs) -> list[str]:
         """Attach only resources that already exist (reuse); ignore unknown refs. Returns attached slugs.
