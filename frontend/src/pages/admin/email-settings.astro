@@ -605,6 +605,8 @@ try {
 
     const payload = {
       email: formData.get('test_email'),
+      subject: formData.get('subject') || undefined,
+      message: formData.get('message') || undefined,
     };
 
     testResult?.classList.remove('hidden', 'success', 'error');
