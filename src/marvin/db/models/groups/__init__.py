@@ -12,6 +12,7 @@ from .automation_executions import *
 from .incoming_webhooks import *
 from .mcp_servers import *
 from .notification_execution_logs import *
+from .integrations import *
 from .preferences import *
 from .reports import *
 from .secrets import *

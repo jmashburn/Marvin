@@ -4,6 +4,7 @@ from . import (
     ai_settings_controller,
     email_event_subscriptions_controller,
     email_template_controller,
+    integrations_controller,
     invitation_controller,
     notification_controller,
     preferences_controller,
@@ -20,6 +21,7 @@ router.include_router(webhook_controller.router, tags=["Groups: Webhooks"])
 router.include_router(secrets_controller.router, tags=["Groups: Secrets"])
 router.include_router(smtp_controller.router, tags=["Groups: SMTP Profiles"])
 router.include_router(variables_controller.router, tags=["Groups: Variables"])
+router.include_router(integrations_controller.router, tags=["Groups: Integrations"])
 router.include_router(notification_controller.router, tags=["Groups: Event Notifications"])
 router.include_router(preferences_controller.router, tags=["Groups: Preferences"])
 router.include_router(email_template_controller.router, tags=["Groups: Email Templates"])
