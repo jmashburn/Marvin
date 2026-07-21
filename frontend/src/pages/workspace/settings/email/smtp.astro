@@ -1,0 +1,107 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let workspace = null;
+try {
+  workspace = await getCurrentWorkspace(authToken);
+} catch (e) {
+  console.error('[email-smtp] Error loading workspace:', e);
+}
+---
+
+<AppLayout title="SMTP Configuration" eyebrow="Workspace">
+  <Breadcrumb items={[
+    { label: "Workspace Settings", href: "/workspace/settings" },
+    { label: "Email", href: "/workspace/settings?tab=email" },
+    { label: "SMTP Configuration" }
+  ]} />
+
+  <div class="toolbar">
+    <div>
+      <h2>SMTP Configuration</h2>
+      <p>Workspace-specific email server settings for {workspace?.workspace?.name || 'this workspace'}</p>
+    </div>
+  </div>
+
+  <div class="email-smtp">
+    <section class="settings-section">
+      <h3>SMTP Configuration</h3>
+      <p class="section-description">Workspace-specific email server settings (optional)</p>
+
+      <div class="coming-soon-box">
+        <p>📧 Workspace-specific SMTP configuration coming soon</p>
+        <p class="hint">Currently using system-wide SMTP settings from admin configuration</p>
+      </div>
+    </section>
+  </div>
+</AppLayout>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .toolbar h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  .toolbar p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .email-smtp {
+    max-width: 900px;
+  }
+
+  .settings-section {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .settings-section h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .section-description {
+    margin: 0 0 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .coming-soon-box {
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--bg);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+  }
+
+  .coming-soon-box p {
+    margin: 0 0 8px;
+    font-size: 15px;
+  }
+
+  .coming-soon-box .hint {
+    font-size: 13px;
+    color: var(--muted);
+  }
+</style>

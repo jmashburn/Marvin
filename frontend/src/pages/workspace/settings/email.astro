@@ -87,16 +87,17 @@ function isSuperseded(template: any): boolean {
 }
 ---
 
-<AppLayout title="Email Settings" eyebrow="Workspace">
+<AppLayout title="Email Templates" eyebrow="Workspace">
   <Breadcrumb items={[
     { label: "Workspace Settings", href: "/workspace/settings" },
-    { label: "Email Settings" }
+    { label: "Email", href: "/workspace/settings?tab=email" },
+    { label: "Email Templates" }
   ]} />
 
   <div class="toolbar">
     <div>
-      <h2>Email Settings</h2>
-      <p>Manage email templates and test sending for {workspace?.workspace?.name || 'this workspace'}</p>
+      <h2>Email Templates</h2>
+      <p>Customize the emails sent from {workspace?.workspace?.name || 'this workspace'}</p>
     </div>
     <button class="button" id="create-template-btn">
       <span>+ Create Template</span>
@@ -235,58 +236,6 @@ function isSuperseded(template: any): boolean {
         </div>
       </section>
 
-      <section class="settings-section">
-        <h3>Test Email Delivery</h3>
-        <p class="section-description">Send a test email to verify SMTP configuration</p>
-
-        <form id="test-email-form" class="test-form">
-          <label class="form-field">
-            <span class="label">Test Email Address *</span>
-            <input
-              type="email"
-              name="test_email"
-              placeholder="test@example.com"
-              required
-              class="input"
-            />
-          </label>
-
-          <label class="form-field">
-            <span class="label">Subject</span>
-            <input
-              type="text"
-              name="subject"
-              value="Marvin Platform - Test Email"
-              class="input"
-            />
-          </label>
-
-          <label class="form-field">
-            <span class="label">Message</span>
-            <textarea
-              name="message"
-              rows="4"
-              class="input textarea"
-            >This is a test email from Marvin Platform. If you received this, your SMTP configuration is working correctly.</textarea>
-          </label>
-
-          <div class="form-actions">
-            <button type="submit" class="button">Send Test Email</button>
-          </div>
-        </form>
-
-        <div id="test-result" class="test-result hidden"></div>
-      </section>
-
-      <section class="settings-section">
-        <h3>SMTP Configuration</h3>
-        <p class="section-description">Workspace-specific email server settings (optional)</p>
-
-        <div class="coming-soon-box">
-          <p>📧 Workspace-specific SMTP configuration coming soon</p>
-          <p class="hint">Currently using system-wide SMTP settings from admin configuration</p>
-        </div>
-      </section>
     </div>
   )}
 
@@ -920,52 +869,6 @@ function isSuperseded(template: any): boolean {
           hideModal(testSendModal);
         }
       });
-    });
-  </script>
-
-  <script define:vars={{ apiUrl }}>
-    const testForm = document.getElementById('test-email-form');
-    const testResult = document.getElementById('test-result');
-
-    testForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-
-      const payload = {
-        email: formData.get('test_email'),
-        subject: formData.get('subject') || null,
-        message: formData.get('message') || null,
-      };
-
-      testResult?.classList.remove('hidden', 'success', 'error');
-      if (testResult) testResult.textContent = 'Sending test email...';
-      testResult?.classList.add('info');
-
-      try {
-        const response = await fetch(`${apiUrl}/api/platform/email/test`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        });
-
-        const result = await response.json();
-
-        testResult?.classList.remove('info');
-        if (response.ok && result.success) {
-          testResult?.classList.add('success');
-          if (testResult) testResult.textContent = '✓ Test email sent successfully! Check your inbox at ' + payload.email;
-        } else {
-          testResult?.classList.add('error');
-          const msg = result.error || result.detail || 'Unknown error';
-          if (testResult) testResult.textContent = `✗ Failed: ${msg}`;
-        }
-      } catch (error) {
-        testResult?.classList.remove('info');
-        testResult?.classList.add('error');
-        if (testResult) testResult.textContent = '✗ Network error. Please try again.';
-        console.error('Error sending test email:', error);
-      }
     });
   </script>
 
