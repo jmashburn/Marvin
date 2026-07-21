@@ -194,6 +194,7 @@ def search_content(ctx: ToolContext, args: dict) -> str:
     input_schema={"type": "object", "properties": {
         "entry_type": {"type": "string"}, "status": {"type": "string"},
         "query": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}, "description": "only entries carrying ANY of these tags (slug or name) — exhaustive, not ranked"},
         "has_images": {"type": "boolean", "description": "only entries that have an image asset"},
         "has_assets": {"type": "boolean", "description": "only entries that have any attached asset"},
         "has_resources": {"type": "boolean", "description": "only entries that have a linked resource"},
@@ -201,6 +202,8 @@ def search_content(ctx: ToolContext, args: dict) -> str:
     }},
 )
 def find_entries(ctx: ToolContext, args: dict) -> str:
+    from .builtins_actions import _narrow_by_tags
+
     q = ctx.session.query(Entries).filter(Entries.group_id == ctx.group_id)
     etype = args.get("entry_type")
     if etype:
@@ -211,6 +214,10 @@ def find_entries(ctx: ToolContext, args: dict) -> str:
     text = args.get("query")
     if text:
         q = q.filter(Entries.title.ilike(f"%{text}%"))
+    if args.get("tags"):
+        q, ok = _narrow_by_tags(ctx.session, ctx.group_id, q, Entries, EntryTags, "entry_id", args)
+        if not ok:
+            return json.dumps({"count": 0, "entries": [], "note": "no such tag(s) in this workspace"})
     # Asset filters: entries that have any attached asset, or specifically an image.
     if args.get("has_images") or args.get("has_assets"):
         q = q.join(EntryAssets, EntryAssets.entry_id == Entries.id)
@@ -508,16 +515,26 @@ def list_tags(ctx: ToolContext, _args: dict) -> str:
 
 @register_tool(
     name="list_resources",
-    description="List the workspace's reusable resources (materials, tools, suppliers, …), optionally filtered by resource_type. Returns `count` (true total) plus a sample. Use for questions about resources.",
+    description="List the workspace's reusable resources (materials, tools, suppliers, …), optionally filtered by resource_type and/or tags. Returns `count` (true total) plus a sample. Use for questions about resources, or 'all resources with tag X'.",
     input_schema={"type": "object", "properties": {
-        "resource_type": {"type": "string"}, "limit": {"type": "integer"},
+        "resource_type": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}, "description": "only resources carrying ANY of these tags (slug or name) — exhaustive, not ranked"},
+        "limit": {"type": "integer"},
     }},
 )
 def list_resources(ctx: ToolContext, args: dict) -> str:
+    from marvin.db.models.platform.resource_tags import ResourceTags
+
+    from .builtins_actions import _narrow_by_tags
+
     q = ctx.session.query(Resources).filter(Resources.group_id == ctx.group_id)
     rtype = args.get("resource_type")
     if rtype:
         q = q.filter(Resources.resource_type == rtype)
+    if args.get("tags"):
+        q, ok = _narrow_by_tags(ctx.session, ctx.group_id, q, Resources, ResourceTags, "resource_id", args)
+        if not ok:
+            return json.dumps({"resources": [], "count": 0, "returned": 0, "note": "no such tag(s) in this workspace"})
     total = q.count()
     rows = q.limit(min(int(args.get("limit") or 20), 50)).all()
     out = [_resource_ref(r) for r in rows]  # LIST → lean; get_resource returns the full record
@@ -544,14 +561,19 @@ def list_entry_types(ctx: ToolContext, _args: dict) -> str:
 
 @register_tool(
     name="list_assets",
-    description="List the workspace's assets (images, files), optionally filtered by asset_type (e.g. 'image') or a filename substring (query). Returns `count` (true total) plus a lightweight sample — each with a real displayable `url` for thumbnails; call get_asset for the full record.",
+    description="List the workspace's assets (images, files), optionally filtered by asset_type (e.g. 'image'), a filename substring (query), and/or tags. Returns `count` (true total) plus a lightweight sample — each with a real displayable `url` for thumbnails; call get_asset for the full record. Use tags for 'all assets with tag X' — exhaustive, not a ranked search.",
     input_schema={"type": "object", "properties": {
         "asset_type": {"type": "string", "description": "e.g. 'image', 'document'"},
         "query": {"type": "string", "description": "filename/name substring"},
+        "tags": {"type": "array", "items": {"type": "string"}, "description": "only assets carrying ANY of these tags (slug or name) — exhaustive, not ranked"},
         "limit": {"type": "integer"},
     }},
 )
 def list_assets(ctx: ToolContext, args: dict) -> str:
+    from marvin.db.models.platform.asset_tags import AssetTags
+
+    from .builtins_actions import _narrow_by_tags
+
     q = ctx.session.query(Assets).filter(Assets.group_id == ctx.group_id)
     atype = args.get("asset_type")
     if atype:
@@ -559,6 +581,10 @@ def list_assets(ctx: ToolContext, args: dict) -> str:
     text = args.get("query")
     if text:
         q = q.filter((Assets.original_filename.ilike(f"%{text}%")) | (Assets.name.ilike(f"%{text}%")))
+    if args.get("tags"):
+        q, ok = _narrow_by_tags(ctx.session, ctx.group_id, q, Assets, AssetTags, "asset_id", args)
+        if not ok:
+            return json.dumps({"assets": [], "count": 0, "returned": 0, "note": "no such tag(s) in this workspace"})
     total = q.count()
     rows = q.limit(min(int(args.get("limit") or 20), 50)).all()
     out = [_asset_ref(a) for a in rows]  # LIST → lean; get_asset returns the full record
