@@ -32,6 +32,11 @@ class AppStatistics(_MarvinModel):
     total_api_clients: int  # The total number of API clients.
     total_webhooks: int  # The total number of configured webhooks.
 
+    # AI usage, aggregated across every account/workspace.
+    total_ai_operations: int = 0  # Total AI executions run platform-wide.
+    total_ai_tokens: int = 0       # Total AI tokens consumed platform-wide.
+    total_ai_cost_usd: float = 0.0  # Total estimated AI cost (USD) platform-wide.
+
 
 class AppInfo(_MarvinModel):
     """

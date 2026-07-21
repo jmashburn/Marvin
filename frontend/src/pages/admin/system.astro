@@ -104,6 +104,25 @@ try {
           </div>
         </div>
       </section>
+
+      <!-- AI Usage (all accounts) -->
+      <section class="card">
+        <h3>AI Usage (all accounts)</h3>
+        <div class="stat-items">
+          <div class="stat-item">
+            <div class="stat-label">Total AI Operations</div>
+            <div class="stat-value">{stats?.totalAiOperations ?? '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total AI Tokens</div>
+            <div class="stat-value">{stats?.totalAiTokens != null ? Number(stats.totalAiTokens).toLocaleString() : '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total AI Cost</div>
+            <div class="stat-value">{stats?.totalAiCostUsd != null ? '$' + Number(stats.totalAiCostUsd).toFixed(2) : '—'}</div>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </AdminLayout>

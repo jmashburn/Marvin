@@ -78,6 +78,18 @@ class AdminAboutController(BaseAdminController):
         Returns:
             AppStatistics: A Pydantic model containing application statistics.
         """
+        # Platform-wide AI usage — no group filter, so it spans every account.
+        from sqlalchemy import func
+
+        from marvin.db.models.groups.ai_executions import AIExecutionModel
+
+        session = self.repos.session
+        ai_ops = session.query(AIExecutionModel).count()
+        ai_tokens, ai_cost = session.query(
+            func.coalesce(func.sum(AIExecutionModel.total_tokens), 0),
+            func.coalesce(func.sum(AIExecutionModel.estimated_cost_usd), 0.0),
+        ).one()
+
         # Utilize repositories to fetch counts
         return AppStatistics(
             # User & Group stats
@@ -94,6 +106,10 @@ class AdminAboutController(BaseAdminController):
             total_api_tokens=self.repos.api_tokens.count_all(),
             total_api_clients=self.repos.api_clients.count_all(),
             total_webhooks=self.repos.webhooks.count_all(),
+            # AI usage (platform-wide)
+            total_ai_operations=ai_ops,
+            total_ai_tokens=int(ai_tokens or 0),
+            total_ai_cost_usd=float(ai_cost or 0.0),
         )
 
     @router.get("/startup-info", summary="Get Application Startup Information (Admin)")
@@ -113,10 +129,14 @@ class AdminAboutController(BaseAdminController):
         settings = self.settings
 
         # Get settings as dict, excluding sensitive fields
+        # DB_PROVIDER is an internal provider object (holds raw connection fields); the useful,
+        # safe view is DB_ENGINE + the masked DB_URL below, so keep the object itself out of the dump.
         data = settings.model_dump(
-            exclude={"theme", "SECRET", "ENV_SECRETS", "_logger"},
+            exclude={"theme", "SECRET", "ENV_SECRETS", "_logger", "DB_PROVIDER"},
             exclude_none=True,
         )
+        # Surface a masked connection URL in place of the excluded provider object.
+        data["DB_URL"] = settings.DB_URL_PUBLIC
 
         # Add computed @property fields that aren't in model_dump
         # FeatureDetails is a NamedTuple, convert to dict with _asdict()
