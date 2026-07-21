@@ -252,9 +252,17 @@ class WorkspaceSeedLoader:
             zip_path = f"files/{asset['storageKey']}"
             has_binary = zip_file is not None and zip_path in zip_names
 
+            # checksum is NOT NULL but the bundle doesn't carry it — compute from the binary when we
+            # have it, else derive a stable value from the storage key. Keeps restore backend-portable.
+            import hashlib
+
+            checksum_val = asset.get("checksum")
+
             if has_binary:
                 try:
-                    binary_data = BytesIO(zip_file.read(zip_path))
+                    raw_bytes = zip_file.read(zip_path)
+                    binary_data = BytesIO(raw_bytes)
+                    checksum_val = checksum_val or hashlib.sha256(raw_bytes).hexdigest()
 
                     storage_service = AssetStorageService(self.repos, storage_provider)
                     new_storage_key = storage_service.generate_storage_key(
@@ -283,6 +291,11 @@ class WorkspaceSeedLoader:
                 "slug": slug,
                 "name": asset.get("name", slug),
                 "original_filename": asset.get("originalFilename"),
+                # `filename` is NOT NULL but older/portable bundles may not carry it — derive from the
+                # original filename (the same stem the uploader would compute) so restore works on any
+                # backend (Postgres enforces the NOT NULL that SQLite let slide).
+                "filename": asset.get("filename") or Path(asset.get("originalFilename") or slug).stem,
+                "checksum": checksum_val or hashlib.sha256((new_storage_key or slug).encode()).hexdigest(),
                 "extension": asset.get("extension"),
                 "file_size": asset.get("fileSize"),
                 "mime_type": asset.get("mimeType"),
