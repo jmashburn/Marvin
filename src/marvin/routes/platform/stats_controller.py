@@ -1,6 +1,6 @@
 """Platform stats endpoint — returns workspace-scoped resource counts."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter
 from pydantic import UUID4
@@ -9,10 +9,13 @@ from sqlalchemy import func, select
 from marvin.db.models.groups import GroupWebhooksModel
 from marvin.db.models.groups.ai_embeddings import AIEmbeddingModel
 from marvin.db.models.groups.ai_executions import AIExecutionModel
+from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.db.models.groups.secrets import WorkspaceSecret
 from marvin.db.models.groups.variables import WorkspaceVariable
-from marvin.db.models.platform import Assets, Collections, Entries
-from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
+from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+from marvin.db.models.platform import Assets, Collections, Entries, Resources
+from marvin.db.models.platform.event_log import EventLogModel
+from marvin.db.models.platform.scheduled_tasks import ScheduledTaskExecutionLogModel, ScheduledTaskModel
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas._marvin import _MarvinModel
 
@@ -32,6 +35,36 @@ class WorkspaceStats(_MarvinModel):
     ai_embeddings: int = 0
     ai_tokens: int = 0
     ai_cost_usd: float = 0.0
+
+
+class RecentEvent(_MarvinModel):
+    event_type: str
+    message: str
+    entity_type: str | None = None
+    entity_id: str | None = None
+    occurred_at: datetime | None = None
+
+
+class AttentionCounts(_MarvinModel):
+    drafts: int = 0            # entries awaiting review (inbox / draft)
+    ai_suggestions: int = 0    # entities with a pending AI write-back (suggestion_json)
+    failures: int = 0          # failed executions in the last 7 days (tasks/webhooks/notifications/AI)
+
+
+class DashboardData(_MarvinModel):
+    recent_activity: list[RecentEvent] = []
+    attention: AttentionCounts = AttentionCounts()
+
+
+def _event_message(e) -> str:
+    """A human line for an event — the stored message title if present, else a humanized type."""
+    data = e.event_data or {}
+    msg = data.get("message") if isinstance(data, dict) else None
+    if isinstance(msg, dict) and (msg.get("title") or msg.get("body")):
+        return str(msg.get("title") or msg.get("body"))
+    if isinstance(msg, str) and msg:
+        return msg
+    return (e.event_type or "event").replace("_", " ").replace(".", " ").strip().capitalize()
 
 
 def _count(session, model, group_id: UUID4) -> int:
@@ -88,4 +121,63 @@ class StatsController(BaseUserController):
             # Tokens + cost are month-to-date usage flows, aligned with the monthly budget limit.
             ai_tokens=int(_sum(session, AIExecutionModel, AIExecutionModel.total_tokens, workspace_id, since=month_start)),
             ai_cost_usd=float(_sum(session, AIExecutionModel, AIExecutionModel.estimated_cost_usd, workspace_id, since=month_start)),
+        )
+
+    @router.get("/dashboard", response_model=DashboardData, summary="Dashboard activity + attention queue")
+    def get_dashboard(self) -> DashboardData:
+        """Recent workspace activity and the "needs attention" counts — draft entries awaiting
+        review, pending AI suggestions, and recent execution failures. Every query is guarded so a
+        single failure degrades to 0 rather than sinking the whole dashboard."""
+        gid: UUID4 = self.group_id
+        session = self.repos.session
+
+        recent: list[RecentEvent] = []
+        try:
+            rows = (
+                session.execute(
+                    select(EventLogModel)
+                    .where(EventLogModel.workspace_id == gid)
+                    .order_by(EventLogModel.occurred_at.desc())
+                    .limit(8)
+                )
+                .scalars()
+                .all()
+            )
+            recent = [
+                RecentEvent(
+                    event_type=e.event_type, message=_event_message(e), entity_type=e.entity_type,
+                    entity_id=str(e.entity_id) if e.entity_id else None, occurred_at=e.occurred_at,
+                )
+                for e in rows
+            ]
+        except Exception:
+            recent = []
+
+        def _c(stmt) -> int:
+            try:
+                return session.execute(stmt).scalar() or 0
+            except Exception:
+                return 0
+
+        drafts = _c(select(func.count(Entries.id)).where(Entries.group_id == gid, Entries.status.in_(["inbox", "draft"])))
+
+        suggestions = sum(
+            _c(select(func.count(m.id)).where(m.group_id == gid, m.suggestion_json.isnot(None)))
+            for m in (Entries, Assets, Resources)
+        )
+
+        since = datetime.now(UTC) - timedelta(days=7)
+        failures = sum(
+            _c(select(func.count(model.id)).where(model.group_id == gid, model.status == "failed", ts >= since))
+            for model, ts in (
+                (ScheduledTaskExecutionLogModel, ScheduledTaskExecutionLogModel.executed_at),
+                (WebhookExecutionLogModel, WebhookExecutionLogModel.executed_at),
+                (NotificationExecutionLogModel, NotificationExecutionLogModel.executed_at),
+                (AIExecutionModel, AIExecutionModel.created_at),
+            )
+        )
+
+        return DashboardData(
+            recent_activity=recent,
+            attention=AttentionCounts(drafts=drafts, ai_suggestions=suggestions, failures=failures),
         )

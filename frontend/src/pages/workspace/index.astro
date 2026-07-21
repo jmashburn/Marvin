@@ -7,16 +7,41 @@ const authToken = getAuthToken(Astro.cookies);
 
 let workspace = null;
 let stats: any = null;
+let dashboard: any = null;
 let error: string | null = null;
 
 try {
-  [workspace, stats] = await Promise.all([
+  [workspace, stats, dashboard] = await Promise.all([
     getCurrentWorkspace(authToken),
     fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch((e) => { console.error('stats failed:', e); return null; }),
+    fetchApi<any>('/api/platform/stats/dashboard', { method: 'GET' }, authToken).catch((e) => { console.error('dashboard failed:', e); return null; }),
   ]);
 } catch (e) {
   console.error('[workspace] Error:', e);
   error = e instanceof Error ? e.message : String(e);
+}
+
+const recentActivity: any[] = dashboard?.recentActivity ?? dashboard?.recent_activity ?? [];
+const attention = dashboard?.attention ?? {};
+const drafts: number = attention.drafts ?? 0;
+const aiSuggestions: number = attention.aiSuggestions ?? attention.ai_suggestions ?? 0;
+const failures: number = attention.failures ?? 0;
+const attentionTotal = drafts + aiSuggestions + failures;
+
+/** Compact "3m ago" / "2h ago" / "5d ago" from an ISO timestamp. */
+function relTime(iso?: string | null): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (secs < 60) return 'just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
 ---
 
@@ -71,6 +96,55 @@ try {
           <div class="stat-value">{stats ? (stats.aiEmbeddings ?? stats.ai_embeddings ?? 0) : '—'}</div>
           <div class="stat-label">RAG Embeddings</div>
         </a>
+      </div>
+
+      <div class="dashboard-columns">
+        <section class="panel activity-panel">
+          <div class="panel-head">
+            <h3>Recent Activity</h3>
+            <a href="/automation/events" class="panel-link">Event log →</a>
+          </div>
+          {recentActivity.length === 0 ? (
+            <p class="empty">No recent activity yet.</p>
+          ) : (
+            <ul class="activity-list">
+              {recentActivity.map((ev) => (
+                <li class="activity-item">
+                  <span class="activity-dot" aria-hidden="true"></span>
+                  <div class="activity-body">
+                    <span class="activity-msg">{ev.message}</span>
+                    {ev.entityType && <span class="activity-meta">{ev.entityType}</span>}
+                  </div>
+                  <time class="activity-time">{relTime(ev.occurredAt ?? ev.occurred_at)}</time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section class="panel attention-panel">
+          <div class="panel-head">
+            <h3>Needs Attention</h3>
+          </div>
+          {attentionTotal === 0 ? (
+            <p class="empty">All clear — nothing waiting on you. 🎉</p>
+          ) : (
+            <ul class="attention-list">
+              <a href="/entries?status=draft" class="attention-item">
+                <span class={`attention-count ${drafts ? 'warn' : ''}`}>{drafts}</span>
+                <span class="attention-label">Draft entries awaiting review</span>
+              </a>
+              <a href="/workspace/settings/ai-executions" class="attention-item">
+                <span class={`attention-count ${aiSuggestions ? 'info' : ''}`}>{aiSuggestions}</span>
+                <span class="attention-label">Pending AI suggestions</span>
+              </a>
+              <a href="/automation/events" class="attention-item">
+                <span class={`attention-count ${failures ? 'danger' : ''}`}>{failures}</span>
+                <span class="attention-label">Failed executions (last 7 days)</span>
+              </a>
+            </ul>
+          )}
+        </section>
       </div>
 
       <div class="quick-links">
@@ -172,6 +246,152 @@ try {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--muted);
+  }
+
+  .dashboard-columns {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+
+  @media (max-width: 720px) {
+    .dashboard-columns { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .panel-head h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .panel-link {
+    font-size: 13px;
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .panel-link:hover { text-decoration: underline; }
+
+  .empty {
+    margin: 8px 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .activity-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .activity-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .activity-item:last-child { border-bottom: none; }
+
+  .activity-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.7;
+  }
+
+  .activity-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .activity-msg {
+    font-size: 14px;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .activity-meta {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+  }
+
+  .activity-time {
+    flex: none;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .attention-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .attention-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .attention-item:hover {
+    border-color: var(--accent);
+    background: var(--panel-hover, rgb(0 0 0 / 0.02));
+  }
+
+  .attention-count {
+    flex: none;
+    min-width: 40px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .attention-count.warn { color: #d97706; }
+  .attention-count.info { color: var(--accent); }
+  .attention-count.danger { color: var(--color-error, #dc2626); }
+
+  .attention-label {
+    font-size: 14px;
+    color: var(--ink);
   }
 
   .quick-links {
