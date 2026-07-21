@@ -106,7 +106,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
         <div class="modal-actions">
           <button type="button" class="button secondary" id="cancel-profile-btn">Cancel</button>
-          <button type="submit" class="button primary">Save Profile</button>
+          <button type="submit" class="button">Save Profile</button>
         </div>
       </form>
     </div>
@@ -130,7 +130,7 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
         <div id="test-result" class="test-result hidden"></div>
         <div class="modal-actions">
           <button type="button" class="button secondary" id="cancel-test-btn">Close</button>
-          <button type="submit" class="button primary">Send Test</button>
+          <button type="submit" class="button">Send Test</button>
         </div>
       </form>
     </div>
@@ -185,10 +185,10 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
             <td>${from}</td>
             <td><span class="badge badge-sec">${esc(p.authStrategy)}</span></td>
             <td class="row-actions">
-              ${p.isActive ? '' : `<button class="button secondary xs act-btn" data-id="${p.id}">Activate</button>`}
-              <button class="button secondary xs test-btn" data-id="${p.id}" data-name="${esc(p.name)}">Test</button>
-              <button class="button secondary xs edit-btn" data-id="${p.id}">Edit</button>
-              <button class="button danger xs del-btn" data-id="${p.id}" data-name="${esc(p.name)}">Delete</button>
+              ${p.isActive ? '' : `<button class="button secondary small act-btn" data-id="${p.id}">Activate</button>`}
+              <button class="button secondary small test-btn" data-id="${p.id}" data-name="${esc(p.name)}">Test</button>
+              <button class="button secondary small edit-btn" data-id="${p.id}">Edit</button>
+              <button class="button danger small del-btn" data-id="${p.id}" data-name="${esc(p.name)}">Delete</button>
             </td>
           </tr>`;
       }).join('');
@@ -370,17 +370,27 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
 
   .smtp-page { max-width: 960px; }
 
-  .loading-state, .empty-state {
+  .footnote { margin: 16px 2px 0; font-size: 12px; color: var(--muted); }
+
+  .hidden { display: none; }
+
+  /*
+   * The profiles table, badges, and row buttons are built by client JS (see renderProfiles),
+   * so they never receive Astro's scope attribute. Style them via :global(), anchored under the
+   * static .smtp-page wrapper so the rules stay confined to this page.
+   */
+  .smtp-page :global(.loading-state),
+  .smtp-page :global(.empty-state) {
     padding: 48px 24px;
     text-align: center;
     background: var(--panel);
     border: 1px dashed var(--line);
     border-radius: var(--radius);
   }
-  .empty-state p { margin: 0 0 6px; font-size: 15px; font-weight: 500; }
-  .empty-state small { color: var(--muted); font-size: 13px; }
+  .smtp-page :global(.empty-state p) { margin: 0 0 6px; font-size: 15px; font-weight: 500; }
+  .smtp-page :global(.empty-state small) { color: var(--muted); font-size: 13px; }
 
-  .profiles-table {
+  .smtp-page :global(.profiles-table) {
     width: 100%;
     border-collapse: collapse;
     background: var(--panel);
@@ -388,27 +398,28 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     border-radius: var(--radius);
     overflow: hidden;
   }
-  .profiles-table th, .profiles-table td {
+  .smtp-page :global(.profiles-table th),
+  .smtp-page :global(.profiles-table td) {
     padding: 12px 16px;
     text-align: left;
     border-bottom: 1px solid var(--line);
     font-size: 14px;
     vertical-align: middle;
   }
-  .profiles-table thead th {
+  .smtp-page :global(.profiles-table thead th) {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--muted);
     font-weight: 600;
   }
-  .profiles-table tbody tr:last-child td { border-bottom: none; }
-  .profiles-table code { font-family: ui-monospace, monospace; font-size: 13px; color: var(--accent); }
-  .profiles-table .muted { color: var(--muted); }
+  .smtp-page :global(.profiles-table tbody tr:last-child td) { border-bottom: none; }
+  .smtp-page :global(.profiles-table code) { font-family: ui-monospace, monospace; font-size: 13px; color: var(--accent); }
+  .smtp-page :global(.profiles-table .muted) { color: var(--muted); }
 
-  .row-actions { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+  .smtp-page :global(.row-actions) { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
 
-  .badge {
+  .smtp-page :global(.badge) {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 4px;
@@ -418,16 +429,11 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     letter-spacing: 0.4px;
     margin-left: 8px;
   }
-  .badge-active { background: rgb(53 122 85 / 0.15); color: var(--good); }
-  .badge-sec { background: var(--panel-2); color: var(--muted); margin-left: 0; }
+  .smtp-page :global(.badge-active) { background: rgb(53 122 85 / 0.15); color: var(--good); }
+  .smtp-page :global(.badge-sec) { background: var(--panel-2); color: var(--muted); margin-left: 0; }
 
-  .footnote { margin: 16px 2px 0; font-size: 12px; color: var(--muted); }
-
-  .button.xs { padding: 4px 10px; font-size: 12px; }
-  .button.danger { background: var(--color-error); color: white; }
-  .button.danger:hover { background: var(--color-error-dark, var(--color-error)); opacity: 0.9; }
-
-  .hidden { display: none; }
+  .smtp-page :global(.button.small) { padding: 6px 12px; font-size: 13px; }
+  .smtp-page :global(.button.danger) { background: var(--color-error); color: white; border-color: var(--color-error); }
 
   /* Modal */
   .modal { display: none; position: fixed; inset: 0; z-index: 1000; }
@@ -488,9 +494,6 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     display: flex; gap: 12px; justify-content: flex-end;
     margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line);
   }
-  .button.primary { background: var(--primary, var(--accent)); color: white; }
-  .button.primary:hover { opacity: 0.9; }
-
   .test-result { margin-top: 16px; padding: 10px 14px; border-radius: var(--radius); font-size: 13px; }
   .test-result.info, .test-result.success {
     background: rgba(79,156,132,0.1); color: var(--accent); border: 1px solid var(--accent);

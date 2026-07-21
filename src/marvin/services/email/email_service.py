@@ -340,8 +340,39 @@ class EmailService(BaseService):
         Returns:
             bool: True if email sent successfully
         """
-        # Validate required variables BEFORE the rendering try-block so ValueError propagates
+        try:
+            subject, html_content = self.render_db_template(db_template, variables)
+        except ValueError:
+            raise  # Missing-required-variable errors propagate to the caller.
+        except Exception as e:
+            self.logger.error(f"Error rendering database template: {e}")
+            return False
+
+        # Send via configured sender
+        if not self.settings.SMTP_ENABLED:
+            self.logger.info(f"SMTP is disabled. Email not sent to {recipient_address} (Subject: {subject}).")
+            return False
+
+        success = self.sender.send(recipient_address, subject, html_content)
+        if success:
+            self.logger.info(f"Email '{subject}' sent successfully to {recipient_address} (DB template: {db_template.name}).")
+        else:
+            self.logger.error(f"Failed to send email '{subject}' to {recipient_address}.")
+        return success
+
+    def render_db_template(self, db_template, variables: dict) -> tuple[str, str]:
+        """Render a DB email template to ``(subject, html_content)``.
+
+        Supports two modes (custom_html takes priority):
+        1. custom_html: Full HTML rendered with Jinja2 and sent as-is (no chrome wrapper).
+        2. body_markdown: Markdown → HTML, injected into the default.html chrome.
+
+        {{SLUG}} workspace secrets/variables are resolved before Jinja2 rendering.
+        Raises ValueError if the template is missing required variables.
+        """
         from marvin.services.email.system_templates import validate_template_content
+
+        # Validate required variables first so ValueError propagates to the caller.
         has_custom_html = bool(db_template.custom_html and db_template.custom_html.strip())
         if not has_custom_html:
             content_fields = {
@@ -352,68 +383,52 @@ class EmailService(BaseService):
             if missing:
                 raise ValueError(f"Template is missing required variables: {', '.join('{{' + v + '}}' for v in missing)}")
 
+        from jinja2 import Template
+        from marvin.services.secrets.resolver import resolve
+
+        group_id = getattr(db_template, "group_id", None)
+
+        def _r(text: str | None) -> str:
+            return resolve(text or "", group_id, allow_secrets=False, context=variables)
+
+        # Render subject with Jinja2
         try:
-            from jinja2 import Template
-            from marvin.services.secrets.resolver import resolve
+            subject = Template(_r(db_template.subject)).render(**variables)
+        except Exception:
+            subject = db_template.subject or "(no subject)"
 
-            group_id = getattr(db_template, "group_id", None)
+        # Shared button_link derivation
+        button_link = (
+            variables.get("invitation_url") or variables.get("reset_url")
+            or variables.get("login_url") or variables.get("action_url")
+            or variables.get("button_link", "")
+        )
 
-            def _r(text: str | None) -> str:
-                return resolve(text or "", group_id, allow_secrets=False, context=variables)
-
-            # Render subject with Jinja2
+        def _render_safe(text: str) -> str:
+            """Render Jinja2 template, falling back to raw text on syntax/render errors."""
             try:
-                subject = Template(_r(db_template.subject)).render(**variables)
-            except Exception:
-                subject = db_template.subject or "(no subject)"
+                return Template(_r(text)).render(**variables)
+            except Exception as exc:
+                self.logger.warning(f"Template render error (sending raw): {exc}")
+                return text
 
-            # Shared button_link derivation
-            button_link = (
-                variables.get("invitation_url") or variables.get("reset_url")
-                or variables.get("login_url") or variables.get("action_url")
-                or variables.get("button_link", "")
-            )
+        # Determine rendering mode
+        raw_custom = db_template.custom_html or ""
+        if raw_custom.strip():
+            # Mode 1: custom_html — render Jinja2 variables and send as-is (no chrome wrapper)
+            return subject, _render_safe(raw_custom)
 
-            def _render_safe(text: str) -> str:
-                """Render Jinja2 template, falling back to raw text on syntax/render errors."""
-                try:
-                    return Template(_r(text)).render(**variables)
-                except Exception as exc:
-                    self.logger.warning(f"Template render error (sending raw): {exc}")
-                    return text
-
-            # Determine rendering mode
-            raw_custom = db_template.custom_html or ""
-            if raw_custom.strip():
-                # Mode 1: custom_html — render Jinja2 variables and send as-is (no chrome wrapper)
-                html_content = _render_safe(raw_custom)
-            else:
-                # Mode 2: body_markdown — render Jinja2 variables, convert to HTML, inject into default.html chrome
-                raw_markdown = db_template.body_markdown or ""
-                rendered_markdown = _render_safe(raw_markdown)
-                body_html = self._markdown_to_html(rendered_markdown)
-                template_data = EmailTemplate(
-                    subject=subject,
-                    header_text=variables.get("message_title", ""),
-                    message_top=body_html,
-                    message_bottom="",
-                    button_link=button_link,
-                    button_text="",
-                    workspace_name=variables.get("workspace_name", ""),
-                )
-                html_content = template_data.render_html(self.default_template)
-
-            # Send via configured sender
-            if not self.settings.SMTP_ENABLED:
-                self.logger.info(f"SMTP is disabled. Email not sent to {recipient_address} (Subject: {subject}).")
-                return False
-
-            success = self.sender.send(recipient_address, subject, html_content)
-            if success:
-                self.logger.info(f"Email '{subject}' sent successfully to {recipient_address} (DB template: {db_template.name}).")
-            else:
-                self.logger.error(f"Failed to send email '{subject}' to {recipient_address}.")
-            return success
-        except Exception as e:
-            self.logger.error(f"Error rendering database template: {e}")
-            return False
+        # Mode 2: body_markdown — render Jinja2 variables, convert to HTML, inject into default.html chrome
+        raw_markdown = db_template.body_markdown or ""
+        rendered_markdown = _render_safe(raw_markdown)
+        body_html = self._markdown_to_html(rendered_markdown)
+        template_data = EmailTemplate(
+            subject=subject,
+            header_text=variables.get("message_title", ""),
+            message_top=body_html,
+            message_bottom="",
+            button_link=button_link,
+            button_text="",
+            workspace_name=variables.get("workspace_name", ""),
+        )
+        return subject, template_data.render_html(self.default_template)

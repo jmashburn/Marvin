@@ -157,6 +157,8 @@ class SMTPProfilesController(BaseUserController):
                 detail="This profile has no From address and no global SMTP_FROM_EMAIL fallback is set.",
             )
 
+        subject, html = self._render_notification_email(profile)
+
         strategy = (profile.auth_strategy or "TLS").upper()
         options = EmailOptions(
             host=profile.host,
@@ -168,13 +170,32 @@ class SMTPProfilesController(BaseUserController):
         )
 
         message = Message(
-            subject=f"Test email from '{profile.name}'",
-            html=(
-                f"<p>This is a test email sent through the <strong>{profile.name}</strong> "
-                f"SMTP profile. If you received it, the profile works.</p>"
-            ),
+            subject=subject,
+            html=html,
             mail_from_name=from_name,
             mail_from_address=from_email,
         )
         result = message.send(to_address=data.recipient_email, smtp_config=options)
         return SMTPProfileTestResult(success=result.success, message=result.message)
+
+    def _render_notification_email(self, profile: WorkspaceSMTPProfileModel) -> tuple[str, str]:
+        """Render the workspace notification email (the customized "custom" template if one
+        exists, else the system default) so the test email mirrors a real notification. Falls
+        back to a minimal message if no template is available or rendering fails."""
+        from marvin.services.email.email_service import EmailService
+
+        workspace_name = getattr(self.group, "name", "") or ""
+        fallback = (
+            f"Notification from {workspace_name}" if workspace_name else "Test notification",
+            f"<p>This is a test email sent through the <strong>{profile.name}</strong> "
+            f"SMTP profile. If you received it, the profile works.</p>",
+        )
+        try:
+            email_service = EmailService(group_id=str(self.group_id))
+            template = email_service._get_db_template("custom", str(self.group_id))
+            if not template:
+                return fallback
+            return email_service.render_db_template(template, {"workspace_name": workspace_name})
+        except Exception as exc:
+            self.logger.warning(f"Falling back to generic test email — notification render failed: {exc}")
+            return fallback
