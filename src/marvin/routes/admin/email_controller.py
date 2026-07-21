@@ -123,7 +123,15 @@ class AdminEmailController(BaseAdminController):
         Returns:
             List of system email template summaries
         """
-        templates = self.repo.get_all()
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
+
+        # System templates only: group_id IS NULL. (The generic repo's get_all() returns every
+        # template, so workspace/custom ones would otherwise show up mislabelled as "System".)
+        templates = (
+            self.repos.session.query(EmailTemplateModel)
+            .filter(EmailTemplateModel.group_id.is_(None))
+            .all()
+        )
         return [EmailTemplateSummary.model_validate(t) for t in templates]
 
     @router.get("/templates/{template_id}", response_model=EmailTemplateRead, summary="Get System Email Template")
