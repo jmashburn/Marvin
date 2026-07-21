@@ -96,6 +96,13 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
             <input type="email" id="f-from-email" placeholder="no-reply@example.com" />
           </div>
 
+          <p class="form-hint span-2">
+            Gmail / Google Workspace rewrites the From to the account you authenticate as, unless this
+            address is a verified <strong>“Send mail as”</strong> alias on it. To send from a different
+            domain, verify it in that Google account — or use a transactional provider (SendGrid, Postmark,
+            Mailgun, SES).
+          </p>
+
           <div class="form-group span-2">
             <label class="checkbox-label">
               <input type="checkbox" id="f-active" />
@@ -483,6 +490,18 @@ const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
     color: var(--ink);
   }
   .form-group small { font-size: 12px; color: var(--muted); }
+
+  .form-hint {
+    grid-column: 1 / -1;
+    margin: -4px 0 0;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
 
   .checkbox-label {
     display: flex; align-items: center; gap: 10px;
