@@ -755,6 +755,18 @@ wheels = [
 ]
 
 [[package]]
+name = "hvac"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e2/57/b46c397fb3842cfb02a44609aa834c887f38dd75f290c2fc5a34da4b2fee/hvac-2.4.0.tar.gz", hash = "sha256:e0056ad9064e7923e874e6769015b032580b639e29246f5ab1044f7959c1c7e0", size = 332543 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/55/33/71e45a6bd6875f44a26f99da31c63b6840123e88bedf2c0b1ce429b8be12/hvac-2.4.0-py3-none-any.whl", hash = "sha256:008db5efd8c2f77bd37d2368ea5f713edceae1c65f11fd608393179478649e0f", size = 155921 },
+]
+
+[[package]]
 name = "identify"
 version = "2.6.12"
 source = { registry = "https://pypi.org/simple" }
@@ -982,7 +994,6 @@ dependencies = [
     { name = "pyhumps" },
     { name = "pyjwt" },
     { name = "python-dateutil" },
-    { name = "python-ldap" },
     { name = "python-slugify" },
     { name = "rich" },
     { name = "ruff" },
@@ -1032,8 +1043,14 @@ dev = [
     { name = "ruff" },
     { name = "types-pyyaml" },
 ]
+ldap = [
+    { name = "python-ldap" },
+]
 postgres = [
     { name = "postgres" },
+]
+vault = [
+    { name = "hvac" },
 ]
 
 [package.metadata]
@@ -1069,7 +1086,6 @@ requires-dist = [
     { name = "pyhumps", specifier = ">=3.8.0" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
-    { name = "python-ldap", specifier = ">=3.4.5" },
     { name = "python-slugify", specifier = ">=8.0.4" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "ruff", specifier = ">=0.11.7" },
@@ -1100,8 +1116,9 @@ dev = [
     { name = "ruff", specifier = ">=0.11.7" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250402" },
 ]
-ldap = []
+ldap = [{ name = "python-ldap", specifier = ">=3.4.5" }]
 postgres = [{ name = "postgres", specifier = ">=4.0" }]
+vault = [{ name = "hvac", specifier = ">=2.0" }]
 
 [[package]]
 name = "mccabe"

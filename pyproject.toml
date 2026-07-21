@@ -88,6 +88,8 @@ ldap = ["python-ldap>=3.4.5"]
 postgres = [
     "postgres>=4.0",
 ]
+# Optional HashiCorp Vault secret backend (SECRET_BACKEND=vault). Opt in with `uv sync --group vault`.
+vault = ["hvac>=2.0"]
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"
