@@ -85,9 +85,9 @@ dev = [
 # Optional LDAP auth. Needs system libs to build the C extension (libldap2-dev, libsasl2-dev)
 # and is only imported when LDAP auth is enabled. Opt in with `uv sync --group ldap`.
 ldap = ["python-ldap>=3.4.5"]
-postgres = [
-    "postgres>=4.0",
-]
+# Optional PostgreSQL driver. SQLAlchemy's bare `postgresql://` dialect uses psycopg2;
+# the binary wheel needs no build step. Opt in with `uv sync --group postgres`.
+postgres = ["psycopg2-binary>=2.9"]
 # Optional HashiCorp Vault secret backend (SECRET_BACKEND=vault). Opt in with `uv sync --group vault`.
 vault = ["hvac>=2.0"]
 # Optional Bitwarden Secrets Manager backend (SECRET_BACKEND=bitwarden). Opt in with `uv sync --group bitwarden`.
