@@ -4,10 +4,9 @@ import json
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import UUID4
-from slugify import slugify
 
 from marvin.routes._base import BaseUserController, controller
-from marvin.schemas.platform import AssetBulkUploadResult, AssetRead, AssetUpdate, AssetUploadRequest
+from marvin.schemas.platform import AssetRead, AssetUpdate, AssetUploadRequest
 from marvin.services.assets.asset_storage_service import AssetStorageService
 from marvin.services.event_bus_service.event_types import EventAssetData, EventTypes
 from marvin.services.storage.provider_factory import get_storage_provider
@@ -94,87 +93,6 @@ class AssetsController(BaseUserController):
         )
 
         return asset
-
-    @router.post("/bulk-upload", response_model=AssetBulkUploadResult, status_code=status.HTTP_201_CREATED,
-                 summary="Bulk Upload Assets")
-    async def bulk_upload_assets(
-        self,
-        files: list[UploadFile] = File(...),
-        attach_to: str | None = Form(None),
-    ) -> AssetBulkUploadResult:
-        """Upload several files at once (native multipart) and, optionally, attach them to an entry.
-
-        When `attach_to` is set the images fill that entry type's recipe roles by position (first →
-        hero, the rest → gallery), then the recipe's per-role `derive` steps run to fulfill it from
-        what was uploaded — e.g. one hero yields a cropped `thumbnail` — so a single upload can meet
-        a recipe that wants more. Anything the recipe still requires but nothing could supply (a
-        required gallery photo has no source to derive from) comes back in `unmet` for a human.
-        """
-        import uuid
-
-        storage = get_storage_provider()
-        asset_service = AssetStorageService(self.repos, storage)
-
-        created: list[AssetRead] = []
-        for f in files:
-            base = (f.filename or "upload").rsplit("/", 1)[-1]
-            name = base.rsplit(".", 1)[0] or "upload"
-            slug = f"{slugify(name) or 'asset'}-{uuid.uuid4().hex[:6]}"
-            asset = asset_service.upload_asset(
-                upload_file=f,
-                upload_request=AssetUploadRequest(slug=slug, name=name),
-                group_id=self.group_id, user_id=self.user.id,
-            )
-            self.event_bus.dispatch(
-                integration_id="asset_management", group_id=self.group_id,
-                event_type=EventTypes.asset_uploaded,
-                document_data=EventAssetData.from_schema(
-                    asset, workspace_id=self.group_id,
-                    workspace_name=self.group.name if self.group else None,
-                    uploader_id=self.user.id if self.user else None,
-                    uploader_name=self.user.full_name if self.user else None,
-                ),
-                message=f"Asset {asset.name} uploaded",
-            )
-            created.append(asset)
-
-        result = AssetBulkUploadResult(assets=created)
-        if not attach_to or not created:
-            return result
-
-        from marvin.db.models.platform.entries import Entries
-        from marvin.services.ai.entity_resolve import resolve_entity_id
-        from marvin.services.assets.asset_derivation_service import AssetDerivationService
-        from marvin.services.entries import EntryService
-
-        entry_id = resolve_entity_id(self.session, self.group_id, "entry", attach_to)
-        entry = self.session.get(Entries, entry_id) if entry_id else None
-        if not entry or entry.group_id != self.group_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Entry '{attach_to}' not found.")
-
-        roles = self._recipe_roles(entry)
-        svc = EntryService(self.session, self.group_id, event_bus=self.event_bus, actor_id=self.user.id)
-        for j, asset in enumerate(created):
-            role = roles[j] if j < len(roles) else (roles[-1] if roles else None)
-            status_ = svc.attach_asset(entry_id, asset.id, role=role)
-            result.attached.append({"asset_id": str(asset.id), "role": role, "status": status_})
-        result.attached_to = str(attach_to)
-
-        fulfilled = AssetDerivationService(self.repos, storage).fulfill_for_entry(
-            entry, self.group_id, self.user.id, event_bus=self.event_bus,
-        )
-        result.derived = fulfilled["derived"]
-        result.unmet = fulfilled["unmet"]
-        return result
-
-    def _recipe_roles(self, entry) -> list:
-        """The entry type's declared asset roles (e.g. [hero, gallery]) for role-by-position attach."""
-        from marvin.db.models.platform.entry_types import EntryTypes
-        from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
-
-        et = self.session.get(EntryTypes, entry.entry_type_id)
-        recipe = EntryTypeRecipe.model_validate((et.recipe_json if et else {}) or {})
-        return [r.role for r in recipe.assets.roles] if (recipe.assets and recipe.assets.roles) else []
 
     @router.get("/{item_id}", response_model=AssetRead, summary="Get Asset")
     def get_asset(self, item_id: UUID4) -> AssetRead:
