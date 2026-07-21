@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from .invite_tokens import GroupInviteToken
     from .reports import ReportModel
     from .secrets import WorkspaceSecret
+    from .smtp_profiles import WorkspaceSMTPProfileModel
     from .variables import WorkspaceVariable
     from .webhooks import GroupWebhooksModel
 
@@ -108,6 +109,10 @@ class Groups(SqlAlchemyBase, BaseMixins):
     # Relationship to WorkspaceSecret (one-to-many)
     secrets: Mapped[list["WorkspaceSecret"]] = orm.relationship(
         "WorkspaceSecret", **_common_relationship_args, doc="Workspace secrets."
+    )
+
+    smtp_profiles: Mapped[list["WorkspaceSMTPProfileModel"]] = orm.relationship(
+        "WorkspaceSMTPProfileModel", **_common_relationship_args, doc="Named SMTP profiles for this workspace."
     )
     # Relationship to WorkspaceVariable (one-to-many)
     variables: Mapped[list["WorkspaceVariable"]] = orm.relationship(
