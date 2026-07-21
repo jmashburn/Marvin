@@ -163,6 +163,21 @@ wheels = [
 ]
 
 [[package]]
+name = "bitwarden-sdk"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/8b/561140803e14f5fcb461814af08efe686ff4f07eb0fe8d6721cb887008bf/bitwarden_sdk-2.1.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:659b7e3faaab067f38556ffaaa7edf217e581047234f9a748770fa2926d2664c", size = 3720715 },
+    { url = "https://files.pythonhosted.org/packages/f4/7c/b4d87586010d365c01cffe2e1b28814072fae3c7a59dcfd85c7a51d11b7e/bitwarden_sdk-2.1.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:8374ef97e481c17a0b65e1b8d700df492cb384ff5a4888bd2c697c37457fc332", size = 3516944 },
+    { url = "https://files.pythonhosted.org/packages/cf/56/44bdc84935648f735ce80df7e88cdaa133fb45a2fee745343ea2dfa26095/bitwarden_sdk-2.1.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:cdf85d309aecf21c563c9245322d49a344135761d03cffa43b8703f509bc0df7", size = 3315068 },
+    { url = "https://files.pythonhosted.org/packages/7e/f4/ccdcadee82f88ec3c52a3b6e0db11df4c5587db171a2c979e4e9eb76b1d4/bitwarden_sdk-2.1.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b6f6b2624e340307891edc20a2860ec0b7c2140683eec2ce2e20d1076ffe9268", size = 3519632 },
+    { url = "https://files.pythonhosted.org/packages/58/49/cb3ed348f7bd35cc323021c11bee70304e446f3d5a6fca678987b4c47d23/bitwarden_sdk-2.1.0-cp39-abi3-win_amd64.whl", hash = "sha256:2c5de50af003b7b2d16a9a690d3111480d1b1962eb25f39e416812d6d9d4e4d6", size = 3453431 },
+]
+
+[[package]]
 name = "boto3"
 version = "1.43.42"
 source = { registry = "https://pypi.org/simple" }
@@ -1029,6 +1044,9 @@ openai = [
 ]
 
 [package.dev-dependencies]
+bitwarden = [
+    { name = "bitwarden-sdk" },
+]
 dev = [
     { name = "coverage" },
     { name = "freezegun" },
@@ -1047,7 +1065,7 @@ ldap = [
     { name = "python-ldap" },
 ]
 postgres = [
-    { name = "postgres" },
+    { name = "psycopg2-binary" },
 ]
 vault = [
     { name = "hvac" },
@@ -1102,6 +1120,7 @@ requires-dist = [
 provides-extras = ["openai", "anthropic", "google", "ollama", "all-ai"]
 
 [package.metadata.requires-dev]
+bitwarden = [{ name = "bitwarden-sdk", specifier = ">=1.0.0" }]
 dev = [
     { name = "coverage", specifier = ">=7.8.0" },
     { name = "freezegun", specifier = ">=1.5.1" },
@@ -1117,7 +1136,7 @@ dev = [
     { name = "types-pyyaml", specifier = ">=6.0.12.20250402" },
 ]
 ldap = [{ name = "python-ldap", specifier = ">=3.4.5" }]
-postgres = [{ name = "postgres", specifier = ">=4.0" }]
+postgres = [{ name = "psycopg2-binary", specifier = ">=2.9" }]
 vault = [{ name = "hvac", specifier = ">=2.0" }]
 
 [[package]]
@@ -1393,19 +1412,6 @@ wheels = [
 ]
 
 [[package]]
-name = "postgres"
-version = "4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "psycopg2-binary" },
-    { name = "psycopg2-pool" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/d3/2e3c6dee18902886e4bee95596ce893aba90b6a4f4f6008986acc53e039c/postgres-4.0.tar.gz", hash = "sha256:67c57de10c0d39cd5e3437eef7ac895b2b53747603b3edcd261dedec5ac04d4c", size = 19650 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/3a/f3cdb49983f5470412eb08ccf3a3a1bfc476acf1c010086019604f555ca8/postgres-4.0-py2.py3-none-any.whl", hash = "sha256:d81f757acbde2ca12785b8a3d44c39f1e49782963e84eb67d3e029ad67d6b1d3", size = 21706 },
-]
-
-[[package]]
 name = "pre-commit"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1465,18 +1471,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2d/70/aa69c9f69cf09a01da224909ff6ce8b68faeef476f00f7ec377e8f03be70/psycopg2_binary-2.9.10-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:c3cc28a6fd5a4a26224007712e79b81dbaee2ffb90ff406256158ec4d7b52b47", size = 2959312 },
     { url = "https://files.pythonhosted.org/packages/d3/bd/213e59854fafe87ba47814bf413ace0dcee33a89c8c8c814faca6bc7cf3c/psycopg2_binary-2.9.10-cp312-cp312-win32.whl", hash = "sha256:ec8a77f521a17506a24a5f626cb2aee7850f9b69a0afe704586f63a464f3cd64", size = 1025191 },
     { url = "https://files.pythonhosted.org/packages/92/29/06261ea000e2dc1e22907dbbc483a1093665509ea586b29b8986a0e56733/psycopg2_binary-2.9.10-cp312-cp312-win_amd64.whl", hash = "sha256:18c5ee682b9c6dd3696dad6e54cc7ff3a1a9020df6a5c0f861ef8bfd338c3ca0", size = 1164031 },
-]
-
-[[package]]
-name = "psycopg2-pool"
-version = "1.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "psycopg2-binary" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ba/8f/a5ae396ec7aa955e9d234b7d38ae3e975a47fbf45c7f4571be4b0e7473b4/psycopg2-pool-1.2.tar.gz", hash = "sha256:e9ec38d5af15b7cef5546452797935129c99482b25646f258a21786bfb826bf3", size = 11385 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/37/99fc8b2725df9b9c3df8a184209480290d1300cd7a4cb14ed6b29ce6ef9e/psycopg2_pool-1.2-py2.py3-none-any.whl", hash = "sha256:3c8251f6fac3145eb4c5bf3407bb61543dbbcbb8117af1341cd7a8b5468aedbb", size = 7349 },
 ]
 
 [[package]]

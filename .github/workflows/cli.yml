@@ -80,6 +80,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: marvin-cli/package-lock.json
 
+      - name: Install system dependencies (OpenLDAP headers for python-ldap)
+        run: sudo apt-get update && sudo apt-get install -y libldap2-dev libsasl2-dev
+
       - name: Install Marvin backend dependencies
         working-directory: marvin
         run: |
