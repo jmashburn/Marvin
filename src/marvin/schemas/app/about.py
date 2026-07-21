@@ -23,6 +23,7 @@ class LoginInfo(_MarvinModel):
     oidc_provider_name: str = "OAuth"
     oidc_auto_redirect: bool = False
     allow_signup: bool = False
+    is_demo: bool = False  # Demo mode seeds sample users; the login page shows their credentials only then.
 
 
 class AppStatistics(_MarvinModel):

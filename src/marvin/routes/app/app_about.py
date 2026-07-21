@@ -30,6 +30,7 @@ def get_login_info() -> LoginInfo:
         oidc_provider_name=settings.OIDC_PROVIDER_NAME,
         oidc_auto_redirect=settings.OIDC_AUTO_REDIRECT,
         allow_signup=settings.ALLOW_SIGNUP,
+        is_demo=settings.IS_DEMO,
     )
 
 

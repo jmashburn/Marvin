@@ -18,6 +18,7 @@ const returnPath = Astro.url.searchParams.get('return');
 let oidcEnabled = false;
 let oidcProviderName = 'OAuth';
 let oidcAutoRedirect = false;
+let isDemo = false;
 
 try {
   const res = await fetch(`${API_BASE_URL}/api/app/about/login-info`);
@@ -26,6 +27,7 @@ try {
     oidcEnabled = info.oidc_enabled ?? false;
     oidcProviderName = info.oidc_provider_name ?? 'OAuth';
     oidcAutoRedirect = info.oidc_auto_redirect ?? false;
+    isDemo = info.is_demo ?? false;
   }
 } catch {
   // Backend unreachable — fall through to password-only login
@@ -109,11 +111,13 @@ const oauthUrl = `${API_BASE_URL}/api/auth/oauth`;
           </Fragment>
         )}
 
-        <div class="login-footer">
-          <p class="help-text">
-            Default credentials: <code>jason</code> / <code>MyPassword</code>
-          </p>
-        </div>
+        {isDemo && (
+          <div class="login-footer">
+            <p class="help-text">
+              Demo credentials: <code>jason</code> / <code>MyPassword</code>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   </body>

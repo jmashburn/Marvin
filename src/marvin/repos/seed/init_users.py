@@ -3,9 +3,9 @@ This module provides functions for initializing default and development users
 in the Marvin application.
 
 It includes utilities to:
-- Define data for a set of development users.
+- Define data for a set of sample demo users.
 - Create a default administrative user.
-- Conditionally create development users if the application is not in production mode.
+- Conditionally create sample users only when the application is in demo mode.
 """
 
 from marvin.core import root_logger
@@ -77,8 +77,8 @@ def dev_users() -> list[dict]:
 
 def default_user_init(db: AllRepositories) -> None:
     """
-    Initializes the default administrative user and, if not in production,
-    creates additional development users.
+    Initializes the default administrative user and, in demo mode only,
+    creates additional sample users.
 
     The default admin user is created with credentials specified in the application
     settings (e.g., `settings.DEFAULT_EMAIL`, `settings.DEFAULT_PASSWORD`).
@@ -127,9 +127,10 @@ def default_user_init(db: AllRepositories) -> None:
     db.session.commit()
     logger.info(f"Workspace membership created: {admin_user.username} -> {settings.DEFAULT_GROUP} (OWNER)")
 
-    # If the application is not in production mode, create development users
-    if not settings.PRODUCTION:
-        logger.info("Non-production environment detected, creating development users.")
+    # Sample users exist only for the demo experience. A real install (production or otherwise)
+    # gets just the Admin — never the seeded cast.
+    if settings.IS_DEMO:
+        logger.info("Demo environment detected, creating sample users.")
         for user_data in dev_users():
             # Extract workspace_role before creating user (it's not a User model field)
             workspace_role = user_data.pop("workspace_role", WorkspaceRole.VIEWER)
