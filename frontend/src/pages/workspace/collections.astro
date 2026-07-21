@@ -29,6 +29,7 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
 ---
 
 <AppLayout title="Collections">
+  <div id="delete-error" class="error-banner" style="margin-bottom:1rem;display:none;"></div>
   {error ? (
     <div class="error-banner">
       <p><strong>Error loading collections:</strong> {error}</p>
@@ -257,6 +258,37 @@ const smartCollections = sortedCollections.filter(c => c.isSmart);
 </AppLayout>
 
 <script>
+  // Intercept collection delete submits so a failed delete (e.g. 409 — collection
+  // still in use by entries) shows an inline banner instead of navigating to the
+  // /delete endpoint and rendering raw JSON. The button's onclick confirm() has
+  // already gate-kept the submit, so no second prompt here.
+  document.addEventListener('submit', async (e) => {
+    const form = e.target as HTMLFormElement;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (!/\/api\/collections\/[^/]+\/delete$/.test(form.getAttribute('action') || '')) return;
+
+    e.preventDefault();
+    const res = await fetch(form.action, { method: 'POST' });
+    if (res.ok) {
+      window.location.href = '/workspace/collections';
+      return;
+    }
+
+    let msg = 'Failed to delete collection';
+    try {
+      const data = await res.json();
+      if (data?.error) msg = data.error;
+    } catch {
+      // keep the generic message
+    }
+    const banner = document.getElementById('delete-error');
+    if (banner) {
+      banner.innerHTML = `<p><strong>Couldn't delete collection:</strong> ${msg}</p>`;
+      banner.style.display = 'flex';
+      banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
   const searchInput = document.getElementById('filter-search') as HTMLInputElement;
   const typeFilter = document.getElementById('type-filter') as HTMLSelectElement;
   const tableView = document.getElementById('table-view');
