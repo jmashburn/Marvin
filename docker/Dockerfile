@@ -69,7 +69,9 @@ RUN find /app/.venv -name '__pycache__' -type d -exec rm -rf {} + && \
 # ##################################
 # Production Base Image
 # ##################################
-FROM builder-base AS build-base
+# Slim runtime: the venv is compiled in uv-base, so the runtime needs neither the build
+# toolchain nor the LDAP/SASL dev libs — base on python-base and copy only the venv.
+FROM python-base AS build-base
 
 COPY --from=uv-base --chown=app:app /app/.venv /app/.venv
 ENV BASE_DIR=$MARVIN_HOME
@@ -100,7 +102,7 @@ ENV HOST=0.0.0.0
 
 #HEALTHCHECK CMD python -m marvin.scripts.healthcheck || exit 1
 
-ENTRYPOINT ["marvin"]
+ENTRYPOINT ["marvin-server"]
 
 
 
@@ -120,7 +122,7 @@ ENTRYPOINT ["marvin"]
 # ##################################
 # Lambda Image
 # ##################################
-FROM production-base AS lambda
+FROM production AS lambda
 
 ARG FUNCTION_DIR="/function"
 
