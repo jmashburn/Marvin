@@ -36,6 +36,10 @@ class SystemStats(BaseModel):
     assets_count: int
     api_tokens_count: int
     webhooks_count: int
+    # Platform-wide AI usage, aggregated across every workspace/account.
+    ai_executions_count: int = 0
+    ai_total_tokens: int = 0
+    ai_total_cost_usd: float = 0.0
     database_size: str
     database_path: str
     assets_size: str
@@ -284,6 +288,8 @@ class AdminMaintenanceController(BaseAdminController):
         from marvin.db.models.platform.entries import Entries
         from marvin.db.models.platform.assets import Assets
         from marvin.db.models.groups.webhooks import GroupWebhooksModel
+        from marvin.db.models.groups.ai_executions import AIExecutionModel
+        from sqlalchemy import func
 
         # Count records using SQLAlchemy
         with session_context() as session:
@@ -293,6 +299,15 @@ class AdminMaintenanceController(BaseAdminController):
             assets_count = session.query(Assets).count()
             api_tokens_count = session.query(LongLiveToken).count()
             webhooks_count = session.query(GroupWebhooksModel).count()
+
+            # Platform-wide AI usage — no group filter, so it spans every account.
+            ai_executions_count = session.query(AIExecutionModel).count()
+            ai_tokens, ai_cost = session.query(
+                func.coalesce(func.sum(AIExecutionModel.total_tokens), 0),
+                func.coalesce(func.sum(AIExecutionModel.estimated_cost_usd), 0.0),
+            ).one()
+            ai_total_tokens = int(ai_tokens or 0)
+            ai_total_cost_usd = float(ai_cost or 0.0)
 
         # Get directory sizes
         dirs = self.directories
@@ -316,6 +331,9 @@ class AdminMaintenanceController(BaseAdminController):
             assets_count=assets_count,
             api_tokens_count=api_tokens_count,
             webhooks_count=webhooks_count,
+            ai_executions_count=ai_executions_count,
+            ai_total_tokens=ai_total_tokens,
+            ai_total_cost_usd=ai_total_cost_usd,
             database_size=fs_stats.pretty_size(db_size),
             database_path=str(db_file),
             assets_size=fs_stats.pretty_size(assets_size),

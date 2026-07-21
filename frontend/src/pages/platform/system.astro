@@ -66,6 +66,18 @@ try {
             <div class="stat-label">Webhooks</div>
             <div class="stat-value">{stats?.webhooks_count || '—'}</div>
           </div>
+          <div class="stat-item">
+            <div class="stat-label">AI Operations</div>
+            <div class="stat-value">{stats?.ai_executions_count ?? '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">AI Tokens</div>
+            <div class="stat-value">{stats?.ai_total_tokens != null ? Number(stats.ai_total_tokens).toLocaleString() : '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">AI Cost (all accounts)</div>
+            <div class="stat-value">{stats?.ai_total_cost_usd != null ? '$' + Number(stats.ai_total_cost_usd).toFixed(2) : '—'}</div>
+          </div>
         </div>
       </section>
     </div>
