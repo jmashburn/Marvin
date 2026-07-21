@@ -414,6 +414,10 @@ class WorkspaceExporter:
                 "name": asset.name,
                 "slug": asset.slug,
                 "originalFilename": asset.original_filename,
+                # filename + checksum are NOT NULL on the asset — carry them so the bundle is
+                # self-complete and restores on any backend without the importer having to derive.
+                "filename": asset.filename,
+                "checksum": asset.checksum,
                 "extension": asset.extension,
                 "fileSize": asset.file_size,
                 "mimeType": asset.mime_type,
