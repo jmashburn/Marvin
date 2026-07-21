@@ -96,16 +96,22 @@ function toTitleCase(str: string) {
           <h3>{toTitleCase(prefix)} Settings</h3>
           <p class="card-description">Configuration for {prefix}</p>
           <div class="settings-display">
-            {items.map(({key, value}) => (
-              <div class="setting-item">
-                <span class="setting-label">{toTitleCase(key)}</span>
-                <span class="setting-value">
-                  {typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
-                   typeof value === 'object' && value !== null ? JSON.stringify(value) :
-                   value?.toString() || '(not set)'}
-                </span>
-              </div>
-            ))}
+            {items.map(({key, value}) => {
+              const isObject = typeof value === 'object' && value !== null;
+              return (
+                <div class={`setting-item ${isObject ? 'is-block' : ''}`}>
+                  <span class="setting-label">{toTitleCase(key)}</span>
+                  {isObject ? (
+                    <pre class="setting-value setting-json">{JSON.stringify(value, null, 2)}</pre>
+                  ) : (
+                    <span class="setting-value">
+                      {typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
+                       value?.toString() || '(not set)'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       ))}
@@ -188,6 +194,30 @@ function toTitleCase(str: string) {
     font-size: 14px;
     font-family: ui-monospace, monospace;
     color: var(--text);
+    min-width: 0;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  /* Object values render as a wrapping JSON block; stack label above so nothing overflows the card. */
+  .setting-item.is-block {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .setting-json {
+    margin: 0;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 320px;
+    overflow: auto;
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   .features-list {

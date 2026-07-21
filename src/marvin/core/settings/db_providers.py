@@ -89,7 +89,9 @@ class PostgresProvider(AbstractDBProvider, BaseSettings):
     POSTGRES_DB: str = ""
     POSTGRES_URL_OVERRIDE: str | None = None
 
-    model_config = SettingsConfigDict(arbitrary_types_allowed=True, extra="allow")
+    # extra="ignore": this provider shares the app .env, so it must NOT absorb unrelated keys
+    # (e.g. OPENAI_API_KEY, DEFAULT_PASSWORD) — otherwise they land in model_dump and leak.
+    model_config = SettingsConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
     @property
     def db_url(self) -> str:
