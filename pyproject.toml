@@ -90,6 +90,8 @@ postgres = [
 ]
 # Optional HashiCorp Vault secret backend (SECRET_BACKEND=vault). Opt in with `uv sync --group vault`.
 vault = ["hvac>=2.0"]
+# Optional Bitwarden Secrets Manager backend (SECRET_BACKEND=bitwarden). Opt in with `uv sync --group bitwarden`.
+bitwarden = ["bitwarden-sdk>=1.0.0"]
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"
