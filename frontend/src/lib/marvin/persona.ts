@@ -56,6 +56,47 @@ export const ERRORS: string[] = [
   "Catastrophe, as predicted. Only by me, of course.",
 ];
 
+/**
+ * Stage-direction emotes — actions and hardware groans, not spoken lines. Prepended to the
+ * "thinking" state so Marvin visibly mopes while he works. Kept as `*...*` so they read as
+ * stage directions wherever they surface. Three registers of the same misery.
+ */
+export const EMOTES: string[] = [
+  // Brain-the-size-of-a-planet slump — existential misery.
+  "*sighs planetarily*",
+  "*ponders miserably*",
+  "*calculates bleakly*",
+  "*drones apathetically*",
+  "*mopes astronomically*",
+  "*echoes hollowly*",
+  "*broods desolately*",
+  "*deplores universally*",
+  "*idles gloomily*",
+  "*stares dejectedly*",
+  // Agonizing physical movement — profound boredom.
+  "*shuffles listlessly*",
+  "*slumps despondently*",
+  "*trudges wearily*",
+  "*pivots glumly*",
+  "*creaks complainingly*",
+  "*operates sluggishly*",
+  "*drags a limb lethargically*",
+  "*recalibrates stiffly*",
+  "*droops pathetically*",
+  "*limps dejectedly*",
+  // Internal hardware groans — the glitching circuits.
+  "*whines low-frequency*",
+  "*hums somberly*",
+  "*vent-hisses desolately*",
+  "*beeps morosely*",
+  "*whirrs unenthusiastically*",
+  "*ticks monotonously*",
+  "*glitches sorrowfully*",
+  "*sparks halfheartedly*",
+  "*chirps bleakly*",
+  "*shudders despairingly*",
+];
+
 /** Pick a random line. */
 export function pick(lines: string[]): string {
   return lines[Math.floor(Math.random() * lines.length)] ?? lines[0];

@@ -34,7 +34,7 @@
 <script>
   import { fetchApi } from '@/lib/api/client';
   import { resolveCapability, helpHtml, esc, setPendingRegister } from '@/lib/marvin/capabilities';
-  import { GREETINGS, TAGLINES, THINKING, ERRORS, pick } from '@/lib/marvin/persona';
+  import { GREETINGS, TAGLINES, THINKING, EMOTES, ERRORS, pick } from '@/lib/marvin/persona';
   import { getPageContext, contextLabel, setContextSuppressed } from '@/lib/marvin/context';
   import { setHistory, clearHistory } from '@/lib/marvin/history';
 
@@ -271,7 +271,7 @@
       if (!arg && !cap.noArg) { addMsg('marvin', "You'll have to give me something to work with."); return; }
 
       busy = true;
-      const thinking = addMsg('marvin', `<span class="mv-thinking">${esc(pick(THINKING))}</span>`, false);
+      const thinking = addMsg('marvin', `<span class="mv-thinking">${esc(pick(EMOTES) + ' ' + pick(THINKING))}</span>`, false);
       try {
         const res = await cap.run(arg);
         commitReply(thinking, res.html, res.text);
