@@ -112,6 +112,39 @@ class AdminAboutController(BaseAdminController):
             total_ai_cost_usd=float(ai_cost or 0.0),
         )
 
+    @router.get("/roles-matrix", summary="Workspace role → capability matrix")
+    def get_roles_matrix(self) -> dict:
+        """The workspace roles and what each can do, generated from the enforced
+        `workspace_role_can_*` helpers so it can never drift from actual behaviour."""
+        from marvin.db.models.users.roles import (
+            WORKSPACE_ROLE_HIERARCHY,
+            WorkspaceRole,
+            workspace_role_can_create_entries,
+            workspace_role_can_edit_all_entries,
+            workspace_role_can_manage_members,
+            workspace_role_can_manage_publishing,
+            workspace_role_can_manage_settings,
+        )
+
+        # Highest privilege first.
+        roles = sorted(WorkspaceRole, key=lambda r: -WORKSPACE_ROLE_HIERARCHY.get(r, 0))
+        # (key, label, predicate) — least to most privileged. View is the base level (every role).
+        caps = [
+            ("view_content", "View content", lambda r: True),
+            ("create_entries", "Create entries", workspace_role_can_create_entries),
+            ("edit_all_entries", "Edit all entries", workspace_role_can_edit_all_entries),
+            ("manage_publishing", "Manage publishing", workspace_role_can_manage_publishing),
+            ("manage_members", "Manage members", workspace_role_can_manage_members),
+            ("manage_settings", "Manage settings", workspace_role_can_manage_settings),
+        ]
+        return {
+            "roles": [{"role": r.value, "level": WORKSPACE_ROLE_HIERARCHY.get(r, 0)} for r in roles],
+            "capabilities": [
+                {"key": key, "label": label, "roles": [r.value for r in roles if fn(r)]}
+                for key, label, fn in caps
+            ],
+        }
+
     @router.get("/startup-info", summary="Get Application Startup Information (Admin)")
     def get_startup_info(self):
         """
