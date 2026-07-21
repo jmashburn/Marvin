@@ -1,0 +1,454 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { listProviders, listIntegrations } from "@/lib/api/integrations";
+import type { Integration, IntegrationProviderInfo } from "@/lib/api/integrations";
+
+const authToken = getAuthToken(Astro.cookies);
+
+let providers: IntegrationProviderInfo[] = [];
+let integrations: Integration[] = [];
+let error: string | null = null;
+
+try {
+  [providers, integrations] = await Promise.all([
+    listProviders(authToken),
+    listIntegrations(authToken),
+  ]);
+} catch (e) {
+  console.error("[integrations] load error:", e);
+  error = e instanceof Error ? e.message : String(e);
+}
+
+const providersBySlug = new Map(providers.map((p) => [p.slug, p]));
+
+const CATEGORY_LABEL: Record<string, string> = {
+  source: "Source",
+  destination: "Destination",
+  capability: "Capability",
+  notify: "Notify",
+};
+
+function statusMeta(status: string): { text: string; cls: string } {
+  if (status === "ok") return { text: "Connected", cls: "ok" };
+  if (status === "error") return { text: "Error", cls: "err" };
+  return { text: "Not configured", cls: "warn" };
+}
+---
+
+<AppLayout title="Integrations" eyebrow="Settings">
+  <div class="page-header">
+    <div>
+      <h2>Integrations</h2>
+      <p>Connect external services — sources that feed content in, destinations that react when you publish.</p>
+    </div>
+    <a href="/workspace/settings?tab=integrations" class="button secondary small">Back to Settings</a>
+  </div>
+
+  {error && (
+    <div class="alert"><strong>Couldn't load integrations.</strong> {error}</div>
+  )}
+
+  <!-- Connected -->
+  <section class="block">
+    <h3 class="block-title">Connected</h3>
+    {integrations.length === 0 ? (
+      <div class="empty">
+        <p>No integrations yet.</p>
+        <p class="hint">Add one from the catalog below.</p>
+      </div>
+    ) : (
+      <div class="conn-list">
+        {integrations.map((it) => {
+          const prov = providersBySlug.get(it.provider);
+          const st = statusMeta(it.status);
+          return (
+            <article class="conn-card" data-id={it.id}>
+              <div class="conn-main">
+                <div class="conn-head">
+                  <strong>{it.name}</strong>
+                  <span class={`badge ${st.cls}`}>{st.text}</span>
+                  {!it.enabled && <span class="badge muted">Disabled</span>}
+                </div>
+                <div class="conn-meta">
+                  <span>{prov?.name ?? it.provider}</span>
+                  {prov && <span class="dot">·</span>}
+                  {prov && <span>{CATEGORY_LABEL[prov.category] ?? prov.category}</span>}
+                  <span class="dot">·</span>
+                  <code>{it.slug}</code>
+                </div>
+                {it.lastError && <p class="conn-error">{it.lastError}</p>}
+              </div>
+              <div class="conn-actions">
+                <label class="toggle" title="Enable / disable">
+                  <input type="checkbox" class="js-toggle" checked={it.enabled} data-id={it.id} />
+                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                </label>
+                <button type="button" class="button small js-check" data-id={it.id}>Check</button>
+                {(prov?.actions ?? []).map((a) => (
+                  <button type="button" class="button small secondary js-action" data-id={it.id} data-action={a.key} title={a.description}>
+                    {a.label}
+                  </button>
+                ))}
+                <button type="button" class="button small danger js-delete" data-id={it.id} data-name={it.name}>Delete</button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    )}
+  </section>
+
+  <!-- Catalog -->
+  <section class="block">
+    <h3 class="block-title">Add an integration</h3>
+    {providers.length === 0 ? (
+      <div class="empty"><p>No providers available.</p></div>
+    ) : (
+      <div class="catalog">
+        {providers.map((p) => (
+          <article class="cat-card">
+            <div class="cat-head">
+              <strong>{p.name}</strong>
+              <span class="chip">{CATEGORY_LABEL[p.category] ?? p.category}</span>
+            </div>
+            <p class="cat-desc">{p.description}</p>
+            <button type="button" class="button small js-configure" data-slug={p.slug}>Configure</button>
+          </article>
+        ))}
+      </div>
+    )}
+  </section>
+
+  <!-- Add panel (hidden until a provider is chosen) -->
+  <div id="add-overlay" class="overlay" hidden>
+    <div class="panel" role="dialog" aria-modal="true" aria-labelledby="add-title">
+      <div class="panel-head">
+        <h3 id="add-title">Configure integration</h3>
+        <button type="button" class="icon-btn" id="add-close" aria-label="Close">×</button>
+      </div>
+      <form id="add-form">
+        <input type="hidden" name="provider" id="add-provider" />
+        <p class="panel-sub" id="add-provider-desc"></p>
+        <label class="field">
+          <span>Name</span>
+          <input type="text" name="name" id="add-name" required placeholder="e.g. Production site" />
+          <small>A label for this connection.</small>
+        </label>
+        <div id="add-fields"></div>
+        <div id="add-error" class="inline-error" hidden></div>
+        <div class="panel-actions">
+          <button type="submit" class="button" id="add-submit">Add integration</button>
+          <button type="button" class="button secondary" id="add-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="application/json" id="providers-data" set:html={JSON.stringify(providers)}></script>
+</AppLayout>
+
+<script>
+  import {
+    createIntegration,
+    deleteIntegration,
+    updateIntegration,
+    checkIntegration,
+    runIntegrationAction,
+  } from "@/lib/api/integrations";
+  import type { IntegrationProviderInfo } from "@/lib/api/integrations";
+
+  const providers: IntegrationProviderInfo[] = JSON.parse(
+    document.getElementById("providers-data")?.textContent || "[]",
+  );
+  const bySlug = new Map(providers.map((p) => [p.slug, p]));
+
+  const overlay = document.getElementById("add-overlay") as HTMLElement;
+  const form = document.getElementById("add-form") as HTMLFormElement;
+  const fieldsEl = document.getElementById("add-fields") as HTMLElement;
+  const errEl = document.getElementById("add-error") as HTMLElement;
+
+  function reload() {
+    window.location.reload();
+  }
+
+  function showError(el: HTMLElement, message: string) {
+    el.textContent = message;
+    el.hidden = false;
+  }
+
+  function errorMessage(e: unknown): string {
+    // SDK errors expose the API detail; fall back to the message.
+    const anyE = e as { body?: { detail?: string }; message?: string };
+    return anyE?.body?.detail || anyE?.message || "Something went wrong.";
+  }
+
+  // ---- open / build the add panel ----
+  function openPanel(slug: string) {
+    const p = bySlug.get(slug);
+    if (!p) return;
+    (document.getElementById("add-provider") as HTMLInputElement).value = slug;
+    (document.getElementById("add-provider-desc") as HTMLElement).textContent = p.description;
+    (document.getElementById("add-name") as HTMLInputElement).value = "";
+    errEl.hidden = true;
+
+    // Build credential + config fields from the provider manifest.
+    const parts: string[] = [];
+    for (const c of p.credentials) {
+      parts.push(`
+        <label class="field">
+          <span>${c.label}${c.required ? " *" : ""}</span>
+          <input type="password" data-kind="credential" data-key="${c.key}" ${c.required ? "required" : ""} placeholder="••••••••" autocomplete="off" />
+          ${c.help ? `<small>${c.help}</small>` : ""}
+        </label>`);
+    }
+    const props = (p.configSchema?.properties ?? {}) as Record<string, any>;
+    const required: string[] = (p.configSchema?.required ?? []) as string[];
+    for (const [key, prop] of Object.entries(props)) {
+      const label = prop.title || key;
+      const req = required.includes(key);
+      parts.push(`
+        <label class="field">
+          <span>${label}${req ? " *" : ""}</span>
+          <input type="text" data-kind="config" data-key="${key}" ${req ? "required" : ""} placeholder="${prop.format === "uri" ? "https://…" : ""}" />
+        </label>`);
+    }
+    fieldsEl.innerHTML = parts.join("");
+    overlay.hidden = false;
+  }
+
+  function closePanel() {
+    overlay.hidden = true;
+  }
+
+  document.querySelectorAll<HTMLButtonElement>(".js-configure").forEach((b) =>
+    b.addEventListener("click", () => openPanel(b.dataset.slug!)),
+  );
+  document.getElementById("add-close")?.addEventListener("click", closePanel);
+  document.getElementById("add-cancel")?.addEventListener("click", closePanel);
+  overlay?.addEventListener("click", (e) => {
+    if (e.target === overlay) closePanel();
+  });
+
+  // ---- submit create ----
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errEl.hidden = true;
+    const provider = (document.getElementById("add-provider") as HTMLInputElement).value;
+    const name = (document.getElementById("add-name") as HTMLInputElement).value.trim();
+
+    const config: Record<string, unknown> = {};
+    let credential: string | undefined;
+    fieldsEl.querySelectorAll<HTMLInputElement>("input[data-kind]").forEach((inp) => {
+      const v = inp.value.trim();
+      if (!v) return;
+      if (inp.dataset.kind === "config") config[inp.dataset.key!] = v;
+      // Phase A stores a single credential; the first non-empty credential field wins.
+      else if (inp.dataset.kind === "credential" && credential === undefined) credential = v;
+    });
+
+    const submit = document.getElementById("add-submit") as HTMLButtonElement;
+    submit.disabled = true;
+    try {
+      await createIntegration({ provider, name, config, credential });
+      reload();
+    } catch (err) {
+      showError(errEl, errorMessage(err));
+      submit.disabled = false;
+    }
+  });
+
+  // ---- connected-card actions ----
+  document.querySelectorAll<HTMLInputElement>(".js-toggle").forEach((t) =>
+    t.addEventListener("change", async () => {
+      try {
+        await updateIntegration(t.dataset.id!, { enabled: t.checked });
+      } catch (err) {
+        alert(errorMessage(err));
+        t.checked = !t.checked;
+      }
+    }),
+  );
+
+  document.querySelectorAll<HTMLButtonElement>(".js-check").forEach((b) =>
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      b.textContent = "Checking…";
+      try {
+        await checkIntegration(b.dataset.id!);
+        reload();
+      } catch (err) {
+        alert(errorMessage(err));
+        b.disabled = false;
+        b.textContent = "Check";
+      }
+    }),
+  );
+
+  document.querySelectorAll<HTMLButtonElement>(".js-action").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const label = b.textContent;
+      b.disabled = true;
+      b.textContent = "Running…";
+      try {
+        const res = await runIntegrationAction(b.dataset.id!, b.dataset.action!);
+        alert(res.ok ? "Action succeeded." : "Action returned a failure.");
+      } catch (err) {
+        alert(errorMessage(err));
+      } finally {
+        b.disabled = false;
+        b.textContent = label;
+      }
+    }),
+  );
+
+  document.querySelectorAll<HTMLButtonElement>(".js-delete").forEach((b) =>
+    b.addEventListener("click", async () => {
+      if (!confirm(`Delete integration "${b.dataset.name}"? Its stored credential is removed too.`)) return;
+      try {
+        await deleteIntegration(b.dataset.id!);
+        reload();
+      } catch (err) {
+        alert(errorMessage(err));
+      }
+    }),
+  );
+</script>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .page-header h2 { margin: 0; font-size: 24px; font-weight: 600; }
+  .page-header p { margin: 8px 0 0; color: var(--muted); font-size: 14px; max-width: 60ch; }
+
+  .alert {
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    border-radius: var(--radius);
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+    font-size: 14px;
+  }
+
+  .block { margin-bottom: 36px; }
+  .block-title { margin: 0 0 14px; font-size: 15px; font-weight: 600; }
+
+  .empty {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+  }
+  .empty p { margin: 0; }
+  .empty .hint { margin-top: 6px; font-size: 13px; }
+
+  /* connected list */
+  .conn-list { display: grid; gap: 12px; }
+  .conn-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .conn-head { display: flex; align-items: center; gap: 10px; }
+  .conn-head strong { font-size: 15px; }
+  .conn-meta { margin-top: 4px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .conn-meta code { font-family: ui-monospace, monospace; font-size: 12px; }
+  .conn-meta .dot { opacity: 0.5; }
+  .conn-error { margin: 8px 0 0; font-size: 13px; color: var(--color-error); }
+  .conn-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+
+  .badge {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+  }
+  .badge.ok { color: var(--good); border-color: var(--good); background: rgb(53 122 85 / 0.08); }
+  .badge.err { color: var(--color-error); border-color: var(--color-error); background: var(--color-error-bg); }
+  .badge.warn { color: #9a7b00; border-color: #d9c07a; background: rgb(217 192 122 / 0.12); }
+  .badge.muted { color: var(--muted); }
+
+  /* catalog */
+  .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .cat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .cat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .cat-head strong { font-size: 15px; }
+  .chip { font-size: 11px; font-weight: 500; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+  .cat-desc { margin: 0; font-size: 13px; color: var(--muted); flex: 1; }
+  .cat-card .button { align-self: flex-start; margin-top: 4px; }
+
+  /* buttons + toggle (local, minimal — align with app tokens) */
+  .button.danger { color: var(--color-error); border-color: var(--color-error); }
+  .toggle { position: relative; display: inline-flex; cursor: pointer; }
+  .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .toggle-track { width: 36px; height: 20px; background: var(--line); border-radius: 999px; position: relative; transition: background 0.15s; }
+  .toggle-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: transform 0.15s; }
+  .toggle input:checked + .toggle-track { background: var(--accent); }
+  .toggle input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); }
+
+  /* add panel */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.4);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 8vh 16px;
+    z-index: 50;
+  }
+  .overlay[hidden] { display: none; }
+  .panel {
+    width: 100%;
+    max-width: 460px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    max-height: 84vh;
+    overflow: auto;
+  }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .panel-head h3 { margin: 0; font-size: 17px; }
+  .panel-sub { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  .icon-btn { background: none; border: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); }
+  .field { display: grid; gap: 6px; margin-bottom: 14px; }
+  .field > span { font-size: 13px; font-weight: 500; }
+  .field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .field input:focus { outline: none; border-color: var(--accent); }
+  .field small { font-size: 12px; color: var(--muted); }
+  .inline-error { margin-bottom: 12px; font-size: 13px; color: var(--color-error); }
+  .panel-actions { display: flex; gap: 10px; margin-top: 4px; }
+</style>

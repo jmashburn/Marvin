@@ -41,6 +41,45 @@ class IntegrationRead(_MarvinModel):
     last_error: str | None = None
 
 
+class ProviderCredentialInfo(_MarvinModel):
+    """A credential field a provider needs (drives the create form)."""
+
+    key: str
+    label: str
+    help: str = ""
+    required: bool = True
+
+
+class ProviderEventInfo(_MarvinModel):
+    """An event a provider can emit onto the bus."""
+
+    key: str
+    label: str
+    description: str = ""
+
+
+class ProviderActionInfo(_MarvinModel):
+    """An action a provider exposes to automations."""
+
+    key: str
+    label: str
+    description: str = ""
+    input_schema: dict = Field(default_factory=dict)
+
+
+class IntegrationProviderInfo(_MarvinModel):
+    """A provider catalog entry — what the 'add integration' screen renders from."""
+
+    slug: str
+    name: str
+    description: str = ""
+    category: str
+    config_schema: dict = Field(default_factory=dict)
+    credentials: list[ProviderCredentialInfo] = Field(default_factory=list)
+    emits: list[ProviderEventInfo] = Field(default_factory=list)
+    actions: list[ProviderActionInfo] = Field(default_factory=list)
+
+
 class IntegrationActionResult(_MarvinModel):
     """Result of running (or test-firing) a provider action."""
 

@@ -19,6 +19,7 @@ from marvin.schemas.group.integration import (
     IntegrationActionResult,
     IntegrationCheckResult,
     IntegrationCreate,
+    IntegrationProviderInfo,
     IntegrationRead,
     IntegrationUpdate,
 )
@@ -86,10 +87,10 @@ class IntegrationsController(BaseUserController):
 
     # ---- provider catalog --------------------------------------------------------
 
-    @router.get("/providers")
-    def list_provider_catalog(self) -> list[dict]:
+    @router.get("/providers", response_model=list[IntegrationProviderInfo])
+    def list_provider_catalog(self):
         """The available integration providers (the 'add integration' catalog)."""
-        return [p.info() for p in list_providers()]
+        return [IntegrationProviderInfo(**p.info()) for p in list_providers()]
 
     # ---- CRUD --------------------------------------------------------------------
 
