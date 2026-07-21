@@ -29,7 +29,6 @@ dependencies = [
     "pyhumps>=3.8.0",
     "pyjwt>=2.10.1",
     "python-dateutil>=2.9.0.post0",
-    "python-ldap>=3.4.5",
     "python-slugify>=8.0.4",
     "rich>=14.0.0",
     "ruff>=0.11.7",
@@ -83,7 +82,9 @@ dev = [
     "ruff>=0.11.7",
     "types-pyyaml>=6.0.12.20250402",
 ]
-ldap = []
+# Optional LDAP auth. Needs system libs to build the C extension (libldap2-dev, libsasl2-dev)
+# and is only imported when LDAP auth is enabled. Opt in with `uv sync --group ldap`.
+ldap = ["python-ldap>=3.4.5"]
 postgres = [
     "postgres>=4.0",
 ]
@@ -161,8 +162,7 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "E501"]
-"mealie/alembic/versions/*" = ["E501", "I001"]
-"dev/scripts/all_recipes_stress_test.py" = ["E501"]
+"src/marvin/alembic/versions/*" = ["E501", "I001"]
 "ldap_provider.py" = ["UP032"]
 "tests/conftest.py" = ["E402"]
 "tests/utils/routes/__init__.py" = ["F401"]
