@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session  # SQLAlchemy session type
 
 # Marvin core components
 from marvin.core.config import get_app_dirs, get_app_settings
-from marvin.core.dependencies import get_admin_user, get_current_user  # User dependency injectors
+from marvin.core.dependencies import get_current_superuser, get_current_user  # User dependency injectors
 from marvin.core.exceptions import registered_exceptions  # Pre-defined exception messages
 from marvin.core.root_logger import get_logger  # Application logger
 from marvin.core.settings import AppSettings
@@ -205,13 +205,16 @@ class BaseAdminController(BaseUserController):
     """
     Base controller for routes that require administrative privileges.
 
-    Injects an admin user (verified by `get_admin_user` dependency).
+    Injects a platform super-admin (verified by `get_current_superuser`).
+    The platform admin section is tied to the SUPER_ADMIN platform role — NOT the
+    legacy `admin` boolean, which marks workspace-level admins. A workspace ADMIN
+    administers its own workspace; it does not get platform admin access.
     Overrides `repos` to ensure that admin users operate without group scoping
     (i.e., `group_id=None`), allowing them system-wide access.
     """
 
-    # FastAPI dependency to inject an admin user; raises 403 if user is not admin
-    user: PrivateUser = Depends(get_admin_user)
+    # FastAPI dependency to inject a platform super-admin; raises 403 otherwise
+    user: PrivateUser = Depends(get_current_superuser)
 
     @property
     def repos(self) -> AllRepositories:

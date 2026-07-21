@@ -134,8 +134,8 @@ class AdminAboutController(BaseAdminController):
             ("create_entries", "Create entries", workspace_role_can_create_entries),
             ("edit_all_entries", "Edit all entries", workspace_role_can_edit_all_entries),
             ("manage_publishing", "Manage publishing", workspace_role_can_manage_publishing),
-            ("manage_members", "Manage members", workspace_role_can_manage_members),
-            ("manage_settings", "Manage settings", workspace_role_can_manage_settings),
+            ("manage_members", "Manage workspace members", workspace_role_can_manage_members),
+            ("manage_settings", "Manage workspace settings", workspace_role_can_manage_settings),
         ]
         return {
             "roles": [{"role": r.value, "level": WORKSPACE_ROLE_HIERARCHY.get(r, 0)} for r in roles],

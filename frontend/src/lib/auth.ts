@@ -87,7 +87,9 @@ export async function requireAdmin(
 ): Promise<User> {
   const user = await requireAuth(cookies, redirect, currentPath);
 
-  if (!user.admin) {
+  // Platform admin section = the SUPER_ADMIN platform role, NOT the legacy `admin` boolean
+  // (which marks workspace-level admins). A workspace ADMIN administers its workspace, not the platform.
+  if (user.platformRole !== 'SUPER_ADMIN' && !user.isSuperuser) {
     throw redirect('/');
   }
 
@@ -114,5 +116,6 @@ export async function isAuthenticated(cookies: AstroCookies): Promise<boolean> {
  */
 export async function isAdmin(cookies: AstroCookies): Promise<boolean> {
   const user = await getCurrentUser(cookies);
-  return user?.admin === true;
+  // Platform admin = SUPER_ADMIN (not the workspace-level `admin` boolean).
+  return user?.platformRole === 'SUPER_ADMIN' || user?.isSuperuser === true;
 }

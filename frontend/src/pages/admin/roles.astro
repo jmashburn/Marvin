@@ -58,9 +58,11 @@ const has = (cap: any, role: string) => (cap?.roles ?? []).includes(role);
         </table>
       </div>
       <p class="note">
-        Roles form a hierarchy — <strong>OWNER › ADMIN › EDITOR › AUTHOR › VIEWER</strong>.
-        Roles are defined in code (not editable here); assign them to people from a workspace's
-        <strong>Members</strong> page.
+        These are <strong>workspace</strong> roles — <strong>OWNER › ADMIN › EDITOR › AUTHOR › VIEWER</strong> —
+        and every capability above is scoped to a workspace. A workspace ADMIN administers its own
+        workspace; it does <em>not</em> grant access to this platform admin area (that requires the
+        platform <strong>Super Admin</strong> role). Roles are code-defined; assign them from a
+        workspace's <strong>Members</strong> page.
       </p>
     </section>
   </div>
