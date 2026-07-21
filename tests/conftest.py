@@ -30,6 +30,17 @@ def _create_test_schema() -> Generator[None, None, None]:
     from alembic import command
     from alembic.config import Config
 
+    # Safety: this fixture DROPS the entire schema. On SQLite that's an isolated per-run test file,
+    # but the Postgres provider uses POSTGRES_DB from the environment verbatim — a misconfigured .env
+    # (e.g. DB_ENGINE=postgres pointing at a real dev/prod DB) would wipe it. Refuse unless the target
+    # is clearly a test database.
+    if engine.dialect.name == "postgresql" and "test" not in (engine.url.database or "").lower():
+        raise RuntimeError(
+            f"Refusing to run the test suite against Postgres database '{engine.url.database}': it does "
+            "not look like a test database, and the suite drops the entire schema on setup. Point tests "
+            "at a dedicated DB (e.g. POSTGRES_DB=marvin_test)."
+        )
+
     with contextlib.suppress(Exception):
         SqlAlchemyBase.metadata.drop_all(bind=engine)
     with engine.begin() as conn:
