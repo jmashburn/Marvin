@@ -227,6 +227,11 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                     <code class="sub-url">{w.url?.toString().slice(0, 48)}{(w.url?.toString().length || 0) > 48 ? '…' : ''}</code>
                   </div>
                   <div class="sub-option-actions">
+                    {isConnected && (
+                      <a href={`/automation/events/${type}/webhook/${w.id}`} class="button secondary small">
+                        Edit
+                      </a>
+                    )}
                     <button
                       type="button"
                       class:list={['button', 'small', isConnected ? 'secondary' : '']}
@@ -238,11 +243,6 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                     >
                       {isConnected ? 'Disconnect' : 'Connect'}
                     </button>
-                    {isConnected && (
-                      <a href={`/automation/events/${type}/webhook/${w.id}`} class="button secondary small">
-                        Edit
-                      </a>
-                    )}
                   </div>
                 </div>
               );
@@ -271,6 +271,11 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
                     </div>
                   </div>
                   <div class="sub-option-actions">
+                    {isConnected && (
+                      <a href={`/automation/notifications/${n.id}`} class="button secondary small">
+                        Edit
+                      </a>
+                    )}
                     <button
                       type="button"
                       class:list={['button', 'small', isConnected ? 'secondary' : '']}
