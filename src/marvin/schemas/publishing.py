@@ -384,6 +384,66 @@ class WorkspaceInfo(_MarvinModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SiteSeoVerification(_MarvinModel):
+    """Search-engine ownership verification tokens, each rendered as a <meta name="..."> tag."""
+
+    google: str | None = None  # google-site-verification (Google Search Console)
+    bing: str | None = None  # msvalidate.01 (Bing Webmaster Tools)
+    pinterest: str | None = None  # p:domain_verify (Pinterest)
+    yandex: str | None = None  # yandex-verification (Yandex Webmaster)
+
+
+class SiteSeo(_MarvinModel):
+    """
+    Structured SEO / social-sharing metadata for a workspace's published site.
+
+    Stored under ``group_preferences.site_metadata_json['seo']`` and surfaced here, typed,
+    as ``site.seo`` on the publishing API. Every field is optional — a consuming site is
+    expected to fall back to the matching identity value (title, description, canonical_url)
+    when a field is absent. Marvin stores and serves these values; the rendering layer emits
+    the actual ``<meta>``/Open Graph/Twitter tags.
+    """
+
+    # Search / core meta
+    title: str | None = None
+    """Meta title override. Falls back to the site title."""
+    title_template: str | None = None
+    """Per-page title pattern, e.g. ``"%s | Brand"`` (``%s`` = the page title)."""
+    description: str | None = None
+    """Meta description. Falls back to the site description."""
+    keywords: list[str] = Field(default_factory=list)
+    """Keyword list (low ranking value, but some frameworks still emit them)."""
+    robots: str = "index,follow"
+    """robots meta directive, e.g. ``index,follow`` or ``noindex,nofollow``."""
+
+    # Social sharing (Open Graph + Twitter/X)
+    image: str | None = None
+    """Default share image URL (Open Graph + Twitter). Recommended 1200×630."""
+    image_alt: str | None = None
+    """Alt text for the share image (og:image:alt)."""
+    og_type: str = "website"
+    """Open Graph type: website, article, profile, book."""
+    site_name: str | None = None
+    """og:site_name — the brand name, distinct from the page title."""
+    twitter_card: str = "summary_large_image"
+    """Twitter card style: summary_large_image or summary."""
+    twitter_handle: str | None = None
+    """twitter:site — the site's @handle."""
+    twitter_creator: str | None = None
+    """twitter:creator — the content author's @handle."""
+    fb_app_id: str | None = None
+    """fb:app_id — Facebook app id for domain insights."""
+
+    # Branding / structured data
+    theme_color: str | None = None
+    """<meta name="theme-color"> — browser chrome / PWA color (e.g. #4f9c84)."""
+    publisher: str | None = None
+    """Publisher / organization name for structured data (JSON-LD, article:publisher)."""
+
+    verification: SiteSeoVerification = Field(default_factory=SiteSeoVerification)
+    """Search-engine ownership verification tokens."""
+
+
 class SiteConfiguration(_MarvinModel):
     """
     Site configuration for publishing API.
@@ -421,6 +481,9 @@ class SiteConfiguration(_MarvinModel):
 
     social: dict | None = None
     """Social media links (e.g., {instagram: 'url', facebook: 'url'})."""
+
+    seo: SiteSeo | None = None
+    """Structured SEO / social-sharing metadata (also present under ``metadata.seo``)."""
 
     metadata: dict | None = Field(default=None, serialization_alias="metadataJson")
     """Framework-specific or custom site metadata."""

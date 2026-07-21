@@ -46,6 +46,7 @@ from marvin.schemas.publishing import (
     PublishedResourcesResponse,
     PublishedResourceSummary,
     SiteConfiguration,
+    SiteSeo,
     WorkspaceInfo,
     WorkspaceSiteInfo,
 )
@@ -239,6 +240,12 @@ async def get_site_configuration(
 
     prefs = session.query(GroupPreferencesModel).filter(GroupPreferencesModel.group_id == group.id).first()
 
+    # Parse the structured SEO block (stored under metadata.seo) into its typed model, so
+    # consumers get a validated site.seo alongside the raw metadata blob.
+    site_metadata = prefs.site_metadata_json if prefs else None
+    seo_raw = (site_metadata or {}).get("seo")
+    seo = SiteSeo(**seo_raw) if isinstance(seo_raw, dict) and seo_raw else None
+
     # Build site configuration from preferences (with sensible defaults)
     site_config = SiteConfiguration(
         title=prefs.site_title if prefs and prefs.site_title else group.name,
@@ -251,7 +258,8 @@ async def get_site_configuration(
         timezone=prefs.site_timezone if prefs and prefs.site_timezone else "America/New_York",
         contact_email=prefs.site_contact_email if prefs else None,
         social=prefs.site_social_json if prefs else None,
-        metadata=prefs.site_metadata_json if prefs else None,
+        seo=seo,
+        metadata=site_metadata,
     )
 
     return WorkspaceSiteInfo(
