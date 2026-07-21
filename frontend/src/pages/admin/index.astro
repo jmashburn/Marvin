@@ -4,12 +4,13 @@ import { requireAdmin } from "@/lib/auth";
 
 await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
-const currentTab = Astro.url.searchParams.get('tab') || 'general';
+let currentTab = Astro.url.searchParams.get('tab') || 'general';
+// Users and Workspaces are one tab now; keep old ?tab= links working.
+if (currentTab === 'users' || currentTab === 'workspaces') currentTab = 'accounts';
 
 const tabs = [
   { id: 'general', label: 'General', icon: '⚙' },
-  { id: 'users', label: 'Users', icon: '👥' },
-  { id: 'workspaces', label: 'Workspaces', icon: '◫' },
+  { id: 'accounts', label: 'Users & Workspaces', icon: '👥' },
   { id: 'email', label: 'Email', icon: '📧' },
   { id: 'backups', label: 'Backups', icon: '💾' },
   { id: 'maintenance', label: 'Maintenance', icon: '🔧' },
@@ -56,38 +57,24 @@ const tabs = [
         </div>
       )}
 
-      {currentTab === 'users' && (
+      {currentTab === 'accounts' && (
         <div class="content-section">
-          <h2>User Management</h2>
-          <p class="section-description">Manage user accounts and permissions</p>
+          <h2>Users &amp; Workspaces</h2>
+          <p class="section-description">Manage user accounts and workspaces</p>
 
           <div class="quick-links">
             <a href="/admin/users" class="link-card">
               <strong>All Users</strong>
               <p>View and manage all platform users</p>
             </a>
-            <div class="link-card disabled">
-              <strong>Roles & Permissions</strong>
-              <p>Coming soon</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {currentTab === 'workspaces' && (
-        <div class="content-section">
-          <h2>Workspace Management</h2>
-          <p class="section-description">Manage groups and workspaces</p>
-
-          <div class="quick-links">
             <a href="/admin/workspaces" class="link-card">
               <strong>All Workspaces</strong>
               <p>View and manage all workspaces</p>
             </a>
-            <a href="/admin/groups" class="link-card">
-              <strong>Groups</strong>
-              <p>Manage workspace groups</p>
-            </a>
+            <div class="link-card disabled">
+              <strong>Roles &amp; Permissions</strong>
+              <p>Coming soon</p>
+            </div>
           </div>
         </div>
       )}
