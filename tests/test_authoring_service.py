@@ -158,6 +158,21 @@ def test_alt_text_requested_reads_enrichment_flag_and_role_derive(db_session, wo
     assert svc._alt_text_requested(EntryTypeRecipe.model_validate({"enrichment": {"voice": "wry"}})) is False
 
 
+def test_recipe_instructions_block_injects_verbatim(db_session, workspace):
+    from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
+    gid, _, _ = workspace
+    svc = _svc(db_session, gid)
+
+    block = svc._recipe_instructions_block(
+        EntryTypeRecipe.model_validate({"instructions": "Keep the body to two short paragraphs. No images."})
+    )
+    assert "Keep the body to two short paragraphs. No images." in block
+    assert "follow these" in block.lower()
+    assert svc._recipe_instructions_block(EntryTypeRecipe.model_validate({"instructions": "   "})) == ""  # blank → none
+    assert svc._recipe_instructions_block(EntryTypeRecipe.model_validate({})) == ""
+
+
 def test_recipe_asset_hint_keys_off_required_vs_optional(db_session, workspace):
     from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
 

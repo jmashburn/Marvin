@@ -131,6 +131,7 @@ class AuthoringService:
             f"Compose a new '{entry_type.name}' for {ctx.workspace_name or 'this workspace'} from the brief below. "
             f"Fill every field you reasonably can"
             + (", using the attached image(s) as the subject — the first is the hero/primary image." if asset_ids else ".")
+            + self._recipe_instructions_block(recipe)
             + f"\n\nBrief:\n{brief}"
             + grounding
             + self._recipe_resource_hint(recipe)
@@ -280,8 +281,11 @@ class AuthoringService:
         from marvin.services.ai.base import CompletionOptions, Message
         from marvin.services.ai.compose import entry_type_to_output_schema
 
+        from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
         entry_type = self.session.get(EntryTypes, entry.entry_type_id)
         schema_def = EntryTypeSchemaDefinition.model_validate((entry_type.schema_json if entry_type else {}) or {})
+        recipe = EntryTypeRecipe.model_validate((entry_type.recipe_json if entry_type else {}) or {})
         output_schema = entry_type_to_output_schema(schema_def, entry_type.name if entry_type else "Entry")
         if isinstance(output_schema, dict) and isinstance(output_schema.get("properties"), dict):
             # Content fields become optional (return unchanged ones untouched, so a tags-only ask
@@ -309,7 +313,7 @@ class AuthoringService:
         instruction_msg = (
             f"Revise this existing '{entry_type.name if entry_type else 'entry'}'. Do NOT recreate it — change only "
             f"what the instruction asks; return the FULL field set (unchanged fields exactly as-is), plus tags and "
-            f"resources to associate.\n\n{current}\n\nInstruction: {instruction}{grounding}"
+            f"resources to associate.{self._recipe_instructions_block(recipe)}\n\n{current}\n\nInstruction: {instruction}{grounding}"
         )
         messages = [
             Message(role="system", content=(
@@ -513,6 +517,15 @@ class AuthoringService:
                 self.session.rollback()
                 self.logger.warning(f"AuthoringService: alt-text enrichment skipped for asset {aid}: {e}")
         return enriched
+
+    def _recipe_instructions_block(self, recipe) -> str:
+        """The recipe author's verbatim ``instructions`` — freeform "how to build this type" prose the
+        model follows. This is the cascade's freeform layer: the recipe carries the directions, compose
+        just injects them (no per-type code). Empty when the recipe declares no instructions."""
+        text = getattr(recipe, "instructions", None)
+        if not text or not str(text).strip():
+            return ""
+        return f"\n\nAuthoring instructions for this type (follow these):\n{str(text).strip()}"
 
     def _recipe_resource_hint(self, recipe) -> str:
         """A prompt fragment for the entry type's recipe.resources.extract rules — tells the model which

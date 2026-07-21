@@ -56,8 +56,15 @@ class RecipeResources(_MarvinModel):
 
 
 class EntryTypeRecipe(_MarvinModel):
-    """Authoring recipe for an entry type (stored in entry_types.recipe_json)."""
+    """Authoring recipe for an entry type (stored in entry_types.recipe_json).
 
+    This is the type's *authoring program*: compose reads it and assembles its behaviour from these
+    declarative sections — no per-type logic in code. ``instructions`` is the author's freeform "how
+    to build this type" prose (followed verbatim); ``assets``/``resources``/``enrichment`` declare
+    what images to gather, what entities to extract, and what to derive.
+    """
+
+    instructions: str | None = None
     assets: RecipeAssets | None = None
     resources: RecipeResources | None = None
     enrichment: dict | None = None
