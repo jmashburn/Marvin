@@ -137,13 +137,20 @@ class AdminAboutController(BaseAdminController):
             ("manage_members", "Manage workspace members", workspace_role_can_manage_members),
             ("manage_settings", "Manage workspace settings", workspace_role_can_manage_settings),
         ]
-        return {
-            "roles": [{"role": r.value, "level": WORKSPACE_ROLE_HIERARCHY.get(r, 0)} for r in roles],
-            "capabilities": [
-                {"key": key, "label": label, "roles": [r.value for r in roles if fn(r)]}
-                for key, label, fn in caps
-            ],
-        }
+        # Platform SUPER_ADMIN sits above every workspace role (level 6): it can do everything a
+        # workspace role can, in every workspace, PLUS it's the only role with platform admin access.
+        SUPER = "SUPER_ADMIN"
+        role_list = [{"role": SUPER, "level": 6, "platform": True}]
+        role_list += [{"role": r.value, "level": WORKSPACE_ROLE_HIERARCHY.get(r, 0), "platform": False} for r in roles]
+
+        capabilities = [
+            {"key": key, "label": label, "roles": [SUPER, *(r.value for r in roles if fn(r))]}
+            for key, label, fn in caps
+        ]
+        # Platform-only capability — SUPER_ADMIN alone.
+        capabilities.append({"key": "platform_admin", "label": "Platform administration (/admin)", "roles": [SUPER]})
+
+        return {"roles": role_list, "capabilities": capabilities}
 
     @router.get("/startup-info", summary="Get Application Startup Information (Admin)")
     def get_startup_info(self):
