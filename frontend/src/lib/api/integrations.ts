@@ -9,6 +9,7 @@ import type {
   IntegrationCreate,
   IntegrationUpdate,
   IntegrationProviderInfo,
+  IntegrationPluginInfo,
   IntegrationActionResult,
   IntegrationCheckResult,
 } from '@inneropen/marvin-sdk/platform';
@@ -18,6 +19,7 @@ export type {
   IntegrationCreate,
   IntegrationUpdate,
   IntegrationProviderInfo,
+  IntegrationPluginInfo,
   IntegrationActionResult,
   IntegrationCheckResult,
 };
@@ -28,6 +30,10 @@ export async function listProviders(authToken?: string): Promise<IntegrationProv
 
 export async function listIntegrations(authToken?: string): Promise<Integration[]> {
   return createSdkClient(authToken).integrations.list();
+}
+
+export async function listPlugins(authToken?: string): Promise<IntegrationPluginInfo[]> {
+  return createSdkClient(authToken).integrations.listPlugins();
 }
 
 export async function createIntegration(data: IntegrationCreate, authToken?: string): Promise<Integration> {
