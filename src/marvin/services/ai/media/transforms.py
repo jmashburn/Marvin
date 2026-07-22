@@ -131,6 +131,32 @@ def crop_to_aspect(data: bytes, aspect: tuple[int, int]) -> bytes | None:
     return _dump(img.crop(box), fmt)
 
 
+def crop_to_box(data: bytes, box: tuple[float, float, float, float]) -> bytes | None:
+    """Crop to a normalized box ``(x, y, w, h)`` in ``0..1`` (``x, y`` = top-left corner).
+
+    Center-safe: the box is clamped to the image bounds so a slightly out-of-range box from a
+    vision model (or an integration's detector) still produces a valid, non-empty crop. Returns
+    ``None`` for a degenerate (zero-area) box.
+    """
+    if not box or len(box) != 4:
+        return None
+    x, y, w, h = (float(v) for v in box)
+    if w <= 0 or h <= 0:
+        return None
+    img, fmt = _load(data)
+    iw, ih = img.size
+    left = int(round(min(max(x, 0.0), 1.0) * iw))
+    top = int(round(min(max(y, 0.0), 1.0) * ih))
+    right = int(round(min(max(x + w, 0.0), 1.0) * iw))
+    bottom = int(round(min(max(y + h, 0.0), 1.0) * ih))
+    # Guarantee a non-empty box within bounds.
+    left = max(0, min(left, iw - 1))
+    top = max(0, min(top, ih - 1))
+    right = max(left + 1, min(right, iw))
+    bottom = max(top + 1, min(bottom, ih))
+    return _dump(img.crop((left, top, right, bottom)), fmt)
+
+
 def _parse_aspect(arg: str) -> tuple[int, int] | None:
     for sep in ("x", ":", "/"):
         if sep in arg:

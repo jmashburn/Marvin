@@ -489,6 +489,7 @@ class AuthoringService:
 
             return MediaEnrichmentService(
                 self.session, self.repos, self.group_id, user_id=getattr(self.user, "id", None),
+                provider=self.provider, model=self.model,
             ).run_for_entry(entry_id)
         except Exception as e:  # noqa: BLE001
             self.logger.debug("media enrichment skipped: %s", e)
