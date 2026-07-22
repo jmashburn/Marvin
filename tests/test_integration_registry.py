@@ -105,3 +105,85 @@ def test_rss_parses_atom_entries():
 def test_registry_is_shared_singleton():
     # register_provider populates the same dict list_providers reads.
     assert INTEGRATION_REGISTRY["rss"] is get_provider("rss")
+
+
+def test_load_reports_include_builtins():
+    from marvin.services.integrations import load_reports
+
+    reports = load_reports()
+    builtins = [r for r in reports if r.source == "builtin"]
+    assert builtins and builtins[0].ok
+    assert {"rss", "vercel_deploy"} <= set(builtins[0].slugs)
+
+
+def test_orphaned_row_reads_as_unavailable():
+    # A row whose provider package isn't installed must surface as unavailable, not a stale status.
+    import uuid
+    from types import SimpleNamespace
+
+    from marvin.routes.groups.integrations_controller import _to_read
+
+    row = SimpleNamespace(
+        id=uuid.uuid4(), provider="ghost_provider", name="Ghost", slug="ghost", enabled=True,
+        config=None, secret_ref=None, status="ok", last_checked_at=None, last_error=None,
+    )
+    read = _to_read(row)
+    assert read.status == "unavailable"
+    assert "not installed" in (read.last_error or "")
+
+
+def test_entry_point_discovery_is_resilient(monkeypatch):
+    # A good plugin registers (with its distribution version); a broken one is reported failed and
+    # skipped — it must not take down discovery of the others.
+    from marvin_integration_sdk import INTEGRATION_REGISTRY, IntegrationProvider
+
+    import marvin.services.integrations.loader as loader
+
+    class _GoodProvider(IntegrationProvider):
+        slug = "test_good"
+        name = "Test Good"
+
+    def _boom():
+        raise RuntimeError("boom")
+
+    class _EP:
+        def __init__(self, name, fn, dist):
+            self.name, self._fn, self.dist = name, fn, dist
+
+        def load(self):
+            return self._fn()
+
+    class _Dist:
+        def __init__(self, name, version):
+            self.name, self.version = name, version
+
+    eps = [
+        _EP("good", lambda: _GoodProvider, _Dist("marvin-integration-good", "1.2.3")),
+        _EP("bad", _boom, _Dist("marvin-integration-bad", "0.1")),
+    ]
+    monkeypatch.setattr(loader.importlib_metadata, "entry_points", lambda group=None: eps)
+    try:
+        reports = {r.name: r for r in loader._load_entry_points()}
+        assert reports["good"].ok
+        assert reports["good"].slugs == ["test_good"]
+        assert reports["good"].version == "1.2.3"
+        assert not reports["bad"].ok
+        assert "boom" in (reports["bad"].error or "")
+        assert "test_good" in INTEGRATION_REGISTRY
+    finally:
+        INTEGRATION_REGISTRY.pop("test_good", None)
+
+
+def test_installed_provider_reads_normally():
+    import uuid
+    from types import SimpleNamespace
+
+    from marvin.routes.groups.integrations_controller import _to_read
+
+    row = SimpleNamespace(
+        id=uuid.uuid4(), provider="rss", name="My feed", slug="my_feed", enabled=True,
+        config={"feed_url": "https://x/feed"}, secret_ref=None, status="ok", last_checked_at=None, last_error=None,
+    )
+    read = _to_read(row)
+    assert read.status == "ok"
+    assert read.last_error is None

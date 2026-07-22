@@ -21,8 +21,17 @@ from marvin_integration_sdk import (
     register_provider,
 )
 
-from . import providers  # noqa: F401 — importing registers the built-in providers
 from .http_client import MarvinHttpHelper, build_http
+from .loader import ProviderLoadReport, load_providers
+
+# Discover built-in + installed-plugin providers once, at import time.
+load_providers()
+
+
+def load_reports() -> list[ProviderLoadReport]:
+    """The per-source provider load reports (built-ins + installed plugins)."""
+    return load_providers()
+
 
 __all__ = [
     "INTEGRATION_REGISTRY",
@@ -39,4 +48,7 @@ __all__ = [
     "list_providers",
     "MarvinHttpHelper",
     "build_http",
+    "ProviderLoadReport",
+    "load_providers",
+    "load_reports",
 ]

@@ -6,6 +6,7 @@ health check, and an action test-fire. Credentials are written to the configured
 backend and referenced by `secret_ref` — never stored on the row or returned.
 """
 
+from dataclasses import asdict
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, status
@@ -19,11 +20,20 @@ from marvin.schemas.group.integration import (
     IntegrationActionResult,
     IntegrationCheckResult,
     IntegrationCreate,
+    IntegrationPluginInfo,
     IntegrationProviderInfo,
     IntegrationRead,
     IntegrationUpdate,
 )
-from marvin.services.integrations import IntegrationContext, build_http, get_provider, list_providers
+from marvin.services.integrations import (
+    INTEGRATION_REGISTRY,
+    IntegrationContext,
+    IntegrationProvider,
+    build_http,
+    get_provider,
+    list_providers,
+    load_reports,
+)
 from marvin.services.secrets import get_secret_backend
 from marvin.services.secrets.resolver import resolve_secret
 
@@ -37,6 +47,9 @@ def _secret_ref(slug: str) -> str:
 
 
 def _to_read(row: IntegrationModel) -> IntegrationRead:
+    # If the provider's package was uninstalled, the row is orphaned — surface that instead of a
+    # stale "ok", so the UI can grey it out rather than pretend it still works.
+    available = row.provider in INTEGRATION_REGISTRY
     return IntegrationRead(
         id=row.id,
         provider=row.provider,
@@ -45,9 +58,9 @@ def _to_read(row: IntegrationModel) -> IntegrationRead:
         enabled=row.enabled,
         config=row.config,
         has_credential=bool(row.secret_ref),
-        status=row.status,
+        status=row.status if available else "unavailable",
         last_checked_at=row.last_checked_at,
-        last_error=row.last_error,
+        last_error=row.last_error if available else f"Provider '{row.provider}' is not installed.",
     )
 
 
@@ -62,6 +75,13 @@ class IntegrationsController(BaseUserController):
         if not row or row.group_id != self.group_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found.")
         return row
+
+    def _provider_or_none(self, slug: str) -> IntegrationProvider | None:
+        """The provider, or None if its package isn't installed (an orphaned integration)."""
+        try:
+            return get_provider(slug)
+        except KeyError:
+            return None
 
     def _validate_config(self, provider, config: dict) -> None:
         """Light validation: required keys present. (Full JSON-schema validation is a later pass.)"""
@@ -85,6 +105,11 @@ class IntegrationsController(BaseUserController):
     def list_provider_catalog(self):
         """The available integration providers (the 'add integration' catalog)."""
         return [IntegrationProviderInfo(**p.info()) for p in list_providers()]
+
+    @router.get("/plugins", response_model=list[IntegrationPluginInfo])
+    def list_plugins(self):
+        """Installed provider sources — built-ins and plugin packages — with load status/version."""
+        return [IntegrationPluginInfo(**asdict(r)) for r in load_reports()]
 
     # ---- CRUD --------------------------------------------------------------------
 
@@ -146,13 +171,19 @@ class IntegrationsController(BaseUserController):
     def update_integration(self, integration_id: UUID4, data: IntegrationUpdate):
         """Update name/enabled/config, or rotate the credential."""
         row = self._get_or_404(integration_id)
-        provider = get_provider(row.provider)
+        # Provider may be uninstalled (orphaned row); still allow rename / enable-disable / delete.
+        provider = self._provider_or_none(row.provider)
 
         if data.name is not None:
             row.name = data.name
         if data.enabled is not None:
             row.enabled = data.enabled
         if data.config is not None:
+            if provider is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Provider '{row.provider}' is not installed — cannot change its config.",
+                )
             self._validate_config(provider, data.config)
             row.config = data.config or None
         if data.credential is not None:
@@ -162,7 +193,8 @@ class IntegrationsController(BaseUserController):
 
         self.session.commit()
         self.session.refresh(row)
-        self._run_check(row)
+        if provider is not None:
+            self._run_check(row)
         return _to_read(row)
 
     @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -180,11 +212,14 @@ class IntegrationsController(BaseUserController):
     # ---- health check ------------------------------------------------------------
 
     def _run_check(self, row: IntegrationModel) -> None:
-        provider = get_provider(row.provider)
-        try:
-            status_str, err = provider.check(self._context(row))
-        except Exception as e:  # noqa: BLE001 — a provider bug must not 500 the request
-            status_str, err = "error", str(e)
+        provider = self._provider_or_none(row.provider)
+        if provider is None:
+            status_str, err = "unavailable", f"Provider '{row.provider}' is not installed."
+        else:
+            try:
+                status_str, err = provider.check(self._context(row))
+            except Exception as e:  # noqa: BLE001 — a provider bug must not 500 the request
+                status_str, err = "error", str(e)
         row.status = status_str
         row.last_error = err
         row.last_checked_at = datetime.now(UTC)
@@ -207,7 +242,9 @@ class IntegrationsController(BaseUserController):
         if not row.enabled:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Integration is disabled.")
 
-        provider = get_provider(row.provider)
+        provider = self._provider_or_none(row.provider)
+        if provider is None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Provider '{row.provider}' is not installed.")
         if provider.get_action(action_key) is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No action '{action_key}' on this provider.")
 

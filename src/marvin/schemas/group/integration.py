@@ -80,6 +80,18 @@ class IntegrationProviderInfo(_MarvinModel):
     actions: list[ProviderActionInfo] = Field(default_factory=list)
 
 
+class IntegrationPluginInfo(_MarvinModel):
+    """One provider source (built-ins, or an installed plugin distribution) and how it loaded."""
+
+    name: str
+    source: str  # "builtin" | "entry_point"
+    ok: bool
+    slugs: list[str] = Field(default_factory=list)
+    distribution: str | None = None
+    version: str | None = None
+    error: str | None = None
+
+
 class IntegrationActionResult(_MarvinModel):
     """Result of running (or test-firing) a provider action."""
 
