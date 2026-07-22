@@ -1,15 +1,13 @@
 """RSS/Atom feed — a source integration that emits an event per new item.
 
-`poll()` fetches and parses the feed and returns one PolledEvent per item, keyed by a
-stable dedup id (guid/link). The scheduler that calls poll() on a cadence and suppresses
-already-seen dedup_keys is Phase B; this provider is stateless by design.
+``poll()`` fetches and parses the feed and returns one PolledEvent per item, keyed by a stable dedup
+id (guid/link). The core calls poll() on a cadence and dispatches the returned events; this provider
+is stateless by design.
 """
 
-import urllib.error
-import urllib.request
 from xml.etree import ElementTree
 
-from ..base import (
+from marvin_integration_sdk import (
     CATEGORY_SOURCE,
     IntegrationContext,
     IntegrationProvider,
@@ -18,16 +16,9 @@ from ..base import (
     register_provider,
 )
 
-_TIMEOUT = 15
 _MAX_ITEMS = 50
-# Atom uses a namespace; RSS 2.0 does not. Handle both by checking local tag names.
+# Atom uses a namespace; RSS 2.0 does not. Handle both by checking local/namespaced tag names.
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
-
-
-def _fetch(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "Marvin/RSS"})
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-        return resp.read()
 
 
 def _text(el) -> str:
@@ -88,9 +79,9 @@ class RssProvider(IntegrationProvider):
         if not feed_url:
             return ("unconfigured", "Missing feed URL.")
         try:
-            _parse_items(_fetch(feed_url))
+            _parse_items(ctx.http.get(feed_url).content)
             return ("ok", None)
-        except (urllib.error.URLError, ElementTree.ParseError) as e:
+        except Exception as e:  # noqa: BLE001 — network + parse errors both mean "can't read feed"
             return ("error", f"Could not read feed: {e}")
 
     def poll(self, ctx: IntegrationContext) -> list[PolledEvent]:
@@ -98,18 +89,13 @@ class RssProvider(IntegrationProvider):
         if not feed_url:
             return []
         try:
-            items = _parse_items(_fetch(feed_url))
-        except (urllib.error.URLError, ElementTree.ParseError) as e:
+            items = _parse_items(ctx.http.get(feed_url).content)
+        except Exception as e:  # noqa: BLE001 — a bad fetch/parse just yields no events this round
             ctx.logger.warning(f"[rss] poll failed for {feed_url}: {e}")
             return []
 
         return [
-            PolledEvent(
-                event_key="rss.item_published",
-                dedup_key=item["guid"],
-                message=item["title"],
-                payload=item,
-            )
+            PolledEvent(event_key="rss.item_published", dedup_key=item["guid"], message=item["title"], payload=item)
             for item in items
             if item["guid"]
         ]

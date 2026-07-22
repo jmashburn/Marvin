@@ -23,7 +23,7 @@ from marvin.schemas.group.integration import (
     IntegrationRead,
     IntegrationUpdate,
 )
-from marvin.services.integrations import IntegrationContext, get_provider, list_providers
+from marvin.services.integrations import IntegrationContext, build_http, get_provider, list_providers
 from marvin.services.secrets import get_secret_backend
 from marvin.services.secrets.resolver import resolve_secret
 
@@ -74,16 +74,10 @@ class IntegrationsController(BaseUserController):
             )
 
     def _context(self, row: IntegrationModel) -> IntegrationContext:
+        # Narrow, core-free context: providers get config + resolved secret + logger + safe http,
+        # and nothing else. The core owns persistence and event dispatch.
         secret = resolve_secret(row.secret_ref, self.group_id) if row.secret_ref else None
-        return IntegrationContext(
-            integration_id=row.id,
-            group_id=self.group_id,
-            slug=row.slug,
-            config=row.config or {},
-            secret=secret,
-            session=self.session,
-            logger=logger,
-        )
+        return IntegrationContext(config=row.config or {}, secret=secret, logger=logger, http=build_http())
 
     # ---- provider catalog --------------------------------------------------------
 

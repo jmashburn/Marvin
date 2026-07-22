@@ -1,15 +1,11 @@
 """Vercel Deploy Hook — a destination integration that rebuilds a site on demand.
 
-A Vercel Deploy Hook is a URL you POST to; the URL embeds a token, so the URL *is* the
-credential. Wire it to "on entry published → trigger_deploy" to rebuild the real site
-whenever content changes — the honest, headless version of "custom domains".
+A Vercel Deploy Hook is a URL you POST to; the URL embeds a token, so the URL *is* the credential.
+Wire it to "on entry published → trigger_deploy" to rebuild the live site whenever content changes —
+the honest, headless version of "custom domains".
 """
 
-import json
-import urllib.error
-import urllib.request
-
-from ..base import (
+from marvin_integration_sdk import (
     CATEGORY_DESTINATION,
     CredentialField,
     IntegrationContext,
@@ -17,8 +13,6 @@ from ..base import (
     ProviderAction,
     register_provider,
 )
-
-_TIMEOUT = 15
 
 
 @register_provider
@@ -57,18 +51,18 @@ class VercelDeployProvider(IntegrationProvider):
         if not ctx.secret:
             raise ValueError("No deploy hook URL configured.")
 
-        req = urllib.request.Request(ctx.secret, data=b"", method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-                body = resp.read().decode("utf-8", "replace")
-                try:
-                    parsed = json.loads(body)
-                except ValueError:
-                    parsed = {"raw": body[:500]}
-                return {"status_code": resp.status, "response": parsed}
-        except urllib.error.HTTPError as e:
-            ctx.logger.warning(f"[vercel_deploy] hook returned {e.code}")
-            raise ValueError(f"Deploy hook returned HTTP {e.code}") from e
-        except urllib.error.URLError as e:
-            ctx.logger.warning(f"[vercel_deploy] hook unreachable: {e.reason}")
-            raise ValueError(f"Deploy hook unreachable: {e.reason}") from e
+            resp = ctx.http.post(ctx.secret, data=b"")
+        except Exception as e:  # noqa: BLE001 — surface any transport/guard failure as a clean error
+            ctx.logger.warning(f"[vercel_deploy] hook unreachable: {e}")
+            raise ValueError(f"Deploy hook unreachable: {e}") from e
+
+        if not resp.ok:
+            ctx.logger.warning(f"[vercel_deploy] hook returned {resp.status_code}")
+            raise ValueError(f"Deploy hook returned HTTP {resp.status_code}")
+
+        try:
+            parsed = resp.json()
+        except ValueError:
+            parsed = {"raw": resp.text[:500]}
+        return {"status_code": resp.status_code, "response": parsed}

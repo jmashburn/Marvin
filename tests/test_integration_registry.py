@@ -19,19 +19,19 @@ from marvin.services.integrations.providers.rss import _parse_items
 _LOG = logging.getLogger("test")
 
 
-def _ctx(slug: str, *, secret=None, config=None) -> IntegrationContext:
-    """A DB-less context — the check() paths under test never touch the session."""
-    import uuid
+class _StubHttp:
+    """A no-op http helper; the check() paths under test don't perform requests."""
 
-    return IntegrationContext(
-        integration_id=uuid.uuid4(),
-        group_id=uuid.uuid4(),
-        slug=slug,
-        config=config or {},
-        secret=secret,
-        session=None,  # type: ignore[arg-type] — not used by these providers' check()
-        logger=_LOG,
-    )
+    def get(self, url, *, headers=None, timeout=15):  # pragma: no cover - not exercised here
+        raise AssertionError("network not expected in these tests")
+
+    def post(self, url, *, json=None, data=None, headers=None, timeout=15):  # pragma: no cover
+        raise AssertionError("network not expected in these tests")
+
+
+def _ctx(slug: str, *, secret=None, config=None) -> IntegrationContext:
+    """A narrowed context — providers get only config/secret/logger/http."""
+    return IntegrationContext(config=config or {}, secret=secret, logger=_LOG, http=_StubHttp())
 
 
 def test_builtin_providers_are_registered():
