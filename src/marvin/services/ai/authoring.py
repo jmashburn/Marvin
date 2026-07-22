@@ -223,6 +223,20 @@ class AuthoringService:
             # that extracts suppliers/materials lands them linked, without inventing duplicate resources.
             attached_resources = self._attach_existing_resources(entry.id, proposed_resources)
             self.session.commit()
+
+            # Upgrade the draft's warnings from asset-only to the full completeness contract
+            # (required fields + assets + resources + tags), so the author/AI sees every gap that
+            # would block publishing. Best-effort — fall back to the asset warnings on any error.
+            try:
+                from marvin.db.models.platform.entries import Entries as _Entries
+                from marvin.services.entries.completeness import evaluate_entry as _evaluate_entry
+
+                _orm = self.session.get(_Entries, entry.id)
+                if _orm is not None:
+                    recipe_warnings = _evaluate_entry(_orm, entry_type).blocking_messages()
+            except Exception as _e:  # noqa: BLE001
+                self.logger.debug("compose completeness eval skipped: %s", _e)
+
             self._emit_entry_created(entry, entry_type)
 
             # Recipe enrichment: derive alt text for the draft's images (opt-in, best-effort).

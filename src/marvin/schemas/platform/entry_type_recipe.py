@@ -45,12 +45,24 @@ class RecipeResourceExtract(_MarvinModel):
     type: str                      # supplier | tool | reference | …
     source: str = "body"           # which field to read entities from
     capture: list[str] = Field(default_factory=list, description="name | url | notes | …")
+    required: bool = False          # completeness: entry must link ≥ min resources of this type
+    min: int = 0                    # minimum linked resources of this type (implies 1 when required)
 
     model_config = ConfigDict(extra="allow")
 
 
 class RecipeResources(_MarvinModel):
     extract: list[RecipeResourceExtract] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class RecipeTags(_MarvinModel):
+    """Tagging contract for the entry type — completeness + authoring guidance."""
+
+    required: bool = False          # entry must carry ≥ min tags
+    min: int = 0                    # minimum tag count (implies 1 when required)
+    suggested: list[str] = Field(default_factory=list, description="Preferred vocabulary to reuse")
 
     model_config = ConfigDict(extra="allow")
 
@@ -67,6 +79,7 @@ class EntryTypeRecipe(_MarvinModel):
     instructions: str | None = None
     assets: RecipeAssets | None = None
     resources: RecipeResources | None = None
+    tags: RecipeTags | None = None
     enrichment: dict | None = None
 
     model_config = ConfigDict(extra="allow")
