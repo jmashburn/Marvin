@@ -66,3 +66,16 @@
   `a1b2c3d4e5f6` for a new migration **collided** with an existing one → `alembic upgrade` failed
   with "Cycle is detected in revisions". Grep `src/marvin/alembic/versions/` for your chosen id
   before using it; pick something random (e.g. `9f3e7a1c8b2d`).
+
+## `pgrep` is aliased to `pass grep` in this shell — DO NOT run bare pgrep
+
+- The user's bash snapshot (sourced by Claude Code, `expand_aliases` on) defines
+  `alias pgrep='pass grep'`. It's the *only* `pass` alias that shadows a real binary.
+- Running `pgrep ...` (intending the process tool) executes `pass grep`, which greps the
+  **decrypted** password store and prints matching entries **with secret values**. GPG is often
+  already unlocked mid-session, so it dumps silently. This leaked real tokens into a transcript.
+- **Rule:** never call bare `pgrep` in Bash here. Use `command pgrep` / `\pgrep` / `/usr/bin/pgrep`,
+  or find processes via a `/proc/*/cmdline` scan or `ps`/`ss` (all unaliased and safe). `pkill`,
+  `kill`, `ps`, `grep`, `ss` are NOT aliased.
+- Correction from user 2026-07-22: using `pgrep -f 'src/marvin/app.py'` to find the backend pid
+  dumped their pass store (GitHub/GitLab tokens, Bitwarden entries) into command output.

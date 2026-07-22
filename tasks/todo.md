@@ -55,6 +55,60 @@ slug. axis-B UI = next.)_
 
 ---
 
+## ▶ ACTIVE PLAN — mashburn footer (then header) fully backend-driven
+> Site: `mashandburnco`. Goal: the footer takes ALL its content from Marvin; local `data/site.ts`
+> stays only as an offline fallback. Then repeat for the header.
+
+**Design decision (2026-07-22): "one entry, multiple memberships" (option C).** A content page is a
+single entry that owns its markdown (e.g. `terms` in the smart `workshop-reference` collection); to
+show it in the footer, the SAME entry is also a member of the manual `footer-navigation` collection.
+Href auto-derives via `pageHref`. Two nav-item kinds, distinguished by `EntryCollections.role`:
+`page` links (content entry surfaced by membership) vs `system`/link-only (label+href, no content).
+Footer groups/selects by role, not by hardcoded label match.
+
+**Facts:** `main-navigation` (6) + `footer-navigation` (6) are MANUAL, identical entries today.
+`workshop-reference` is SMART and already holds `terms`/`privacy`/`faq`/`care-guide`/`shipping`/
+`sizing`/`returns-repairs`/`materials-sourcing`/`project-inquiries`. `site-assets` has only `hero`.
+`imprint`/social/logo read from Marvin site config JSON with static fallback — they fall back today
+because the site config JSON isn't populated.
+
+**Steps (footer):**
+- [x] 1. **Legal links** ✅ — added `terms`+`privacy` to `footer-navigation` (role `legal`);
+      Footer.astro uses `chrome.legalLinks`, hardcoded fallback removed. Verified live: terms/privacy
+      render once each in the legal strip, excluded from primary columns.
+- [x] 2. **Nav-item kinds** ✅ — `ApiNavigationLink.role` + `collectionRole()` reads membership role
+      (robust to string/flat/nested SDK shapes); siteChrome splits footer into primary vs legal.
+- [x] 3. **Imprint** ✅ — set `site_metadata_json.imprint` in group_preferences; verified in the
+      published API. (Live render updates on dev-server restart — value equals the static fallback.)
+- [x] 4. **Social** ✅ — already backend-driven: `group_preferences.site_social_json` is populated
+      and `transformMarvinToSite` reads `config.social`. No change needed.
+- [x] 5. **Brand assets** ✅ — assets already existed in Marvin (`mb-monogram`, `maker-stamp-round`).
+      Added `brand.seal='maker-stamp-round'` to site_metadata_json; `getSite` resolves `brand.seal`
+      → `site.seal` (existing `resolveBrandSlug`); Footer now uses `chrome.site.logo`/`chrome.site.seal`
+      (was local `brandAssets.*`). Verified live: footer mark + seal render Marvin asset URLs.
+- [x] 6. Verified live at :4321 — footer nav/legal/imprint/social/monogram/seal all from backend;
+      remaining `/assets/brand/*` refs are decorative paper textures (CSS), not footer identity.
+- [x] 7. **Entry-type consolidation** ✅ — `page-with-navigation` conflated content + nav; the link
+      is inherent (slug→route). Re-typed `workshop`+`contact` to the SYSTEM `page` type (body-only,
+      routable); stripped contact's vestigial `destination`. `page-with-navigation` now empty → user
+      deletes it. Kept `navigation-item` (pure link/anchor primitive) and `about` (bespoke schema).
+      Verified: published type=page, /workshop + /contact still 200, nav links intact.
+      **NOTE:** `contact.astro` is fully static — it does NOT render the Marvin `contact` body (that
+      body is authored but unused). Either wire contact.astro to Marvin later, or make `contact` a
+      `navigation-item` to reflect reality. `workshop.astro` reads a `intro` field the entry lacks
+      (pre-existing; entry only has `body`) — cosmetic, not caused by this migration.
+- [ ] 8. THEN header: LARGELY DONE — header logo already resolves `mb-monogram` (`chrome.site.logo`),
+      nav already from `main-navigation`. Optional: give main-navigation entries roles for the
+      system-vs-page distinction; otherwise header is already backend-driven.
+
+**THOUGHT PARKED (2026-07-22, revisit): `is_rendered` really means "renderable".** System `page` /
+`navigation-item` set `is_rendered=True` + `rendering_json={renderer, package:
+'@inneropen/marvin-renderers-core'}` — they *declare* a package renderer, but `mashandburnco` still
+renders them with custom Astro components (about/workshop/contact) and never routes through the
+package. So the flag over-claims ("renderable", not "rendered"). Future: build a frontend pipeline
+that passes renderable entry_types through MarvinRenderersCore, then migrate the bespoke pages onto
+package renderers. (Memory: [[is-rendered-means-renderable]].)
+
 ## ▶ ACTIVE PLAN — Context-aware Marvin bubble + broader entry AI actions
 > Implements the **"Per-page context"** bullet of the ★ North star (below, ~L463) using the
 > mechanism it prescribes: pages *declare* a context object, no DOM scraping, route fallback.
@@ -744,6 +798,27 @@ hover; master switch dims/disables the add+manage sections when off. Verified li
       startup lifespan (idempotent, group_id=NULL, interval 86400s). (7b514a3)
 
 ## 🌳 Medium / Features
+- [ ] **Hero media: separate SOURCE from TRANSFORM (Option B)** — BACKLOG (design chosen 2026-07-22,
+      not started). Today roles conflate *which image* (original vs generated) with *what processing*
+      (raw vs graded), so every combo needs its own role string AND its own selection rung, and it
+      doesn't compose. Current gaps found:
+      · Site fall-through (`mashandburnco` `featuredImage()`) is only `hero-grade → hero|featured|card
+        → featured`; **`hero-generated` is not in the chain at all**.
+      · Generate step (`enrichment.py::_run_media_step`) has **no idempotency guard** and slug
+        `{src.slug}--generate` **omits the prompt** → two generations collide/ambiguous; site `.find()`
+        takes the first arbitrarily.
+      · Grading a generated asset needs a recipe role `hero-generated` + a **2nd** enrichment pass
+        (derive runs BEFORE generate), yielding `hero-generated-grade` that nothing selects.
+      **Chosen model (B):** an entry has ONE *selected hero source* (original or an approved generated
+      image); **grade always derives from whichever source is current**. Generating swaps the source;
+      grading re-derives. Kills the `hero-generated-grade` combinatorics; one selection rule everywhere.
+      · **Store the selection on `entry_assets`** (junction already has `role` + `metadata_json`), NOT
+        on collection membership. `EntryCollections.role`/`metadata_json` is fully plumbed (DB→API→SDK
+        `entryMetadata.role`) but **currently consumed by nothing** — it's the wrong axis (it answers
+        "entry's role *within* Projects", not "which image is the hero"). Optionally later: let a
+        collection-membership `metadata_json` override *presentation* (grid card vs detail crop).
+      · Generated output stays approval-gated (junction `metadata_json.suggested`; publish API already
+        strips it), so only an APPROVED generated image can become the selected source.
 - [x] **Route entries into collections via smart rules** ✅ (declarative half done) — smart
       collections are now REAL (materialized-via-reactions): `smart_rules` (entry_types + statuses,
       match all|any) evaluated by a reaction on entry create/update/publish/… → EntryCollections
