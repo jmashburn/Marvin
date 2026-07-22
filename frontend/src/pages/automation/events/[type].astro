@@ -4,6 +4,7 @@ import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken, fetchApi } from "@/lib/api/client";
 import { listEmailTemplates } from "@/lib/api/emailTemplates";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { listIntegrations, listSubscriptions, listProviders } from "@/lib/api/integrations";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -15,6 +16,9 @@ let emailSubscriptions: any[] = [];
 let eventConnections: any[] = [];
 let webhooks: any[] = [];
 let notifications: any[] = [];
+let integrations: any[] = [];
+let integrationSubs: any[] = [];
+let integrationProviders: any[] = [];
 let error: string | null = null;
 let wsId: string | null = null;
 
@@ -42,6 +46,12 @@ try {
   emailTemplates = Array.isArray(emailRes) ? emailRes : (emailRes as any)?.items ?? [];
   webhooks = Array.isArray(webhookRes) ? webhookRes : (webhookRes as any)?.items ?? [];
   notifications = Array.isArray(notifRes) ? notifRes : (notifRes as any)?.items ?? [];
+
+  [integrations, integrationSubs, integrationProviders] = await Promise.all([
+    listIntegrations(authToken).catch(() => []),
+    listSubscriptions(type!, authToken).catch(() => []),
+    listProviders(authToken).catch(() => []),
+  ]);
 
   // Fetch event-connections to show system template row
   if (wsId) {
@@ -294,6 +304,38 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             </a>
           </div>
         </section>
+
+        <section class="sub-section">
+          <div class="sub-header">
+            <h3>Integrations</h3>
+            <p>Run an integration action (Slack, deploy hook, …) when this event fires</p>
+          </div>
+          <div class="sub-options">
+            {integrationSubs.map((s: any) => (
+              <div class="sub-option sub-option-connected">
+                <div class="sub-option-info">
+                  <div class="sub-option-name-row">
+                    <span class="connected-check">&#10003;</span>
+                    <strong>{s.integrationName ?? s.provider}</strong>
+                    <span class="badge-inline badge-custom">{s.action}</span>
+                  </div>
+                  <code class="sub-type">{s.args && Object.keys(s.args).length ? JSON.stringify(s.args) : 'no args'}</code>
+                </div>
+                <div class="sub-option-actions">
+                  <button type="button" class="button small secondary danger js-int-disconnect" data-sub-id={s.id}>Disconnect</button>
+                </div>
+              </div>
+            ))}
+            {integrationSubs.length === 0 && (
+              <div class="sub-option" style="color:var(--muted);font-size:13px;">
+                No integration actions connected to this event yet.
+              </div>
+            )}
+            <button type="button" class="sub-option sub-option-create js-int-connect-open" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;font:inherit;">
+              <span>+ Connect an integration action</span>
+            </button>
+          </div>
+        </section>
       </div>
     </>
   ) : null}
@@ -388,6 +430,41 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
     </div>
   </div>
 </div>
+
+<!-- Integration connection modal -->
+<div id="int-modal" class="wh-modal" style="display:none" aria-modal="true">
+  <div class="wh-overlay"></div>
+  <div class="wh-content">
+    <div class="wh-header">
+      <div>
+        <h3>Connect an integration</h3>
+        <code class="wh-url">Runs on every {type} event</code>
+      </div>
+      <button type="button" id="int-close" class="wh-close">✕</button>
+    </div>
+    <div class="wh-body">
+      <div class="form-group">
+        <label class="em-field-label">Integration</label>
+        <select id="int-select" class="em-text-input"></select>
+      </div>
+      <div class="form-group">
+        <label class="em-field-label">Action</label>
+        <select id="int-action" class="em-text-input"></select>
+      </div>
+      <div id="int-args"></div>
+      <p class="wh-label" style="margin-top:10px;">Insert event data with <code>{"{{field}}"}</code> — e.g. <code>{"{{title}}"}</code>, <code>{"{{event_type}}"}</code>.</p>
+    </div>
+    <div class="wh-footer">
+      <span id="int-note" class="wh-note"></span>
+      <div class="wh-actions">
+        <button type="button" id="int-confirm" class="button">Connect</button>
+        <button type="button" id="int-cancel" class="button secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="int-data" set:html={JSON.stringify({ integrations, providers: integrationProviders, eventType: type })}></script>
 
 <script define:vars={{ type, apiUrl: import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080', examplePayload, eventVariables: eventInfo?.variables ?? [], wsId: wsId ?? null }}>
   // Webhook modal
@@ -853,6 +930,99 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
       }
     });
   });
+</script>
+
+<!-- Integration event-connection: pick an integration action + args, wired via the SDK. -->
+<script>
+  {
+    const dataEl = document.getElementById('int-data');
+    const parsed = JSON.parse(dataEl?.textContent || '{}') as {
+      integrations?: any[]; providers?: any[]; eventType?: string;
+    };
+    const integrations = parsed.integrations ?? [];
+    const providers = parsed.providers ?? [];
+    const eventType = parsed.eventType ?? '';
+    const bySlug = new Map(providers.map((p: any) => [p.slug, p]));
+
+    const modal = document.getElementById('int-modal') as HTMLElement | null;
+    const sel = document.getElementById('int-select') as HTMLSelectElement | null;
+    const actionSel = document.getElementById('int-action') as HTMLSelectElement | null;
+    const argsEl = document.getElementById('int-args') as HTMLElement | null;
+
+    // Only integrations that are enabled AND whose provider exposes at least one action.
+    const usable = integrations.filter((i: any) => i.enabled && (bySlug.get(i.provider)?.actions?.length));
+
+    if (sel) sel.innerHTML = usable.map((i: any) => `<option value="${i.id}" data-provider="${i.provider}">${i.name}</option>`).join('');
+
+    function renderArgs() {
+      if (!sel || !actionSel || !argsEl) return;
+      const provider = bySlug.get(sel.selectedOptions[0]?.dataset.provider);
+      const action = (provider?.actions ?? []).find((a: any) => a.key === actionSel.value);
+      const props = (action?.inputSchema?.properties ?? {}) as Record<string, any>;
+      argsEl.innerHTML = Object.entries(props).map(([key, prop]: [string, any]) => `
+        <div class="form-group">
+          <label class="em-field-label">${prop.title || key}</label>
+          <input type="text" class="em-text-input" data-arg-key="${key}" placeholder="${prop.format === 'uri' ? 'https://…' : ''}" />
+        </div>`).join('');
+    }
+    function renderActions() {
+      if (!sel || !actionSel) return;
+      const provider = bySlug.get(sel.selectedOptions[0]?.dataset.provider);
+      const actions = provider?.actions ?? [];
+      actionSel.innerHTML = actions.map((a: any) => `<option value="${a.key}">${a.label}</option>`).join('');
+      renderArgs();
+    }
+    sel?.addEventListener('change', renderActions);
+    actionSel?.addEventListener('change', renderArgs);
+    if (usable.length) renderActions();
+
+    function closeInt() { if (modal) modal.style.display = 'none'; document.body.style.overflow = ''; }
+    document.querySelector('.js-int-connect-open')?.addEventListener('click', () => {
+      if (!usable.length) { alert('No integrations with actions yet. Add one in Settings → Integrations.'); return; }
+      const note = document.getElementById('int-note');
+      if (note) note.innerHTML = `Runs on every <strong>${eventType}</strong> event.`;
+      if (modal) { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+    });
+    document.getElementById('int-close')?.addEventListener('click', closeInt);
+    document.getElementById('int-cancel')?.addEventListener('click', closeInt);
+    modal?.querySelector('.wh-overlay')?.addEventListener('click', closeInt);
+
+    document.getElementById('int-confirm')?.addEventListener('click', async () => {
+      if (!sel || !actionSel || !argsEl) return;
+      const integrationId = sel.value;
+      const action = actionSel.value;
+      if (!integrationId || !action) return;
+      const args: Record<string, unknown> = {};
+      argsEl.querySelectorAll<HTMLInputElement>('[data-arg-key]').forEach((inp) => {
+        if (inp.value.trim()) args[inp.dataset.argKey!] = inp.value.trim();
+      });
+      const btn = document.getElementById('int-confirm') as HTMLButtonElement;
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { createSdkClient } = await import('@/lib/sdk');
+        await createSdkClient().integrations.createSubscription({ integrationId, eventType, action, args });
+        window.location.reload();
+      } catch (e) {
+        alert('Error: ' + (e instanceof Error ? e.message : String(e)));
+        btn.disabled = false; btn.textContent = 'Connect';
+      }
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('.js-int-disconnect').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Disconnect this integration action from the event?')) return;
+        btn.disabled = true;
+        try {
+          const { createSdkClient } = await import('@/lib/sdk');
+          await createSdkClient().integrations.deleteSubscription(btn.dataset.subId!);
+          window.location.reload();
+        } catch (e) {
+          alert('Error: ' + (e instanceof Error ? e.message : String(e)));
+          btn.disabled = false;
+        }
+      });
+    });
+  }
 </script>
 
 </AppLayout>

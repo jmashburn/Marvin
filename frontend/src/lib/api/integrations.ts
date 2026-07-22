@@ -12,6 +12,8 @@ import type {
   IntegrationPluginInfo,
   IntegrationActionResult,
   IntegrationCheckResult,
+  IntegrationEventSubscription,
+  IntegrationEventSubscriptionCreate,
 } from '@inneropen/marvin-sdk/platform';
 
 export type {
@@ -22,6 +24,8 @@ export type {
   IntegrationPluginInfo,
   IntegrationActionResult,
   IntegrationCheckResult,
+  IntegrationEventSubscription,
+  IntegrationEventSubscriptionCreate,
 };
 
 export async function listProviders(authToken?: string): Promise<IntegrationProviderInfo[]> {
@@ -59,4 +63,19 @@ export async function runIntegrationAction(
   authToken?: string,
 ): Promise<IntegrationActionResult> {
   return createSdkClient(authToken).integrations.runAction(id, actionKey, args);
+}
+
+export async function listSubscriptions(eventType?: string, authToken?: string): Promise<IntegrationEventSubscription[]> {
+  return createSdkClient(authToken).integrations.listSubscriptions(eventType);
+}
+
+export async function createSubscription(
+  data: IntegrationEventSubscriptionCreate,
+  authToken?: string,
+): Promise<IntegrationEventSubscription> {
+  return createSdkClient(authToken).integrations.createSubscription(data);
+}
+
+export async function deleteSubscription(id: string, authToken?: string): Promise<void> {
+  return createSdkClient(authToken).integrations.deleteSubscription(id);
 }
