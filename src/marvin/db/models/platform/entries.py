@@ -55,7 +55,9 @@ class Entries(SqlAlchemyBase, BaseMixins):
     metadata_json: Mapped[dict | None] = mapped_column("metadata_json", sa.JSON, nullable=True)
     # Pending AI-proposed changes staged for human review (write-back). Keyed by target field,
     # e.g. {"summary": "…", "_meta": {"operation": "generate-summary", "executionId": "…"}}.
-    suggestion_json: Mapped[dict | None] = mapped_column("suggestion_json", sa.JSON, nullable=True)
+    # none_as_null: store Python None as SQL NULL, not the JSON literal `null` (which `IS NOT NULL`
+    # would otherwise count as a pending suggestion). See clear_suggestion / dashboard attention count.
+    suggestion_json: Mapped[dict | None] = mapped_column("suggestion_json", sa.JSON(none_as_null=True), nullable=True)
     """Custom non-schema metadata (API keys, external IDs, CMS config, etc.)."""
     created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 

@@ -36,7 +36,7 @@ class Resources(SqlAlchemyBase, BaseMixins):
     external_id: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     # Pending AI-proposed changes staged for human review (write-back) — mirrors Entries.suggestion_json.
-    suggestion_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    suggestion_json: Mapped[dict | None] = mapped_column(sa.JSON(none_as_null=True), nullable=True)
     created_by: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
 
     # Relationships

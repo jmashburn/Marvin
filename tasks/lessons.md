@@ -44,3 +44,25 @@
   - Correction from user 2026-07-20: a `git stash push`/`pop` round-trip to check whether
     `astro check` errors were pre-existing triggered their GPG pinentry and wedged the shell for
     two tool calls. The same question was answerable with `git show HEAD:<file>`.
+
+## sa.JSON + Python None = JSON `null`, not SQL NULL
+
+- **Trap:** a `mapped_column(sa.JSON, nullable=True)` column renders Python `None` as the JSON
+  literal `null` (a real, non-NULL value), *not* SQL `NULL`. So `column IS NOT NULL` matches every
+  row ever set to `None` — insert-time defaults *and* explicit `obj.col = None` clears.
+- **How it bit us (2026-07-22):** the dashboard "pending AI suggestions" count queried
+  `suggestion_json IS NOT NULL` across entries/assets/resources and reported **111** when the real
+  count was **0** — all 111 rows held JSON `null` from `clear_suggestion()` doing `obj.col = None`.
+- **Fix:** `mapped_column(sa.JSON(none_as_null=True), nullable=True)` makes `None` → SQL NULL, for
+  both inserts and clears. Plus a data migration (`9f3e7a1c8b2d`) to normalize existing
+  `suggestion_json::text = 'null'` rows to real NULL (dialect-guarded: `::text='null'` on PG,
+  `= 'null'` on sqlite).
+- **Rule:** any `sa.JSON` column that is nullable *and* ever queried with `IS NULL` / `IS NOT NULL`
+  must use `none_as_null=True`. Otherwise the "is it set?" check is silently always-true.
+
+## Alembic revision ids must be globally unique
+
+- Hand-authored migrations reuse cute sequential ids (`a1b2c3d4e5f6`, `b2c3d4e5f6a7`, …). Picking
+  `a1b2c3d4e5f6` for a new migration **collided** with an existing one → `alembic upgrade` failed
+  with "Cycle is detected in revisions". Grep `src/marvin/alembic/versions/` for your chosen id
+  before using it; pick something random (e.g. `9f3e7a1c8b2d`).
