@@ -60,6 +60,27 @@ class EntriesController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
         return self.repos.entries.clear_suggestion(item_id)
 
+    @router.post("/{item_id}/suggested-assets/{asset_id}/approve", response_model=EntryRead, summary="Approve Suggested Asset")
+    def approve_suggested_asset(self, item_id: UUID4, asset_id: UUID4) -> EntryRead:
+        """Approve a pending AI-generated asset: clear the `suggested` flag on the entry↔asset link
+        so it becomes a normal confirmed asset (and reaches published output)."""
+        if not self.repos.entries.get_one(item_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
+        entry = self._entries().approve_suggested_asset(item_id, asset_id)
+        if entry is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No suggested asset found for this entry.")
+        return entry
+
+    @router.post("/{item_id}/suggested-assets/{asset_id}/reject", response_model=EntryRead, summary="Reject Suggested Asset")
+    def reject_suggested_asset(self, item_id: UUID4, asset_id: UUID4) -> EntryRead:
+        """Reject a pending AI-generated asset: unlink it, and delete the asset if it's now orphaned."""
+        if not self.repos.entries.get_one(item_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found.")
+        entry = self._entries().reject_suggested_asset(item_id, asset_id)
+        if entry is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No suggested asset found for this entry.")
+        return entry
+
     @router.patch("/{item_id}", response_model=EntryRead, summary="Update Entry")
     def update_entry(self, item_id: UUID4, data: EntryUpdate) -> EntryRead:
         # The service emits entry_updated + any status-transition events (published/unpublished/

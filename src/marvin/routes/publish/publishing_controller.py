@@ -99,6 +99,12 @@ def _build_entry_type_info(entry: Entries) -> PublishedEntryTypeInfo | None:
     )
 
 
+def _is_suggested(ea: EntryAssets) -> bool:
+    """A pending AI-suggested asset link — flagged in the junction metadata, awaiting workspace
+    review. These must never reach published output, so every asset serializer filters them out."""
+    return bool((ea.metadata_json or {}).get("suggested"))
+
+
 def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAssetRead:
     """Build a PublishedAssetRead from an entry-asset junction row."""
     return PublishedAssetRead(
@@ -120,7 +126,7 @@ def _build_published_asset(ea: EntryAssets, workspace_slug: str) -> PublishedAss
 def _resolve_featured_asset(entry: Entries, workspace_slug: str) -> PublishedAssetRead | None:
     """Resolve the featured asset for a list item: first hero/featured, then first by position."""
     sorted_assets = sorted(
-        (ea for ea in entry.entry_assets if ea.asset),
+        (ea for ea in entry.entry_assets if ea.asset and not _is_suggested(ea)),
         key=lambda x: x.position,
     )
     for ea in sorted_assets:
@@ -159,7 +165,7 @@ def _entry_to_list_item(entry: Entries, workspace_slug: str, include_order: bool
         for ec in entry.entry_collections
         if ec.collection and ec.collection.is_public
     ]
-    asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset]
+    asset_slugs = [ea.asset.slug for ea in entry.entry_assets if ea.asset and not _is_suggested(ea)]
     resource_slugs = [er.resource.slug for er in entry.entry_resources if er.resource]
 
     item_data = {
@@ -572,7 +578,7 @@ async def get_published_entry(
             asset=_build_published_asset(ea, group.slug),
         )
         for ea in entry.entry_assets
-        if ea.asset
+        if ea.asset and not _is_suggested(ea)
     ]
 
     return PublishedEntryRead(
@@ -823,7 +829,7 @@ async def list_published_assets(
     data = []
     for asset in assets:
         # Get published entry slugs that use this asset
-        entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+        entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS and not _is_suggested(ea)]
 
         data.append(
             PublishedAssetRead(
@@ -900,7 +906,7 @@ async def get_published_asset(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
     # Get published entry slugs that use this asset
-    entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS]
+    entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS and not _is_suggested(ea)]
 
     return PublishedAssetRead(
         slug=asset.slug,

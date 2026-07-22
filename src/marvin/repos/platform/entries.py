@@ -382,6 +382,23 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
             self.session.add(EntryResources(entry_id=entry.id, resource_id=resource.id, position=0))
             have.add(resource.id)
 
+    # ── Suggested (pending-review) asset links ─────────────────────────────
+
+    def get_suggested_asset_link(self, entry_id: Any, asset_id: Any) -> EntryAssets | None:
+        """The entry↔asset junction flagged ``suggested`` in its metadata_json, or None.
+
+        Only pending AI-suggested links qualify — a normal (confirmed) link returns None, so
+        approve/reject can never touch a curated asset.
+        """
+        junction = (
+            self.session.query(EntryAssets)
+            .filter(EntryAssets.entry_id == entry_id, EntryAssets.asset_id == asset_id)
+            .first()
+        )
+        if junction is None or not (junction.metadata_json or {}).get("suggested"):
+            return None
+        return junction
+
     # stage_suggestion / apply_suggestion / clear_suggestion come from SuggestionWritebackMixin.
 
     def _attach_collections(self, entry_id: UUID4, collection_ids: list[UUID4]) -> None:

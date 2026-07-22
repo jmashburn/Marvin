@@ -23,6 +23,7 @@ AUTOMATION_ALLOWED_HANDLERS: frozenset[str] = frozenset({
     "unpublish_expired_entries",
     "ai_reindex_embeddings",
     "resync_smart_collections",
+    "media_enrich",
 })
 
 

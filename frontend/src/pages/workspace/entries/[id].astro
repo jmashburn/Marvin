@@ -176,6 +176,11 @@ const attachedCollectionIds = new Set(attachedCollections.map((c: any) => c.id))
 const attachedAssets = (entry?.assets || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
 const attachedResources = (entry?.resources || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
 const attachedAssetIds = new Set(attachedAssets.map((a: any) => a.id));
+// AI-suggested (pending-review) assets are flagged in the entry↔asset junction metadata. They're
+// kept out of the confirmed, form-bound list (a normal Save must not touch them) and surfaced in a
+// separate review block with Approve / Reject actions.
+const suggestedAssets = attachedAssets.filter((a: any) => (a.placementMetadata as any)?.suggested);
+const confirmedAssets = attachedAssets.filter((a: any) => !(a.placementMetadata as any)?.suggested);
 const attachedResourceIds = new Set(attachedResources.map((r: any) => r.id));
 
 // entry.tags is a list of slugs (see EntryRead); resolve each to the full tag (id + display
@@ -611,11 +616,48 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
           </div>
 
           <div class="sidebar-section">
-            <h3>Assets (<span id="asset-count">{attachedAssets.length}</span>)</h3>
+            <h3>Assets (<span id="asset-count">{confirmedAssets.length}</span>)</h3>
             <p class="section-help">Attach images, files, and media</p>
 
+            {suggestedAssets.length > 0 && (
+              <div id="suggested-assets" class="suggested-assets" data-entry-id={entry.id}>
+                <div class="suggested-assets-head">
+                  <span class="suggested-assets-title">✨ AI-generated · pending review</span>
+                  <span class="suggested-assets-sub">Approve to keep &amp; publish, or reject to discard.</span>
+                </div>
+                {suggestedAssets.map((asset: any) => {
+                  const meta = (asset.placementMetadata as any) || {};
+                  return (
+                    <div class="suggested-asset-card" data-asset-id={asset.id}>
+                      <div class="attachment-header">
+                        <div class="attachment-preview">
+                          {asset.publicUrl && asset.mimeType?.startsWith('image/') ? (
+                            <img src={asset.publicUrl} alt={asset.altText || asset.name} />
+                          ) : (
+                            <span class="attachment-icon">🖼️</span>
+                          )}
+                        </div>
+                        <div class="attachment-name">
+                          <strong>{asset.name}</strong>
+                          <span class="suggested-badge">AI · pending review</span>
+                          {asset.role && <span class="picker-meta">{asset.role}</span>}
+                        </div>
+                      </div>
+                      {meta.prompt && (
+                        <p class="suggested-prompt"><span class="suggested-prompt-label">Prompt</span> {meta.prompt}</p>
+                      )}
+                      <div class="suggested-asset-actions">
+                        <button type="button" class="button suggested-approve">Approve</button>
+                        <button type="button" class="button secondary suggested-reject">Reject</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div id="attached-assets" class="attached-list">
-              {attachedAssets.map((asset: any, idx: number) => (
+              {confirmedAssets.map((asset: any, idx: number) => (
                 <div class="attachment-card" data-asset-id={asset.id}>
                   <div class="attachment-header">
                     <div class="attachment-preview">
@@ -1231,6 +1273,79 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
     overflow: hidden;
   }
 
+  /* AI-suggested (pending-review) asset block — visually distinct from confirmed attachments. */
+  .suggested-assets {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem;
+    border: 1px dashed var(--accent, #a94d3f);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent, #a94d3f) 7%, var(--panel-2));
+  }
+
+  .suggested-assets-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .suggested-assets-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .suggested-assets-sub {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .suggested-asset-card {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .suggested-badge {
+    display: inline-block;
+    width: fit-content;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background: var(--accent, #a94d3f);
+    color: #fff;
+    margin: 0.15rem 0;
+  }
+
+  .suggested-prompt {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 0 0.75rem 0.5rem;
+    line-height: 1.35;
+  }
+
+  .suggested-prompt-label {
+    font-weight: 600;
+    color: var(--text, inherit);
+    margin-right: 0.25rem;
+  }
+
+  .suggested-asset-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0 0.75rem 0.6rem;
+  }
+
+  .suggested-asset-actions .button {
+    flex: 1;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
   .attachment-header {
     display: flex;
     align-items: center;
@@ -1596,6 +1711,36 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
   }
   applySuggestionBtn?.addEventListener('click', () => suggestionAction('apply'));
   rejectSuggestionBtn?.addEventListener('click', () => suggestionAction('reject'));
+
+  // AI-suggested asset review (approve / reject a pending generated image on this entry).
+  const suggestedAssetsEl = document.getElementById('suggested-assets') as HTMLElement | null;
+  if (suggestedAssetsEl) {
+    const entryId = suggestedAssetsEl.dataset.entryId
+      || document.body.dataset.entityId
+      || window.location.pathname.split('/').pop();
+    suggestedAssetsEl.querySelectorAll<HTMLElement>('.suggested-asset-card').forEach((card) => {
+      const assetId = card.dataset.assetId;
+      const approveBtn = card.querySelector('.suggested-approve') as HTMLButtonElement | null;
+      const rejectBtn = card.querySelector('.suggested-reject') as HTMLButtonElement | null;
+      async function reviewAsset(kind: 'approve' | 'reject') {
+        if (!entryId || !assetId) return;
+        if (kind === 'reject' && !window.confirm('Reject this suggested asset? If nothing else uses it, it will be deleted.')) return;
+        approveBtn?.setAttribute('disabled', 'true');
+        rejectBtn?.setAttribute('disabled', 'true');
+        try {
+          const res = await fetch(`/api/entries/${entryId}/suggested-assets/${assetId}/${kind}`, { method: 'POST' });
+          if (!res.ok) throw new Error(String(res.status));
+          window.location.reload();
+        } catch (e) {
+          alert(`Failed to ${kind} suggested asset.`);
+          approveBtn?.removeAttribute('disabled');
+          rejectBtn?.removeAttribute('disabled');
+        }
+      }
+      approveBtn?.addEventListener('click', () => reviewAsset('approve'));
+      rejectBtn?.addEventListener('click', () => reviewAsset('reject'));
+    });
+  }
 
   // ── Tags chip input ───────────────────────────────────────────────────────
   // Maintains a JSON array of {name, id?} in the hidden #tags-payload field the SSR save reads.

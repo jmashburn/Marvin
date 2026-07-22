@@ -163,6 +163,48 @@ class EntryService:
                    f"AI suggestion applied to '{entry.title}'", names)
         return entry
 
+    def approve_suggested_asset(self, entry_id, asset_id):
+        """Approve a pending AI-suggested asset: clear the ``suggested`` flag on the entry↔asset
+        junction (keeping the link, so the asset becomes a normal confirmed one) and emit
+        `entry_updated`. Returns the updated EntryRead, or None if no such suggested link exists."""
+        junction = self.repos.entries.get_suggested_asset_link(entry_id, asset_id)
+        if junction is None:
+            return None
+        meta = {k: v for k, v in (junction.metadata_json or {}).items() if k != "suggested"}
+        junction.metadata_json = meta or None
+        self.session.commit()
+        entry = self.repos.entries.get_one(entry_id)
+        self._emit(entry, EventTypes.entry_updated, EventOperation.update,
+                   f"Suggested asset approved on '{entry.title}'", self._names(entry))
+        return entry
+
+    def reject_suggested_asset(self, entry_id, asset_id):
+        """Reject a pending AI-suggested asset: unlink the entry↔asset junction and — if the asset
+        is now orphaned (no remaining entry links) — delete it from storage + DB. Emits
+        `entry_updated`. Returns the updated EntryRead, or None if no such suggested link exists."""
+        from marvin.db.models.platform.entry_assets import EntryAssets
+
+        junction = self.repos.entries.get_suggested_asset_link(entry_id, asset_id)
+        if junction is None:
+            return None
+        self.session.delete(junction)
+        self.session.commit()
+
+        # Orphan cleanup: a suggested asset that no other entry links to is discarded outright.
+        remaining = (
+            self.session.query(EntryAssets).filter(EntryAssets.asset_id == asset_id).count()
+        )
+        if remaining == 0:
+            from marvin.services.assets.asset_storage_service import AssetStorageService
+            from marvin.services.storage.provider_factory import get_storage_provider
+
+            AssetStorageService(self.repos, get_storage_provider()).delete_asset(asset_id)
+
+        entry = self.repos.entries.get_one(entry_id)
+        self._emit(entry, EventTypes.entry_updated, EventOperation.update,
+                   f"Suggested asset rejected on '{entry.title}'", self._names(entry))
+        return entry
+
     def delete(self, entry_id) -> bool:
         """Emit `entry_deleted` (before the row is gone) then delete. Returns False if not found."""
         entry = self.repos.entries.get_one(entry_id)

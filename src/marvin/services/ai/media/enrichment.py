@@ -38,6 +38,9 @@ class MediaEnrichmentService:
         # vision-capable provider/model is available. Absent → those steps skip cleanly.
         self.provider = provider
         self.model = model
+        # Workspace-effective grade presets (built-in defaults + per-workspace overrides), resolved
+        # once per run in run_for_entry. None until resolved.
+        self._grade_presets: dict | None = None
 
     def run_for_entry(self, entry_id) -> list[str]:
         """Derive media variants for one entry per its type's recipe. Returns human-readable
@@ -62,6 +65,9 @@ class MediaEnrichmentService:
             return []
         if not recipe.assets or not recipe.assets.roles:
             return []
+
+        # Resolve the workspace-effective grade presets once for this run (built-ins + overrides).
+        self._grade_presets = self._resolve_grade_presets()
 
         # role -> media tokens declared for it
         role_tokens = {
@@ -150,7 +156,33 @@ class MediaEnrichmentService:
         handler = capability.resolve_capability(kind, session=self.session, group_id=self.group_id)
         if handler is None:
             return None
-        return handler.invoke({"image_bytes": data, "op": op, "arg": arg}).get("image_bytes")
+        inputs = {"image_bytes": data, "op": op, "arg": arg}
+        if op == "grade":
+            # Workspace-effective params for this preset (overrides win). Unknown preset → None,
+            # and the handler falls back to the built-in lookup or skips (never crashes).
+            presets = self._grade_presets if self._grade_presets is not None else self._resolve_grade_presets()
+            inputs["params"] = presets.get(arg)
+        return handler.invoke(inputs).get("image_bytes")
+
+    def _resolve_grade_presets(self) -> dict:
+        """Merge the workspace's ``media_presets`` setting over the built-in ``GRADE_PRESETS`` (a
+        workspace preset replaces/extends a built-in by name). Missing/invalid setting → built-ins
+        only, so behaviour is identical to today when nothing is configured."""
+        from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+
+        overrides = None
+        try:
+            row = (
+                self.session.query(WorkspaceAISettingsModel)
+                .filter_by(group_id=self.group_id)
+                .first()
+            )
+            overrides = getattr(row, "media_presets", None) if row is not None else None
+        except Exception as e:  # noqa: BLE001 — a settings read failure must not break enrichment
+            logger.debug("media: media_presets read failed for %s: %s", self.group_id, e)
+        if isinstance(overrides, dict) and overrides:
+            return {**transforms.GRADE_PRESETS, **overrides}
+        return dict(transforms.GRADE_PRESETS)
 
     def _crop_subject(self, src, data: bytes) -> bytes | None:
         """Detect the main subject (vision provider or integration) and crop to it. Skips cleanly
@@ -183,9 +215,9 @@ class MediaEnrichmentService:
         Each step is ``{op, target_role, prompt, source_role?, arg?}`` where ``op`` is ``generate``
         or ``edit`` (→ ``image.generate`` / ``image.edit``). For each step we resolve the capability;
         if an integration provides it we fetch the source bytes, invoke (base64 in → bytes/URL out),
-        and persist a derivative — approval-gated (generative output defaults to suggest-only: the
-        asset is created but not auto-linked). No handler (the common case today) → skip. Ready for
-        image-out integrations without requiring them.
+        and persist a derivative — approval-gated: generative output is linked but flagged pending
+        (junction metadata_json.suggested) for human review. No handler (the common case today) →
+        skip. Ready for image-out integrations without requiring them.
         """
         enrichment = getattr(recipe, "enrichment", None)
         steps = enrichment.get("media") if isinstance(enrichment, dict) else None
@@ -219,7 +251,8 @@ class MediaEnrichmentService:
 
     def _run_media_step(self, entry, step: dict, op: str, handler, assets_svc) -> str | None:
         """Run one resolved generative media step: fetch the source image (from ``source_role``, or
-        the first linked image), invoke the handler, persist + (unless approval-gated) link."""
+        the first linked image), invoke the handler, persist + link (flagged pending review when
+        the handler requires approval)."""
         from marvin.db.models.platform.assets import Assets
         from marvin.db.models.platform.entry_assets import EntryAssets
 
@@ -258,25 +291,54 @@ class MediaEnrichmentService:
             extra_metadata={"media_op": op, "prompt": step.get("prompt")},
         )
 
-        # Approval gate: generative output defaults to suggest-only — persist the asset but only
-        # auto-link it when the handler explicitly does not require approval.
+        # Approval gate: generative output is ALWAYS linked to the entry, but when the handler
+        # requires approval the junction is flagged pending (metadata_json.suggested) so the
+        # workspace UI can review it and the publish API filters it out. Non-gated output links
+        # as a normal derivative (the prior auto-link behaviour).
         requires_approval = getattr(handler, "requires_approval", True)
-        if not requires_approval:
+        metadata_json = {"derived_from": str(src.id), "derivation": derivation}
+        if requires_approval:
+            metadata_json.update({
+                "suggested": True,
+                "media_op": op,
+                "prompt": step.get("prompt"),
+            })
+        already_linked = self.session.query(EntryAssets).filter(
+            EntryAssets.entry_id == entry.id, EntryAssets.asset_id == new_asset.id,
+        ).first()
+        if already_linked is None:
             self.session.add(EntryAssets(
                 entry_id=entry.id, asset_id=new_asset.id,
                 role=target_role, position=0,
-                metadata_json={"derived_from": str(src.id), "derivation": derivation},
+                metadata_json=metadata_json,
             ))
         self.session.commit()
         state = "suggested" if requires_approval else "linked"
         return f"{op}: {src.slug} → {new_asset.slug} ({state})"
 
     def _materialize(self, result: dict) -> bytes | None:
-        """Turn a handler's output into bytes: inline ``image_bytes``, or fetch a returned ``url``.
-        The resolver owns this I/O so integration handlers can stay DB-free and return a URL."""
-        out = result.get("image_bytes")
-        if out:
-            return out
+        """Turn a handler's output into bytes, across the canonical output shapes:
+        - local handlers → raw ``image_bytes``
+        - ``image.generate`` → ``{images: [{image_b64 | url}]}`` (first image)
+        - ``image.edit`` / ``image.upscale`` → ``{image_b64 | url}``
+        The resolver owns this I/O so integration handlers can stay DB-free (bytes/URL out)."""
+        if not isinstance(result, dict):
+            return None
+        # local handler: raw bytes
+        if result.get("image_bytes"):
+            return result["image_bytes"]
+        # generate: pick the first of the images array
+        images = result.get("images")
+        if isinstance(images, list) and images and isinstance(images[0], dict):
+            result = images[0]
+        # base64 (edit/upscale/generate) or a URL to fetch
+        b64 = result.get("image_b64")
+        if b64:
+            try:
+                return base64.b64decode(b64)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("media: bad base64 image: %s", e)
+                return None
         url = result.get("url")
         if not url:
             return None

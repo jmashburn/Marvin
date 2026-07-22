@@ -89,11 +89,13 @@ def _apply_vignette(img: Image.Image, strength: float) -> Image.Image:
     return Image.composite(img, black, mask)
 
 
-def color_grade(data: bytes, preset: str) -> bytes | None:
-    """Apply a named color-grade preset. Returns None for an unknown preset."""
-    params = GRADE_PRESETS.get(preset)
-    if params is None:
-        logger.warning("media: unknown grade preset %r", preset)
+def color_grade_params(data: bytes, params: dict) -> bytes | None:
+    """Apply an explicit color-grade params dict (``warmth/contrast/saturation/brightness/vignette``).
+
+    Pure: params in, bytes out — no preset lookup, no DB. The caller (service layer) resolves the
+    effective params (built-in defaults + workspace overrides) and passes them here. Returns None
+    for empty/invalid params."""
+    if not isinstance(params, dict) or not params:
         return None
     img, fmt = _load(data)
     img = _apply_warmth(img, params.get("warmth", 1.0))
@@ -107,6 +109,18 @@ def color_grade(data: bytes, preset: str) -> bytes | None:
         # Vignette on a downscaled copy is far cheaper; skip for very large images is fine here.
         img = _apply_vignette(img, params["vignette"])
     return _dump(img, fmt)
+
+
+def color_grade(data: bytes, preset: str) -> bytes | None:
+    """Apply a named BUILT-IN color-grade preset. Returns None for an unknown preset.
+
+    Convenience wrapper over ``color_grade_params`` for the standalone/built-in path. Workspace
+    preset overrides are resolved in the service layer, which calls ``color_grade_params`` directly."""
+    params = GRADE_PRESETS.get(preset)
+    if params is None:
+        logger.warning("media: unknown grade preset %r", preset)
+        return None
+    return color_grade_params(data, params)
 
 
 def crop_to_aspect(data: bytes, aspect: tuple[int, int]) -> bytes | None:

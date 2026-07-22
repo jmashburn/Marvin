@@ -88,6 +88,10 @@ class LocalPixelHandler:
     ``invoke({image_bytes, op, arg})`` → ``{image_bytes}``. ``arg`` is a preset name for ``grade``;
     for ``crop`` it's either an aspect string (``"4x5"``) → center aspect-crop, or a normalized
     4-tuple/list ``[x, y, w, h]`` → box-crop. Returns ``{}`` (skip) on an unknown/degenerate arg.
+
+    For ``grade``, the caller may pass resolved ``params`` (the workspace-effective preset dict).
+    When present those win — the service layer merges workspace overrides over the built-ins — and
+    only fall back to the built-in preset lookup by ``arg`` when no params are supplied.
     """
 
     def __init__(self, kind: str, *, priority: int = 0, cost_hint: float = 0.0) -> None:
@@ -104,7 +108,11 @@ class LocalPixelHandler:
             return {}
         out: bytes | None = None
         if op == "grade":
-            out = transforms.color_grade(data, str(arg))
+            params = inputs.get("params")
+            if isinstance(params, dict) and params:
+                out = transforms.color_grade_params(data, params)
+            else:
+                out = transforms.color_grade(data, str(arg))
         elif op == "crop":
             if isinstance(arg, (list, tuple)) and len(arg) == 4:
                 out = transforms.crop_to_box(data, tuple(arg))
