@@ -145,6 +145,84 @@ class AssetStorageService(BaseService):
                 # Clean up temporary file
                 temp_path.unlink(missing_ok=True)
 
+    def create_derivative(
+        self,
+        *,
+        source,
+        data: bytes,
+        group_id: UUID4,
+        derivation: str,
+        slug: str,
+        name: str,
+        user_id: UUID4 | None = None,
+        extra_metadata: dict | None = None,
+    ) -> AssetRead:
+        """Persist transformed image `data` as a NEW asset derived from `source`.
+
+        Used by the media pipeline (grade/crop) to store a produced image with provenance
+        (`metadata_json.derived_from` / `.derivation`) linking it back to the source asset. The
+        source asset is left untouched. `slug` must be unique in the workspace — callers keep this
+        idempotent by not re-deriving the same (source, derivation) pair.
+        """
+        group = self.repos.groups.get_one(group_id)
+        if not group:
+            raise ValueError(f"Workspace not found: {group_id}")
+
+        ext = (getattr(source, "extension", None) or "jpg").lstrip(".")
+        original_filename = f"{slug}.{ext}"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as temp_file:
+            temp_path = Path(temp_file.name)
+            temp_file.write(data)
+            temp_file.flush()
+            try:
+                metadata = self.metadata_extractor.extract_metadata(temp_path)
+                storage_key = self.generate_storage_key(
+                    workspace_slug=group.slug, filename=original_filename, upload_date=datetime.now(),
+                )
+                provenance = {
+                    "derived_from": str(getattr(source, "id", "")),
+                    "derivation": derivation,
+                    **(extra_metadata or {}),
+                }
+                with open(temp_path, "rb") as fh:
+                    self.storage.put(
+                        storage_key=storage_key, file_data=fh,
+                        content_type=metadata.mime_type, metadata=None,
+                    )
+                public_url = self.storage.get_public_url(storage_key)
+                asset_create = AssetCreateInternal(
+                    slug=slug,
+                    name=name,
+                    original_filename=original_filename,
+                    filename=slug,
+                    extension=ext,
+                    file_size=metadata.size,
+                    mime_type=metadata.mime_type,
+                    asset_type=metadata.asset_type,
+                    checksum=metadata.checksum,
+                    width=metadata.width,
+                    height=metadata.height,
+                    orientation=metadata.orientation,
+                    storage_provider=self._get_provider_name(),
+                    storage_key=storage_key,
+                    public_url=public_url,
+                    alt_text=getattr(source, "alt_text", None),
+                    metadata_json=provenance,
+                )
+                asset_data = asset_create.model_dump(exclude_unset=True)
+                asset_data["group_id"] = group_id
+                # A derivative inherits the source asset's uploader when no actor is supplied
+                # (system/AI-produced images still need a non-null uploaded_by).
+                asset_data["uploaded_by"] = user_id or getattr(source, "uploaded_by", None)
+                asset = self.repos.assets.create(asset_data)
+                return AssetRead.model_validate(asset)
+            finally:
+                temp_path.unlink(missing_ok=True)
+
+    def read_bytes(self, storage_key: str) -> bytes:
+        """Read an asset's raw bytes from storage (source for a derivation)."""
+        return self.storage.get(storage_key).read()
+
     def delete_asset(self, asset_id: UUID4) -> bool:
         """
         Delete asset from storage and database.

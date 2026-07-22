@@ -241,6 +241,9 @@ class AuthoringService:
 
             # Recipe enrichment: derive alt text for the draft's images (opt-in, best-effort).
             enriched_alt = self._run_alt_text_enrichment(recipe, final_attachments)
+            # Recipe enrichment: run local media derivations (grade/crop) declared in the recipe's
+            # asset `derive` tokens — deterministic, no model, best-effort.
+            self._run_media_enrichment(entry.id)
 
             self._complete_execution(execution, completion, start, entity_id=entry.id, output={
                 "entry_id": str(entry.id), "title": title, "status": entry.status,
@@ -476,6 +479,20 @@ class AuthoringService:
         assets = getattr(recipe, "assets", None)
         roles = (getattr(assets, "roles", None) or []) if assets else []
         return any("alt_text" in (getattr(r, "derive", None) or []) for r in roles)
+
+    def _run_media_enrichment(self, entry_id) -> list[str]:
+        """Recipe enrichment step: run the entry type's local media derivations (grade/crop) on the
+        draft's images, driven by the recipe's asset ``derive`` tokens. Deterministic (Pillow, no
+        model), best-effort — a failure never breaks compose. Returns produced-derivative summaries."""
+        try:
+            from marvin.services.ai.media.enrichment import MediaEnrichmentService
+
+            return MediaEnrichmentService(
+                self.session, self.repos, self.group_id, user_id=getattr(self.user, "id", None),
+            ).run_for_entry(entry_id)
+        except Exception as e:  # noqa: BLE001
+            self.logger.debug("media enrichment skipped: %s", e)
+            return []
 
     def _run_alt_text_enrichment(self, recipe, attachments) -> list[str]:
         """Recipe enrichment step: generate accessible alt text for freshly-attached image assets
