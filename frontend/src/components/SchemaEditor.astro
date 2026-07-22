@@ -93,6 +93,11 @@ const fieldTypes = [
     color: var(--ink);
   }
 
+  .schema-editor .field-label-hint {
+    font-weight: 400;
+    color: var(--muted, #6b7280);
+  }
+
   .schema-editor .form-help {
     margin: 0;
     font-size: 0.75rem;
@@ -327,10 +332,11 @@ const fieldTypes = [
         <div class="field-editor-title">
           <span class="field-title-label">${field.label || 'Untitled Field'}</span>
           <span class="field-type-badge">${typeInfo.label}${field.required ? ' *' : ''}</span>
-          ${field.placeholder || field.helpText ? `
+          ${field.placeholder || field.helpText || field.aiHint ? `
             <span class="field-meta-inline">
               ${field.placeholder ? `<span class="field-meta-item">Placeholder: ${field.placeholder}</span>` : ''}
               ${field.helpText ? `<span class="field-meta-item">Help: ${field.helpText}</span>` : ''}
+              ${field.aiHint ? `<span class="field-meta-item">AI: ${field.aiHint}</span>` : ''}
             </span>
           ` : ''}
         </div>
@@ -368,6 +374,10 @@ const fieldTypes = [
         <div class="form-group full-width">
           <label>Help Text</label>
           <textarea class="field-help-text" rows="2" placeholder="Optional description for editors">${field.helpText || ''}</textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>AI Guidance <span class="field-label-hint">— shown only to AI when authoring this field</span></label>
+          <textarea class="field-ai-hint" rows="2" placeholder="e.g., 2-3 short paragraphs, first person, name the material, no marketing adjectives">${field.aiHint || ''}</textarea>
         </div>
         ${field.type === 'select' ? `
           <div class="form-group full-width">
@@ -423,7 +433,7 @@ const fieldTypes = [
     });
 
     // Update field on other input changes (placeholder, help text, type, required, etc.)
-    div.querySelectorAll('.field-placeholder, .field-help-text, .field-type, .field-required, .field-options, .field-min, .field-max').forEach(input => {
+    div.querySelectorAll('.field-placeholder, .field-help-text, .field-ai-hint, .field-type, .field-required, .field-options, .field-min, .field-max').forEach(input => {
       input.addEventListener('input', () => updateField(index, div));
     });
 
@@ -440,6 +450,7 @@ const fieldTypes = [
     field.required = fieldEl.querySelector('.field-required').checked;
     field.placeholder = fieldEl.querySelector('.field-placeholder').value.trim() || undefined;
     field.helpText = fieldEl.querySelector('.field-help-text').value.trim() || undefined;
+    field.aiHint = fieldEl.querySelector('.field-ai-hint').value.trim() || undefined;
 
     // Type-specific fields
     if (field.type === 'select') {
@@ -473,10 +484,11 @@ const fieldTypes = [
     let metaInline = fieldEl.querySelector('.field-meta-inline');
     const titleSection = fieldEl.querySelector('.field-editor-title');
 
-    if (field.placeholder || field.helpText) {
+    if (field.placeholder || field.helpText || field.aiHint) {
       const metaHtml = `
         ${field.placeholder ? `<span class="field-meta-item">Placeholder: ${field.placeholder}</span>` : ''}
         ${field.helpText ? `<span class="field-meta-item">Help: ${field.helpText}</span>` : ''}
+        ${field.aiHint ? `<span class="field-meta-item">AI: ${field.aiHint}</span>` : ''}
       `;
 
       if (metaInline) {

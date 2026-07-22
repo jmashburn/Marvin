@@ -78,6 +78,8 @@ def entry_type_to_output_schema(schema_def: EntryTypeSchemaDefinition, type_name
         desc = f.label
         if getattr(f, "help_text", None):
             desc = f"{f.label} — {f.help_text}"
+        if getattr(f, "ai_hint", None):
+            desc = f"{desc} (AI guidance: {f.ai_hint})"
 
         if f.type == "select":
             opts = list(getattr(f, "options", []) or [])

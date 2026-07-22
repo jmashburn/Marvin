@@ -41,7 +41,12 @@ class BaseFieldSchema(_MarvinModel):
     """Placeholder text shown in empty inputs."""
 
     help_text: str | None = Field(default=None, alias="helpText")
-    """Help text shown to editors to explain the field's purpose."""
+    """Help text shown to editors to explain the field's purpose. Also fed to AI compose as
+    context, so keep it useful for both a human filling the form and the model authoring the field."""
+
+    ai_hint: str | None = Field(default=None, alias="aiHint")
+    """Directive, AI-only authoring guidance for this field (e.g. desired length, voice, what to
+    include). Layered on top of help_text in the compose prompt; not shown as form helper text."""
 
     read_only: bool = Field(default=False, alias="readOnly")
     """If true, field cannot be edited (useful for computed/system fields)."""

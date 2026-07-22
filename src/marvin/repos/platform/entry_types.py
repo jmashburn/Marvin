@@ -46,24 +46,43 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
         """
         Apply custom group_id filter to include both workspace and system types.
 
+        A workspace type shadows a system type of the same slug: when this
+        workspace defines its own type for a slug, the same-slug system type is
+        excluded so slug resolution is deterministic (the workspace type
+        overrides the shared default, the way a local config overrides a global
+        one). System types remain visible for slugs the workspace hasn't
+        customized.
+
         Args:
             query: SQLAlchemy query to filter
 
         Returns:
             Filtered query
         """
-        from sqlalchemy import or_
+        from sqlalchemy import and_, exists, not_, or_
+        from sqlalchemy.orm import aliased
 
-        if self.group_id:
-            return query.filter(
-                or_(
-                    self.model.group_id == self.group_id,
-                    self.model.group_id.is_(None),
-                )
-            )
-        else:
-            # If no group_id, only show system types
+        if not self.group_id:
+            # No workspace context: only system types are visible.
             return query.filter(self.model.group_id.is_(None))
+
+        query = query.filter(
+            or_(
+                self.model.group_id == self.group_id,
+                self.model.group_id.is_(None),
+            )
+        )
+
+        # Drop a system row (group_id IS NULL) when this workspace already has
+        # its own type with the same slug — the workspace row wins.
+        workspace_twin = aliased(self.model)
+        shadowed_system = exists().where(
+            and_(
+                workspace_twin.group_id == self.group_id,
+                workspace_twin.slug == self.model.slug,
+            )
+        )
+        return query.filter(not_(and_(self.model.group_id.is_(None), shadowed_system)))
 
     def page_all(self, pagination, override_schema=None, search=None):
         """Override to add custom group_id filtering for system types."""
