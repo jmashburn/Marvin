@@ -63,34 +63,35 @@ function statusMeta(status: string): { text: string; cls: string } {
           const prov = providersBySlug.get(it.provider);
           const st = statusMeta(it.status);
           return (
-            <article class="conn-card" data-id={it.id}>
-              <div class="conn-main">
-                <div class="conn-head">
+            <article class={`conn-card ${it.enabled ? "" : "is-disabled"}`} data-id={it.id}>
+              <div class="conn-top">
+                <div class="conn-id">
                   <strong>{it.name}</strong>
+                  <span class="conn-sub">
+                    {prov?.name ?? it.provider}
+                    {prov && ` · ${CATEGORY_LABEL[prov.category] ?? prov.category}`}
+                  </span>
+                </div>
+                <div class="conn-status">
                   <span class={`badge ${st.cls}`}>{st.text}</span>
-                  {!it.enabled && <span class="badge muted">Disabled</span>}
+                  <label class="toggle" title={it.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}>
+                    <input type="checkbox" class="js-toggle" checked={it.enabled} data-id={it.id} />
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                  </label>
                 </div>
-                <div class="conn-meta">
-                  <span>{prov?.name ?? it.provider}</span>
-                  {prov && <span class="dot">·</span>}
-                  {prov && <span>{CATEGORY_LABEL[prov.category] ?? prov.category}</span>}
-                  <span class="dot">·</span>
-                  <code>{it.slug}</code>
-                </div>
-                {it.lastError && <p class="conn-error">{it.lastError}</p>}
               </div>
-              <div class="conn-actions">
-                <label class="toggle" title="Enable / disable">
-                  <input type="checkbox" class="js-toggle" checked={it.enabled} data-id={it.id} />
-                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                </label>
-                <button type="button" class="button small js-check" data-id={it.id}>Check</button>
-                {(prov?.actions ?? []).map((a) => (
-                  <button type="button" class="button small secondary js-action" data-id={it.id} data-action={a.key} title={a.description}>
-                    {a.label}
-                  </button>
-                ))}
-                <button type="button" class="button small danger js-delete" data-id={it.id} data-name={it.name}>Delete</button>
+              {it.lastError && <p class="conn-error">{it.lastError}</p>}
+              <div class="conn-foot">
+                <code class="conn-slug" title="Reference this integration from automations">{it.slug}</code>
+                <div class="conn-btns">
+                  {(prov?.actions ?? []).map((a) => (
+                    <button type="button" class="button small secondary js-action" data-id={it.id} data-action={a.key} title={a.description}>
+                      {a.label}
+                    </button>
+                  ))}
+                  <button type="button" class="icon-btn-sm js-check" data-id={it.id} title="Run health check" aria-label="Run health check">↻</button>
+                  <button type="button" class="icon-btn-sm danger js-delete" data-id={it.id} data-name={it.name} title="Delete integration" aria-label="Delete integration">✕</button>
+                </div>
               </div>
             </article>
           );
@@ -184,6 +185,31 @@ function statusMeta(status: string): { text: string; cls: string } {
   }
 
   // ---- open / build the add panel ----
+  function esc(s: unknown): string {
+    return String(s ?? "").replace(
+      /[&<>"']/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string),
+    );
+  }
+
+  function fieldHtml(o: {
+    kind: "credential" | "config";
+    key: string;
+    label: string;
+    required: boolean;
+    help?: string;
+    type?: string;
+    placeholder?: string;
+  }): string {
+    return `
+      <label class="field">
+        <span>${esc(o.label)}${o.required ? ' <em class="req">Required</em>' : ""}</span>
+        <input type="${o.type ?? "text"}" data-kind="${o.kind}" data-key="${esc(o.key)}"
+               ${o.required ? "required" : ""} placeholder="${esc(o.placeholder ?? "")}" autocomplete="off" />
+        ${o.help ? `<small>${esc(o.help)}</small>` : ""}
+      </label>`;
+  }
+
   function openPanel(slug: string) {
     const p = bySlug.get(slug);
     if (!p) return;
@@ -192,26 +218,38 @@ function statusMeta(status: string): { text: string; cls: string } {
     (document.getElementById("add-name") as HTMLInputElement).value = "";
     errEl.hidden = true;
 
-    // Build credential + config fields from the provider manifest.
-    const parts: string[] = [];
-    for (const c of p.credentials) {
-      parts.push(`
-        <label class="field">
-          <span>${c.label}${c.required ? " *" : ""}</span>
-          <input type="password" data-kind="credential" data-key="${c.key}" ${c.required ? "required" : ""} placeholder="••••••••" autocomplete="off" />
-          ${c.help ? `<small>${c.help}</small>` : ""}
-        </label>`);
-    }
     const props = (p.configSchema?.properties ?? {}) as Record<string, any>;
-    const required: string[] = (p.configSchema?.required ?? []) as string[];
-    for (const [key, prop] of Object.entries(props)) {
-      const label = prop.title || key;
-      const req = required.includes(key);
-      parts.push(`
-        <label class="field">
-          <span>${label}${req ? " *" : ""}</span>
-          <input type="text" data-kind="config" data-key="${key}" ${req ? "required" : ""} placeholder="${prop.format === "uri" ? "https://…" : ""}" />
-        </label>`);
+    const required = (p.configSchema?.required ?? []) as string[];
+    const configKeys = Object.keys(props);
+    // Only show section headers when the form has both kinds — otherwise they're noise.
+    const grouped = p.credentials.length > 0 && configKeys.length > 0;
+
+    const parts: string[] = [];
+    if (p.credentials.length) {
+      if (grouped) parts.push('<p class="group-label">Credentials</p>');
+      for (const c of p.credentials) {
+        parts.push(
+          fieldHtml({ kind: "credential", key: c.key, label: c.label, required: c.required, help: c.help, type: "password", placeholder: "Stored as a secret" }),
+        );
+      }
+    }
+    if (configKeys.length) {
+      if (grouped) parts.push('<p class="group-label">Settings</p>');
+      for (const key of configKeys) {
+        const prop = props[key];
+        const isUri = prop.format === "uri" || prop.format === "url";
+        parts.push(
+          fieldHtml({
+            kind: "config",
+            key,
+            label: prop.title || key,
+            required: required.includes(key),
+            help: prop.description,
+            type: isUri ? "url" : "text",
+            placeholder: isUri ? "https://…" : "",
+          }),
+        );
+      }
     }
     fieldsEl.innerHTML = parts.join("");
     overlay.hidden = false;
@@ -273,14 +311,14 @@ function statusMeta(status: string): { text: string; cls: string } {
   document.querySelectorAll<HTMLButtonElement>(".js-check").forEach((b) =>
     b.addEventListener("click", async () => {
       b.disabled = true;
-      b.textContent = "Checking…";
+      b.classList.add("busy");
       try {
         await checkIntegration(b.dataset.id!);
         reload();
       } catch (err) {
         alert(errorMessage(err));
         b.disabled = false;
-        b.textContent = "Check";
+        b.classList.remove("busy");
       }
     }),
   );
@@ -355,22 +393,51 @@ function statusMeta(status: string): { text: string; cls: string } {
   /* connected list */
   .conn-list { display: grid; gap: 12px; }
   .conn-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 18px;
+    padding: 14px 16px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
-  .conn-head { display: flex; align-items: center; gap: 10px; }
-  .conn-head strong { font-size: 15px; }
-  .conn-meta { margin-top: 4px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-  .conn-meta code { font-family: ui-monospace, monospace; font-size: 12px; }
-  .conn-meta .dot { opacity: 0.5; }
-  .conn-error { margin: 8px 0 0; font-size: 13px; color: var(--color-error); }
-  .conn-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .conn-card.is-disabled { opacity: 0.62; }
+
+  .conn-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .conn-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .conn-id strong { font-size: 15px; }
+  .conn-sub { font-size: 13px; color: var(--muted); }
+  .conn-status { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+  .conn-error { margin: 10px 0 0; font-size: 13px; color: var(--color-error); }
+
+  .conn-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .conn-slug { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+  .conn-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .icon-btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .icon-btn-sm:hover { color: var(--ink); border-color: var(--muted); }
+  .icon-btn-sm.danger:hover { color: var(--color-error); border-color: var(--color-error); }
+  .icon-btn-sm.busy { opacity: 0.5; pointer-events: none; }
+  .icon-btn-sm:disabled { opacity: 0.5; cursor: default; }
 
   .badge {
     font-size: 12px;
@@ -424,21 +491,53 @@ function statusMeta(status: string): { text: string; cls: string } {
   .overlay[hidden] { display: none; }
   .panel {
     width: 100%;
-    max-width: 460px;
+    max-width: 480px;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 20px 22px;
+    padding: 22px 24px 24px;
     max-height: 84vh;
     overflow: auto;
   }
-  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .panel-head h3 { margin: 0; font-size: 17px; }
-  .panel-sub { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .panel-head h3 { margin: 0; font-size: 17px; font-weight: 600; }
+  .panel-sub {
+    margin: 0 0 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
   .icon-btn { background: none; border: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); }
-  .field { display: grid; gap: 6px; margin-bottom: 14px; }
-  .field > span { font-size: 13px; font-weight: 500; }
-  .field input {
+
+  /* NOTE: credential/config fields are injected via innerHTML, so they carry no Astro scope
+     attribute. Target them with :global() (bounded to .panel) or they render completely unstyled. */
+  .panel :global(.group-label) {
+    margin: 22px 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel :global(.group-label:first-child) { margin-top: 0; }
+
+  .panel :global(.field) { display: grid; gap: 7px; margin-bottom: 16px; }
+  .panel :global(.field:last-of-type) { margin-bottom: 0; }
+  .panel :global(.field > span) { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+  .panel :global(.field .req) {
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 1px 7px;
+  }
+  .panel :global(.field input) {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--line);
@@ -446,9 +545,19 @@ function statusMeta(status: string): { text: string; cls: string } {
     background: var(--panel);
     font-size: 14px;
     color: var(--ink);
+    box-sizing: border-box;
   }
-  .field input:focus { outline: none; border-color: var(--accent); }
-  .field small { font-size: 12px; color: var(--muted); }
-  .inline-error { margin-bottom: 12px; font-size: 13px; color: var(--color-error); }
-  .panel-actions { display: flex; gap: 10px; margin-top: 4px; }
+  .panel :global(.field input::placeholder) { color: var(--muted); opacity: 0.7; }
+  .panel :global(.field input:focus) { outline: none; border-color: var(--accent); }
+  .panel :global(.field small) { font-size: 12px; line-height: 1.45; color: var(--muted); }
+
+  .inline-error { margin-top: 16px; font-size: 13px; color: var(--color-error); }
+  .panel-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+  .panel-actions .button { flex: 1; justify-content: center; }
 </style>
