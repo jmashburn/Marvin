@@ -44,6 +44,9 @@ class WorkspaceAISettingsModel(SqlAlchemyBase, BaseMixins):
     logging_config: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     # {enabled, block_on_flag}
     moderation_config: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    # Per-workspace grade preset overrides — {preset_name: {warmth, contrast, saturation, brightness,
+    # vignette}}. Merged over the built-in GRADE_PRESETS (override/extend by name). None → built-ins.
+    media_presets: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     # Master switch for the agent drawing tools from registered external MCP servers (off by default).
     external_mcp_enabled: Mapped[bool] = mapped_column(

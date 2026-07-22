@@ -18,6 +18,9 @@ class WorkspaceAISettingsCreate(_MarvinModel):
     budget_config: dict | None = None
     logging_config: dict | None = None
     moderation_config: dict | None = None
+    # Per-workspace grade preset overrides ({name: {warmth, contrast, saturation, brightness,
+    # vignette}}), merged over the built-in presets. None → built-in defaults only.
+    media_presets: dict | None = None
     # Master switch: may the agent draw tools from registered external MCP servers?
     external_mcp_enabled: bool = False
     # Per-workspace AI persona: display name and a free-text voice/tone instruction.
@@ -42,6 +45,7 @@ class WorkspaceAISettingsUpdate(_MarvinModel):
     budget_config: dict | None = None
     logging_config: dict | None = None
     moderation_config: dict | None = None
+    media_presets: dict | None = None
     external_mcp_enabled: bool | None = None
     assistant_name: str | None = None
     persona_prompt: str | None = None
