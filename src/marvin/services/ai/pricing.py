@@ -24,6 +24,9 @@ PRICING: dict[str, dict[str, ModelPricing]] = {
         "gpt-4-turbo": ModelPricing(input_per_1m=10.00, output_per_1m=30.00),
         "o3": ModelPricing(input_per_1m=10.00, output_per_1m=40.00),
         "o4-mini": ModelPricing(input_per_1m=1.10, output_per_1m=4.40),
+        # Image models — priced by the token usage the images API returns (input text, output image).
+        "gpt-image-1": ModelPricing(input_per_1m=5.00, output_per_1m=40.00),
+        "gpt-image-1-mini": ModelPricing(input_per_1m=2.00, output_per_1m=8.00),
     },
     "anthropic": {
         "claude-opus-4-8": ModelPricing(input_per_1m=15.00, output_per_1m=75.00),

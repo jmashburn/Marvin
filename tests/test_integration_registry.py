@@ -289,7 +289,7 @@ def test_capability_handlers_sort_by_priority_and_invoke():
         return _Snapshot(
             provider=provider, action_key="gen", capability="image.generate", priority=priority,
             cost_hint=None, requires_approval=False, config={}, secret_ref=None,
-            integration_id=uuid.uuid4(), integration_name=name,
+            integration_id=uuid.uuid4(), integration_name=name, group_id=uuid.uuid4(), model=None,
         )
 
     handlers = _build_handlers([snap(1, "low"), snap(9, "high"), snap(5, "mid")], uuid.uuid4(), lambda ref, gid: None)

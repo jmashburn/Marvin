@@ -9,6 +9,12 @@ Handlers are pure with respect to Marvin: an image goes in as base64 (the resolv
 asset → bytes), and the provider returns base64 bytes or a URL. The resolver owns all asset I/O —
 the provider never touches the database.
 
+Cost/logging: a paid capability provider surfaces a ``usage`` block in its output
+(``{provider_type, model, input_tokens, output_tokens, total_tokens}``); the handler records an
+``ai_executions`` row (the source of truth for the monthly AI-spend total) and emits
+``ai_operation_executed`` (so the spend shows in the event log and is subscribable). Both are
+best-effort — a logging/emit failure never breaks the capability call.
+
 Canonical input/output dict shapes per capability kind (the resolver builds inputs / reads outputs):
 
     image.generate  in {prompt, count?, reference_image_b64?}     out {images: [{image_b64|url}]}
@@ -18,6 +24,7 @@ Canonical input/output dict shapes per capability kind (the resolver builds inpu
     image.upscale   in {image_b64, factor?}                       out {image_b64|url}
 """
 
+import time
 from dataclasses import dataclass, field
 
 from marvin_integration_sdk import IntegrationContext, IntegrationProvider, get_provider
@@ -40,14 +47,102 @@ class CapabilityHandler:
     requires_approval: bool
     integration_id: UUID4
     integration_name: str
+    group_id: UUID4
 
     _provider: IntegrationProvider = field(repr=False)
     _action_key: str = field(repr=False)
     _ctx: IntegrationContext = field(repr=False)
+    _model: str | None = field(repr=False, default=None)
 
     def invoke(self, inputs: dict) -> dict:
-        """Run the capability with the canonical inputs for its kind; returns the canonical outputs."""
-        return self._provider.run_action(self._action_key, inputs, self._ctx)
+        """Run the capability with the canonical inputs; returns the canonical outputs.
+
+        Records cost/usage against the monthly AI spend (best-effort) around the call.
+        """
+        start = time.monotonic()
+        error: Exception | None = None
+        output: dict = {}
+        try:
+            output = self._provider.run_action(self._action_key, inputs, self._ctx)
+        except Exception as e:  # noqa: BLE001 — log the failed execution, then re-raise unchanged
+            error = e
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+
+        self._log_execution(output, elapsed_ms, error)
+        if error is not None:
+            raise error
+        return output
+
+    def _log_execution(self, output: dict, elapsed_ms: int, error: Exception | None) -> None:
+        """Best-effort: write an ai_executions row + emit the ai_operation_executed event."""
+        try:
+            from marvin.db.db_setup import session_context
+            from marvin.db.models.groups.ai_executions import AIExecutionModel
+            from marvin.services.ai.pricing import estimate_cost
+
+            usage = (output or {}).get("usage") or {}
+            provider_type = usage.get("provider_type") or "integration"
+            model_id = usage.get("model") or self._model or "unknown"
+            pt = int(usage.get("input_tokens") or 0)
+            ct = int(usage.get("output_tokens") or 0)
+            tot = int(usage.get("total_tokens") or (pt + ct))
+            cost = estimate_cost(provider_type, model_id, pt, ct) if (pt or ct) else None
+            status = "failed" if error else "completed"
+
+            with session_context() as session:
+                row = AIExecutionModel(
+                    session=session,
+                    group_id=self.group_id,
+                    operation_slug=self.capability,
+                    provider_type=provider_type,
+                    model_id=model_id,
+                    status=status,
+                    trigger_type="capability",
+                    prompt_tokens=pt or None,
+                    completion_tokens=ct or None,
+                    total_tokens=tot or None,
+                    estimated_cost_usd=cost,
+                    duration_ms=elapsed_ms,
+                    error_message=str(error) if error else None,
+                    metadata_json={"integration": self.integration_name, "integration_id": str(self.integration_id)},
+                )
+                session.add(row)
+                session.commit()
+                exec_id = row.id
+                from marvin.db.models.groups.groups import Groups
+
+                g = session.get(Groups, self.group_id)
+                group_name = g.name if g else None
+            self._emit(provider_type, model_id, tot, cost, status, exec_id, group_name, error)
+        except Exception as e:  # noqa: BLE001 — logging must never break the capability call
+            logger.warning(f"[capability] execution logging failed: {e}")
+
+    def _emit(self, provider_type, model_id, total_tokens, cost, status, exec_id, group_name, error) -> None:
+        """Emit ai_operation_executed so capability spend shows in the event log (best-effort)."""
+        try:
+            from marvin.services.event_bus_service.event_bus_service import EventBusService
+            from marvin.services.event_bus_service.event_types import EventAIOperationData, EventTypes
+
+            EventBusService(bg_tasks=None).dispatch(
+                integration_id=f"capability:{self.capability}",
+                group_id=self.group_id,
+                event_type=EventTypes.ai_operation_executed if status == "completed" else EventTypes.ai_operation_failed,
+                document_data=EventAIOperationData(
+                    operation_slug=self.capability,
+                    provider_type=provider_type,
+                    model_id=model_id,
+                    status=status,
+                    execution_id=exec_id,
+                    total_tokens=total_tokens or None,
+                    estimated_cost_usd=cost,
+                    error_message=str(error) if error else None,
+                    workspace_id=self.group_id,
+                    workspace_name=group_name,
+                ),
+                message=f"capability {self.capability} via {self.integration_name}",
+            )
+        except Exception as e:  # noqa: BLE001 — event emit is best-effort, never breaks the call
+            logger.warning(f"[capability] event emit failed: {e}")
 
 
 @dataclass
@@ -62,6 +157,8 @@ class _Snapshot:
     secret_ref: str | None
     integration_id: UUID4
     integration_name: str
+    group_id: UUID4
+    model: str | None
 
 
 def _read_snapshots(kind: str, group_id: UUID4) -> list[_Snapshot]:
@@ -95,6 +192,8 @@ def _read_snapshots(kind: str, group_id: UUID4) -> list[_Snapshot]:
                             secret_ref=row.secret_ref,
                             integration_id=row.id,
                             integration_name=row.name,
+                            group_id=group_id,
+                            model=(row.config or {}).get("model"),
                         )
                     )
     return snaps
@@ -114,9 +213,11 @@ def _build_handlers(snaps: list[_Snapshot], group_id: UUID4, resolve_secret_fn) 
                 requires_approval=snap.requires_approval,
                 integration_id=snap.integration_id,
                 integration_name=snap.integration_name,
+                group_id=snap.group_id,
                 _provider=snap.provider,
                 _action_key=snap.action_key,
                 _ctx=ctx,
+                _model=snap.model,
             )
         )
     handlers.sort(key=lambda h: h.priority, reverse=True)
