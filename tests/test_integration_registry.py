@@ -248,6 +248,61 @@ def test_template_substitution():
     assert out == {"text": "Hi Sam", "nested": {"k": "{{missing}}"}, "list": ["Sam"]}
 
 
+def test_provider_action_advertises_capability_in_info():
+    from marvin_integration_sdk import IntegrationProvider, ProviderAction
+
+    class _CapProvider(IntegrationProvider):
+        slug = "capx"
+        name = "CapX"
+        actions = (
+            ProviderAction(key="g", label="Generate", capability="image.generate", priority=3, cost_hint="paid", requires_approval=True),
+        )
+
+    action = _CapProvider().info()["actions"][0]
+    assert action["capability"] == "image.generate"
+    assert action["priority"] == 3
+    assert action["cost_hint"] == "paid"
+    assert action["requires_approval"] is True
+
+
+def test_capability_handlers_sort_by_priority_and_invoke():
+    import uuid
+
+    from marvin_integration_sdk import IntegrationProvider, ProviderAction
+
+    from marvin.services.integrations.capability import _build_handlers, _Snapshot
+
+    calls: list = []
+
+    class _Gen(IntegrationProvider):
+        slug = "imggen"
+        name = "Img Gen"
+        actions = (ProviderAction(key="gen", label="Gen", capability="image.generate", priority=5),)
+
+        def run_action(self, key, args, ctx):
+            calls.append((key, args))
+            return {"images": [{"image_b64": "abc"}]}
+
+    provider = _Gen()
+
+    def snap(priority: int, name: str) -> _Snapshot:
+        return _Snapshot(
+            provider=provider, action_key="gen", capability="image.generate", priority=priority,
+            cost_hint=None, requires_approval=False, config={}, secret_ref=None,
+            integration_id=uuid.uuid4(), integration_name=name,
+        )
+
+    handlers = _build_handlers([snap(1, "low"), snap(9, "high"), snap(5, "mid")], uuid.uuid4(), lambda ref, gid: None)
+    # highest-priority first — the resolver takes the top that succeeds
+    assert [h.integration_name for h in handlers] == ["high", "mid", "low"]
+    # uniform invoke → canonical outputs; metadata surfaced for the resolver
+    out = handlers[0].invoke({"prompt": "a cat"})
+    assert out == {"images": [{"image_b64": "abc"}]}
+    assert calls == [("gen", {"prompt": "a cat"})]
+    assert handlers[0].capability == "image.generate"
+    assert handlers[0].requires_approval is False
+
+
 def test_installed_provider_reads_normally():
     import uuid
     from types import SimpleNamespace

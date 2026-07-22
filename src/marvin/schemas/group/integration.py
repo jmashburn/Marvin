@@ -65,6 +65,12 @@ class ProviderActionInfo(_MarvinModel):
     label: str
     description: str = ""
     input_schema: dict = Field(default_factory=dict)
+    # Capability routing (present when the action advertises a standard capability kind).
+    capability: str | None = None
+    output_schema: dict = Field(default_factory=dict)
+    priority: int = 0
+    cost_hint: str | None = None
+    requires_approval: bool = False
 
 
 class IntegrationProviderInfo(_MarvinModel):

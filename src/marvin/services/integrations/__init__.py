@@ -21,6 +21,7 @@ from marvin_integration_sdk import (
     register_provider,
 )
 
+from .capability import CapabilityHandler, integrations_providing
 from .http_client import MarvinHttpHelper, build_http
 from .loader import ProviderLoadReport, load_providers
 
@@ -51,4 +52,6 @@ __all__ = [
     "ProviderLoadReport",
     "load_providers",
     "load_reports",
+    "CapabilityHandler",
+    "integrations_providing",
 ]
