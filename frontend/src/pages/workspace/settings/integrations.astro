@@ -88,7 +88,7 @@ function statusMeta(status: string): { text: string; cls: string } {
                 <code class="conn-slug" title="Reference this integration from automations">{it.slug}</code>
                 <div class="conn-btns">
                   {(prov?.actions ?? []).map((a) => (
-                    <button type="button" class="button small secondary js-action" data-id={it.id} data-action={a.key} title={a.description}>
+                    <button type="button" class="button small secondary js-action" data-id={it.id} data-provider={it.provider} data-action={a.key} title={a.description}>
                       {a.label}
                     </button>
                   ))}
@@ -175,6 +175,23 @@ function statusMeta(status: string): { text: string; cls: string } {
     </div>
   </div>
 
+  <!-- Action panel (collects an action's inputs before firing) -->
+  <div id="action-overlay" class="overlay" hidden>
+    <div class="panel" role="dialog" aria-modal="true" aria-labelledby="action-title">
+      <div class="panel-head">
+        <h3 id="action-title">Run action</h3>
+        <button type="button" class="icon-btn" id="action-close" aria-label="Close">×</button>
+      </div>
+      <p class="panel-sub" id="action-sub"></p>
+      <div id="action-fields"></div>
+      <div id="action-error" class="inline-error" hidden></div>
+      <div class="panel-actions">
+        <button type="button" class="button" id="action-run">Run</button>
+        <button type="button" class="button secondary" id="action-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script type="application/json" id="providers-data" set:html={JSON.stringify(providers)}></script>
 </AppLayout>
 
@@ -200,6 +217,14 @@ function statusMeta(status: string): { text: string; cls: string } {
 
   function reload() {
     window.location.reload();
+  }
+
+  function toast(message: string, ok = true) {
+    const el = document.createElement("div");
+    el.className = `mv-toast ${ok ? "ok" : "err"}`;
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3200);
   }
 
   function showError(el: HTMLElement, message: string) {
@@ -352,22 +377,94 @@ function statusMeta(status: string): { text: string; cls: string } {
     }),
   );
 
+  // ---- action test-fire (collects inputs first when the action declares any) ----
+  const actionOverlay = document.getElementById("action-overlay") as HTMLElement;
+  const actionFieldsEl = document.getElementById("action-fields") as HTMLElement;
+  const actionErrEl = document.getElementById("action-error") as HTMLElement;
+  let pendingAction: { id: string; key: string } | null = null;
+
+  function closeActionPanel() {
+    actionOverlay.hidden = true;
+    pendingAction = null;
+  }
+
+  async function fireAction(id: string, key: string, args: Record<string, unknown>) {
+    return runIntegrationAction(id, key, args);
+  }
+
   document.querySelectorAll<HTMLButtonElement>(".js-action").forEach((b) =>
     b.addEventListener("click", async () => {
-      const label = b.textContent;
-      b.disabled = true;
-      b.textContent = "Running…";
-      try {
-        const res = await runIntegrationAction(b.dataset.id!, b.dataset.action!);
-        alert(res.ok ? "Action succeeded." : "Action returned a failure.");
-      } catch (err) {
-        alert(errorMessage(err));
-      } finally {
-        b.disabled = false;
-        b.textContent = label;
+      const provider = bySlug.get(b.dataset.provider || "");
+      const action = provider?.actions?.find((a) => a.key === b.dataset.action);
+      const schema = (action?.inputSchema || {}) as any;
+      const props = (schema.properties || {}) as Record<string, any>;
+
+      // No inputs → fire straight away. Otherwise open the panel to collect them.
+      if (Object.keys(props).length === 0) {
+        b.disabled = true;
+        try {
+          const res = await fireAction(b.dataset.id!, b.dataset.action!, {});
+          toast(res.ok ? "Done." : "Action returned a failure.", res.ok);
+        } catch (err) {
+          toast(errorMessage(err), false);
+        } finally {
+          b.disabled = false;
+        }
+        return;
       }
+
+      const required: string[] = schema.required || [];
+      (document.getElementById("action-title") as HTMLElement).textContent = action!.label;
+      (document.getElementById("action-sub") as HTMLElement).textContent = action!.description || "";
+      actionErrEl.hidden = true;
+      actionFieldsEl.innerHTML = Object.entries(props)
+        .map(([key, prop]) =>
+          fieldHtml({
+            kind: "config",
+            key,
+            label: prop.title || key,
+            required: required.includes(key),
+            type: prop.format === "uri" ? "url" : "text",
+          }),
+        )
+        .join("");
+      pendingAction = { id: b.dataset.id!, key: b.dataset.action! };
+      actionOverlay.hidden = false;
     }),
   );
+
+  document.getElementById("action-close")?.addEventListener("click", closeActionPanel);
+  document.getElementById("action-cancel")?.addEventListener("click", closeActionPanel);
+  actionOverlay?.addEventListener("click", (e) => {
+    if (e.target === actionOverlay) closeActionPanel();
+  });
+
+  document.getElementById("action-run")?.addEventListener("click", async () => {
+    if (!pendingAction) return;
+    actionErrEl.hidden = true;
+    const args: Record<string, unknown> = {};
+    let missing = false;
+    actionFieldsEl.querySelectorAll<HTMLInputElement>("input[data-key]").forEach((inp) => {
+      const v = inp.value.trim();
+      if (v) args[inp.dataset.key!] = v;
+      else if (inp.required) missing = true;
+    });
+    if (missing) {
+      showError(actionErrEl, "Please fill in the required fields.");
+      return;
+    }
+    const runBtn = document.getElementById("action-run") as HTMLButtonElement;
+    runBtn.disabled = true;
+    try {
+      const res = await fireAction(pendingAction.id, pendingAction.key, args);
+      closeActionPanel();
+      toast(res.ok ? "Sent ✓" : "Action returned a failure.", res.ok);
+    } catch (err) {
+      showError(actionErrEl, errorMessage(err));
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
 
   document.querySelectorAll<HTMLButtonElement>(".js-delete").forEach((b) =>
     b.addEventListener("click", async () => {
@@ -605,6 +702,22 @@ function statusMeta(status: string): { text: string; cls: string } {
   .panel :global(.field small) { font-size: 12px; line-height: 1.45; color: var(--muted); }
 
   .inline-error { margin-top: 16px; font-size: 13px; color: var(--color-error); }
+
+  .mv-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    padding: 10px 18px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  }
+  .mv-toast.ok { background: var(--good, #357a55); }
+  .mv-toast.err { background: var(--color-error, #c0392b); }
   .panel-actions {
     display: flex;
     gap: 10px;
