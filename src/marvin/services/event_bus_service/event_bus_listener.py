@@ -1332,3 +1332,111 @@ class AuditLogListener(EventListenerBase):
         """
         # Use the AuditLogPublisher to persist the event
         self.publisher.publish(event, subscribers)
+
+
+class IntegrationEventListener(EventListenerBase):
+    """Runs integration actions wired to events (the integration_event_subscriptions table).
+
+    This is how integrations are *consumed*: connect an integration's action to an event type and
+    it fires whenever that event happens — the same subscribe-to-an-event model webhooks, apprise,
+    and email use. The provider runs directly (no publisher), so there's no channel indirection.
+    """
+
+    def __init__(self, group_id: UUID4) -> None:
+        super().__init__(group_id, cast(Any, None))  # runs provider actions directly; no publisher
+
+    def get_subscribers(self, event: Event) -> list[dict]:
+        if event.event_type == EventTypes.webhook_task:
+            return []
+
+        from marvin.db.models.groups.integration_event_subscriptions import IntegrationEventSubscriptionModel
+        from marvin.db.models.groups.integrations import IntegrationModel
+
+        event_name = event.event_type.name
+        subs: list[dict] = []
+        with self.ensure_session() as session:
+            rows = (
+                session.query(IntegrationEventSubscriptionModel)
+                .filter(
+                    IntegrationEventSubscriptionModel.group_id == self.group_id,
+                    IntegrationEventSubscriptionModel.event_type == event_name,
+                    IntegrationEventSubscriptionModel.enabled.is_(True),
+                )
+                .all()
+            )
+            for row in rows:
+                integ = session.get(IntegrationModel, row.integration_id)
+                if not integ or not integ.enabled:
+                    continue
+                # Snapshot everything needed so publish_to_subscribers is session-independent.
+                subs.append(
+                    {
+                        "name": integ.name,
+                        "provider": integ.provider,
+                        "config": integ.config or {},
+                        "secret_ref": integ.secret_ref,
+                        "action": row.action,
+                        "args": row.args or {},
+                    }
+                )
+        if subs:
+            self.logger.debug(f"event:{event_name} → {len(subs)} integration action(s)")
+        return subs
+
+    def publish_to_subscribers(self, event: Event, subscribers: list[dict]) -> None:
+        if not subscribers:
+            return
+
+        from marvin.services.integrations import IntegrationContext, build_http, get_provider
+        from marvin.services.secrets.resolver import resolve_secret
+
+        ctx_data = self._event_context(event)
+        for sub in subscribers:
+            try:
+                provider = get_provider(sub["provider"])
+            except KeyError:
+                self.logger.warning(f"integration provider '{sub['provider']}' not installed; skipping")
+                continue
+            secret = resolve_secret(sub["secret_ref"], self.group_id) if sub["secret_ref"] else None
+            ctx = IntegrationContext(config=sub["config"], secret=secret, logger=self.logger, http=build_http())
+            args = self._template(sub["args"], ctx_data)
+            try:
+                provider.run_action(sub["action"], args, ctx)
+                self.logger.info(f"integration '{sub['name']}' ran '{sub['action']}' on {event.event_type.name}")
+            except Exception as e:  # noqa: BLE001 — one action failing must not affect the others
+                self.logger.warning(f"integration '{sub['name']}' action '{sub['action']}' failed: {e}")
+
+    def _event_context(self, event: Event) -> dict:
+        """Flatten the event into a dict of {{placeholder}} values for action args."""
+        data: dict = {}
+        try:
+            if event.document_data is not None:
+                encoded = jsonable_encoder(event.document_data)
+                if isinstance(encoded, dict):
+                    data.update(encoded)
+        except Exception:  # noqa: BLE001 — templating context is best-effort
+            pass
+        data.setdefault("event_type", event.event_type.name)
+        if getattr(event, "entity_id", None) is not None:
+            data.setdefault("entity_id", str(event.entity_id))
+        if getattr(event, "entity_type", None) is not None:
+            data.setdefault("entity_type", event.entity_type)
+        if getattr(event, "message", None):
+            data.setdefault("message", event.message)
+        return data
+
+    @staticmethod
+    def _template(args: dict, ctx: dict):
+        """Substitute {{field}} placeholders in string args with event-context values."""
+        import re
+
+        def render(value):
+            if isinstance(value, str):
+                return re.sub(r"\{\{\s*(\w+)\s*\}\}", lambda m: str(ctx.get(m.group(1), m.group(0))), value)
+            if isinstance(value, dict):
+                return {k: render(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [render(v) for v in value]
+            return value
+
+        return {k: render(v) for k, v in (args or {}).items()}

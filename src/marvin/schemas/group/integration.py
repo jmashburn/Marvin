@@ -105,3 +105,28 @@ class IntegrationCheckResult(_MarvinModel):
     status: str
     last_error: str | None = None
     last_checked_at: datetime | None = None
+
+
+class IntegrationEventSubscriptionCreate(_MarvinModel):
+    """Wire an integration action to an event type."""
+
+    integration_id: UUID4
+    event_type: str
+    action: str
+    args: dict = Field(default_factory=dict)
+
+
+class IntegrationEventSubscriptionUpdate(_MarvinModel):
+    enabled: bool | None = None
+    args: dict | None = None
+
+
+class IntegrationEventSubscriptionRead(_MarvinModel):
+    id: UUID4
+    integration_id: UUID4
+    integration_name: str | None = None  # convenience for the events UI
+    provider: str | None = None
+    event_type: str
+    action: str
+    args: dict | None = None
+    enabled: bool

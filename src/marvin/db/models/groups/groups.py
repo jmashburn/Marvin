@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from .ai_settings import WorkspaceAISettingsModel
     from .automations import WorkspaceAutomationModel
     from .incoming_webhooks import WorkspaceIncomingWebhookModel
+    from .integration_event_subscriptions import IntegrationEventSubscriptionModel
     from .integrations import IntegrationModel
     from .mcp_servers import WorkspaceMcpServerModel
     from .events import GroupEventNotifierModel
@@ -122,6 +123,10 @@ class Groups(SqlAlchemyBase, BaseMixins):
 
     integrations: Mapped[list["IntegrationModel"]] = orm.relationship(
         "IntegrationModel", **_common_relationship_args, doc="External service integrations for this workspace."
+    )
+
+    integration_event_subscriptions: Mapped[list["IntegrationEventSubscriptionModel"]] = orm.relationship(
+        "IntegrationEventSubscriptionModel", **_common_relationship_args, doc="Integration actions wired to events."
     )
     # Relationship to ReportModel (one-to-many)
     group_reports: Mapped[list["ReportModel"]] = orm.relationship(

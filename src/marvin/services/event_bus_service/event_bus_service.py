@@ -31,6 +31,7 @@ from marvin.services.event_bus_service.event_bus_listener import (
     ConsoleEventListener,
     EmailEventListener,
     EventListenerBase,
+    IntegrationEventListener,
     ScheduledTaskListener,
     WebhookEventListener,
 )
@@ -156,6 +157,7 @@ class EventBusService(BaseService):
             SmartCollectionReactionListener(group_id),  # Materializes smart-collection membership on entry changes.
             ConsoleEventListener(group_id),  # Logs all events to console for debugging.
             WebhookEventListener(group_id),  # Handles custom webhook integrations for the group.
+            IntegrationEventListener(group_id),  # Runs integration actions wired to events.
             AppriseEventListener(group_id),  # Handles notifications via Apprise for the group.
             EmailEventListener(group_id),  # Fires email templates on matching events.
         ]

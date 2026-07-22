@@ -174,6 +174,80 @@ def test_entry_point_discovery_is_resilient(monkeypatch):
         INTEGRATION_REGISTRY.pop("test_good", None)
 
 
+def test_event_listener_runs_action_with_templated_args():
+    # The core "consume integration via events" mechanism: a connected action fires when its event
+    # does, with {{field}} placeholders filled from the event.
+    import uuid
+
+    from marvin_integration_sdk import INTEGRATION_REGISTRY, IntegrationProvider, ProviderAction, register_provider
+
+    from marvin.services.event_bus_service.event_bus_listener import IntegrationEventListener
+
+    calls: list = []
+
+    class _RecorderProvider(IntegrationProvider):
+        slug = "recorder"
+        name = "Recorder"
+        actions = (ProviderAction(key="do", label="Do"),)
+
+        def run_action(self, key, args, ctx):
+            calls.append((key, args))
+            return {"ok": True}
+
+    register_provider(_RecorderProvider)
+
+    class _EvType:
+        name = "entry-published"
+
+    class _Event:
+        event_type = _EvType()
+        document_data = {"title": "Hello World", "slug": "hello"}
+        entity_id = uuid.uuid4()
+        entity_type = "entry"
+        message = "published"
+
+    try:
+        listener = IntegrationEventListener(group_id=uuid.uuid4())
+        sub = {
+            "name": "My Slack", "provider": "recorder", "config": {}, "secret_ref": None,
+            "action": "do", "args": {"text": "New: {{title}} ({{entity_type}})"},
+        }
+        listener.publish_to_subscribers(_Event(), [sub])
+        assert calls == [("do", {"text": "New: Hello World (entry)"})]
+    finally:
+        INTEGRATION_REGISTRY.pop("recorder", None)
+
+
+def test_event_listener_skips_uninstalled_provider():
+    import uuid
+
+    from marvin.services.event_bus_service.event_bus_listener import IntegrationEventListener
+
+    class _EvType:
+        name = "entry-published"
+
+    class _Event:
+        event_type = _EvType()
+        document_data = {}
+        entity_id = None
+        entity_type = None
+        message = ""
+
+    listener = IntegrationEventListener(group_id=uuid.uuid4())
+    # No exception even though provider isn't installed — just logged and skipped.
+    listener.publish_to_subscribers(_Event(), [{"name": "Gone", "provider": "ghost", "config": {}, "secret_ref": None, "action": "x", "args": {}}])
+
+
+def test_template_substitution():
+    from marvin.services.event_bus_service.event_bus_listener import IntegrationEventListener
+
+    out = IntegrationEventListener._template(
+        {"text": "Hi {{name}}", "nested": {"k": "{{missing}}"}, "list": ["{{name}}"]},
+        {"name": "Sam"},
+    )
+    assert out == {"text": "Hi Sam", "nested": {"k": "{{missing}}"}, "list": ["Sam"]}
+
+
 def test_installed_provider_reads_normally():
     import uuid
     from types import SimpleNamespace

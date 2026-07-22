@@ -14,12 +14,16 @@ from pydantic import UUID4
 from slugify import slugify
 
 from marvin.core.root_logger import get_logger
+from marvin.db.models.groups.integration_event_subscriptions import IntegrationEventSubscriptionModel
 from marvin.db.models.groups.integrations import IntegrationModel
 from marvin.routes._base import BaseUserController, controller
 from marvin.schemas.group.integration import (
     IntegrationActionResult,
     IntegrationCheckResult,
     IntegrationCreate,
+    IntegrationEventSubscriptionCreate,
+    IntegrationEventSubscriptionRead,
+    IntegrationEventSubscriptionUpdate,
     IntegrationPluginInfo,
     IntegrationProviderInfo,
     IntegrationRead,
@@ -110,6 +114,79 @@ class IntegrationsController(BaseUserController):
     def list_plugins(self):
         """Installed provider sources — built-ins and plugin packages — with load status/version."""
         return [IntegrationPluginInfo(**asdict(r)) for r in load_reports()]
+
+    # ---- event connections (integration action ⇄ event) -------------------------
+
+    def _sub_to_read(self, row: IntegrationEventSubscriptionModel) -> IntegrationEventSubscriptionRead:
+        integ = self.session.get(IntegrationModel, row.integration_id)
+        return IntegrationEventSubscriptionRead(
+            id=row.id,
+            integration_id=row.integration_id,
+            integration_name=integ.name if integ else None,
+            provider=integ.provider if integ else None,
+            event_type=row.event_type,
+            action=row.action,
+            args=row.args,
+            enabled=row.enabled,
+        )
+
+    @router.get("/subscriptions", response_model=list[IntegrationEventSubscriptionRead])
+    def list_subscriptions(self, event_type: str | None = None):
+        """Integration actions wired to events. Filter by ?event_type= for one event's connections."""
+        q = self.session.query(IntegrationEventSubscriptionModel).filter(
+            IntegrationEventSubscriptionModel.group_id == self.group_id
+        )
+        if event_type:
+            q = q.filter(IntegrationEventSubscriptionModel.event_type == event_type)
+        return [self._sub_to_read(r) for r in q.all()]
+
+    @router.post("/subscriptions", response_model=IntegrationEventSubscriptionRead, status_code=status.HTTP_201_CREATED)
+    def create_subscription(self, data: IntegrationEventSubscriptionCreate):
+        """Wire an integration action to an event type."""
+        integ = self.session.get(IntegrationModel, data.integration_id)
+        if not integ or integ.group_id != self.group_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found.")
+        provider = self._provider_or_none(integ.provider)
+        if provider is None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Provider '{integ.provider}' is not installed.")
+        if provider.get_action(data.action) is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"'{integ.provider}' has no action '{data.action}'.")
+
+        row = IntegrationEventSubscriptionModel(
+            session=self.session,
+            group_id=self.group_id,
+            integration_id=data.integration_id,
+            event_type=data.event_type,
+            action=data.action,
+            args=data.args or None,
+        )
+        self.session.add(row)
+        self.session.commit()
+        self.session.refresh(row)
+        return self._sub_to_read(row)
+
+    @router.patch("/subscriptions/{sub_id}", response_model=IntegrationEventSubscriptionRead)
+    def update_subscription(self, sub_id: UUID4, data: IntegrationEventSubscriptionUpdate):
+        """Toggle a connection or change its templated args."""
+        row = self.session.get(IntegrationEventSubscriptionModel, sub_id)
+        if not row or row.group_id != self.group_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found.")
+        if data.enabled is not None:
+            row.enabled = data.enabled
+        if data.args is not None:
+            row.args = data.args or None
+        self.session.commit()
+        self.session.refresh(row)
+        return self._sub_to_read(row)
+
+    @router.delete("/subscriptions/{sub_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_subscription(self, sub_id: UUID4):
+        """Remove an integration ⇄ event connection."""
+        row = self.session.get(IntegrationEventSubscriptionModel, sub_id)
+        if not row or row.group_id != self.group_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found.")
+        self.session.delete(row)
+        self.session.commit()
 
     # ---- CRUD --------------------------------------------------------------------
 

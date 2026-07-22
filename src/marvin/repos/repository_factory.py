@@ -23,6 +23,7 @@ from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
 from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
 from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+from marvin.db.models.groups.integration_event_subscriptions import IntegrationEventSubscriptionModel
 from marvin.db.models.groups.integrations import IntegrationModel
 from marvin.db.models.groups.secrets import WorkspaceSecret
 from marvin.db.models.groups.variables import WorkspaceVariable
@@ -53,7 +54,7 @@ from marvin.schemas.group.invite_token import InviteTokenRead
 from marvin.schemas.group.preferences import GroupPreferencesRead
 from marvin.schemas.group.report import ReportEntryRead, ReportRead
 from marvin.schemas.group.secret import WorkspaceSecretRead
-from marvin.schemas.group.integration import IntegrationRead
+from marvin.schemas.group.integration import IntegrationEventSubscriptionRead, IntegrationRead
 from marvin.schemas.group.variable import WorkspaceVariableRead
 from marvin.schemas.group.webhook import WebhookExecutionLogRead, WebhookRead
 from marvin.schemas.user import LongLiveTokenRead, PrivateUser
@@ -286,6 +287,14 @@ class AllRepositories:
     def integrations(self) -> GroupRepositoryGeneric[IntegrationRead, IntegrationModel]:
         """Provides access to workspace-scoped external service integrations."""
         return GroupRepositoryGeneric(self.session, PK_ID, IntegrationModel, IntegrationRead, group_id=self.group_id)
+
+    def integration_event_subscriptions(
+        self,
+    ) -> GroupRepositoryGeneric[IntegrationEventSubscriptionRead, IntegrationEventSubscriptionModel]:
+        """Integration actions wired to event types."""
+        return GroupRepositoryGeneric(
+            self.session, PK_ID, IntegrationEventSubscriptionModel, IntegrationEventSubscriptionRead, group_id=self.group_id
+        )
 
     def webhook_logs(self) -> GroupRepositoryGeneric[WebhookExecutionLogRead, WebhookExecutionLogModel]:
         """Provides access to webhook execution logs scoped by group."""
