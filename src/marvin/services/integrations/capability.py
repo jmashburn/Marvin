@@ -68,12 +68,37 @@ class CapabilityHandler:
             error = e
         elapsed_ms = int((time.monotonic() - start) * 1000)
 
-        self._log_execution(output, elapsed_ms, error)
+        self._log_execution(inputs, output, elapsed_ms, error)
         if error is not None:
             raise error
         return output
 
-    def _log_execution(self, output: dict, elapsed_ms: int, error: Exception | None) -> None:
+    @staticmethod
+    def _sanitize(value, _depth: int = 0):
+        """Strip large blobs (base64 images, etc.) so the audit row stays readable.
+
+        Long strings — anything over ~256 chars, which is every image payload — collapse to a
+        ``<N chars omitted>`` marker; small fields (``usage``, counts, urls, prompts) pass through.
+        """
+        if _depth > 6:
+            return "<…>"
+        if isinstance(value, str):
+            return value if len(value) <= 256 else f"<{len(value)} chars omitted>"
+        if isinstance(value, dict):
+            return {k: CapabilityHandler._sanitize(v, _depth + 1) for k, v in value.items()}
+        if isinstance(value, list | tuple):
+            return [CapabilityHandler._sanitize(v, _depth + 1) for v in value]
+        return value
+
+    def _log_flags(self, session) -> tuple[bool, bool]:
+        """(log_inputs, log_outputs) from the workspace logging_config — inputs off, outputs on by default."""
+        from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+
+        settings = session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
+        cfg = (settings.logging_config if settings else None) or {}
+        return bool(cfg.get("log_inputs", False)), bool(cfg.get("log_outputs", True))
+
+    def _log_execution(self, inputs: dict, output: dict, elapsed_ms: int, error: Exception | None) -> None:
         """Best-effort: write an ai_executions row + emit the ai_operation_executed event."""
         try:
             from marvin.db.db_setup import session_context
@@ -90,6 +115,7 @@ class CapabilityHandler:
             status = "failed" if error else "completed"
 
             with session_context() as session:
+                log_inputs, log_outputs = self._log_flags(session)
                 row = AIExecutionModel(
                     session=session,
                     group_id=self.group_id,
@@ -98,6 +124,8 @@ class CapabilityHandler:
                     model_id=model_id,
                     status=status,
                     trigger_type="capability",
+                    input_json=self._sanitize(inputs) if log_inputs else None,
+                    output_json=self._sanitize(output) if log_outputs else None,
                     prompt_tokens=pt or None,
                     completion_tokens=ct or None,
                     total_tokens=tot or None,
