@@ -89,3 +89,25 @@ class TestPublishingPerformance:
         # 3. Query count instrumentation
         # For now, just verify the endpoint structure is correct
         pass
+
+
+class TestPublishedEntryDataNormalization:
+    """`PublishedEntryRead.data` must always be an object, even when the entry stores no custom
+    data (``data_json`` is SQL NULL). Regression: a NULL ``data_json`` used to fail response
+    validation and 500 the published-entry endpoint."""
+
+    def _read(self, **overrides):
+        from marvin.schemas.publishing import PublishedEntryRead
+
+        base = {"slug": "x", "title": "X", "entry_type": "page"}
+        base.update(overrides)
+        return PublishedEntryRead(**base)
+
+    def test_null_data_normalizes_to_empty_dict(self):
+        assert self._read(data=None).data == {}
+
+    def test_missing_data_defaults_to_empty_dict(self):
+        assert self._read().data == {}
+
+    def test_dict_data_is_preserved(self):
+        assert self._read(data={"body": "hello"}).data == {"body": "hello"}

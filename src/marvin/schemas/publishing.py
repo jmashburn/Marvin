@@ -7,7 +7,7 @@ all admin fields, internal metadata, and unpublished content.
 
 from datetime import datetime
 
-from pydantic import UUID4, ConfigDict, Field
+from pydantic import UUID4, ConfigDict, Field, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -140,8 +140,16 @@ class PublishedEntryRead(_MarvinModel):
     summary: str | None = None
     """Optional short description/summary."""
 
-    data: dict
+    data: dict = Field(default_factory=dict)
     """Entry content structured according to entry type schema."""
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def _data_never_null(cls, value: object) -> dict:
+        """An entry with no custom data stores ``data_json`` as SQL NULL; the API contract is that
+        ``data`` is always an object. Normalize NULL (and any non-dict) to ``{}`` so a data-less
+        entry serializes cleanly instead of failing response validation with a 500."""
+        return value if isinstance(value, dict) else {}
 
     published_at: datetime | None = None
     """Timestamp when the entry was published."""
