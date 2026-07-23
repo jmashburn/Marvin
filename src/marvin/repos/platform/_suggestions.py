@@ -23,7 +23,9 @@ class SuggestionWritebackMixin:
         session: Session
         model: type[Any]
 
-        def get_one(self, value: Any, key: str | None = None) -> Any: ...
+        # Signature mirrors RepositoryGeneric.get_one so the two base classes stay
+        # compatible when a repo mixes both in.
+        def get_one(self, value: Any, key: str | None = None, any_case: bool = False, override_schema: Any = None) -> Any: ...
         def apply_fields(self, entity_id: Any, fields: dict) -> None: ...
 
     def stage_suggestion(self, entity_id: Any, fields: dict) -> None:

@@ -11,6 +11,7 @@ from functools import cached_property
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
 
+from marvin.db.models.users.roles import WORKSPACE_ROLE_HIERARCHY
 from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
@@ -77,7 +78,7 @@ class GroupPreferencesController(BaseUserController):
         # Query by group_id using filter
         preferences = self.repos.groups.get_one(group_id)
 
-        if not preferences:
+        if not preferences or not preferences.preferences:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Workspace not found: {group_id}",
@@ -235,7 +236,7 @@ class GroupPreferencesController(BaseUserController):
         # Check if user is an ADMIN or OWNER of this workspace
         for membership in self.user.workspace_memberships:
             if membership.group_id == group_id:
-                # WorkspaceRole enum: OWNER=5, ADMIN=4
-                return membership.workspace_role.value >= 4
+                # WORKSPACE_ROLE_HIERARCHY maps the role enum to a rank: OWNER=5, ADMIN=4
+                return WORKSPACE_ROLE_HIERARCHY.get(membership.workspace_role, 0) >= 4
 
         return False

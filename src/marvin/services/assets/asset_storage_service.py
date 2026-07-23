@@ -88,7 +88,7 @@ class AssetStorageService(BaseService):
 
                 # Generate storage key
                 storage_key = self.generate_storage_key(
-                    workspace_slug=group.slug,
+                    workspace_slug=group.slug or "workspace",
                     filename=original_filename,
                     upload_date=datetime.now(UTC),
                 )
@@ -176,7 +176,7 @@ class AssetStorageService(BaseService):
             try:
                 metadata = self.metadata_extractor.extract_metadata(temp_path)
                 storage_key = self.generate_storage_key(
-                    workspace_slug=group.slug,
+                    workspace_slug=group.slug or "workspace",
                     filename=original_filename,
                     upload_date=datetime.now(UTC),
                 )

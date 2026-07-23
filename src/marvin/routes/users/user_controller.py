@@ -14,6 +14,8 @@ implementation/refactoring.
 """
 
 # from datetime import timedelta # Imported but not used in active code
+from typing import Any
+
 from fastapi import HTTPException, status  # APIRouter for consistency
 
 # Marvin core, schemas, services, and base controllers
@@ -88,7 +90,7 @@ class UserController(BaseUserController):
         return self.user
 
     @user_router.put("/self/password", response_model=SuccessResponse, summary="Update Current User's Password")
-    def update_password(self, password_change_data: ChangePassword) -> SuccessResponse:
+    def update_password(self, password_change_data: ChangePassword) -> dict[str, Any]:
         """
         Updates the password for the currently authenticated user.
 
@@ -148,7 +150,7 @@ class UserController(BaseUserController):
         return SuccessResponse.respond("User password updated successfully.")
 
     @user_router.put("/self", response_model=SuccessResponse, summary="Update Current User Profile")
-    def update_user(self, new_data: UserProfileUpdate) -> SuccessResponse:
+    def update_user(self, new_data: UserProfileUpdate) -> dict[str, Any]:
         """
         Updates the profile information for the currently authenticated user.
 

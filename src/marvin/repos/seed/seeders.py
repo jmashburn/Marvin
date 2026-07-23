@@ -119,6 +119,7 @@ class NotifierOptionSeeder(AbstractSeeder):
             name (str): The name of the seeder configuration, typically
                         "notifier_options", which is passed to `load_data`.
         """
+        name = name or "notifier_options"
         self.logger.info(f"Seeding Notifier Options from configuration: '{name}'")
         count_seeded = 0
         count_errors = 0
@@ -211,6 +212,7 @@ class SystemEntryTypeSeeder(AbstractSeeder):
             name (str): The name of the seeder configuration, typically
                         "system_entry_types", which is passed to `load_data`.
         """
+        name = name or "system_entry_types"
         self.logger.info(f"Seeding System Entry Types from configuration: '{name}'")
         count_seeded = 0
         count_updated = 0

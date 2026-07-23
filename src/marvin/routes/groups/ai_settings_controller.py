@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, status
 
 from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+from marvin.db.models.users.roles import WORKSPACE_ROLE_HIERARCHY
 from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
@@ -22,7 +23,7 @@ class AISettingsController(BaseUserController):
         if self.user.admin:
             return
         for m in self.user.workspace_memberships:
-            if m.group_id == self.group_id and m.workspace_role.value >= 4:
+            if m.group_id == self.group_id and WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0) >= 4:
                 return
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN or OWNER role required.")
 

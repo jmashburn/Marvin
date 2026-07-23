@@ -84,14 +84,16 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
             self._replace_entries(collection.id, entry_ids)
             # Refresh to get updated relationships
             self.session.refresh(self.session.get(Collections, collection.id))
-            collection = self.get_one(collection.id)
-            assert collection is not None
+            refreshed = self.get_one(collection.id)
+            assert refreshed is not None
+            collection = refreshed
 
         # Re-materialize membership when this is (or just became) a smart collection, so a
         # rules change immediately re-evaluates which entries belong.
         if self._resync_smart_membership(collection.id):
-            collection = self.get_one(collection.id)
-            assert collection is not None
+            resynced = self.get_one(collection.id)
+            assert resynced is not None
+            collection = resynced
 
         return collection
 

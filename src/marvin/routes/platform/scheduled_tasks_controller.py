@@ -98,13 +98,13 @@ class ScheduledTasksController(BaseUserController):
             task = self.repos.scheduled_tasks.update(uuid_val, data)
         except ValueError:
             # Try slug
-            task = self.repos.scheduled_tasks.get_by_slug(id_or_slug)
-            if not task:
+            found = self.repos.scheduled_tasks.get_by_slug(id_or_slug)
+            if not found:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Scheduled task '{id_or_slug}' not found",
                 ) from None
-            task = self.repos.scheduled_tasks.update(task.id, data)
+            task = self.repos.scheduled_tasks.update(found.id, data)
 
         # Emit event
         self.event_bus.dispatch(
