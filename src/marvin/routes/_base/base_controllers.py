@@ -28,6 +28,7 @@ from marvin.schemas.group import GroupRead  # Pydantic schemas
 from marvin.schemas.user import PrivateUser
 from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import (
+    INTERNAL_INTEGRATION_ID,  # Identifies internally-dispatched (non-integration) events
     EventDocumentDataBase,  # Base for event data
     EventTypes,  # Enum for event types
 )
@@ -112,6 +113,8 @@ class BaseController(ABC):  # noqa: B024
                                      Defaults to "".
         """
         self.event_bus.dispatch(
+            integration_id=INTERNAL_INTEGRATION_ID,
+            group_id=self.group_id,
             event_type=event_type,
             document_data=document_data,  # This should be the Pydantic model of the entity
             message=message,

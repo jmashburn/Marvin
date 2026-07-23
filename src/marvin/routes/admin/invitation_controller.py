@@ -146,7 +146,7 @@ class GroupInvitationsController(BaseUserController):
 
         try:
             # Attempt to send the invitation email
-            email_sent_successfully = email_service.send_invitation(address=invite_data.email, invitation_url=registration_url)
+            email_sent_successfully = email_service.send_invitation(recipient_address=invite_data.email, invitation_url=registration_url)
             if email_sent_successfully:
                 self.logger.info(f"Invitation email sent to {invite_data.email} with token {invite_data.token}")
             else:
