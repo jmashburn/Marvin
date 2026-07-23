@@ -114,6 +114,12 @@ tasks:
     cmds:
       - npm run check
 
+  frontend:format:
+    desc: format the frontend with Biome (writes changes)
+    dir: frontend
+    cmds:
+      - npm run format
+
   # NOTE: Astro is configured output:"server" (node adapter), so this emits a server
   # build into frontend/dist — not a purely static site. Same output as frontend:build
   # without the preceding `astro check`.
