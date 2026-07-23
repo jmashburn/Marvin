@@ -5,6 +5,7 @@ from functools import cached_property
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4, BaseModel, EmailStr
 
+from marvin.db.models.users.roles import WORKSPACE_ROLE_HIERARCHY
 from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
@@ -451,7 +452,7 @@ class EmailTemplateController(BaseUserController):
 
         for membership in self.user.workspace_memberships:
             if membership.group_id == group_id:
-                if membership.workspace_role.value >= 4:  # ADMIN or OWNER
+                if WORKSPACE_ROLE_HIERARCHY.get(membership.workspace_role, 0) >= 4:  # ADMIN or OWNER
                     return True
 
         raise HTTPException(

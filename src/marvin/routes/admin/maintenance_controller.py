@@ -10,6 +10,7 @@ for tailing log files (though not currently exposed via an HTTP endpoint).
 
 import shutil  # For directory removal (rmtree)
 from pathlib import Path  # For path manipulation
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status  # Added status for HTTPException
 from pydantic import BaseModel  # For stats response model
@@ -116,7 +117,7 @@ class AdminMaintenanceController(BaseAdminController):
         )
 
     @router.post("/clean/temp", response_model=SuccessResponse, summary="Clean Temporary Directory")
-    def clean_temp(self) -> SuccessResponse:
+    def clean_temp(self) -> dict[str, Any]:
         """
         Cleans the temporary application directory.
 
@@ -152,7 +153,7 @@ class AdminMaintenanceController(BaseAdminController):
         return SuccessResponse.respond("Temporary (.temp) directory has been cleaned successfully.")
 
     @router.post("/cleanup-tokens", response_model=SuccessResponse, summary="Clean Revoked Tokens")
-    def cleanup_expired_tokens(self) -> SuccessResponse:
+    def cleanup_expired_tokens(self) -> dict[str, Any]:
         """
         Clean up revoked API tokens.
 
@@ -192,7 +193,7 @@ class AdminMaintenanceController(BaseAdminController):
             ) from e
 
     @router.post("/cleanup-events", response_model=SuccessResponse, summary="Clean Old Event Logs")
-    def cleanup_old_events(self) -> SuccessResponse:
+    def cleanup_old_events(self) -> dict[str, Any]:
         """
         Clean up old event logs.
 
@@ -209,7 +210,7 @@ class AdminMaintenanceController(BaseAdminController):
         return SuccessResponse.respond("Event cleanup skipped - event logging not yet implemented.")
 
     @router.post("/optimize-db", response_model=SuccessResponse, summary="Optimize Database")
-    def optimize_database(self) -> SuccessResponse:
+    def optimize_database(self) -> dict[str, Any]:
         """
         Optimize database by running VACUUM and ANALYZE.
 
@@ -241,7 +242,7 @@ class AdminMaintenanceController(BaseAdminController):
             ) from e
 
     @router.post("/clear-cache", response_model=SuccessResponse, summary="Clear Application Cache")
-    def clear_cache(self) -> SuccessResponse:
+    def clear_cache(self) -> dict[str, Any]:
         """
         Clear application caches and temporary files.
 
