@@ -48,16 +48,19 @@ ENV UV_LINK_MODE=copy
 RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv lock
 
+# --group postgres bundles the psycopg2 driver so the image can run against Postgres
+# (DB_ENGINE=postgres); without it the app is SQLite-only. Other backend groups (ldap, vault,
+# bitwarden) stay opt-in — add --group <name> here if a deployment needs them.
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=type=bind,source=uv.lock,target=uv.lock \
-    uv sync --frozen --no-install-project --no-dev --no-editable
+    uv sync --frozen --no-install-project --no-dev --no-editable --group postgres
 
 # The, add the rest of the projects source code and install it
 ADD . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --no-editable --group postgres
 
 # Remove unnecessary files from the virtual env before copying
 RUN find /app/.venv -name '__pycache__' -type d -exec rm -rf {} + && \
@@ -100,7 +103,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 ENV HOST=0.0.0.0
 
-#HEALTHCHECK CMD python -m marvin.scripts.healthcheck || exit 1
+# Liveness probe: hits the public /api/app/health endpoint. start-period covers first-boot
+# migrations + seeding so the container isn't marked unhealthy while it's legitimately starting.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD python -m marvin.scripts.healthcheck || exit 1
 
 ENTRYPOINT ["marvin-server"]
 
