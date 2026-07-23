@@ -185,7 +185,9 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
 
         self.session.commit()
 
-        return self.get_one(new_entry.id)
+        created = self.get_one(new_entry.id)
+        assert created is not None  # just created
+        return created
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryRead:
         from datetime import datetime
@@ -196,6 +198,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
 
         # Get existing entry to check publish status
         existing_entry = self.get_one(match_value, key=match_key)
+        assert existing_entry is not None  # updating an existing entry
 
         # Slug handling based on publish status
         if existing_entry.status == "published":

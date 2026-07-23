@@ -45,6 +45,7 @@ class FormsRepository(GroupRepositoryGeneric[FormRead, Forms]):
 
         # Get existing form to check publish status
         existing = self.get_one(match_value, key=match_key)
+        assert existing is not None  # updating an existing form
 
         # Protect slug once published to preserve external URLs
         if existing.status == "published":

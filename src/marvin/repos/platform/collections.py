@@ -53,7 +53,9 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
         self._resync_smart_membership(new_collection.id)
 
         # Return via get_one to get all relationships loaded
-        return self.get_one(new_collection.id)
+        created = self.get_one(new_collection.id)
+        assert created is not None  # just created
+        return created
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> CollectionRead:
         # System workflow collections are locked (managed by Marvin).
@@ -83,11 +85,13 @@ class CollectionsRepository(GroupRepositoryGeneric[CollectionRead, Collections])
             # Refresh to get updated relationships
             self.session.refresh(self.session.get(Collections, collection.id))
             collection = self.get_one(collection.id)
+            assert collection is not None
 
         # Re-materialize membership when this is (or just became) a smart collection, so a
         # rules change immediately re-evaluates which entries belong.
         if self._resync_smart_membership(collection.id):
             collection = self.get_one(collection.id)
+            assert collection is not None
 
         return collection
 

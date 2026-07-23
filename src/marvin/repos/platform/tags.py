@@ -43,12 +43,16 @@ class TagsRepository(GroupRepositoryGeneric[TagRead, Tags]):
 
         existing = self._by_slug(data_dict["slug"])
         if existing is not None:
-            return self.get_one(existing.id)
+            found = self.get_one(existing.id)
+            assert found is not None  # just matched by slug
+            return found
 
         new_tag = self.model(session=self.session, **data_dict)
         self.session.add(new_tag)
         self.session.commit()
-        return self.get_one(new_tag.id)
+        created = self.get_one(new_tag.id)
+        assert created is not None  # just created
+        return created
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> TagRead:
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
