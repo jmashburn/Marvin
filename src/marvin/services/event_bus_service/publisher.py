@@ -342,7 +342,7 @@ class WebhookPublisher:
                     failed_response = getattr(e, "response", None)
 
                     # Capture response body for debugging (truncate to 4KB)
-                    resp_body: str | None = None
+                    resp_body = None
                     if failed_response is not None:
                         try:
                             resp_body = failed_response.text[:4096]

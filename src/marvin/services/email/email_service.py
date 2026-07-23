@@ -94,7 +94,7 @@ class EmailService(BaseService):
         self.default_template: Path = self.templates_dir / "default.html"  # Path to the default email template
 
         if Path(self.templates_dir / self.settings.EMAIL_TEMPLATE).is_file():
-            self.default_template: Path = self.templates_dir / self.settings.EMAIL_TEMPLATE  # Path to the default email template per settings
+            self.default_template = self.templates_dir / self.settings.EMAIL_TEMPLATE  # Path to the default email template per settings
 
         if Path(self.directories.TEMPLATE_DIR / self.settings.EMAIL_TEMPLATE).is_file():
             self.templates_dir = self.directories.TEMPLATE_DIR

@@ -234,7 +234,9 @@ def _integrations_providing(kind: str, group_id) -> list[CapabilityHandler]:
     except ImportError:
         return []
     try:
-        return list(integrations_providing(kind, group_id) or [])
+        # Cross-module seam: integrations' CapabilityHandler structurally satisfies this module's
+        # Protocol; list invariance is the only mismatch, so the ignore is safe.
+        return list(integrations_providing(kind, group_id) or [])  # type: ignore[arg-type]
     except Exception as e:  # noqa: BLE001 — never let an integrations error break resolution
         logger.debug("media: integrations_providing(%s) failed: %s", kind, e)
         return []
