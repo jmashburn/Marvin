@@ -1,6 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { fetchApi, getAuthToken } from "@/lib/api/client";
+import { fetchApi, getAuthToken, ApiRequestError } from "@/lib/api/client";
 import { createSdkClient } from '@/lib/sdk';
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
@@ -29,6 +29,22 @@ try {
 } catch (e) {
   console.error('[workspace/settings] Error checking Apprise availability:', e);
   // Default to false if check fails
+}
+
+// Integrations are an optional, plugin-only feature: the backend only mounts the routes when an
+// integration package is installed. Probe the providers endpoint — a 404 means the section is not
+// installed, so we show an informational banner instead of the "Manage Integrations" link.
+let integrationsAvailable = true;
+if (currentTab === 'integrations') {
+  try {
+    await fetchApi('/api/groups/integrations/providers', { method: 'GET' }, authToken);
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 404) {
+      integrationsAvailable = false;
+    } else {
+      console.error('[workspace/settings] Error probing integrations availability:', e);
+    }
+  }
 }
 
 // Fetch workspace-scoped statistics for the statistics tab
@@ -281,12 +297,28 @@ const tabs = [
           <h2>Integrations</h2>
           <p class="section-description">Connect external services — sources that feed content in, destinations that react on publish</p>
 
-          <div class="quick-links">
-            <a href="/workspace/settings/integrations" class="link-card">
-              <strong>Manage Integrations</strong>
-              <p>Add and configure external service connections</p>
-            </a>
-          </div>
+          {integrationsAvailable ? (
+            <div class="quick-links">
+              <a href="/workspace/settings/integrations" class="link-card">
+                <strong>Manage Integrations</strong>
+                <p>Add and configure external service connections</p>
+              </a>
+            </div>
+          ) : (
+            <div class="integrations-banner">
+              <span class="integrations-banner-icon">🔌</span>
+              <div class="integrations-banner-body">
+                <strong>Integrations aren't installed</strong>
+                <p>
+                  Integrations are an optional add-on. Marvin core ships without them, so this
+                  section stays dormant until a provider package is installed. Install one (for
+                  example <code>marvin-integration-slack</code>) and restart the server — the
+                  provider pulls in the integration framework and this section lights up
+                  automatically.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -464,6 +496,45 @@ const tabs = [
     margin: 0;
     font-size: 13px;
     color: var(--muted);
+  }
+
+  .integrations-banner {
+    display: flex;
+    gap: 16px;
+    padding: 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+  }
+
+  .integrations-banner-icon {
+    font-size: 22px;
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+
+  .integrations-banner-body strong {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .integrations-banner-body p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+    max-width: 68ch;
+  }
+
+  .integrations-banner-body code {
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
   }
 
   .coming-soon {

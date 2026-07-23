@@ -238,6 +238,12 @@ function statusMeta(status: string): { text: string; cls: string } {
     return anyE?.body?.detail || anyE?.message || "Something went wrong.";
   }
 
+  function isNotFound(e: unknown): boolean {
+    // The SDK raises _MarvinNotFoundError (status 404) when the row no longer exists.
+    const anyE = e as { status?: number; name?: string; message?: string };
+    return anyE?.status === 404 || anyE?.name === "_MarvinNotFoundError" || /not found/i.test(anyE?.message ?? "");
+  }
+
   // ---- open / build the add panel ----
   function esc(s: unknown): string {
     return String(s ?? "").replace(
@@ -468,11 +474,20 @@ function statusMeta(status: string): { text: string; cls: string } {
 
   document.querySelectorAll<HTMLButtonElement>(".js-delete").forEach((b) =>
     b.addEventListener("click", async () => {
+      if (b.disabled) return; // guard against a double-click firing two DELETEs
       if (!confirm(`Delete integration "${b.dataset.name}"? Its stored credential is removed too.`)) return;
+      b.disabled = true;
       try {
         await deleteIntegration(b.dataset.id!);
         reload();
       } catch (err) {
+        // A 404 means the row is already gone — that's the outcome we wanted, so treat it as success
+        // (e.g. a duplicate request, or it was deleted elsewhere) rather than surfacing a scary popup.
+        if (isNotFound(err)) {
+          reload();
+          return;
+        }
+        b.disabled = false;
         alert(errorMessage(err));
       }
     }),

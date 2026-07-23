@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import { getAuthToken, fetchApi, ApiRequestError } from "@/lib/api/client";
 import { listEmailTemplates } from "@/lib/api/emailTemplates";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listIntegrations, listSubscriptions, listProviders } from "@/lib/api/integrations";
@@ -19,6 +19,7 @@ let notifications: any[] = [];
 let integrations: any[] = [];
 let integrationSubs: any[] = [];
 let integrationProviders: any[] = [];
+let integrationsAvailable = true;
 let error: string | null = null;
 let wsId: string | null = null;
 
@@ -52,6 +53,17 @@ try {
     listSubscriptions(type!, authToken).catch(() => []),
     listProviders(authToken).catch(() => []),
   ]);
+
+  // Integrations are an optional, plugin-only feature — the backend only mounts the routes when an
+  // integration package is installed. Probe the providers endpoint: a 404 means it's not installed,
+  // so we surface a note instead of the "connect an action" affordance.
+  try {
+    await fetchApi('/api/groups/integrations/providers', {}, authToken);
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 404) {
+      integrationsAvailable = false;
+    }
+  }
 
   // Fetch event-connections to show system template row
   if (wsId) {
@@ -311,29 +323,45 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
             <p>Run an integration action (Slack, deploy hook, …) when this event fires</p>
           </div>
           <div class="sub-options">
-            {integrationSubs.map((s: any) => (
-              <div class="sub-option sub-option-connected">
-                <div class="sub-option-info">
-                  <div class="sub-option-name-row">
-                    <span class="connected-check">&#10003;</span>
-                    <strong>{s.integrationName ?? s.provider}</strong>
-                    <span class="badge-inline badge-custom">{s.action}</span>
+            {!integrationsAvailable ? (
+              <div class="sub-option int-not-installed">
+                <span class="int-not-installed-icon">🔌</span>
+                <div>
+                  <strong>Integrations aren't installed</strong>
+                  <p>
+                    Integrations are an optional add-on that ships separately from Marvin core.
+                    Install a provider package (e.g. <code>marvin-integration-slack</code>) and
+                    restart the server to connect integration actions to this event.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {integrationSubs.map((s: any) => (
+                  <div class="sub-option sub-option-connected">
+                    <div class="sub-option-info">
+                      <div class="sub-option-name-row">
+                        <span class="connected-check">&#10003;</span>
+                        <strong>{s.integrationName ?? s.provider}</strong>
+                        <span class="badge-inline badge-custom">{s.action}</span>
+                      </div>
+                      <code class="sub-type">{s.args && Object.keys(s.args).length ? JSON.stringify(s.args) : 'no args'}</code>
+                    </div>
+                    <div class="sub-option-actions">
+                      <button type="button" class="button small secondary danger js-int-disconnect" data-sub-id={s.id}>Disconnect</button>
+                    </div>
                   </div>
-                  <code class="sub-type">{s.args && Object.keys(s.args).length ? JSON.stringify(s.args) : 'no args'}</code>
-                </div>
-                <div class="sub-option-actions">
-                  <button type="button" class="button small secondary danger js-int-disconnect" data-sub-id={s.id}>Disconnect</button>
-                </div>
-              </div>
-            ))}
-            {integrationSubs.length === 0 && (
-              <div class="sub-option" style="color:var(--muted);font-size:13px;">
-                No integration actions connected to this event yet.
-              </div>
+                ))}
+                {integrationSubs.length === 0 && (
+                  <div class="sub-option" style="color:var(--muted);font-size:13px;">
+                    No integration actions connected to this event yet.
+                  </div>
+                )}
+                <button type="button" class="sub-option sub-option-create js-int-connect-open" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;font:inherit;">
+                  <span>+ Connect an integration action</span>
+                </button>
+              </>
             )}
-            <button type="button" class="sub-option sub-option-create js-int-connect-open" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;font:inherit;">
-              <span>+ Connect an integration action</span>
-            </button>
           </div>
         </section>
       </div>
@@ -1210,6 +1238,29 @@ const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePay
 
   .sub-option:last-child { border-bottom: none; }
   .sub-option:hover { background: var(--panel); }
+
+  .int-not-installed {
+    align-items: flex-start;
+    gap: 14px;
+    cursor: default;
+  }
+  .int-not-installed:hover { background: none; }
+  .int-not-installed-icon { font-size: 20px; line-height: 1.4; flex-shrink: 0; }
+  .int-not-installed strong { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .int-not-installed p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+    max-width: 70ch;
+  }
+  .int-not-installed code {
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+  }
 
   .sub-option-info {
     display: flex;
