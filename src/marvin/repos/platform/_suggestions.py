@@ -5,7 +5,10 @@ get the stage / apply / clear trio. `apply_fields` — how a proposed {target: v
 onto the entity — stays per-repo, since targets differ (a tag junction, a JSON path, a column).
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 class SuggestionWritebackMixin:
@@ -14,6 +17,14 @@ class SuggestionWritebackMixin:
     Requires the host repo to provide `self.session`, `self.model` (with a `suggestion_json`
     column), `self.get_one`, and an `apply_fields(entity_id, {target: value})` method.
     """
+
+    # Provided by the host repository (declared here so the mixin type-checks in isolation).
+    if TYPE_CHECKING:
+        session: Session
+        model: type[Any]
+
+        def get_one(self, item_id: Any) -> Any: ...
+        def apply_fields(self, entity_id: Any, fields: dict) -> None: ...
 
     def stage_suggestion(self, entity_id: Any, fields: dict) -> None:
         """Merge proposed fields into the entity's pending suggestion_json (for later review)."""

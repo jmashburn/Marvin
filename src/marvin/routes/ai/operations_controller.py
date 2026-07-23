@@ -1281,15 +1281,15 @@ class AIOperationsController(BaseUserController):
         if entity_type == "entry":
             if not ctx.entry:
                 return None  # not found, or not this workspace's entry
-            e = ctx.entry
-            lines.append(f'The user is looking at the entry "{e.get("title") or "Untitled"}" (id: {entity_id}).')
+            entry = ctx.entry
+            lines.append(f'The user is looking at the entry "{entry.get("title") or "Untitled"}" (id: {entity_id}).')
             for label, key in (("Type", "entry_type"), ("Status", "status")):
-                if val := (e.get(key) or "").strip():
+                if val := (entry.get(key) or "").strip():
                     lines.append(f"- {label}: {val}")
             for label, key in (("Summary", "summary"), ("Description", "description")):
-                if val := (e.get(key) or "").strip():
+                if val := (entry.get(key) or "").strip():
                     lines.append(f"- {label}: {self._ctx_truncate(val, self._CTX_TEXT_CHARS)}")
-            content = (e.get("content") or "").strip()
+            content = (entry.get("content") or "").strip()
             if content and content not in ("{}", "None"):
                 lines.append(f"- Fields: {self._ctx_truncate(content, self._CTX_FIELD_CHARS)}")
 

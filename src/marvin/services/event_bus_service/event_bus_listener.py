@@ -824,6 +824,8 @@ class IndexingReactionListener(EventListenerBase):
             return
 
         # Index → (re)embed, gated by the type's should_index.
+        # del_desc handled and returned above; `desc = idx_desc or del_desc` was non-None, so idx_desc holds here.
+        assert idx_desc is not None
         from marvin.services.ai.factory import AIDisabledError, get_workspace_ai_provider
 
         with self.ensure_session() as session:
