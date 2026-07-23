@@ -887,6 +887,20 @@ class EventAPIClientData(EventDocumentDataBase):
     """The full name of the user who created/manages the API client."""
 
 
+class EventEmailTemplateData(EventDocumentDataBase):
+    """Data payload for system email template lifecycle events."""
+
+    document_type: EventDocumentTypeBase = EventDocumentType.generic
+    template_id: str
+    """The unique identifier of the email template."""
+    template_type: str | None = None
+    """The template's type/slug (e.g. "welcome", "password_reset")."""
+    system_template: bool = True
+    """Whether this is a system (non-workspace) template."""
+    workspace_id: UUID4 | None = None
+    """The workspace the template belongs to (None for system templates)."""
+
+
 class EventIncomingWebhookData(EventDocumentDataBase):
     """Data payload for an `incoming_webhook` event.
 

@@ -38,7 +38,7 @@ class AdminResourcesRoutes(BaseAdminController):
     @router.post("", response_model=ResourceRead, summary="Create Resource")
     def create(self, schema: ResourceCreate) -> ResourceRead:
         """Create a new resource."""
-        return self.mixins.create(schema)
+        return self.mixins.create_one(schema)
 
     @router.get("/{resource_id}", response_model=ResourceRead, summary="Get Resource")
     def get_one(self, resource_id: UUID4) -> ResourceRead:
@@ -48,10 +48,9 @@ class AdminResourcesRoutes(BaseAdminController):
     @router.put("/{resource_id}", response_model=ResourceRead, summary="Update Resource")
     def update(self, resource_id: UUID4, schema: ResourceUpdate) -> ResourceRead:
         """Update a resource."""
-        schema.id = resource_id
-        return self.mixins.update(schema)
+        return self.mixins.update_one(resource_id, schema)
 
-    @router.delete("/{resource_id}", summary="Delete Resource")
-    def delete(self, resource_id: UUID4) -> dict:
+    @router.delete("/{resource_id}", response_model=ResourceRead, summary="Delete Resource")
+    def delete(self, resource_id: UUID4) -> ResourceRead:
         """Delete a resource."""
-        return self.mixins.delete(resource_id)
+        return self.mixins.delete_one(resource_id)

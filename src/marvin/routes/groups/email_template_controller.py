@@ -15,7 +15,7 @@ from marvin.schemas.group.email_template import (
     EmailTemplateSummary,
     EmailTemplateUpdate,
 )
-from marvin.services.event_bus_service.event_types import EventOperation, EventTypes
+from marvin.services.event_bus_service.event_types import EventEmailTemplateData, EventOperation, EventTypes
 
 router = APIRouter(prefix="/platform/workspaces/{group_id}/email-templates", route_class=MarvinCrudRoute)
 
@@ -262,12 +262,13 @@ class EmailTemplateController(BaseUserController):
             integration_id="email_template_management",
             group_id=group_id,
             event_type=EventTypes.email_template_created,
-            document_data={
-                "operation": EventOperation.create,
-                "template_id": str(template.id),
-                "template_type": template.template_type,
-                "workspace_id": group_id,
-            },
+            document_data=EventEmailTemplateData(
+                operation=EventOperation.create,
+                template_id=str(template.id),
+                template_type=template.template_type,
+                system_template=False,
+                workspace_id=group_id,
+            ),
             message=f"Email template created: {template.name} ({template.template_type})",
             user_id=self.user.id if self.user else None,
         )
@@ -312,12 +313,13 @@ class EmailTemplateController(BaseUserController):
             integration_id="email_template_management",
             group_id=group_id,
             event_type=EventTypes.email_template_updated,
-            document_data={
-                "operation": EventOperation.update,
-                "template_id": str(template_id),
-                "template_type": updated_template.template_type,
-                "workspace_id": group_id,
-            },
+            document_data=EventEmailTemplateData(
+                operation=EventOperation.update,
+                template_id=str(template_id),
+                template_type=updated_template.template_type,
+                system_template=False,
+                workspace_id=group_id,
+            ),
             message=f"Email template updated: {updated_template.name}",
             user_id=self.user.id if self.user else None,
         )
@@ -360,12 +362,13 @@ class EmailTemplateController(BaseUserController):
             integration_id="email_template_management",
             group_id=group_id,
             event_type=EventTypes.email_template_deleted,
-            document_data={
-                "operation": EventOperation.delete,
-                "template_id": str(template_id),
-                "template_type": template_type,
-                "workspace_id": group_id,
-            },
+            document_data=EventEmailTemplateData(
+                operation=EventOperation.delete,
+                template_id=str(template_id),
+                template_type=template_type,
+                system_template=False,
+                workspace_id=group_id,
+            ),
             message=f"Email template deleted: {template_name}",
             user_id=self.user.id if self.user else None,
         )

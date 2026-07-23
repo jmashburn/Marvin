@@ -25,7 +25,7 @@ from marvin.schemas.group.email_template import (
     EmailTemplateUpdate,
 )
 from marvin.services.email import EmailService  # Service for handling email operations
-from marvin.services.event_bus_service.event_types import EventOperation, EventTypes
+from marvin.services.event_bus_service.event_types import EventEmailTemplateData, EventOperation, EventTypes
 
 # APIRouter for admin "email" section, prefixed with /email
 # All routes in this controller will be under /admin/email.
@@ -172,12 +172,12 @@ class AdminEmailController(BaseAdminController):
             integration_id="email_template_management",
             group_id=None,
             event_type=EventTypes.email_template_created,
-            document_data={
-                "operation": EventOperation.create,
-                "template_id": str(template.id),
-                "template_type": template.template_type,
-                "system_template": True,
-            },
+            document_data=EventEmailTemplateData(
+                operation=EventOperation.create,
+                template_id=str(template.id),
+                template_type=template.template_type,
+                system_template=True,
+            ),
             message=f"System email template created: {template.name} ({template.template_type})",
             user_id=self.user.id if self.user else None,
         )
@@ -211,12 +211,12 @@ class AdminEmailController(BaseAdminController):
             integration_id="email_template_management",
             group_id=None,
             event_type=EventTypes.email_template_updated,
-            document_data={
-                "operation": EventOperation.update,
-                "template_id": str(template_id),
-                "template_type": updated_template.template_type,
-                "system_template": True,
-            },
+            document_data=EventEmailTemplateData(
+                operation=EventOperation.update,
+                template_id=str(template_id),
+                template_type=updated_template.template_type,
+                system_template=True,
+            ),
             message=f"System email template updated: {updated_template.name}",
             user_id=self.user.id if self.user else None,
         )
@@ -248,12 +248,12 @@ class AdminEmailController(BaseAdminController):
             integration_id="email_template_management",
             group_id=None,
             event_type=EventTypes.email_template_deleted,
-            document_data={
-                "operation": EventOperation.delete,
-                "template_id": str(template_id),
-                "template_type": template_type,
-                "system_template": True,
-            },
+            document_data=EventEmailTemplateData(
+                operation=EventOperation.delete,
+                template_id=str(template_id),
+                template_type=template_type,
+                system_template=True,
+            ),
             message=f"System email template deleted: {template_name}",
             user_id=self.user.id if self.user else None,
         )

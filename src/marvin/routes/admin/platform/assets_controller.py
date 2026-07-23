@@ -38,14 +38,14 @@ class AdminAssetsRoutes(BaseAdminController):
     @router.post("", response_model=AssetRead, summary="Create Asset")
     def create(self, schema: AssetCreate) -> AssetRead:
         """Create a new asset."""
-        return self.mixins.create(schema)
+        return self.mixins.create_one(schema)
 
     @router.get("/{asset_id}", response_model=AssetRead, summary="Get Asset")
     def get_one(self, asset_id: UUID4) -> AssetRead:
         """Get a specific asset."""
         return self.mixins.get_one(asset_id)
 
-    @router.delete("/{asset_id}", summary="Delete Asset")
-    def delete(self, asset_id: UUID4) -> dict:
+    @router.delete("/{asset_id}", response_model=AssetRead, summary="Delete Asset")
+    def delete(self, asset_id: UUID4) -> AssetRead:
         """Delete an asset."""
-        return self.mixins.delete(asset_id)
+        return self.mixins.delete_one(asset_id)

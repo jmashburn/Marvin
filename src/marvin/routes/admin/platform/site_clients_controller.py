@@ -48,15 +48,14 @@ class AdminSiteClientsRoutes(BaseAdminController):
     @router.put("/{client_id}", response_model=APIClientRead, summary="Update Site Client")
     def update(self, client_id: UUID4, schema: APIClientUpdate) -> APIClientRead:
         """Update a site client."""
-        schema.id = client_id
-        return self.mixins.update(schema)
+        return self.mixins.update_one(client_id, schema)
 
     @router.post("/{client_id}/rotate-token", response_model=APIClientWithToken, summary="Rotate API Token")
     def rotate_token(self, client_id: UUID4) -> APIClientWithToken:
         """Generate a new token for this site client. Old token becomes invalid."""
         return self.repo.rotate_token(client_id)
 
-    @router.delete("/{client_id}", summary="Delete Site Client")
-    def delete(self, client_id: UUID4) -> dict:
+    @router.delete("/{client_id}", response_model=APIClientRead, summary="Delete Site Client")
+    def delete(self, client_id: UUID4) -> APIClientRead:
         """Delete a site client."""
-        return self.mixins.delete(client_id)
+        return self.mixins.delete_one(client_id)

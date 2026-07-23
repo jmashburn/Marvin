@@ -38,7 +38,7 @@ class AdminEntriesRoutes(BaseAdminController):
     @router.post("", response_model=EntryRead, summary="Create Entry")
     def create(self, schema: EntryCreate) -> EntryRead:
         """Create a new entry."""
-        return self.mixins.create(schema)
+        return self.mixins.create_one(schema)
 
     @router.get("/{entry_id}", response_model=EntryRead, summary="Get Entry")
     def get_one(self, entry_id: UUID4) -> EntryRead:
@@ -48,10 +48,9 @@ class AdminEntriesRoutes(BaseAdminController):
     @router.put("/{entry_id}", response_model=EntryRead, summary="Update Entry")
     def update(self, entry_id: UUID4, schema: EntryUpdate) -> EntryRead:
         """Update an entry."""
-        schema.id = entry_id
-        return self.mixins.update(schema)
+        return self.mixins.update_one(entry_id, schema)
 
-    @router.delete("/{entry_id}", summary="Delete Entry")
-    def delete(self, entry_id: UUID4) -> dict:
+    @router.delete("/{entry_id}", response_model=EntryRead, summary="Delete Entry")
+    def delete(self, entry_id: UUID4) -> EntryRead:
         """Delete an entry."""
-        return self.mixins.delete(entry_id)
+        return self.mixins.delete_one(entry_id)

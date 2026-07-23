@@ -38,7 +38,7 @@ class AdminCollectionsRoutes(BaseAdminController):
     @router.post("", response_model=CollectionRead, summary="Create Collection")
     def create(self, schema: CollectionCreate) -> CollectionRead:
         """Create a new collection."""
-        return self.mixins.create(schema)
+        return self.mixins.create_one(schema)
 
     @router.get("/{collection_id}", response_model=CollectionRead, summary="Get Collection")
     def get_one(self, collection_id: UUID4) -> CollectionRead:
@@ -48,10 +48,9 @@ class AdminCollectionsRoutes(BaseAdminController):
     @router.put("/{collection_id}", response_model=CollectionRead, summary="Update Collection")
     def update(self, collection_id: UUID4, schema: CollectionUpdate) -> CollectionRead:
         """Update a collection."""
-        schema.id = collection_id
-        return self.mixins.update(schema)
+        return self.mixins.update_one(collection_id, schema)
 
-    @router.delete("/{collection_id}", summary="Delete Collection")
-    def delete(self, collection_id: UUID4) -> dict:
+    @router.delete("/{collection_id}", response_model=CollectionRead, summary="Delete Collection")
+    def delete(self, collection_id: UUID4) -> CollectionRead:
         """Delete a collection."""
-        return self.mixins.delete(collection_id)
+        return self.mixins.delete_one(collection_id)
