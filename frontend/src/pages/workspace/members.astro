@@ -324,7 +324,7 @@ const ownerCount = members.filter((m) => m.workspaceRole === "OWNER").length;
 
         try {
           await sdk.workspaceMembers.updateRole(workspaceId, userId, {
-            workspaceRole: newRole,
+            workspaceRole: newRole as "OWNER" | "ADMIN" | "EDITOR" | "AUTHOR" | "VIEWER",
           });
 
           window.location.reload();
@@ -341,8 +341,8 @@ const ownerCount = members.filter((m) => m.workspaceRole === "OWNER").length;
   }
 
   // Remove member
-  const removeButtons = document.querySelectorAll('.remove-btn');
-  const confirmRemoveModal = document.getElementById('confirm-remove-modal');
+  const removeButtons = document.querySelectorAll<HTMLElement>('.remove-btn');
+  const confirmRemoveModal = document.getElementById('confirm-remove-modal') as HTMLDialogElement | null;
   const removeMessage = document.getElementById('remove-message');
   const confirmRemoveBtn = document.getElementById('confirm-remove');
   const cancelRemoveBtn = document.getElementById('cancel-remove');
@@ -381,7 +381,7 @@ const ownerCount = members.filter((m) => m.workspaceRole === "OWNER").length;
   });
 
   // Copy invitation link
-  document.querySelectorAll('.copy-invitation-btn').forEach(btn => {
+  document.querySelectorAll<HTMLElement>('.copy-invitation-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const token = btn.dataset.token;
       if (token) {
@@ -398,12 +398,12 @@ const ownerCount = members.filter((m) => m.workspaceRole === "OWNER").length;
   });
 
   // Resend invitation email
-  const resendEmailModal = document.getElementById('resend-email-modal');
-  const resendEmailForm = document.getElementById('resend-email-form');
+  const resendEmailModal = document.getElementById('resend-email-modal') as HTMLDialogElement | null;
+  const resendEmailForm = document.getElementById('resend-email-form') as HTMLFormElement | null;
   const cancelResendBtn = document.getElementById('cancel-resend');
   let tokenToResend = null;
 
-  document.querySelectorAll('.resend-invitation-btn').forEach(btn => {
+  document.querySelectorAll<HTMLElement>('.resend-invitation-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       tokenToResend = btn.dataset.token;
       resendEmailModal?.showModal();
@@ -439,7 +439,7 @@ const ownerCount = members.filter((m) => m.workspaceRole === "OWNER").length;
   });
 
   // Revoke invitation
-  document.querySelectorAll('.revoke-invitation-btn').forEach(btn => {
+  document.querySelectorAll<HTMLElement>('.revoke-invitation-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const tokenId = btn.dataset.tokenId;
       if (!tokenId) return;

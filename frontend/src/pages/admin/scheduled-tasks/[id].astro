@@ -41,9 +41,9 @@ function statusClass(status: string | null): string {
 }
 
 // Normalize camelCase API response fields (alias_generator=camelize on backend)
-const taskType = task ? ((task as any).taskType ?? task.task_type) : "";
-const scheduleType = task ? ((task as any).scheduleType ?? task.schedule_type) : "";
-const scheduleConfig = task ? ((task as any).scheduleConfig ?? task.schedule_config) : null;
+const taskType = task ? ((task as any).taskType ?? (task as any).task_type) : "";
+const scheduleType = task ? ((task as any).scheduleType ?? (task as any).schedule_type) : "";
+const scheduleConfig = task ? ((task as any).scheduleConfig ?? (task as any).schedule_config) : null;
 ---
 
 <AdminLayout title={task ? `Edit: ${task.name}` : 'Scheduled Task'}>
@@ -55,7 +55,7 @@ const scheduleConfig = task ? ((task as any).scheduleConfig ?? task.schedule_con
     </div>
     <h2>{task?.name || 'Edit Scheduled Task'}</h2>
     <p>
-      {((task as any)?.groupId ?? task?.group_id)
+      {((task as any)?.groupId ?? (task as any)?.group_id)
         ? 'Workspace task — changes apply to this workspace task'
         : 'System task — applies platform-wide'}
     </p>

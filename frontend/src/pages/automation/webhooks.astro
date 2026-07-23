@@ -128,8 +128,8 @@ function formatScheduledTime(time: string | null | undefined): string {
           name: webhook.name,
           url: webhook.url,
           method: webhook.method,
-          webhook_type: webhook.webhookType ?? webhook.webhook_type,
-          scheduled_time: webhook.scheduledTime ?? webhook.scheduled_time,
+          webhook_type: webhook.webhookType ?? (webhook as any).webhook_type,
+          scheduled_time: webhook.scheduledTime ?? (webhook as any).scheduled_time,
           enabled: !currentlyEnabled,
         } as any);
         window.location.reload();
