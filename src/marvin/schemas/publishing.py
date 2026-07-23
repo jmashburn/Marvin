@@ -138,7 +138,10 @@ class PublishedEntryRead(_MarvinModel):
     """Rendering and capabilities info for this entry's type."""
 
     summary: str | None = None
-    """Optional short description/summary."""
+    """Short blurb for compact placements (cards, related-reference lists)."""
+
+    description: str | None = None
+    """Longer descriptive lede shown under the title on the entry's own page."""
 
     data: dict = Field(default_factory=dict)
     """Entry content structured according to entry type schema."""
