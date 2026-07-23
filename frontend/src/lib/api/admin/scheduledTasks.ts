@@ -44,15 +44,15 @@ export interface ScheduledTaskUpdate {
 
 export interface ScheduledTaskExecutionLogRead {
   id: string;
-  task_id: string;
-  group_id: string | null;
-  executed_at: string;
+  taskId: string;
+  groupId: string | null;
+  executedAt: string;
   status: string;
-  duration_ms: number | null;
-  error_message: string | null;
-  error_traceback: string | null;
+  durationMs: number | null;
+  errorMessage: string | null;
+  errorTraceback: string | null;
   output: string | null;
-  retry_attempt: number;
+  retryAttempt: number;
 }
 
 export async function listAllTasks(authToken?: string): Promise<ScheduledTaskRead[]> {

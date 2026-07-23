@@ -83,8 +83,8 @@ function statusClass(status: string): string {
         </thead>
         <tbody>
           {filteredLogs.map((log, i) => {
-            const hasDetails = log.output || log.error_message || log.error_traceback;
-            const taskInfo = taskMap.get(log.task_id);
+            const hasDetails = log.output || log.errorMessage || log.errorTraceback;
+            const taskInfo = taskMap.get(log.taskId);
             return (
               <>
                 <tr class:list={['log-row', { 'has-details': hasDetails }]}>
@@ -93,18 +93,18 @@ function statusClass(status: string): string {
                       <button class="expand-btn" data-target={`details-${i}`} aria-label="Toggle details">▶</button>
                     )}
                   </td>
-                  <td class="nowrap">{formatDate(log.executed_at)}</td>
+                  <td class="nowrap">{formatDate(log.executedAt)}</td>
                   <td class="mono task-id">
-                    {log.task_id
-                      ? <a href={`/admin/scheduled-tasks/${log.task_id}`} title={taskInfo?.name}>{log.task_id.slice(0, 8)}…</a>
+                    {log.taskId
+                      ? <a href={`/admin/scheduled-tasks/${log.taskId}`} title={taskInfo?.name}>{log.taskId.slice(0, 8)}…</a>
                       : <span>—</span>}
                   </td>
                   <td class="type-cell">{taskInfo?.task_type || '—'}</td>
-                  <td class="mono">{log.group_id ? log.group_id.slice(0, 8) + '…' : 'System'}</td>
+                  <td class="mono">{log.groupId ? log.groupId.slice(0, 8) + '…' : 'System'}</td>
                   <td>
                     <span class={`status-chip status-${statusClass(log.status)}`}>{log.status}</span>
                   </td>
-                  <td class="nowrap">{log.duration_ms != null ? `${log.duration_ms}ms` : '—'}</td>
+                  <td class="nowrap">{log.durationMs != null ? `${log.durationMs}ms` : '—'}</td>
                 </tr>
                 {hasDetails && (
                   <tr class="detail-row" id={`details-${i}`} style="display:none">
@@ -116,16 +116,16 @@ function statusClass(status: string): string {
                             <div class="detail-output">{log.output}</div>
                           </div>
                         )}
-                        {log.error_message && (
+                        {log.errorMessage && (
                           <div class="detail-section">
                             <div class="detail-label">Error</div>
-                            <div class="detail-message">{log.error_message}</div>
+                            <div class="detail-message">{log.errorMessage}</div>
                           </div>
                         )}
-                        {log.error_traceback && (
+                        {log.errorTraceback && (
                           <div class="detail-section">
                             <div class="detail-label">Traceback</div>
-                            <pre class="detail-trace">{log.error_traceback}</pre>
+                            <pre class="detail-trace">{log.errorTraceback}</pre>
                           </div>
                         )}
                       </div>

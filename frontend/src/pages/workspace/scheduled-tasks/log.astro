@@ -88,12 +88,12 @@ function statusClass(status: string): string {
         <tbody>
           {filteredLogs.map((log: any, i: number) => {
             // API returns camelCase due to _MarvinModel alias_generator — fall back to snake_case for safety
-            const taskId = log.taskId ?? log.task_id;
-            const executedAt = log.executedAt ?? log.executed_at;
-            const durationMs = log.durationMs ?? log.duration_ms;
-            const errorMessage = log.errorMessage ?? log.error_message;
-            const errorTraceback = log.errorTraceback ?? log.error_traceback;
-            const retryAttempt = log.retryAttempt ?? log.retry_attempt ?? 0;
+            const taskId = log.taskId;
+            const executedAt = log.executedAt;
+            const durationMs = log.durationMs;
+            const errorMessage = log.errorMessage;
+            const errorTraceback = log.errorTraceback;
+            const retryAttempt = log.retryAttempt ?? 0;
             const output = log.output ?? null;
             const task = taskMap.get(taskId);
             const taskType = task ? (task.taskType ?? task.task_type ?? '') : '';

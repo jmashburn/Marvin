@@ -193,10 +193,10 @@ const scheduleConfig = task ? (task.scheduleConfig ?? task.schedule_config) : nu
               </thead>
               <tbody>
                 {history.map((exec, i) => {
-                  const executedAt = exec.executedAt ?? exec.executed_at;
-                  const durationMs = exec.durationMs ?? exec.duration_ms;
-                  const errorMessage = exec.errorMessage ?? exec.error_message;
-                  const errorTraceback = exec.errorTraceback ?? exec.error_traceback;
+                  const executedAt = exec.executedAt;
+                  const durationMs = exec.durationMs;
+                  const errorMessage = exec.errorMessage;
+                  const errorTraceback = exec.errorTraceback;
                   const output = exec.output ?? null;
                   const hasDetails = output || errorMessage || errorTraceback;
                   return (
