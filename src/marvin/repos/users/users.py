@@ -109,7 +109,7 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
         # `new_user` here is already a Pydantic `PrivateUser` schema due to `super().create`'s return type.
         return new_user
 
-    def update(self, match_value: UUID4 | str, new_data: UserUpdate | dict) -> PrivateUser:
+    def update(self, match_value: UUID4 | str, new_data: UserUpdate | dict, match_key: str | None = None) -> PrivateUser:
         """
         Updates an existing user.
 

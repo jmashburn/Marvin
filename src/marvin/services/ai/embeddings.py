@@ -106,8 +106,11 @@ def _tags_line(obj) -> str | None:
     tags = getattr(obj, "tags", None)
     if not tags:
         return None
-    names = [getattr(t, "name", None) or getattr(t, "slug", "") for t in tags]
-    names = [n for n in names if n]
+    names: list[str] = []
+    for t in tags:
+        name = getattr(t, "name", None) or getattr(t, "slug", "") or ""
+        if name:
+            names.append(str(name))
     return ("Tags: " + ", ".join(names)) if names else None
 
 
@@ -183,7 +186,7 @@ def search_embeddings(
     qv = np.asarray(query_vector, dtype=float)
     qn = float(np.linalg.norm(qv)) or 1.0
 
-    scored: list[tuple[float, object]] = []
+    scored: list[tuple[float, AIEmbeddingModel]] = []
     for r in rows:
         v = np.asarray(r.embedding, dtype=float)
         if v.shape != qv.shape:

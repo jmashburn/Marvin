@@ -715,7 +715,8 @@ class AIOperationsController(BaseUserController):
         tools = self._build_agent_tools(provider)
 
         _app = get_app_settings()
-        max_steps = min(body.max_steps or getattr(_app, "AI_AGENT_MAX_STEPS", DEFAULT_MAX_STEPS), 12)
+        configured_max_steps = int(body.max_steps or getattr(_app, "AI_AGENT_MAX_STEPS", DEFAULT_MAX_STEPS) or DEFAULT_MAX_STEPS)
+        max_steps = min(configured_max_steps, 12)
 
         assistant_name, persona_prompt = self._persona()
         system = (
@@ -949,9 +950,10 @@ class AIOperationsController(BaseUserController):
         prompt + write-back), not a direct handler. Finally, allowlisted external MCP tools.
         """
         import json
+        from collections.abc import Callable
 
         from marvin.services.ai.agent import AgentTool
-        from marvin.services.ai.tools import ToolContext, list_tools
+        from marvin.services.ai.tools import ToolContext, ToolSpec, list_tools
 
         ctx = ToolContext(
             session=self.session,
@@ -961,12 +963,16 @@ class AIOperationsController(BaseUserController):
             logger=self.logger,
         )
         role = self._user_role()
+
+        def _bind(s: ToolSpec) -> Callable[[dict], str]:
+            return lambda args: s.handler(ctx, args)
+
         tools: list = [
             AgentTool(
                 name=spec.name,
                 description=spec.description,
                 input_schema=spec.input_schema,
-                run=lambda args, s=spec: s.handler(ctx, args),
+                run=_bind(spec),
             )
             for spec in list_tools()
             if "agent" in spec.sources and role >= spec.min_role
@@ -1112,9 +1118,9 @@ class AIOperationsController(BaseUserController):
 
         targets: list[tuple[str, object, str]] = []
         if body.scope == "workspace":
-            for desc in REGISTRY.values():
-                for obj in self.session.query(desc.model).filter_by(group_id=self.group_id).all():
-                    targets.append((desc.entity_type, obj.id, desc.text(obj)))
+            for reg_desc in REGISTRY.values():
+                for obj in self.session.query(reg_desc.model).filter_by(group_id=self.group_id).all():
+                    targets.append((reg_desc.entity_type, obj.id, reg_desc.text(obj)))
         elif body.entity_type and body.entity_id:
             desc = REGISTRY.get(body.entity_type)
             if desc:
@@ -1350,12 +1356,14 @@ class AIOperationsController(BaseUserController):
             return None
 
         from marvin.db.models.platform import Assets, Entries, Resources
+        from marvin.repos.platform._suggestions import SuggestionWritebackMixin
 
-        repo, model = {
+        repo_map: dict[str, tuple[SuggestionWritebackMixin, type]] = {
             "entry": (self.repos.entries, Entries),
             "asset": (self.repos.assets, Assets),
             "resource": (self.repos.resources, Resources),
-        }[entity_type]
+        }
+        repo, model = repo_map[entity_type]
         obj = self.session.get(model, entity_id)
         if not obj or obj.group_id != self.group_id:
             return None
@@ -1469,6 +1477,8 @@ class AIOperationsController(BaseUserController):
         default = getattr(get_app_settings(), "AI_DEFAULT_MAX_TOKENS", None)
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         raw = (settings.budget_config or {}).get("max_tokens_per_request") if settings else None
+        if raw is None:
+            return default
         try:
             cap = int(raw)
         except (TypeError, ValueError):

@@ -317,7 +317,7 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
                 detail="System entry types cannot be deleted.",
             )
 
-        entry_count = self._count_attribute("entry_type_id", value)
+        entry_count = self._count_entries_with_attribute("entry_type_id", value)
         if entry_count:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -325,7 +325,7 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             )
         return super().delete(value, match_key=match_key)
 
-    def _count_attribute(self, attribute_name: str, attr_match: Any | None = None) -> int:
+    def _count_entries_with_attribute(self, attribute_name: str, attr_match: Any | None = None) -> int:
         count_query = self.session.query(Entries).filter(getattr(Entries, attribute_name) == attr_match)
         if self.group_id:
             count_query = count_query.filter(Entries.group_id == self.group_id)

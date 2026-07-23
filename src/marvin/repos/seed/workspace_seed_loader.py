@@ -4,10 +4,13 @@ import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from marvin.core.root_logger import get_logger
 from marvin.repos.repository_factory import AllRepositories
+
+if TYPE_CHECKING:
+    from marvin.schemas.group.group import GroupRead
 
 
 class WorkspaceSeedLoader:
@@ -240,7 +243,7 @@ class WorkspaceSeedLoader:
         storage_provider = get_storage_provider()
         zip_names = set(zip_file.namelist()) if zip_file else set()
         workspace = self.repos.groups.get_one(self.repos.group_id)
-        workspace_slug = workspace.slug if workspace else "workspace"
+        workspace_slug = (workspace.slug if workspace else None) or "workspace"
         user_id = self._get_seed_user_id()
         count = 0
 
@@ -357,7 +360,7 @@ class WorkspaceSeedLoader:
 
         return count
 
-    def _ensure_workspace(self, data: dict[str, Any]):
+    def _ensure_workspace(self, data: dict[str, Any]) -> "GroupRead":
         """Create workspace if it doesn't exist, or return existing one.
 
         Args:

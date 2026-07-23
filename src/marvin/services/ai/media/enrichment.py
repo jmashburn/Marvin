@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import base64
 import logging
+from typing import Any
 
 from marvin.services.ai.media import capability, transforms
 from marvin.services.assets.asset_storage_service import AssetStorageService
@@ -246,6 +247,8 @@ class MediaEnrichmentService:
             if not isinstance(step, dict):
                 continue
             op = step.get("op")
+            if not isinstance(op, str):
+                continue
             kind = _KIND.get(op)
             if kind is None:
                 continue
@@ -324,7 +327,7 @@ class MediaEnrichmentService:
         # workspace UI can review it and the publish API filters it out. Non-gated output links
         # as a normal derivative (the prior auto-link behaviour).
         requires_approval = getattr(handler, "requires_approval", True)
-        metadata_json = {"derived_from": str(src.id), "derivation": derivation}
+        metadata_json: dict[str, Any] = {"derived_from": str(src.id), "derivation": derivation}
         if requires_approval:
             metadata_json.update(
                 {

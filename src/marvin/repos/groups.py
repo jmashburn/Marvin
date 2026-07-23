@@ -97,7 +97,7 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel]):
         # we call it for each item instead of using `super().create_many`.
         return [self.create(new_group_data) for new_group_data in data]
 
-    def update(self, match_value: str | int | UUID4, new_data: GroupUpdate | dict) -> GroupRead:
+    def update(self, match_value: str | int | UUID4, new_data: GroupUpdate | dict, match_key: str | None = None) -> GroupRead:
         """
         Updates an existing group, automatically regenerating the slug if the name changes.
 
@@ -123,7 +123,7 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel]):
             # Should not happen if type hints are respected
             raise TypeError("new_data must be of type GroupUpdate or dict")
 
-        return super().update(match_value, data_dict)
+        return super().update(match_value, data_dict, match_key=match_key)
 
     def update_many(self, data: Iterable[GroupUpdate | dict]) -> list[GroupRead]:
         """
@@ -204,9 +204,12 @@ class RepositoryGroup(RepositoryGeneric[GroupRead, GroupsModel]):
 
         return None  # Should not be reached if type hints are correct
 
-    def get_all(self) -> list[GroupsModel]:
+    def get_all_models(self) -> list[GroupsModel]:
         """
-        Get all groups in the system.
+        Get all groups in the system as raw ORM model instances.
+
+        Distinct from the generic ``get_all`` (which returns ``GroupRead`` schemas);
+        callers that need the ORM objects (e.g. relationship access) use this.
 
         Returns:
             List of all group model instances.

@@ -128,7 +128,7 @@ class WorkspaceActivationController(BaseUserController):
         if self.user.platform_role == PlatformRole.SUPER_ADMIN:
             from marvin.db.models.users.roles import WorkspaceRole
 
-            all_workspaces = self.repos.groups.get_all()
+            all_workspaces = self.repos.groups.get_all_models()
             return [
                 WorkspaceWithMembership(
                     workspace=GroupRead.model_validate(ws),
