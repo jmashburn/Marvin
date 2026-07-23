@@ -23,6 +23,7 @@ import json  # For serializing event data
 from abc import ABC, abstractmethod  # For abstract base classes
 from collections.abc import Generator  # For generator type hints
 from datetime import UTC, datetime  # For datetime operations
+from logging import Logger
 from typing import Any, cast  # For type casting
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit  # For URL manipulation
 
@@ -32,7 +33,6 @@ from sqlalchemy import select  # For SQLAlchemy select statements
 
 # from sqlalchemy import func # `func` was imported but not used
 from sqlalchemy.orm.session import Session  # SQLAlchemy session type
-from logging import Logger
 
 # Marvin specific imports
 from marvin.core.root_logger import get_logger  # Application logger
@@ -359,6 +359,7 @@ def _resolve_webhook_headers(webhook_config: "WebhookRead", group_id) -> dict[st
     if not raw:
         return None
     from marvin.services.secrets.resolver import resolve_dict
+
     return resolve_dict(raw, group_id)
 
 
@@ -405,15 +406,20 @@ class WebhookEventListener(EventListenerBase):
 
         # Event-driven: find webhooks subscribed to this event type
         with self.ensure_session() as session:
-            db_webhooks = session.execute(
-                select(GroupWebhooksModel).where(
-                    GroupWebhooksModel.enabled == True,  # noqa: E712
-                    GroupWebhooksModel.group_id == self.group_id,
+            db_webhooks = (
+                session.execute(
+                    select(GroupWebhooksModel).where(
+                        GroupWebhooksModel.enabled == True,  # noqa: E712
+                        GroupWebhooksModel.group_id == self.group_id,
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
 
             filtered = [
-                wh for wh in db_webhooks
+                wh
+                for wh in db_webhooks
                 if wh.subscribed_events
                 and event.event_type.name in wh.subscribed_events
                 and getattr(wh.webhook_type, "value", None) == "event_driven"
@@ -421,8 +427,7 @@ class WebhookEventListener(EventListenerBase):
 
             if filtered:
                 self.logger.info(
-                    f"event:{event.event_type.name} → {len(filtered)} webhook(s): "
-                    + ", ".join(wh.name or str(wh.id) for wh in filtered)
+                    f"event:{event.event_type.name} → {len(filtered)} webhook(s): " + ", ".join(wh.name or str(wh.id) for wh in filtered)
                 )
             else:
                 self.logger.debug(f"event:{event.event_type.name} → no webhook subscribers")
@@ -436,10 +441,7 @@ class WebhookEventListener(EventListenerBase):
         if event.event_type != EventTypes.webhook_task:
             # Event-driven path
             for webhook_config in subscribers_webhooks:
-                self.logger.debug(
-                    f"  → firing event-driven webhook '{webhook_config.name}' "
-                    f"[{webhook_config.method.name} {webhook_config.url}]"
-                )
+                self.logger.debug(f"  → firing event-driven webhook '{webhook_config.name}' [{webhook_config.method.name} {webhook_config.url}]")
                 resolved_headers = _resolve_webhook_headers(webhook_config, self.group_id)
                 payload_override = None
                 if webhook_config.custom_payload:
@@ -461,9 +463,7 @@ class WebhookEventListener(EventListenerBase):
                     base = jsonable_encoder(event, exclude_none=True)
                     if "eventType" in base and hasattr(event.event_type, "name"):
                         base["eventType"] = event.event_type.name
-                    base["meta"] = apply_substitutions(
-                        webhook_config.custom_payload, self.group_id, ctx
-                    )
+                    base["meta"] = apply_substitutions(webhook_config.custom_payload, self.group_id, ctx)
                     payload_override = base
                 self.publisher.publish(
                     event,
@@ -478,9 +478,7 @@ class WebhookEventListener(EventListenerBase):
 
         # Scheduled webhook_task path
         if not isinstance(event.document_data, EventWebhookData):
-            self.logger.warning(
-                f"WebhookEventListener: unexpected document_data type: {type(event.document_data)}"
-            )
+            self.logger.warning(f"WebhookEventListener: unexpected document_data type: {type(event.document_data)}")
             return
 
         webhook_event_data: EventWebhookData = cast(EventWebhookData, event.document_data)
@@ -522,10 +520,7 @@ class WebhookEventListener(EventListenerBase):
                         try:
                             handler_data = handler.info(webhook_config, context)
                         except Exception as e:
-                            self.logger.error(
-                                f"Error calling .info() for webhook {webhook_config.name} "
-                                f"(type={webhook_type_name}): {e}"
-                            )
+                            self.logger.error(f"Error calling .info() for webhook {webhook_config.name} (type={webhook_type_name}): {e}")
 
             # Mirror event-driven shape: context at top level, stats in data
             clean_payload: dict = {
@@ -538,9 +533,7 @@ class WebhookEventListener(EventListenerBase):
             if handler_data:
                 clean_payload["documentData"] = handler_data
             if webhook_config.custom_payload:
-                clean_payload["meta"] = apply_substitutions(
-                    webhook_config.custom_payload, self.group_id, context
-                )
+                clean_payload["meta"] = apply_substitutions(webhook_config.custom_payload, self.group_id, context)
 
             self.logger.info(
                 f"WEBHOOK FIRING: '{webhook_config.name}' "
@@ -860,6 +853,7 @@ class IndexingReactionListener(EventListenerBase):
             if not idx_desc.content_ok(obj):
                 if has_index:
                     from marvin.services.ai.embeddings import purge_embeddings
+
                     purge_embeddings(session, self.group_id, idx_desc.entity_type, entity_id, model)
                     session.commit()
                 return
@@ -879,9 +873,7 @@ class IndexingReactionListener(EventListenerBase):
         from marvin.db.models.groups.ai_embeddings import AIEmbeddingModel
 
         return (
-            session.query(AIEmbeddingModel)
-            .filter_by(group_id=self.group_id, entity_type=entity_type, entity_id=entity_id, model_id=model)
-            .first()
+            session.query(AIEmbeddingModel).filter_by(group_id=self.group_id, entity_type=entity_type, entity_id=entity_id, model_id=model).first()
             is not None
         )
 
@@ -962,14 +954,10 @@ class SmartCollectionReactionListener(EventListenerBase):
                 changed = sync_entry(session, self.group_id, entry)
                 if changed:
                     session.commit()
-                    self.logger.info(
-                        f"Smart collections: synced entry {entry_id} ({changed} membership change(s))"
-                    )
+                    self.logger.info(f"Smart collections: synced entry {entry_id} ({changed} membership change(s))")
             except Exception as e:
                 session.rollback()
-                self.logger.warning(
-                    f"SmartCollectionReactionListener: sync failed for entry {entry_id}: {e}"
-                )
+                self.logger.warning(f"SmartCollectionReactionListener: sync failed for entry {entry_id}: {e}")
 
 
 class AutomationReactionListener(EventListenerBase):
@@ -999,8 +987,7 @@ class AutomationReactionListener(EventListenerBase):
         if getattr(event, "reaction_depth", 0) >= MAX_REACTION_DEPTH:
             return []  # loop-guard: a chain has gone deep enough — stop reacting
         name = event.event_type.name
-        if (name in TRIGGER_EVENT_NAMES_SET or name == "incoming_webhook"
-                or name in self._AUTOMATION_EVENT_NAMES):
+        if name in TRIGGER_EVENT_NAMES_SET or name == "incoming_webhook" or name in self._AUTOMATION_EVENT_NAMES:
             return ["automation"]
         return []
 
@@ -1047,7 +1034,10 @@ class AutomationReactionListener(EventListenerBase):
         with self.ensure_session() as session:
             try:
                 ran = run_automations_for_event(
-                    session, self.group_id, event_ctx, logger=self.logger,
+                    session,
+                    self.group_id,
+                    event_ctx,
+                    logger=self.logger,
                     recorder=ExecutionRecorder(session, self.group_id),
                 )
             except Exception as e:
@@ -1131,18 +1121,16 @@ class EmailEventListener(EventListenerBase):
     def get_subscribers(self, event: Event) -> list[Any]:
         from marvin.db.models.groups.email_templates import EmailTemplateModel
         from marvin.services.email.system_email_events import (
+            SYSTEM_TEMPLATE_EVENT_MAP,
             VirtualEmailSubscription,
             get_template_type_for_event,
-            SYSTEM_TEMPLATE_EVENT_MAP,
         )
 
         if event.event_type == EventTypes.webhook_task:
             return []
 
         with self.ensure_repos(self.group_id) as repos:
-            workspace_subs = repos.email_event_subscriptions.multi_query(
-                {"event_type": event.event_type.name, "enabled": True}
-            )
+            workspace_subs = repos.email_event_subscriptions.multi_query({"event_type": event.event_type.name, "enabled": True})
 
             # Check for system template mapping for this event
             system_template_type = get_template_type_for_event(event.event_type.name)
@@ -1164,17 +1152,11 @@ class EmailEventListener(EventListenerBase):
             ws_template_ids = {t.id for t in ws_templates_of_type}
 
             # Find subscriptions that explicitly connect a workspace template of this type
-            connected_subs = [
-                sub for sub in workspace_subs
-                if sub.template_id in ws_template_ids
-            ]
+            connected_subs = [sub for sub in workspace_subs if sub.template_id in ws_template_ids]
 
             if connected_subs:
                 # Explicit connection via Events page — use only those
-                self.logger.info(
-                    f"EmailEventListener: {len(connected_subs)} explicitly connected "
-                    f"workspace template(s) for '{system_template_type}'"
-                )
+                self.logger.info(f"EmailEventListener: {len(connected_subs)} explicitly connected workspace template(s) for '{system_template_type}'")
                 return connected_subs
 
             # No explicit connection — fall through to system template
@@ -1188,21 +1170,20 @@ class EmailEventListener(EventListenerBase):
             )
 
             if system_template and system_template.enabled:
-                return [VirtualEmailSubscription(
-                    template_id=system_template.id,
-                    event_type=event.event_type.name,
-                    recipient_type=system_mapping["recipient_type"],
-                    recipient_field=system_mapping.get("recipient_field"),
-                    recipient_email=system_mapping.get("recipient_email"),
-                )]
+                return [
+                    VirtualEmailSubscription(
+                        template_id=system_template.id,
+                        event_type=event.event_type.name,
+                        recipient_type=system_mapping["recipient_type"],
+                        recipient_field=system_mapping.get("recipient_field"),
+                        recipient_email=system_mapping.get("recipient_email"),
+                    )
+                ]
 
             return workspace_subs
 
     def publish_to_subscribers(self, event: Event, subscribers: list[Any]) -> None:
         from marvin.db.models.groups.email_templates import EmailTemplateModel
-        from marvin.db.models.users.workspace_members import WorkspaceMembers
-        from marvin.db.models.users.roles import WorkspaceRole
-        from marvin.db.models.users import Users
         from marvin.services.email.email_service import EmailService
         from marvin.services.events.event_variables import build_event_variables, enrich_variables
 
@@ -1218,30 +1199,22 @@ class EmailEventListener(EventListenerBase):
 
                 recipients = self._resolve_recipients(sub, variables, session)
                 if not recipients:
-                    self.logger.info(
-                        f"EmailEventListener: no recipients for subscription {sub.id} "
-                        f"(event={event.event_type.name})"
-                    )
+                    self.logger.info(f"EmailEventListener: no recipients for subscription {sub.id} (event={event.event_type.name})")
                     continue
 
                 for addr in recipients:
                     try:
-                        self.logger.info(
-                            f"EmailEventListener: sending template '{template.name}' "
-                            f"to {addr} for event {event.event_type.name}"
-                        )
+                        self.logger.info(f"EmailEventListener: sending template '{template.name}' to {addr} for event {event.event_type.name}")
                         email_service._send_db_template(addr, template, variables)
                     except Exception as exc:
                         self.logger.error(
-                            f"EmailEventListener: failed sending to {addr} "
-                            f"(template={template.name}, event={event.event_type.name}): {exc}"
+                            f"EmailEventListener: failed sending to {addr} (template={template.name}, event={event.event_type.name}): {exc}"
                         )
 
     def _resolve_recipients(self, sub: Any, variables: dict, session) -> list[str]:
-        from marvin.db.models.users.workspace_members import WorkspaceMembers
-        from marvin.db.models.users.roles import WorkspaceRole
         from marvin.db.models.users import Users
-        from sqlalchemy.orm import Session
+        from marvin.db.models.users.roles import WorkspaceRole
+        from marvin.db.models.users.workspace_members import WorkspaceMembers
 
         match sub.recipient_type:
             case "event_field":
@@ -1266,9 +1239,7 @@ class EmailEventListener(EventListenerBase):
                     .join(WorkspaceMembers, WorkspaceMembers.user_id == Users.id)
                     .where(
                         WorkspaceMembers.group_id == self.group_id,
-                        WorkspaceMembers.workspace_role.in_(
-                            [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]
-                        ),
+                        WorkspaceMembers.workspace_role.in_([WorkspaceRole.OWNER, WorkspaceRole.ADMIN]),
                     )
                 )
                 rows = session.execute(stmt).scalars().all()
@@ -1387,7 +1358,10 @@ class IntegrationEventListener(EventListenerBase):
         if not subscribers:
             return
 
-        from marvin.services.integrations import IntegrationContext, build_http, get_provider
+        try:
+            from marvin.services.integrations import IntegrationContext, build_http, get_provider
+        except ImportError:
+            return
         from marvin.services.secrets.resolver import resolve_secret
 
         ctx_data = self._event_context(event)

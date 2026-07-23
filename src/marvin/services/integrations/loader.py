@@ -1,9 +1,9 @@
-"""Discover integration providers: built-ins plus installed plugin packages.
+"""Discover integration providers from installed plugin packages.
 
-Built-ins (rss, vercel) are imported directly so they're always present. External plugins are
-discovered via the ``marvin.integrations`` entry-point group — install a package that declares one
-and it registers on startup; uninstall it and it's gone. Loading is resilient: a plugin that raises
-on import is logged and skipped, never crashing startup.
+Marvin core ships with no built-in providers. Plugins are discovered via the ``marvin.integrations``
+entry-point group — install a package that declares one and it registers on startup; uninstall it
+and it's gone. Loading is resilient: a plugin that raises on import is logged and skipped, never
+crashing startup.
 """
 
 import importlib.metadata as importlib_metadata
@@ -22,8 +22,8 @@ ENTRY_POINT_GROUP = "marvin.integrations"
 class ProviderLoadReport:
     """The outcome of loading one source of providers (built-ins, or a plugin distribution)."""
 
-    name: str  # entry-point name, or "marvin (built-in)"
-    source: str  # "builtin" | "entry_point"
+    name: str  # entry-point name
+    source: str  # "entry_point"
     ok: bool
     slugs: list[str] = field(default_factory=list)  # provider slugs this source registered
     distribution: str | None = None
@@ -32,18 +32,6 @@ class ProviderLoadReport:
 
 
 _reports: list[ProviderLoadReport] | None = None
-
-
-def _load_builtins() -> ProviderLoadReport:
-    before = set(INTEGRATION_REGISTRY)
-    try:
-        from . import providers  # noqa: F401 — importing registers rss, vercel
-
-        slugs = sorted(set(INTEGRATION_REGISTRY) - before)
-        return ProviderLoadReport(name="marvin (built-in)", source="builtin", ok=True, slugs=slugs)
-    except Exception as e:  # noqa: BLE001 — never let a bad built-in crash startup
-        logger.error(f"failed to load built-in integration providers: {e}")
-        return ProviderLoadReport(name="marvin (built-in)", source="builtin", ok=False, error=str(e))
 
 
 def _load_entry_points() -> list[ProviderLoadReport]:
@@ -63,11 +51,7 @@ def _load_entry_points() -> list[ProviderLoadReport]:
             provider_cls = ep.load()
             register_provider(provider_cls)
             slugs = sorted(set(INTEGRATION_REGISTRY) - before)
-            reports.append(
-                ProviderLoadReport(
-                    name=ep.name, source="entry_point", ok=True, slugs=slugs, distribution=dist_name, version=dist_version
-                )
-            )
+            reports.append(ProviderLoadReport(name=ep.name, source="entry_point", ok=True, slugs=slugs, distribution=dist_name, version=dist_version))
             logger.info(f"loaded integration plugin '{ep.name}' ({dist_name} {dist_version}) → {slugs}")
         except Exception as e:  # noqa: BLE001 — one broken plugin must not block the others
             logger.warning(f"integration plugin '{ep.name}' failed to load: {e}")
@@ -78,11 +62,9 @@ def _load_entry_points() -> list[ProviderLoadReport]:
 
 
 def load_providers(force: bool = False) -> list[ProviderLoadReport]:
-    """Load built-ins + installed plugins once (idempotent). Returns per-source load reports."""
+    """Load installed plugins once (idempotent). Returns per-source load reports."""
     global _reports
     if _reports is not None and not force:
         return _reports
-    reports = [_load_builtins()]
-    reports.extend(_load_entry_points())
-    _reports = reports
-    return reports
+    _reports = _load_entry_points()
+    return _reports

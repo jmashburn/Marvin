@@ -1,126 +1,29 @@
 """Unit tests for the integration provider registry (services/integrations).
 
-Covers registry mechanics, the info() projection contract the /providers catalog relies on,
-the built-in providers' check() logic, and offline RSS parsing — without a DB or network.
+Integrations are an optional, plugin-only feature: the provider contract lives in the standalone
+``marvin_integration_sdk`` package, which Marvin core does not depend on. These tests exercise the
+core mechanics Marvin owns — entry-point discovery, the orphaned-row read path, the event-listener
+action dispatcher, and capability handler ordering. They require the SDK to construct fixtures, so
+the whole module skips cleanly when no integration package is installed.
+
+Provider-specific behaviour (rss parsing, vercel check logic) lives with each provider's own repo
+and is tested there, not here.
 """
 
 import logging
+import uuid
+from types import SimpleNamespace
 
 import pytest
 
-from marvin.services.integrations import (
-    INTEGRATION_REGISTRY,
-    IntegrationContext,
-    get_provider,
-    list_providers,
-)
-from marvin.services.integrations.providers.rss import _parse_items
+pytest.importorskip("marvin_integration_sdk", reason="integrations SDK not installed (optional feature)")
+
 
 _LOG = logging.getLogger("test")
 
 
-class _StubHttp:
-    """A no-op http helper; the check() paths under test don't perform requests."""
-
-    def get(self, url, *, headers=None, timeout=15):  # pragma: no cover - not exercised here
-        raise AssertionError("network not expected in these tests")
-
-    def post(self, url, *, json=None, data=None, headers=None, timeout=15):  # pragma: no cover
-        raise AssertionError("network not expected in these tests")
-
-
-def _ctx(slug: str, *, secret=None, config=None) -> IntegrationContext:
-    """A narrowed context — providers get only config/secret/logger/http."""
-    return IntegrationContext(config=config or {}, secret=secret, logger=_LOG, http=_StubHttp())
-
-
-def test_builtin_providers_are_registered():
-    slugs = {p.slug for p in list_providers()}
-    assert {"rss", "vercel_deploy"} <= slugs
-
-
-def test_get_provider_roundtrip_and_unknown_raises():
-    assert get_provider("rss").slug == "rss"
-    with pytest.raises(KeyError):
-        get_provider("does_not_exist")
-
-
-def test_info_shape_matches_catalog_contract():
-    info = get_provider("vercel_deploy").info()
-    # The /providers catalog + frontend cards depend on exactly these keys.
-    assert set(info) >= {"slug", "name", "category", "config_schema", "credentials", "emits", "actions"}
-    assert info["category"] == "destination"
-    assert any(c["key"] == "hook_url" for c in info["credentials"])
-    assert any(a["key"] == "trigger_deploy" for a in info["actions"])
-
-
-def test_vercel_check_logic():
-    v = get_provider("vercel_deploy")
-    assert v.check(_ctx("v", secret="https://api.vercel.com/hook/xyz")) == ("ok", None)
-    assert v.check(_ctx("v", secret=None))[0] == "unconfigured"
-    assert v.check(_ctx("v", secret="http://insecure"))[0] == "error"
-
-
-def test_vercel_unknown_action_raises():
-    v = get_provider("vercel_deploy")
-    assert v.get_action("trigger_deploy") is not None
-    assert v.get_action("nope") is None
-    with pytest.raises(NotImplementedError):
-        v.run_action("nope", {}, _ctx("v", secret="https://x"))
-
-
-def test_rss_check_requires_feed_url():
-    r = get_provider("rss")
-    assert r.check(_ctx("r", config={}))[0] == "unconfigured"
-
-
-def test_rss_parses_rss2_items():
-    xml = b"""<?xml version="1.0"?>
-    <rss version="2.0"><channel>
-      <title>Feed</title>
-      <item><title>First</title><link>https://ex.com/1</link><guid>g1</guid></item>
-      <item><title>Second</title><link>https://ex.com/2</link></item>
-    </channel></rss>"""
-    items = _parse_items(xml)
-    assert [i["title"] for i in items] == ["First", "Second"]
-    assert items[0]["guid"] == "g1"
-    # No <guid> → falls back to link, so dedup still has a stable key.
-    assert items[1]["guid"] == "https://ex.com/2"
-
-
-def test_rss_parses_atom_entries():
-    xml = b"""<?xml version="1.0"?>
-    <feed xmlns="http://www.w3.org/2005/Atom">
-      <title>Feed</title>
-      <entry><title>Post</title><id>urn:1</id>
-        <link href="https://ex.com/p1"/></entry>
-    </feed>"""
-    items = _parse_items(xml)
-    assert len(items) == 1
-    assert items[0]["title"] == "Post"
-    assert items[0]["guid"] == "urn:1"
-    assert items[0]["link"] == "https://ex.com/p1"
-
-
-def test_registry_is_shared_singleton():
-    # register_provider populates the same dict list_providers reads.
-    assert INTEGRATION_REGISTRY["rss"] is get_provider("rss")
-
-
-def test_load_reports_include_builtins():
-    from marvin.services.integrations import load_reports
-
-    reports = load_reports()
-    builtins = [r for r in reports if r.source == "builtin"]
-    assert builtins and builtins[0].ok
-    assert {"rss", "vercel_deploy"} <= set(builtins[0].slugs)
-
-
 def test_orphaned_row_reads_as_unavailable():
     # A row whose provider package isn't installed must surface as unavailable, not a stale status.
-    import uuid
-    from types import SimpleNamespace
-
     from marvin.routes.groups.integrations_controller import _to_read
 
     row = SimpleNamespace(
@@ -177,8 +80,6 @@ def test_entry_point_discovery_is_resilient(monkeypatch):
 def test_event_listener_runs_action_with_templated_args():
     # The core "consume integration via events" mechanism: a connected action fires when its event
     # does, with {{field}} placeholders filled from the event.
-    import uuid
-
     from marvin_integration_sdk import INTEGRATION_REGISTRY, IntegrationProvider, ProviderAction, register_provider
 
     from marvin.services.event_bus_service.event_bus_listener import IntegrationEventListener
@@ -219,8 +120,6 @@ def test_event_listener_runs_action_with_templated_args():
 
 
 def test_event_listener_skips_uninstalled_provider():
-    import uuid
-
     from marvin.services.event_bus_service.event_bus_listener import IntegrationEventListener
 
     class _EvType:
@@ -266,8 +165,6 @@ def test_provider_action_advertises_capability_in_info():
 
 
 def test_capability_handlers_sort_by_priority_and_invoke():
-    import uuid
-
     from marvin_integration_sdk import IntegrationProvider, ProviderAction
 
     from marvin.services.integrations.capability import _build_handlers, _Snapshot
@@ -304,15 +201,23 @@ def test_capability_handlers_sort_by_priority_and_invoke():
 
 
 def test_installed_provider_reads_normally():
-    import uuid
-    from types import SimpleNamespace
+    # A registered provider is required for a non-"unavailable" read; register a stub for the slug.
+    from marvin_integration_sdk import INTEGRATION_REGISTRY, IntegrationProvider, register_provider
 
     from marvin.routes.groups.integrations_controller import _to_read
 
-    row = SimpleNamespace(
-        id=uuid.uuid4(), provider="rss", name="My feed", slug="my_feed", enabled=True,
-        config={"feed_url": "https://x/feed"}, secret_ref=None, status="ok", last_checked_at=None, last_error=None,
-    )
-    read = _to_read(row)
-    assert read.status == "ok"
-    assert read.last_error is None
+    class _StubProvider(IntegrationProvider):
+        slug = "stub_feed"
+        name = "Stub Feed"
+
+    register_provider(_StubProvider)
+    try:
+        row = SimpleNamespace(
+            id=uuid.uuid4(), provider="stub_feed", name="My feed", slug="my_feed", enabled=True,
+            config={"feed_url": "https://x/feed"}, secret_ref=None, status="ok", last_checked_at=None, last_error=None,
+        )
+        read = _to_read(row)
+        assert read.status == "ok"
+        assert read.last_error is None
+    finally:
+        INTEGRATION_REGISTRY.pop("stub_feed", None)
