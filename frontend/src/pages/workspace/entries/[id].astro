@@ -9,6 +9,7 @@ import { listTags, createTag, type TagRead } from "@/lib/api/tags";
 import { getAssets } from "@/lib/api/platform";
 import { listResources } from "@/lib/api/resources";
 import { createSdkClient } from "@/lib/sdk";
+import { fieldTypeMap, coerceDataJsonValue } from "@/lib/schemaFields";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
@@ -71,17 +72,24 @@ if (Astro.request.method === 'POST' && id && authToken) {
       resIdx++;
     }
 
-    // Parse dataJson from schema fields (dataJson.fieldKey format)
+    // Parse dataJson from schema fields (dataJson.fieldKey format). FormData is all strings, so
+    // coerce each value to its declared schema type — a `number` field like "order" must be sent
+    // as a real number or the content validator rejects it and the value silently never saves.
+    const entryTypeId = formData.get('entry_type_id') as string | null;
+    let fieldTypes: Record<string, string> = {};
+    if (entryTypeId) {
+      try {
+        const type = (await listEntryTypes(authToken)).find(t => t.id === entryTypeId);
+        fieldTypes = fieldTypeMap(type?.schemaJson);
+      } catch (e) {
+        console.error('[Entry] Could not load schema for field coercion:', e);
+      }
+    }
     const dataJson: Record<string, any> = {};
     for (const [key, value] of formData.entries()) {
       if (key.startsWith('dataJson.')) {
         const fieldKey = key.replace('dataJson.', '');
-        // Handle boolean checkboxes (only present if checked)
-        if (value === 'true' || value === 'false') {
-          dataJson[fieldKey] = value === 'true';
-        } else {
-          dataJson[fieldKey] = value || null;
-        }
+        dataJson[fieldKey] = coerceDataJsonValue(fieldTypes[fieldKey], value as string);
       }
     }
 
@@ -2132,11 +2140,17 @@ const suggestionOp = suggestion?._meta?.operation as string | undefined;
       for (const [key, value] of formData.entries()) {
         if (key.startsWith('dataJson.')) {
           const fieldKey = key.replace('dataJson.', '');
-          // Handle boolean checkboxes
-          if (value === 'true' || value === 'false') {
-            dataJson[fieldKey] = value === 'true';
+          const field = form.querySelector(`[name="${key}"]`) as HTMLInputElement | null;
+          // Coerce to the input's type so the JSON preview matches what gets saved.
+          if (field && field.type === 'checkbox') {
+            dataJson[fieldKey] = field.checked;
+          } else if (value === '') {
+            dataJson[fieldKey] = null;
+          } else if (field && field.type === 'number') {
+            const n = Number(value);
+            dataJson[fieldKey] = Number.isNaN(n) ? null : n;
           } else {
-            dataJson[fieldKey] = value || null;
+            dataJson[fieldKey] = value;
           }
         }
       }

@@ -4,6 +4,7 @@ import SchemaForm from "@/components/SchemaForm.astro";
 import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { createEntry } from "@/lib/api/entries";
 import { getAuthToken } from "@/lib/api/client";
+import { fieldTypeMap, coerceDataJsonValue } from "@/lib/schemaFields";
 
 const authToken = getAuthToken(Astro.cookies);
 if (!authToken) {
@@ -17,19 +18,24 @@ if (Astro.request.method === 'POST') {
   try {
     const formData = await Astro.request.formData();
 
-    // Collect dataJson.* fields from form
+    // Collect dataJson.* fields from form. FormData is all strings, so coerce each value to its
+    // declared schema type — a `number` field like "order" must be sent as a real number or the
+    // content validator rejects it and the value silently never saves.
+    const entryTypeId = formData.get('entry_type_id') as string | null;
+    let fieldTypes: Record<string, string> = {};
+    if (entryTypeId) {
+      try {
+        const type = (await listEntryTypes(authToken)).find(t => t.id === entryTypeId);
+        fieldTypes = fieldTypeMap(type?.schemaJson);
+      } catch (e) {
+        console.error('[NewEntry] Could not load schema for field coercion:', e);
+      }
+    }
     const dataJson: Record<string, any> = {};
     for (const [key, value] of formData.entries()) {
       if (key.startsWith('dataJson.')) {
         const fieldKey = key.replace('dataJson.', '');
-        // Handle boolean checkboxes (they submit "true" string or are absent)
-        if (value === 'true' || value === 'false') {
-          dataJson[fieldKey] = value === 'true';
-        } else if (value) {
-          dataJson[fieldKey] = value;
-        } else {
-          dataJson[fieldKey] = null;
-        }
+        dataJson[fieldKey] = coerceDataJsonValue(fieldTypes[fieldKey], value as string);
       }
     }
 
@@ -364,10 +370,13 @@ const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schema
 
         if (field.type === 'checkbox') {
           dataJson[fieldKey] = field.checked;
-        } else if (field.value) {
-          dataJson[fieldKey] = field.value;
-        } else {
+        } else if (!field.value) {
           dataJson[fieldKey] = null;
+        } else if (field.type === 'number') {
+          const n = Number(field.value);
+          dataJson[fieldKey] = Number.isNaN(n) ? null : n;
+        } else {
+          dataJson[fieldKey] = field.value;
         }
       });
 
