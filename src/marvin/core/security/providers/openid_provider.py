@@ -150,6 +150,6 @@ class OpenIDProvider(AuthProvider[UserInfo]):
             set: A set of required OIDC claim names.
         """
         claims = {self.settings.OIDC_NAME_CLAIM, "email", self.settings.OIDC_USER_CLAIM}
-        if settings.OIDC_REQUIRES_GROUP_CLAIM:
-            claims.add(settings.OIDC_GROUPS_CLAIM)
+        if self.settings.OIDC_REQUIRES_GROUP_CLAIM:
+            claims.add(self.settings.OIDC_GROUPS_CLAIM)
         return claims

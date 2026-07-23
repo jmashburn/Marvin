@@ -82,6 +82,7 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]:  # Renamed a
     try:
         from marvin.db.db_setup import session_context
         from marvin.services.email.system_templates import seed_system_templates
+
         with session_context() as session:
             count = seed_system_templates(session)
             if count:
@@ -93,6 +94,7 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]:  # Renamed a
     try:
         from marvin.db.db_setup import session_context
         from marvin.services.scheduled_tasks.system_tasks import seed_system_scheduled_tasks
+
         with session_context() as session:
             count = seed_system_scheduled_tasks(session)
             if count:
@@ -104,6 +106,7 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]:  # Renamed a
     try:
         from marvin.db.db_setup import session_context
         from marvin.services.collections.system_collections import seed_all_workspaces
+
         with session_context() as session:
             count = seed_all_workspaces(session)
             if count:
@@ -169,9 +172,10 @@ else:
 
 # Add request logging middleware for development
 if not settings.PRODUCTION:
+    import time
+
     from starlette.middleware.base import BaseHTTPMiddleware
     from starlette.requests import Request
-    import time
 
     class RequestLoggingMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next):
@@ -296,7 +300,7 @@ def main() -> None:
     )
 
 
-__all__ = ["main", "__version__"]
+__all__ = ["main"]
 
 if __name__ == "__main__":
     # This block executes when the script is run directly (e.g., `python marvin/app.py`)

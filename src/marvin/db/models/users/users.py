@@ -30,6 +30,7 @@ from .roles import PlatformRole
 if TYPE_CHECKING:
     from ..groups import Groups
     from .password_reset import PasswordResetModel
+    from .roles import WorkspaceRole
     from .workspace_members import WorkspaceMembers
 
 
@@ -269,7 +270,6 @@ class Users(SqlAlchemyBase, BaseMixins):
         Returns:
             WorkspaceRole if user is a member, None otherwise.
         """
-        from .roles import WorkspaceRole
 
         for membership in self.workspace_memberships:
             if str(membership.group_id) == str(group_id):

@@ -9,7 +9,7 @@ are dispatched and handled by various listeners and publishers.
 import uuid  # For generating unique event IDs
 from datetime import UTC, datetime  # For timestamping events
 from enum import Enum, auto  # For creating enumerations
-from typing import Any  # For generic type hints
+from typing import TYPE_CHECKING, Any  # For generic type hints
 
 from pydantic import (
     UUID4,
@@ -19,6 +19,10 @@ from pydantic import (
 )  # Core Pydantic components. Removed unused ValidationInfo.
 
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model
+
+if TYPE_CHECKING:
+    from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
+    from marvin.schemas.platform.assets import AssetRead
 
 # Default integration ID for events originating from generic user actions or internal Marvin processes.
 INTERNAL_INTEGRATION_ID = "marvin_generic_user"
@@ -765,7 +769,6 @@ class EventAssetData(EventDocumentDataBase):
         Returns:
             EventAssetData instance
         """
-        from marvin.schemas.platform.assets import AssetRead
 
         return cls(
             operation=EventOperation.info,
@@ -979,7 +982,6 @@ class EventScheduledTaskData(EventDocumentDataBase):
         Returns:
             EventScheduledTaskData instance
         """
-        from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
 
         return cls(
             operation=EventOperation.info,
