@@ -1102,3 +1102,85 @@ rename + dedicated AI settings tab · workspace-AI factory fallback (Settings fo
   · **invocation_sources** (source ∩ policy) · logging_config (via `_logging_policy`) ·
   approval_mode (apply/stage decision + outcome now surfaced).
 - **Still cosmetic (stored, no effect):** operation_overrides · moderation_config.
+
+## 2026-07-23 — `@inneropen/marvin-astro` package extraction
+
+New sibling repo `/home/jared/code/MarvinAstro`, branch `feat/marvin-astro-package`
+(1 commit, **unsigned** — GPG pinentry timed out; `git commit --amend -S --no-edit` to re-sign).
+Not pushed, not published.
+
+**What it is.** The third package in the ecosystem: SDK owns transport, `marvin-renderers-core`
+owns entry-type → component mapping, this owns *site integration* — repositories, site chrome,
+payload normalization. Scaffolded to match `MarvinRenderersCore` (tsup, vitest, semantic-release
+with `main` / `develop`-as-`next`). Logic-first: the default export has no Astro import; one
+component (`SeoHead.astro`) ships behind a separate `./astro` path with Astro as an optional peer.
+
+**Extracted from** `mashandburnco/src/lib/` — `marvin.ts`, `marvinNormalize.ts`, `sites.ts`,
+`siteChrome.ts`, `sections.ts`, `markdown.ts`, `format.ts`, `select-values.ts`, and the generic
+half of `types.ts`. Site-specific pieces (domain types, `src/data/`, route prefixes, `Site*.astro`)
+deliberately stayed behind. **mashandburnco is NOT migrated** — that is a separate follow-up, and
+the parity harness below is what makes it safe.
+
+**Centerpiece:** `createRepository()` — the ~40 lines of try / fallback / memoize boilerplate that
+`projects.ts`, `benchNotes.ts`, `workshopReference.ts` and `materials.ts` each repeat, collapsed
+behind `all()` / `bySlug()` / `featured()` / `reset()`. A site writes only the transform; the `f`
+accessor supplies `string · number · bool · list · oneOf · markdown · image · icon · asset ·
+resource · raw`, each defaulting to data_json → metadata_json.
+
+**Three real improvements over the code it generalizes:**
+1. The failure latch is **retryable** — `retryAfterMs`, 30s in dev / `Infinity` in production. The
+   original set a permanent process-lifetime flag, which is why the site kept serving stale static
+   data after Postgres came back and needed a manual dev-server bounce.
+2. `field()` precedence is a first-class documented reader, not re-derived per repository. Empty
+   string counts as absent (a declared-but-blank schema field stores `""` and would otherwise mask
+   a legacy metadata value).
+3. Chrome href resolution is **injectable** (`resolveHref`). The hardcoded 11-slug workshop-
+   reference `Set` is gone; the default prefixes an entry's own non-navigation collection, which
+   reproduces `/workshop-reference/terms` from membership data alone.
+
+Also added `selectAssetByRole()` — `selectEntryAsset` ORs role against a vacuously-true usage
+check, so a role-only query silently returns the entry's *first* asset (the `hero-grade` trap).
+
+**Verification (all green):**
+- 150 vitest tests, fixtures captured from the live local workspace, no network.
+- `examples/smoke.ts` — live end-to-end run against Marvin on `127.0.0.1:8080`.
+- `examples/parity/mashandburnco.ts` — field-level diff vs the site's existing repositories:
+  workshop-reference, bench-notes, materials, projects, site config and chrome all **exact**,
+  both with the backend up and with it dead. Run it before/after the eventual site migration.
+- `npm run typecheck` + `tsup` build with `.d.ts`.
+
+---
+
+## 2026-07-23 — mashandburnco migrated onto `@inneropen/marvin-astro`
+
+Branch `feat/marvin-astro-migration` in `/home/jared/code/mashandburnco`, commit `995732f`.
+**557 insertions, 1,936 deletions across 39 files.**
+
+Deleted outright — the package supplies all of it: `api/marvin.ts`, `api/marvinNormalize.ts`,
+`api/markdown.ts`, `api/select-values.ts`, `api/sites.ts`, `api/siteChrome.ts`, `api/sections.ts`,
+`lib/format.ts`, `lib/components/SeoHead.astro`.
+
+Added `src/lib/content.ts` — the single wiring point (`createMarvinContent()`, static fallbacks,
+the four repositories). Each content module now declares its collections and writes only its
+transform; `getProjects()` / `getBenchNotes()` / etc. keep their paths and signatures, so no
+component or page needed a behavioural change — only import repointing.
+
+**Verification.** The package↔site parity harness is tautological after this change (the site now
+*is* the package), so verification was before/after on the site's own public API:
+
+- A snapshot script dumping every public surface — site, chrome, all four repositories plus their
+  `bySlug`/`featured` variants, about, hero, value band, support cards, common questions, section
+  landings, markdown and `selectValuesForPage` — to JSON. **Value-identical** before and after,
+  with the backend live *and* pointed at a dead port. Only key ordering moved.
+- The full Astro build: **all 50 pages byte-identical**, `diff -rq` clean across the whole `dist/`
+  including hashed asset names and the sitemap.
+- Dev server serves `/`, `/projects`, `/bench-notes`, `/workshop-reference/terms`, `/about` — 200s,
+  no errors.
+
+The migration surfaced six latent type errors the old `any` casts had hidden — notably
+`ApiBenchNote.featured`, read by `getFeaturedBenchNote()` but never declared. `tsc --strict` on
+the content modules is now clean; the site had never had a typecheck step.
+
+**Open for the user:** `@inneropen/marvin-astro` is linked as `file:../MarvinAstro` until it is
+published; swap to a version range then. `astro.config.mjs` dedupes `@inneropen/marvin-sdk` so the
+linked package and the site share one copy — that line can stay after publishing.

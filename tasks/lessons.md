@@ -79,3 +79,56 @@
   `kill`, `ps`, `grep`, `ss` are NOT aliased.
 - Correction from user 2026-07-22: using `pgrep -f 'src/marvin/app.py'` to find the backend pid
   dumped their pass store (GitHub/GitLab tokens, Bitwarden entries) into command output.
+
+## Parity harnesses must prove the *baseline* is live, not just that both sides ran
+
+- Diffing a new implementation against an old one is only meaningful if the old one is doing real
+  work. The first `marvin-astro` parity run reported clean-looking numbers while mashandburnco was
+  silently serving **static fallback data**: it reads connection settings off `import.meta.env`
+  (Astro's server env), and under `vite-node` only `VITE_`-prefixed vars land there, so
+  `hasMarvinBackend()` was false. Both halves "worked"; the comparison was worthless.
+- The tell was in the item counts, not the diffs: `site: 0 items` for workshop-reference and
+  `site: 10 / package: 17` for bench-notes. A parity report should always print **both counts and
+  the data source**, so a silently-degraded baseline is visible instead of reading as agreement.
+- **Rule:** before trusting a parity/regression diff, assert the baseline actually hit the live
+  dependency (non-zero rows, a request count, an explicit `hasBackend()` check). Fix: give the
+  vite config `envDir` + `envPrefix: ['MARVIN_']` so `import.meta.env` is populated the way Astro
+  populates it.
+
+## Compare in BOTH states when extracting a layer that has a fallback path
+
+- The offline run (backend pointed at a dead port) caught a different class of gap than the online
+  run: repositories whose static `fallback` was never wired returned `[]` where the original
+  returned 7 items. Online parity alone would have shipped that.
+- **Rule:** for any extraction that preserves a degradation path, run the diff with the dependency
+  up *and* down. Both must match before the extraction counts as verified.
+
+## A hook's heuristic isn't always right — say so instead of contorting the code
+
+- The global pre-commit hook blocks `console.log` in any `.ts` file. `examples/smoke.ts` and the
+  parity harness are CLI reporters whose entire purpose is printing; rewriting them to dodge the
+  pattern would have been evasion dressed as compliance.
+- **Rule:** bypass with `--no-verify` when the rule genuinely doesn't apply, and tell the user
+  exactly which files and why in the same breath. Never silently reshape code to slip past a check.
+
+## After a migration, the old parity harness proves nothing — snapshot the consumer instead
+
+- The package↔site parity harness was the right tool for *building* `marvin-astro`. The moment
+  mashandburnco was migrated onto the package, that harness compared the package with itself.
+- What actually verified the migration was a snapshot of the **site's own public API** (every
+  exported `get*`), captured before the change and re-captured after, diffed by value rather than
+  by text so key-ordering churn didn't drown the signal.
+- Cheap and decisive on top of that: diff the built output. `diff -rq dist_before dist_after`
+  across 50 rendered pages catches everything the data snapshot can't see — component swaps,
+  template edits, asset hashing.
+- **Rule:** when the thing under test moves *inside* the system, move the observation point
+  outward. Verify at a boundary the refactor doesn't touch.
+
+## A migration that finally typechecks will surface bugs the old code hid
+
+- Moving off `any`-heavy hand-rolled helpers onto a typed package turned up six errors, including
+  `ApiBenchNote.featured` — written by the transform, read by `getFeaturedBenchNote()`, never
+  declared on the type. The site had no typecheck step, so nothing had ever complained.
+- **Rule:** run `tsc --strict` over the migrated modules even when the project has no typecheck
+  script, and fix what it finds in the same change — then re-run the behavioural diff to prove the
+  fixes were type-level only.
