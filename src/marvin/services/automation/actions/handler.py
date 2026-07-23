@@ -12,8 +12,12 @@ rejected even though it's a valid registry entry. (New safe handlers must be opt
 """
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 from .base import AutomationActionError, register_action
+
+if TYPE_CHECKING:
+    from marvin.db.models.platform import ScheduledTaskModel
 
 # Handlers a workspace automation may run. Content/publishing/index only — never maintenance,
 # pruning, or run_automation (which would let an automation re-run automations directly).
@@ -56,7 +60,9 @@ def run_handler(session, group_id, action, context, *, user_id=None, authorizer_
     if dry_run:
         return {"dry_run": True, "kind": "handler", "task": task_type, "config": config}
 
-    task = SimpleNamespace(group_id=group_id, task_config=config)
+    # Handlers only read group_id + task_config (see module docstring), so a duck-typed
+    # namespace stands in for the ORM model here.
+    task = cast("ScheduledTaskModel", SimpleNamespace(group_id=group_id, task_config=config))
     try:
         result = handler.execute(task, EventBusService(bg_tasks=None))
     except Exception as e:

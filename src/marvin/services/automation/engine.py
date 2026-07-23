@@ -12,6 +12,7 @@ the engine is unit-testable without real executors.
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 
 from marvin.services.event_bus_service.correlation import correlation_scope, current_correlation_id
 
@@ -155,7 +156,7 @@ def _run_targets(
                 total,
                 len(entities),
             )
-        pairs = [(_target_context(base_context, (ref := entity_ref(ent))), ref) for ent in entities]
+        pairs: list[tuple[dict, Any]] = [(_target_context(base_context, (ref := entity_ref(ent))), ref) for ent in entities]
         gate = True  # a target's conditions are its WHERE clause — always applied
     else:
         # Non-target: single context. If gated and conditions fail, it's a non-run — don't record.
@@ -376,6 +377,7 @@ def run_automation_now(
             dry_run=dry_run,
         )
         if dry_run:
+            assert dry_recorder is not None  # set whenever dry_run is True
             return {"ok": ok, "ran": ran, "dry_run": True, "plan": dry_recorder.plan}
         _announce(session, group_id, automation, ok, 0, user_id, context)
         return {"ok": ok, "ran": ran, "result": context.get("previous", {})}

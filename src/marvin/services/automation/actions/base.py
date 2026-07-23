@@ -46,7 +46,7 @@ def available_kinds() -> list[str]:
 def run_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=ROLE_OWNER, dry_run=False) -> dict:
     """Dispatch one action to its registered executor by `kind`."""
     kind = action.get("kind")
-    fn = ACTION_EXECUTORS.get(kind)
+    fn = ACTION_EXECUTORS.get(kind) if isinstance(kind, str) else None
     if fn is None:
         raise AutomationActionError(f"unsupported action kind '{kind}'")
     out = fn(session, group_id, action, context, user_id=user_id, authorizer_role=authorizer_role, dry_run=dry_run)

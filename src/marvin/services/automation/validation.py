@@ -16,6 +16,8 @@ authors may map fields the catalog can't know about. The engine remains the sour
 execution; this only helps authors avoid the silent-no-op footgun.
 """
 
+from typing import Any
+
 from .matcher import _OPS
 
 # Fields conditions can reference, grouped by the namespace each trigger's context exposes.
@@ -89,7 +91,7 @@ def _namespaces_for(trigger_type: str) -> set[str]:
 
 
 def _issue(level: str, message: str, where: str, index: int | None = None) -> dict:
-    out = {"level": level, "message": message, "where": where}
+    out: dict[str, Any] = {"level": level, "message": message, "where": where}
     if index is not None:
         out["index"] = index
     return out
@@ -227,12 +229,12 @@ _WHERE_BY_HEAD = {"actions": "action", "conditions": "condition", "trigger": "tr
 
 def _structural_issue(err: dict) -> dict:
     """Map one Pydantic error to the {level, message, where, index?} issue shape used everywhere."""
-    loc = err.get("loc", ()) or ()
+    loc: tuple[Any, ...] = err.get("loc", ()) or ()
     where = _WHERE_BY_HEAD.get(loc[0], "trigger") if loc else "trigger"
     index = loc[1] if len(loc) > 1 and isinstance(loc[1], int) else None
     path = ".".join(str(p) for p in loc)
     msg = err.get("msg", "invalid")
-    issue = {"level": "error", "message": f"{path}: {msg}" if path else msg, "where": where}
+    issue: dict[str, Any] = {"level": "error", "message": f"{path}: {msg}" if path else msg, "where": where}
     if index is not None:
         issue["index"] = index
     return issue

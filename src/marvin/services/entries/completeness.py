@@ -108,7 +108,7 @@ def evaluate_completeness(
                 add("field", f.key, f"Optional field '{f.label}' is empty.", False)
 
     # ── Assets (recipe): per-role minimums + overall minimum ─────────────────
-    if recipe and getattr(recipe, "assets", None):
+    if recipe and recipe.assets:
         counts: dict[str, int] = {}
         for r in asset_roles:
             counts[r] = counts.get(r, 0) + 1
@@ -128,7 +128,7 @@ def evaluate_completeness(
                 add("asset", role.role, f"Needs {need} '{role.role}' image(s); has {have}.", True)
 
     # ── Resources (recipe.extract): required resource types ──────────────────
-    if recipe and getattr(recipe, "resources", None):
+    if recipe and recipe.resources:
         counts = {}
         for t in resource_types:
             counts[t] = counts.get(t, 0) + 1

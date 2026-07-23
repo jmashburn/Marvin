@@ -489,6 +489,7 @@ def import_asset(ctx: ToolContext, args: dict) -> str:
         if not (args.get("url") or args.get("data")):
             return json.dumps({"error": "provide 'url' or 'data', or an 'images' array"})
         specs = [{k: args.get(k) for k in ("url", "data", "filename", "name", "alt_text")}]
+    assert isinstance(specs, list)  # both branches above leave specs a list
     if len(specs) > _MAX_IMPORT_BATCH:
         return json.dumps({"error": f"too many images ({len(specs)}; max {_MAX_IMPORT_BATCH} per call)"})
 

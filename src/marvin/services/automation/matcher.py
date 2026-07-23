@@ -89,6 +89,8 @@ def _match_one(cond: dict, context: dict) -> bool:
     if op == "neq":
         return actual != expected
     if op == "contains":
+        if actual is None:
+            return False
         try:
             return expected in actual  # substring or membership
         except TypeError:
