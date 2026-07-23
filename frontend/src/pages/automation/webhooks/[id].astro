@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -15,10 +15,13 @@ let error: string | null = null;
 try {
   [webhook, eventOptions] = await Promise.all([
     sdk.webhooks.get(id!),
-    sdk.events.getOptions().then((r: any) => Array.isArray(r) ? r : (r?.items ?? [])).catch(() => []),
+    sdk.events
+      .getOptions()
+      .then((r: any) => (Array.isArray(r) ? r : (r?.items ?? [])))
+      .catch(() => []),
   ]);
 } catch (e) {
-  console.error('[webhooks/edit] Error:', e);
+  console.error("[webhooks/edit] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
@@ -26,43 +29,44 @@ if (webhook) {
   try {
     history = await sdk.webhooks.logs(id!, { limit: 50 });
   } catch (e) {
-    console.error('[webhooks/edit] Error loading history:', e);
+    console.error("[webhooks/edit] Error loading history:", e);
   }
 }
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "—";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 function statusClass(status: string): string {
-  if (status === 'success') return 'success';
-  if (status === 'failed') return 'failed';
-  if (status === 'retrying') return 'timeout';
-  return 'none';
+  if (status === "success") return "success";
+  if (status === "failed") return "failed";
+  if (status === "retrying") return "timeout";
+  return "none";
 }
 
 // Convert UTC time to local for input
-let localDateTime = '';
+let localDateTime = "";
 if (webhook) {
   const scheduledTime = (webhook as any).scheduledTime ?? (webhook as any).scheduled_time;
   if (scheduledTime) {
-    const normalized = scheduledTime.replace(/(\.\d{3})\d+/, '$1');
+    const normalized = scheduledTime.replace(/(\.\d{3})\d+/, "$1");
     const date = new Date(normalized);
-    if (!isNaN(date.getTime())) {
+    if (!Number.isNaN(date.getTime())) {
       localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
   }
 }
 
-const webhookType = (webhook as any)?.webhookType ?? (webhook as any)?.webhook_type ?? 'generic';
-const isEventDriven = webhookType === 'event_driven';
+const webhookType = (webhook as any)?.webhookType ?? (webhook as any)?.webhook_type ?? "generic";
+const isEventDriven = webhookType === "event_driven";
 const existingHeaders = (webhook as any)?.headers ?? {};
-const existingSubscribedEvents: string[] = (webhook as any)?.subscribedEvents ?? (webhook as any)?.subscribed_events ?? [];
+const existingSubscribedEvents: string[] =
+  (webhook as any)?.subscribedEvents ?? (webhook as any)?.subscribed_events ?? [];
 const existingCustomPayload = (webhook as any)?.customPayload ?? (webhook as any)?.custom_payload ?? null;
-const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPayload, null, 2) : '';
+const customPayloadStr = existingCustomPayload ? JSON.stringify(existingCustomPayload, null, 2) : "";
 ---
 
 <AppLayout title="Edit Webhook" eyebrow="Automation">

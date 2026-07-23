@@ -3,29 +3,29 @@
  * Pass authToken in SSR (from Astro.cookies); omit it in the browser to use the HttpOnly cookie.
  */
 
-import { createSdkClient } from '../sdk';
 import type {
   Integration,
-  IntegrationCreate,
-  IntegrationUpdate,
-  IntegrationProviderInfo,
-  IntegrationPluginInfo,
   IntegrationActionResult,
   IntegrationCheckResult,
+  IntegrationCreate,
   IntegrationEventSubscription,
   IntegrationEventSubscriptionCreate,
-} from '@inneropen/marvin-sdk/platform';
+  IntegrationPluginInfo,
+  IntegrationProviderInfo,
+  IntegrationUpdate,
+} from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
 export type {
   Integration,
-  IntegrationCreate,
-  IntegrationUpdate,
-  IntegrationProviderInfo,
-  IntegrationPluginInfo,
   IntegrationActionResult,
   IntegrationCheckResult,
+  IntegrationCreate,
   IntegrationEventSubscription,
   IntegrationEventSubscriptionCreate,
+  IntegrationPluginInfo,
+  IntegrationProviderInfo,
+  IntegrationUpdate,
 };
 
 export async function listProviders(authToken?: string): Promise<IntegrationProviderInfo[]> {
@@ -65,7 +65,10 @@ export async function runIntegrationAction(
   return createSdkClient(authToken).integrations.runAction(id, actionKey, args);
 }
 
-export async function listSubscriptions(eventType?: string, authToken?: string): Promise<IntegrationEventSubscription[]> {
+export async function listSubscriptions(
+  eventType?: string,
+  authToken?: string,
+): Promise<IntegrationEventSubscription[]> {
   return createSdkClient(authToken).integrations.listSubscriptions(eventType);
 }
 

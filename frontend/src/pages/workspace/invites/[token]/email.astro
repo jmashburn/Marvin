@@ -12,7 +12,7 @@ let error: string | null = null;
 try {
   workspace = await getCurrentWorkspace(authToken);
 } catch (e) {
-  console.error('[invites/email] Error:', e);
+  console.error("[invites/email] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 

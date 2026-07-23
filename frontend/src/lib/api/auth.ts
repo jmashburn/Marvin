@@ -3,18 +3,18 @@
  * Migrated to use @inneropen/marvin-sdk
  */
 
-import { createAuthClient } from '@inneropen/marvin-sdk';
-import { createSdkClient } from '../sdk';
-import { API_BASE_URL } from './config';
 import type {
-  LoginRequest,
   AuthToken,
-  UserRegistration,
   ForgotPasswordRequest,
+  LoginRequest,
   ResetPasswordRequest,
-} from '@inneropen/marvin-sdk';
+  UserRegistration,
+} from "@inneropen/marvin-sdk";
+import { createAuthClient } from "@inneropen/marvin-sdk";
+import { createSdkClient } from "../sdk";
+import { API_BASE_URL } from "./config";
 
-export type { LoginRequest, AuthToken, UserRegistration, ForgotPasswordRequest, ResetPasswordRequest };
+export type { AuthToken, ForgotPasswordRequest, LoginRequest, ResetPasswordRequest, UserRegistration };
 
 /**
  * Login with username and password

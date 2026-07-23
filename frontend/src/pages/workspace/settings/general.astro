@@ -1,12 +1,12 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { requireAuth } from "@/lib/auth";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
-import { getWorkspacePreferences } from "@/lib/api/workspaceSettings";
-import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
 import type { WorkspaceRole } from "@/lib/api/types";
+import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import { getWorkspacePreferences } from "@/lib/api/workspaceSettings";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { requireAuth } from "@/lib/auth";
 
 const currentUser = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
@@ -25,27 +25,29 @@ try {
     try {
       preferences = await getWorkspacePreferences(workspace.id, authToken);
     } catch (e) {
-      console.error('[settings] Error loading preferences:', e);
+      console.error("[settings] Error loading preferences:", e);
     }
 
     // Get current user's role and admin status
     const members = await listWorkspaceMembers(workspace.id, authToken);
-    const currentMembership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+    const currentMembership = members.find(
+      (m) => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id,
+    );
     currentUserRole = (currentMembership as any)?.workspaceRole || (currentMembership as any)?.workspace_role || null;
     isPlatformAdmin = currentUser.admin === true;
     if (!currentUserRole && isPlatformAdmin) {
-      currentUserRole = 'ADMIN' as WorkspaceRole;
+      currentUserRole = "ADMIN" as WorkspaceRole;
     }
   }
 } catch (e) {
-  console.error('[settings] Error loading:', e);
+  console.error("[settings] Error loading:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
-const canManage = currentUserRole && (currentUserRole === 'OWNER' || currentUserRole === 'ADMIN');
+const canManage = currentUserRole && (currentUserRole === "OWNER" || currentUserRole === "ADMIN");
 
 const urlParams = Astro.url.searchParams;
-const success = urlParams.get('success') === '1';
+const success = urlParams.get("success") === "1";
 ---
 
 <AppLayout title="Workspace Details" eyebrow="Workspace">

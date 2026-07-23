@@ -1,21 +1,21 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import SchemaForm from "@/components/SchemaForm.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getEntry, updateEntry, type EntryRead, type CollectionRead } from "@/lib/api/entries";
-import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
 import { listCollections } from "@/lib/api/collections";
-import { listTags, createTag, type TagRead } from "@/lib/api/tags";
+import { type CollectionRead, type EntryRead, getEntry, updateEntry } from "@/lib/api/entries";
+import { type EntryTypeRead, listEntryTypes } from "@/lib/api/entryTypes";
 import { getAssets } from "@/lib/api/platform";
 import { listResources } from "@/lib/api/resources";
+import { createTag, listTags, type TagRead } from "@/lib/api/tags";
+import { coerceDataJsonValue, fieldTypeMap } from "@/lib/schemaFields";
 import { createSdkClient } from "@/lib/sdk";
-import { fieldTypeMap, coerceDataJsonValue } from "@/lib/schemaFields";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
 
 // Handle form submission (server-side)
-if (Astro.request.method === 'POST' && id && authToken) {
+if (Astro.request.method === "POST" && id && authToken) {
   try {
     const formData = await Astro.request.formData();
 
@@ -24,9 +24,13 @@ if (Astro.request.method === 'POST' && id && authToken) {
     let collIdx = 0;
     while (formData.has(`collection_attachments[${collIdx}].collection_id`)) {
       let collMeta = null;
-      const collMetaStr = (formData.get(`collection_attachments[${collIdx}].metadata`) as string) || '';
+      const collMetaStr = (formData.get(`collection_attachments[${collIdx}].metadata`) as string) || "";
       if (collMetaStr.trim()) {
-        try { collMeta = JSON.parse(collMetaStr); } catch { /* ignore invalid JSON */ }
+        try {
+          collMeta = JSON.parse(collMetaStr);
+        } catch {
+          /* ignore invalid JSON */
+        }
       }
       collectionAttachments.push({
         collection_id: formData.get(`collection_attachments[${collIdx}].collection_id`) as string,
@@ -41,9 +45,13 @@ if (Astro.request.method === 'POST' && id && authToken) {
     let assetIdx = 0;
     while (formData.has(`asset_attachments[${assetIdx}].asset_id`)) {
       let assetMeta = null;
-      const assetMetaStr = (formData.get(`asset_attachments[${assetIdx}].metadata`) as string) || '';
+      const assetMetaStr = (formData.get(`asset_attachments[${assetIdx}].metadata`) as string) || "";
       if (assetMetaStr.trim()) {
-        try { assetMeta = JSON.parse(assetMetaStr); } catch { /* ignore invalid JSON */ }
+        try {
+          assetMeta = JSON.parse(assetMetaStr);
+        } catch {
+          /* ignore invalid JSON */
+        }
       }
       assetAttachments.push({
         asset_id: formData.get(`asset_attachments[${assetIdx}].asset_id`) as string,
@@ -59,9 +67,13 @@ if (Astro.request.method === 'POST' && id && authToken) {
     let resIdx = 0;
     while (formData.has(`resource_attachments[${resIdx}].resource_id`)) {
       let resMeta = null;
-      const resMetaStr = (formData.get(`resource_attachments[${resIdx}].metadata`) as string) || '';
+      const resMetaStr = (formData.get(`resource_attachments[${resIdx}].metadata`) as string) || "";
       if (resMetaStr.trim()) {
-        try { resMeta = JSON.parse(resMetaStr); } catch { /* ignore invalid JSON */ }
+        try {
+          resMeta = JSON.parse(resMetaStr);
+        } catch {
+          /* ignore invalid JSON */
+        }
       }
       resourceAttachments.push({
         resource_id: formData.get(`resource_attachments[${resIdx}].resource_id`) as string,
@@ -75,32 +87,32 @@ if (Astro.request.method === 'POST' && id && authToken) {
     // Parse dataJson from schema fields (dataJson.fieldKey format). FormData is all strings, so
     // coerce each value to its declared schema type — a `number` field like "order" must be sent
     // as a real number or the content validator rejects it and the value silently never saves.
-    const entryTypeId = formData.get('entry_type_id') as string | null;
+    const entryTypeId = formData.get("entry_type_id") as string | null;
     let fieldTypes: Record<string, string> = {};
     if (entryTypeId) {
       try {
-        const type = (await listEntryTypes(authToken)).find(t => t.id === entryTypeId);
+        const type = (await listEntryTypes(authToken)).find((t) => t.id === entryTypeId);
         fieldTypes = fieldTypeMap(type?.schemaJson);
       } catch (e) {
-        console.error('[Entry] Could not load schema for field coercion:', e);
+        console.error("[Entry] Could not load schema for field coercion:", e);
       }
     }
     const dataJson: Record<string, any> = {};
     for (const [key, value] of formData.entries()) {
-      if (key.startsWith('dataJson.')) {
-        const fieldKey = key.replace('dataJson.', '');
+      if (key.startsWith("dataJson.")) {
+        const fieldKey = key.replace("dataJson.", "");
         dataJson[fieldKey] = coerceDataJsonValue(fieldTypes[fieldKey], value as string);
       }
     }
 
     // Parse metadata JSON
-    const metadataJsonStr = formData.get('metadata_json') as string | null;
+    const metadataJsonStr = formData.get("metadata_json") as string | null;
     let metadataJson = null;
     if (metadataJsonStr?.trim()) {
       try {
         metadataJson = JSON.parse(metadataJsonStr);
       } catch (error) {
-        console.error('[Entry] Invalid metadata JSON:', error);
+        console.error("[Entry] Invalid metadata JSON:", error);
         // Let it pass as null
       }
     }
@@ -110,30 +122,37 @@ if (Astro.request.method === 'POST' && id && authToken) {
     // so it resolves both brand-new names and typos-of-existing to the right id. Field always
     // present (hidden input), so an empty array clears the entry's tags.
     let tagIds: string[] | undefined;
-    const tagsPayloadStr = formData.get('tags_payload') as string | null;
+    const tagsPayloadStr = formData.get("tags_payload") as string | null;
     if (tagsPayloadStr !== null) {
       tagIds = [];
       const seen = new Set<string>();
       let chips: Array<{ name?: string; id?: string }> = [];
-      try { chips = JSON.parse(tagsPayloadStr || '[]'); } catch { chips = []; }
+      try {
+        chips = JSON.parse(tagsPayloadStr || "[]");
+      } catch {
+        chips = [];
+      }
       for (const chip of chips) {
         let tagId = chip.id;
         if (!tagId && chip.name?.trim()) {
           const tag = await createTag({ name: chip.name.trim() }, authToken);
           tagId = tag.id;
         }
-        if (tagId && !seen.has(tagId)) { seen.add(tagId); tagIds.push(tagId); }
+        if (tagId && !seen.has(tagId)) {
+          seen.add(tagId);
+          tagIds.push(tagId);
+        }
       }
     }
 
     const updateData: Record<string, any> = {
-      entry_type_id: formData.get('entry_type_id') as string,
-      title: formData.get('title') as string,
-      slug: (formData.get('slug') as string) || null,
-      summary: (formData.get('summary') as string) || null,
-      description: (formData.get('description') as string) || null,
+      entry_type_id: formData.get("entry_type_id") as string,
+      title: formData.get("title") as string,
+      slug: (formData.get("slug") as string) || null,
+      summary: (formData.get("summary") as string) || null,
+      description: (formData.get("description") as string) || null,
       data_json: Object.keys(dataJson).length > 0 ? dataJson : null,
-      status: formData.get('status') as string,
+      status: formData.get("status") as string,
       metadata_json: metadataJson,
       collection_attachments: collectionAttachments,
       asset_attachments: assetAttachments,
@@ -142,9 +161,9 @@ if (Astro.request.method === 'POST' && id && authToken) {
     if (tagIds !== undefined) updateData.tag_ids = tagIds;
 
     await updateEntry(id, updateData, authToken);
-    return Astro.redirect('/workspace/entries');
+    return Astro.redirect("/workspace/entries");
   } catch (e) {
-    console.error('[Entry] Failed to update entry:', e);
+    console.error("[Entry] Failed to update entry:", e);
     // Error will be shown below
   }
 }
@@ -173,13 +192,15 @@ if (!id) {
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Entry] Failed to load:', error);
+    console.error("[Entry] Failed to load:", error);
   }
 }
 
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
-const attachedCollections = (entry?.collections || []).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+const attachedCollections = (entry?.collections || []).sort(
+  (a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+);
 const attachedCollectionIds = new Set(attachedCollections.map((c: any) => c.id));
 const attachedAssets = (entry?.assets || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
 const attachedResources = (entry?.resources || []).sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
@@ -199,7 +220,7 @@ const attachedTags = ((entry?.tags as string[] | undefined) || [])
   .filter(Boolean) as TagRead[];
 
 // Get entry type schema for schema-driven form
-const entryType = entry ? entryTypes.find(t => t.id === entry.entryTypeId) : null;
+const entryType = entry ? entryTypes.find((t) => t.id === entry.entryTypeId) : null;
 const hasSchema = entryType?.schemaJson && (entryType.schemaJson as any).fields?.length > 0;
 
 // AI assist gating: workspace AI enabled + editor invocation source + auth (fail closed).
@@ -219,21 +240,21 @@ if (entry && authToken) {
 const suggestion = (entry as any)?.suggestionJson as Record<string, any> | null | undefined;
 function suggestionCurrent(target: string): any {
   if (!entry) return undefined;
-  if (target.startsWith('data_json.')) return (entry as any).dataJson?.[target.slice('data_json.'.length)];
-  if (target.startsWith('metadata_json.')) return (entry as any).metadataJson?.[target.slice('metadata_json.'.length)];
+  if (target.startsWith("data_json.")) return (entry as any).dataJson?.[target.slice("data_json.".length)];
+  if (target.startsWith("metadata_json.")) return (entry as any).metadataJson?.[target.slice("metadata_json.".length)];
   return (entry as any)[target];
 }
 function suggestionFormat(v: any): string {
-  if (v == null || v === '') return '—';
-  if (Array.isArray(v)) return v.join(', ');
-  if (typeof v === 'object') return JSON.stringify(v);
+  if (v == null || v === "") return "—";
+  if (Array.isArray(v)) return v.join(", ");
+  if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
 const suggestionFields = suggestion
   ? Object.keys(suggestion)
-      .filter((k) => k !== '_meta')
+      .filter((k) => k !== "_meta")
       .map((target) => ({
-        label: target.replace(/^data_json\./, '').replace(/^metadata_json\./, ''),
+        label: target.replace(/^data_json\./, "").replace(/^metadata_json\./, ""),
         current: suggestionFormat(suggestionCurrent(target)),
         proposed: suggestionFormat(suggestion[target]),
       }))

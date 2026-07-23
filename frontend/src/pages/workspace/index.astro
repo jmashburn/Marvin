@@ -13,26 +13,32 @@ let error: string | null = null;
 try {
   [workspace, stats, dashboard] = await Promise.all([
     getCurrentWorkspace(authToken),
-    fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch((e) => { console.error('stats failed:', e); return null; }),
-    fetchApi<any>('/api/platform/stats/dashboard', { method: 'GET' }, authToken).catch((e) => { console.error('dashboard failed:', e); return null; }),
+    fetchApi<any>("/api/platform/stats", { method: "GET" }, authToken).catch((e) => {
+      console.error("stats failed:", e);
+      return null;
+    }),
+    fetchApi<any>("/api/platform/stats/dashboard", { method: "GET" }, authToken).catch((e) => {
+      console.error("dashboard failed:", e);
+      return null;
+    }),
   ]);
 } catch (e) {
-  console.error('[workspace] Error:', e);
+  console.error("[workspace] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 // Same tab set as /workspace/settings — this dashboard is the "Overview" landing, and the
 // banner navigates into each settings section (kept in sync with settings/index.astro).
 const settingsTabs = [
-  { id: 'general', label: 'General', icon: '⚙' },
-  { id: 'members', label: 'Members', icon: '👥' },
-  { id: 'entry-types', label: 'Content Model', icon: '◈' },
-  { id: 'email', label: 'Email', icon: '📧' },
-  { id: 'publishing', label: 'Publishing', icon: '🌐' },
-  { id: 'automation', label: 'Automation', icon: '⚡' },
-  { id: 'ai', label: 'AI', icon: '✨' },
-  { id: 'integrations', label: 'Integrations', icon: '🔌' },
-  { id: 'statistics', label: 'Statistics', icon: '📊' },
+  { id: "general", label: "General", icon: "⚙" },
+  { id: "members", label: "Members", icon: "👥" },
+  { id: "entry-types", label: "Content Model", icon: "◈" },
+  { id: "email", label: "Email", icon: "📧" },
+  { id: "publishing", label: "Publishing", icon: "🌐" },
+  { id: "automation", label: "Automation", icon: "⚡" },
+  { id: "ai", label: "AI", icon: "✨" },
+  { id: "integrations", label: "Integrations", icon: "🔌" },
+  { id: "statistics", label: "Statistics", icon: "📊" },
 ];
 
 const recentActivity: any[] = dashboard?.recentActivity ?? dashboard?.recent_activity ?? [];
@@ -44,11 +50,11 @@ const attentionTotal = drafts + aiSuggestions + failures;
 
 /** Compact "3m ago" / "2h ago" / "5d ago" from an ISO timestamp. */
 function relTime(iso?: string | null): string {
-  if (!iso) return '';
+  if (!iso) return "";
   const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
+  if (Number.isNaN(then)) return "";
   const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
-  if (secs < 60) return 'just now';
+  if (secs < 60) return "just now";
   const mins = Math.floor(secs / 60);
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);

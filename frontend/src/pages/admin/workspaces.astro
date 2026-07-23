@@ -1,7 +1,7 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { requireAdmin } from "@/lib/auth";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const currentUser = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
@@ -10,10 +10,10 @@ let groups: any[] = [];
 let error: string | null = null;
 
 try {
-  const response = await fetchApi<any>('/api/admin/groups', {}, authToken);
+  const response = await fetchApi<any>("/api/admin/groups", {}, authToken);
   groups = response.items || [];
 } catch (e) {
-  console.error('[platform/workspaces] Error loading:', e);
+  console.error("[platform/workspaces] Error loading:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 ---

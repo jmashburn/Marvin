@@ -1,12 +1,12 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
 
-const filter = Astro.url.searchParams.get('filter') || 'all';
+const filter = Astro.url.searchParams.get("filter") || "all";
 
 let logs: any[] = [];
 let tasks: any[] = [];
@@ -20,27 +20,27 @@ try {
   logs = Array.isArray(logsResult) ? logsResult : ((logsResult as any)?.items ?? []);
   tasks = Array.isArray(tasksResult) ? tasksResult : ((tasksResult as any)?.items ?? []);
 } catch (e) {
-  console.error('[workspace/scheduled-tasks/log] Error:', e);
+  console.error("[workspace/scheduled-tasks/log] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 const taskMap = new Map(tasks.map((t: any) => [t.id, t]));
-const filteredLogs = filter === 'all' ? logs : logs.filter((l: any) => l.status === filter);
+const filteredLogs = filter === "all" ? logs : logs.filter((l: any) => l.status === filter);
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
+  if (!isoStr) return "—";
   // Truncate microseconds to milliseconds for JS Date compatibility
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 function statusClass(status: string): string {
-  if (status === 'success') return 'success';
-  if (status === 'failed') return 'failed';
-  if (status === 'timeout') return 'timeout';
-  if (status === 'cancelled') return 'cancelled';
-  return 'none';
+  if (status === "success") return "success";
+  if (status === "failed") return "failed";
+  if (status === "timeout") return "timeout";
+  if (status === "cancelled") return "cancelled";
+  return "none";
 }
 ---
 

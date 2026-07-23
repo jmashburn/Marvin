@@ -1,9 +1,9 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { listEmailTemplates } from "@/lib/api/emailTemplates";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
 const authToken = getAuthToken(Astro.cookies);
 
@@ -17,24 +17,29 @@ let allSubscriptions: any[] = [];
 try {
   workspace = await getCurrentWorkspace(authToken);
   const wsId = (workspace as any)?.id ?? (workspace as any)?.groupId;
-  const base = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
-  const hdrs = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+  const base = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
+  const hdrs = authToken ? { Authorization: `Bearer ${authToken}` } : {};
   if (wsId) {
     [emailTemplates, eventConnections, allSubscriptions] = await Promise.all([
       listEmailTemplates(wsId, authToken),
-      fetch(`${base}/api/platform/workspaces/${wsId}/email-templates/event-connections`, { headers: hdrs, credentials: 'include' })
-        .then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch(`${base}/api/groups/email-event-subscriptions`, { headers: hdrs, credentials: 'include' })
-        .then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(`${base}/api/platform/workspaces/${wsId}/email-templates/event-connections`, {
+        headers: hdrs,
+        credentials: "include",
+      })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []),
+      fetch(`${base}/api/groups/email-event-subscriptions`, { headers: hdrs, credentials: "include" })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []),
     ]);
   }
 } catch (e) {
-  console.error('[email-settings] Error:', e);
+  console.error("[email-settings] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 const groupId = (workspace as any)?.id ?? (workspace as any)?.groupId;
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
 
 // Build template_id → [event_type, ...] and (template_id|event_type) → subscription_id
 const eventsByTemplateId: Record<string, string[]> = {};
@@ -50,8 +55,7 @@ function _addEvent(id: string, et: string, subId?: string) {
 for (const conn of eventConnections) {
   if (conn.workspace_template?.id && conn.subscription_id)
     _addEvent(conn.workspace_template.id, conn.event_type, conn.subscription_id);
-  else if (conn.system_template?.id)
-    _addEvent(conn.system_template.id, conn.event_type);
+  else if (conn.system_template?.id) _addEvent(conn.system_template.id, conn.event_type);
 }
 for (const sub of allSubscriptions) {
   const tid = sub.template_id ?? sub.templateId;
@@ -69,7 +73,7 @@ const SYSTEM_EVENT_MAP: Record<string, string> = {
 // Group templates by type to compute effective state
 const templatesByType: Record<string, any[]> = {};
 for (const t of emailTemplates) {
-  const type = (t as any).templateType ?? (t as any).template_type ?? 'custom';
+  const type = (t as any).templateType ?? (t as any).template_type ?? "custom";
   if (!templatesByType[type]) templatesByType[type] = [];
   templatesByType[type].push(t);
 }
@@ -80,7 +84,7 @@ function isSuperseded(template: any): boolean {
   if (!isSystem) return false;
   const type = (template as any).templateType ?? (template as any).template_type;
   const siblings = templatesByType[type] || [];
-  return siblings.some(t => {
+  return siblings.some((t) => {
     const tIsWorkspace = !!((t as any).groupId ?? (t as any).group_id);
     return tIsWorkspace && t.enabled;
   });

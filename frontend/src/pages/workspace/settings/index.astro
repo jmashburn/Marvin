@@ -1,16 +1,15 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { fetchApi, getAuthToken, ApiRequestError } from "@/lib/api/client";
-import { createSdkClient } from '@/lib/sdk';
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
-import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import { ApiRequestError, fetchApi, getAuthToken } from "@/lib/api/client";
 import { listEntries } from "@/lib/api/entries";
-import { getAssets } from "@/lib/api/platform";
-import { getSiteClients } from "@/lib/api/platform";
+import { getAssets, getSiteClients } from "@/lib/api/platform";
+import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
-const currentTab = Astro.url.searchParams.get('tab') || 'general';
+const currentTab = Astro.url.searchParams.get("tab") || "general";
 
 let workspace: any = null;
 let appriseReady = false;
@@ -18,16 +17,16 @@ let appriseReady = false;
 try {
   workspace = await getCurrentWorkspace(authToken);
 } catch (e) {
-  console.error('[workspace/settings] Error loading workspace:', e);
+  console.error("[workspace/settings] Error loading workspace:", e);
   // Continue anyway - workspace name is optional for this page
 }
 
 // Check if Apprise is available
 try {
-  const configCheck = await sdk.adminSystem.check() as any;
+  const configCheck = (await sdk.adminSystem.check()) as any;
   appriseReady = (configCheck as any)?.appriseReady ?? configCheck?.apprise_ready ?? false;
 } catch (e) {
-  console.error('[workspace/settings] Error checking Apprise availability:', e);
+  console.error("[workspace/settings] Error checking Apprise availability:", e);
   // Default to false if check fails
 }
 
@@ -35,28 +34,28 @@ try {
 // integration package is installed. Probe the providers endpoint — a 404 means the section is not
 // installed, so we show an informational banner instead of the "Manage Integrations" link.
 let integrationsAvailable = true;
-if (currentTab === 'integrations') {
+if (currentTab === "integrations") {
   try {
-    await fetchApi('/api/groups/integrations/providers', { method: 'GET' }, authToken);
+    await fetchApi("/api/groups/integrations/providers", { method: "GET" }, authToken);
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 404) {
       integrationsAvailable = false;
     } else {
-      console.error('[workspace/settings] Error probing integrations availability:', e);
+      console.error("[workspace/settings] Error probing integrations availability:", e);
     }
   }
 }
 
 // Fetch workspace-scoped statistics for the statistics tab
 let stats: any = null;
-if (currentTab === 'statistics' && workspace?.id) {
+if (currentTab === "statistics" && workspace?.id) {
   try {
     const [members, entries, assets, apiClients, platformStats] = await Promise.all([
       listWorkspaceMembers(workspace.id, authToken),
       listEntries(authToken),
       getAssets(authToken),
       getSiteClients(authToken),
-      fetchApi<any>('/api/platform/stats', { method: 'GET' }, authToken).catch(() => null),
+      fetchApi<any>("/api/platform/stats", { method: "GET" }, authToken).catch(() => null),
     ]);
 
     stats = {
@@ -72,20 +71,20 @@ if (currentTab === 'statistics' && workspace?.id) {
       ai_cost_usd: platformStats?.aiCostUsd ?? platformStats?.ai_cost_usd ?? 0,
     };
   } catch (e) {
-    console.error('[workspace/settings] Error loading statistics:', e);
+    console.error("[workspace/settings] Error loading statistics:", e);
   }
 }
 
 const tabs = [
-  { id: 'general', label: 'General', icon: '⚙' },
-  { id: 'members', label: 'Members', icon: '👥' },
-  { id: 'entry-types', label: 'Content Model', icon: '◈' },
-  { id: 'email', label: 'Email', icon: '📧' },
-  { id: 'publishing', label: 'Publishing', icon: '🌐' },
-  { id: 'automation', label: 'Automation', icon: '⚡' },
-  { id: 'ai', label: 'AI', icon: '✨' },
-  { id: 'integrations', label: 'Integrations', icon: '🔌' },
-  { id: 'statistics', label: 'Statistics', icon: '📊' },
+  { id: "general", label: "General", icon: "⚙" },
+  { id: "members", label: "Members", icon: "👥" },
+  { id: "entry-types", label: "Content Model", icon: "◈" },
+  { id: "email", label: "Email", icon: "📧" },
+  { id: "publishing", label: "Publishing", icon: "🌐" },
+  { id: "automation", label: "Automation", icon: "⚡" },
+  { id: "ai", label: "AI", icon: "✨" },
+  { id: "integrations", label: "Integrations", icon: "🔌" },
+  { id: "statistics", label: "Statistics", icon: "📊" },
 ];
 ---
 

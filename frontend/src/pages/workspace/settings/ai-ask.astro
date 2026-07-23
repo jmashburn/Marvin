@@ -16,7 +16,7 @@ if (authed) {
     aiEnabled = (settings as any)?.enabled !== false;
   } catch (e) {
     settingsError = e instanceof Error ? e.message : String(e);
-    console.error('[ai-ask] Error loading AI settings:', e);
+    console.error("[ai-ask] Error loading AI settings:", e);
   }
 }
 ---

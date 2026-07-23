@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -11,36 +11,33 @@ let secrets: any[] = [];
 let error: string | null = null;
 
 try {
-  [variables, secrets] = await Promise.all([
-    sdk.variables.list(),
-    sdk.secrets.list(),
-  ]);
+  [variables, secrets] = await Promise.all([sdk.variables.list(), sdk.secrets.list()]);
 } catch (e) {
-  console.error('[environment] Error loading:', e);
+  console.error("[environment] Error loading:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
-const tab = Astro.url.searchParams.get('tab') || 'variables';
+const tab = Astro.url.searchParams.get("tab") || "variables";
 
 function fmtRelative(isoStr: string | null | undefined): string {
-  if (!isoStr) return '';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  if (isNaN(d.getTime())) return '';
+  if (Number.isNaN(d.getTime())) return "";
   const diffMs = Date.now() - d.getTime();
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1)  return 'Just now';
-  if (mins < 60) return mins === 1 ? '1 minute ago' : `${mins} minutes ago`;
+  if (mins < 1) return "Just now";
+  if (mins < 60) return mins === 1 ? "1 minute ago" : `${mins} minutes ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24)  return hrs === 1 ? '1 hour ago' : `${hrs} hours ago`;
+  if (hrs < 24) return hrs === 1 ? "1 hour ago" : `${hrs} hours ago`;
   const days = Math.floor(hrs / 24);
-  if (days < 7)  return days === 1 ? 'Yesterday' : `${days} days ago`;
+  if (days < 7) return days === 1 ? "Yesterday" : `${days} days ago`;
   const weeks = Math.floor(days / 7);
-  if (weeks < 5) return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+  if (weeks < 5) return weeks === 1 ? "1 week ago" : `${weeks} weeks ago`;
   const months = Math.floor(days / 30);
-  if (months < 12) return months === 1 ? '1 month ago' : `${months} months ago`;
+  if (months < 12) return months === 1 ? "1 month ago" : `${months} months ago`;
   const years = Math.floor(days / 365);
-  return years === 1 ? '1 year ago' : `${years} years ago`;
+  return years === 1 ? "1 year ago" : `${years} years ago`;
 }
 ---
 

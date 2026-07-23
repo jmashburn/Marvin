@@ -1,14 +1,14 @@
 ---
-import { register } from '@/lib/api/auth';
-import type { UserRegistration } from '@/lib/api/auth';
+import type { UserRegistration } from "@/lib/api/auth";
+import { register } from "@/lib/api/auth";
 
 // Get token from query params (supports both ?token= and ?invite=)
-const token = Astro.url.searchParams.get('token') || Astro.url.searchParams.get('invite');
+const token = Astro.url.searchParams.get("token") || Astro.url.searchParams.get("invite");
 
 // Check if user is already logged in
-const existingAuth = Astro.cookies.get('marvin_session');
+const existingAuth = Astro.cookies.get("marvin_session");
 if (existingAuth) {
-  return Astro.redirect('/workspace');
+  return Astro.redirect("/workspace");
 }
 
 let registrationError: string | null = null;
@@ -16,24 +16,24 @@ let registeredUsername: string | null = null;
 let registeredPassword: string | null = null;
 
 // Handle form submission (server-side)
-if (Astro.request.method === 'POST') {
+if (Astro.request.method === "POST") {
   try {
     const formData = await Astro.request.formData();
 
     // Validate passwords match
-    const password = formData.get('password') as string;
-    const passwordConfirm = formData.get('password_confirm') as string;
+    const password = formData.get("password") as string;
+    const passwordConfirm = formData.get("password_confirm") as string;
 
     if (password !== passwordConfirm) {
-      registrationError = 'Passwords do not match';
+      registrationError = "Passwords do not match";
     } else {
       const data: UserRegistration = {
-        full_name: formData.get('full_name') as string,
-        email: formData.get('email') as string,
-        username: formData.get('username') as string,
+        full_name: formData.get("full_name") as string,
+        email: formData.get("email") as string,
+        username: formData.get("username") as string,
         password,
         password_confirm: passwordConfirm,
-        group_token: (formData.get('group_token') as string) || null,
+        group_token: (formData.get("group_token") as string) || null,
         group: null,
         advanced: false,
         private: false,
@@ -46,8 +46,8 @@ if (Astro.request.method === 'POST') {
       registeredPassword = password;
     }
   } catch (e) {
-    registrationError = e instanceof Error ? e.message : 'Registration failed';
-    console.error('[Register] Failed:', registrationError);
+    registrationError = e instanceof Error ? e.message : "Registration failed";
+    console.error("[Register] Failed:", registrationError);
   }
 }
 ---

@@ -1,8 +1,8 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
 import { requireAdmin } from "@/lib/auth";
-import { createSdkClient } from '@/lib/sdk';
-import { getAuthToken } from '@/lib/api/client';
+import { createSdkClient } from "@/lib/sdk";
 
 // Require admin authentication
 const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
@@ -13,7 +13,7 @@ let stats: any = null;
 try {
   stats = await sdk.adminMaintenance.getStats();
 } catch (e) {
-  console.error('[admin/maintenance] Failed to fetch stats:', e);
+  console.error("[admin/maintenance] Failed to fetch stats:", e);
 }
 ---
 

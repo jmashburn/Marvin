@@ -1,7 +1,7 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
 import TagList from "@/components/TagList.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { listResources, type ResourceRead } from "@/lib/api/resources";
 
@@ -11,13 +11,13 @@ let resources: ResourceRead[] = [];
 let error: string | null = null;
 
 if (!authToken) {
-  error = 'Authentication required';
+  error = "Authentication required";
 } else {
   try {
     resources = await listResources(authToken);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Resources] Failed to load:', error);
+    console.error("[Resources] Failed to load:", error);
   }
 }
 

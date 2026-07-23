@@ -1,9 +1,9 @@
 ---
-import AdminLayout from "@/layouts/AdminLayout.astro";
+import type { PlatformWorkspaceMember, Workspace } from "@inneropen/marvin-sdk/platform";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import AdminLayout from "@/layouts/AdminLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
-import type { Workspace, PlatformWorkspaceMember } from "@inneropen/marvin-sdk/platform";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
@@ -27,7 +27,7 @@ if (!id) {
     members = await sdk.workspaceMembers.list(id);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[admin/groups] Failed to load:', error);
+    console.error("[admin/groups] Failed to load:", error);
   }
 }
 ---

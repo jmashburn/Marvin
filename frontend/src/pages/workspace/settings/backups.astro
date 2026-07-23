@@ -1,11 +1,11 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { requireAuth } from "@/lib/auth";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
-import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import type { WorkspaceRole } from "@/lib/api/types";
+import { listWorkspaceMembers } from "@/lib/api/workspaceMembers";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { requireAuth } from "@/lib/auth";
 
 const currentUser = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
@@ -20,38 +20,41 @@ try {
 
   if (workspace) {
     const members = await listWorkspaceMembers(workspace.id, authToken);
-    const membership = members.find(m => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id);
+    const membership = members.find(
+      (m) => (m as any).userId === currentUser.id || (m as any).user_id === currentUser.id,
+    );
     currentUserRole = (membership as any)?.workspaceRole || (membership as any)?.workspace_role || null;
     isPlatformAdmin = currentUser.admin === true;
-    if (!currentUserRole && isPlatformAdmin) currentUserRole = 'ADMIN' as WorkspaceRole;
+    if (!currentUserRole && isPlatformAdmin) currentUserRole = "ADMIN" as WorkspaceRole;
 
     try {
       const backupList = await fetchApi<{ filename: string; size: number; created_at: string }[]>(
-        '/api/platform/workspace/backups',
+        "/api/platform/workspace/backups",
         {},
         authToken,
       );
       initialBackups = Array.isArray(backupList) ? backupList : [];
     } catch (e) {
-      console.error('[backups] Failed to load backup list:', e);
+      console.error("[backups] Failed to load backup list:", e);
     }
   }
 } catch (e) {
-  console.error('[backups] Error loading:', e);
+  console.error("[backups] Error loading:", e);
 }
 
-const canImport = isPlatformAdmin || currentUserRole === 'OWNER';
-const workspaceName = (workspace as any)?.name ?? 'this workspace';
+const canImport = isPlatformAdmin || currentUserRole === "OWNER";
+const workspaceName = (workspace as any)?.name ?? "this workspace";
 
 function fmtSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+  if (bytes === 0) return "0 B";
+  const k = 1024,
+    sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+  return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`;
 }
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 ---
 

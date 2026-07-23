@@ -8,12 +8,13 @@
  * shows up in /help. Future skills — publish, rebuild, test, review — dispatch to their
  * existing endpoints the same way.
  */
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-import { listAgentTools } from '@/lib/api/aiTools';
-import { sendChat, askWorkspace, runAgent } from '@/lib/api/aiBubble';
-import { getActiveContext } from '@/lib/marvin/context';
-import { getHistory } from '@/lib/marvin/history';
+
+import DOMPurify from "dompurify";
+import { marked } from "marked";
+import { askWorkspace, runAgent, sendChat } from "@/lib/api/aiBubble";
+import { listAgentTools } from "@/lib/api/aiTools";
+import { getActiveContext } from "@/lib/marvin/context";
+import { getHistory } from "@/lib/marvin/history";
 
 export interface MarvinResult {
   /** Safe HTML for Marvin's reply. Escape ALL dynamic content with esc(). */
@@ -41,7 +42,7 @@ export interface Capability {
   run(arg: string): Promise<MarvinResult>;
 }
 
-export type MarvinRegister = 'auto' | 'professional' | 'playful';
+export type MarvinRegister = "auto" | "professional" | "playful";
 
 /**
  * Tone register for the NEXT agent run, set by whoever triggered it (e.g. the entry editor's
@@ -62,12 +63,12 @@ function takeRegister(): MarvinRegister | undefined {
 
 /** Escape untrusted text before putting it in innerHTML (attributes, inline chips, etc.). */
 export function esc(s: unknown): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
@@ -76,13 +77,13 @@ export function esc(s: unknown): string {
  * DOMPurify after marked — never inject raw model HTML.
  */
 export function renderMarkdown(text: unknown): string {
-  const raw = marked.parse(String(text ?? ''), { async: false }) as string;
+  const raw = marked.parse(String(text ?? ""), { async: false }) as string;
   return DOMPurify.sanitize(raw);
 }
 
 function entityHref(type: string, id: string): string | null {
-  if (type === 'entry') return `/workspace/entries/${id}`;
-  if (type === 'resource') return `/workspace/resources/${id}`;
+  if (type === "entry") return `/workspace/entries/${id}`;
+  if (type === "resource") return `/workspace/resources/${id}`;
   return null;
 }
 
@@ -102,14 +103,14 @@ function collectThumbs(steps: any[]): Thumb[] {
   const out: Thumb[] = [];
   const seen = new Set<string>();
   const add = (a: any, entryId?: string, title?: string) => {
-    if (!a || a.assetType !== 'image' || !a.url || seen.has(a.id)) return;
+    if (a?.assetType !== "image" || !a.url || seen.has(a.id)) return;
     seen.add(a.id);
-    out.push({ url: a.url, alt: a.altText || a.filename || title || '', entryId, title });
+    out.push({ url: a.url, alt: a.altText || a.filename || title || "", entryId, title });
   };
   for (const s of steps) {
     let r: any;
     try {
-      r = typeof s.result === 'string' ? JSON.parse(s.result) : s.result;
+      r = typeof s.result === "string" ? JSON.parse(s.result) : s.result;
     } catch {
       continue;
     }
@@ -122,7 +123,7 @@ function collectThumbs(steps: any[]): Thumb[] {
       // search_content: entry hits carry DB-hydrated image refs; link to the entity.
       for (const hit of r.results)
         if (Array.isArray(hit.assets))
-          for (const a of hit.assets) add(a, hit.entityType === 'entry' ? hit.entityId : undefined, hit.title);
+          for (const a of hit.assets) add(a, hit.entityType === "entry" ? hit.entityId : undefined, hit.title);
     }
   }
   return out;
@@ -131,23 +132,23 @@ function collectThumbs(steps: any[]): Thumb[] {
 /** Render a thumbnail strip (each linked to its entry) from collected image assets. */
 function thumbsHtml(steps: any[], cap = 12): string {
   const thumbs = collectThumbs(steps);
-  if (!thumbs.length) return '';
+  if (!thumbs.length) return "";
   const items = thumbs.slice(0, cap).map((t) => {
-    const img = `<img src="${esc(t.url)}" alt="${esc(t.alt)}" title="${esc(t.title || '')}" loading="lazy" />`;
-    const href = t.entryId ? entityHref('entry', t.entryId) : null;
+    const img = `<img src="${esc(t.url)}" alt="${esc(t.alt)}" title="${esc(t.title || "")}" loading="lazy" />`;
+    const href = t.entryId ? entityHref("entry", t.entryId) : null;
     return href ? `<a class="mv-thumb" href="${esc(href)}">${img}</a>` : `<span class="mv-thumb">${img}</span>`;
   });
-  return `<div class="mv-thumbs">${items.join('')}</div>`;
+  return `<div class="mv-thumbs">${items.join("")}</div>`;
 }
 
 // ── Built-in skill: Agent (tool-calling loop) ────────────────────────────────
 // The default free-text handler. Give Marvin a goal; it decides which of its tools to use
 // (search, browse, list types, compose a draft), chaining as many as needed, then answers.
 const agent: Capability = {
-  id: 'agent',
-  label: 'Agent',
-  hint: 'Give Marvin a goal — it searches, browses, and drafts to get it done.',
-  commands: ['agent', 'do'],
+  id: "agent",
+  label: "Agent",
+  hint: "Give Marvin a goal — it searches, browses, and drafts to get it done.",
+  commands: ["agent", "do"],
   isDefault: true,
   async run(arg: string): Promise<MarvinResult> {
     let res: any;
@@ -167,7 +168,7 @@ const agent: Capability = {
       throw err; // let the bubble show its standard error
     }
 
-    const answer = res?.answer ?? '(no answer — the void stares back)';
+    const answer = res?.answer ?? "(no answer — the void stares back)";
     let html = `<div class="mv-answer">${renderMarkdown(answer)}</div>`;
 
     const steps: any[] = res?.steps ?? [];
@@ -178,22 +179,22 @@ const agent: Capability = {
     // Surface any drafts the agent composed as clickable links.
     const drafts: string[] = [];
     for (const s of steps) {
-      if (s.tool !== 'compose_entry') continue;
+      if (s.tool !== "compose_entry") continue;
       try {
-        const r = typeof s.result === 'string' ? JSON.parse(s.result) : s.result;
-        if (r?.editUrl) drafts.push(`<a href="${esc(r.editUrl)}">${esc(r.title || 'New draft')}</a>`);
+        const r = typeof s.result === "string" ? JSON.parse(s.result) : s.result;
+        if (r?.editUrl) drafts.push(`<a href="${esc(r.editUrl)}">${esc(r.title || "New draft")}</a>`);
       } catch {
         /* ignore unparseable tool result */
       }
     }
     if (drafts.length) {
-      html += `<div class="mv-sources"><span>Drafts:</span> ${drafts.join(' · ')}</div>`;
+      html += `<div class="mv-sources"><span>Drafts:</span> ${drafts.join(" · ")}</div>`;
     }
 
     // Show which tools were used, as a subtle trace of the agent's work.
     if (steps.length) {
       const tools = [...new Set(steps.map((s) => s.tool))];
-      html += `<div class="mv-sources"><span>Used:</span> ${tools.map((t) => `<code>${esc(t)}</code>`).join(' ')}</div>`;
+      html += `<div class="mv-sources"><span>Used:</span> ${tools.map((t) => `<code>${esc(t)}</code>`).join(" ")}</div>`;
     }
     // `text` (not html) is what gets replayed as memory next turn.
     return { html, text: String(answer) };
@@ -202,14 +203,14 @@ const agent: Capability = {
 
 // ── Built-in skill: Ask (RAG) ────────────────────────────────────────────────
 const ask: Capability = {
-  id: 'ask',
-  label: 'Ask',
-  hint: 'Quick answer from your workspace content, with sources (read-only, no tools).',
-  commands: ['ask'],
+  id: "ask",
+  label: "Ask",
+  hint: "Quick answer from your workspace content, with sources (read-only, no tools).",
+  commands: ["ask"],
   async run(arg: string): Promise<MarvinResult> {
     const exec: any = await askWorkspace(arg);
     const out = exec?.outputJson ?? exec?.output_json ?? {};
-    const answer = out.answer ?? '(no answer — the void stares back)';
+    const answer = out.answer ?? "(no answer — the void stares back)";
     const retrieved: any[] = out.retrieved_sources ?? [];
 
     let html = `<div class="mv-answer">${renderMarkdown(answer)}</div>`;
@@ -224,7 +225,7 @@ const ask: Capability = {
       links.push(href ? `<a href="${esc(href)}">${label}</a>` : label);
     }
     if (links.length) {
-      html += `<div class="mv-sources"><span>Sources:</span> ${links.join(' · ')}</div>`;
+      html += `<div class="mv-sources"><span>Sources:</span> ${links.join(" · ")}</div>`;
     }
     return { html };
   },
@@ -235,13 +236,13 @@ const ask: Capability = {
 // text-only ones (gemma, phi) that can't run the tool-calling agent. Not grounded in workspace
 // content — use /ask for that, /agent (default) to actually do things.
 const chat: Capability = {
-  id: 'chat',
-  label: 'Chat',
-  hint: 'Just talk to the model — no tools, no content lookup. Works on any model.',
-  commands: ['chat'],
+  id: "chat",
+  label: "Chat",
+  hint: "Just talk to the model — no tools, no content lookup. Works on any model.",
+  commands: ["chat"],
   async run(arg: string): Promise<MarvinResult> {
     const res = await sendChat(arg);
-    const reply = res?.reply ?? '(no reply — the silence is deafening)';
+    const reply = res?.reply ?? "(no reply — the silence is deafening)";
     return { html: `<div class="mv-answer">${renderMarkdown(reply)}</div>` };
   },
 };
@@ -251,10 +252,10 @@ const chat: Capability = {
 // built-in registry tools plus any allowlisted external MCP tools — so "did my server wire in?"
 // has an honest answer. You never call these directly; the agent picks from them.
 const tools: Capability = {
-  id: 'tools',
-  label: 'Tools',
+  id: "tools",
+  label: "Tools",
   hint: "See the tools I can reach right now (built-in + your external MCP servers).",
-  commands: ['tools'],
+  commands: ["tools"],
   noArg: true,
   async run(): Promise<MarvinResult> {
     const all = await listAgentTools();
@@ -263,17 +264,14 @@ const tools: Capability = {
     }
     // Group: built-ins first, then one group per external MCP server.
     const groups = new Map<string, typeof all>();
-    const label = (t: (typeof all)[number]) =>
-      t.source === 'external' ? (t.server || 'External MCP') : 'Built-in';
+    const label = (t: (typeof all)[number]) => (t.source === "external" ? t.server || "External MCP" : "Built-in");
     for (const t of all) {
       const k = label(t);
       (groups.get(k) ?? groups.set(k, []).get(k)!).push(t);
     }
     // Built-in group renders first; external servers follow in insertion order.
-    const ordered = [...groups.entries()].sort(([a], [b]) =>
-      a === 'Built-in' ? -1 : b === 'Built-in' ? 1 : 0,
-    );
-    const short = (d: string) => (d.length > 90 ? d.slice(0, 87).trimEnd() + '…' : d);
+    const ordered = [...groups.entries()].sort(([a], [b]) => (a === "Built-in" ? -1 : b === "Built-in" ? 1 : 0));
+    const short = (d: string) => (d.length > 90 ? `${d.slice(0, 87).trimEnd()}…` : d);
     const sections = ordered
       .map(([name, ts]) => {
         const rows = ts
@@ -281,10 +279,10 @@ const tools: Capability = {
             (t) =>
               `<li><code>${esc(t.name)}</code> <span title="${esc(t.description)}">${esc(short(t.description))}</span></li>`,
           )
-          .join('');
+          .join("");
         return `<div class="mv-tools-group"><span class="mv-tools-head">${esc(name)}</span><ul>${rows}</ul></div>`;
       })
-      .join('');
+      .join("");
     return {
       html: `<div class="mv-tools">Here's what I can reach right now — I pick from these when you give me a goal:${sections}</div>`,
     };
@@ -307,19 +305,19 @@ export function registerCapability(cap: Capability): void {
  */
 export function resolveCapability(input: string): { cap: Capability | null; arg: string; help?: boolean } {
   const trimmed = input.trim();
-  if (trimmed.startsWith('/')) {
+  if (trimmed.startsWith("/")) {
     const [cmd, ...rest] = trimmed.slice(1).split(/\s+/);
-    if (cmd === 'help' || cmd === '?') return { cap: null, arg: '', help: true };
+    if (cmd === "help" || cmd === "?") return { cap: null, arg: "", help: true };
     const cap = CAPABILITIES.find((c) => c.commands.includes(cmd.toLowerCase())) ?? null;
-    return { cap, arg: rest.join(' ') };
+    return { cap, arg: rest.join(" ") };
   }
   return { cap: CAPABILITIES.find((c) => c.isDefault) ?? null, arg: trimmed };
 }
 
 /** Rendered /help listing every registered skill. */
 export function helpHtml(): string {
-  const rows = CAPABILITIES.map(
-    (c) => `<li><code>/${esc(c.commands[0] ?? c.id)}</code> — ${esc(c.hint)}</li>`,
-  ).join('');
+  const rows = CAPABILITIES.map((c) => `<li><code>/${esc(c.commands[0] ?? c.id)}</code> — ${esc(c.hint)}</li>`).join(
+    "",
+  );
   return `<div class="mv-help">Brain the size of a planet, and here's what they let me do:<ul>${rows}</ul>Or just type a question and I'll do my best. It won't be enough.</div>`;
 }

@@ -15,10 +15,10 @@ try {
   [settings, secrets, sources] = await Promise.all([
     sdk.ai.settings.get(),
     sdk.secrets.list(),
-    sdk.ai.settings.sources().catch(() => []),  // catalog for the invocation-sources editor
+    sdk.ai.settings.sources().catch(() => []), // catalog for the invocation-sources editor
   ]);
 } catch (e) {
-  console.error('[ai-workflow] Error loading settings:', e);
+  console.error("[ai-workflow] Error loading settings:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
@@ -43,16 +43,18 @@ const s = {
 const invSrc = s.invocationSources ?? {};
 // Catalog-driven so every real source (incl. `automation`) renders and can't drift from the backend.
 // Fallback to the canonical key list if the catalog fetch failed.
-const sourceCatalog = sources.length ? sources : [
-  { key: "editor", label: "Entry editor", description: "Inline AI actions inside the entry editor." },
-  { key: "forms", label: "Forms", description: "AI on form submissions." },
-  { key: "actions", label: "Manual actions", description: "AI actions triggered by hand." },
-  { key: "mcp", label: "External MCP hosts", description: "External assistants calling in over MCP." },
-  { key: "scheduled", label: "Scheduled tasks", description: "AI run by scheduled tasks." },
-  { key: "agent", label: "Ask Marvin", description: "The Ask-Marvin assistant." },
-  { key: "automation", label: "Automations", description: "Workflows running an AI-operation step." },
-  { key: "api", label: "API", description: "Direct calls to the AI operation endpoints." },
-];
+const sourceCatalog = sources.length
+  ? sources
+  : [
+      { key: "editor", label: "Entry editor", description: "Inline AI actions inside the entry editor." },
+      { key: "forms", label: "Forms", description: "AI on form submissions." },
+      { key: "actions", label: "Manual actions", description: "AI actions triggered by hand." },
+      { key: "mcp", label: "External MCP hosts", description: "External assistants calling in over MCP." },
+      { key: "scheduled", label: "Scheduled tasks", description: "AI run by scheduled tasks." },
+      { key: "agent", label: "Ask Marvin", description: "The Ask-Marvin assistant." },
+      { key: "automation", label: "Automations", description: "Workflows running an AI-operation step." },
+      { key: "api", label: "API", description: "Direct calls to the AI operation endpoints." },
+    ];
 
 const budgetCfg = s.budgetConfig ?? {};
 const logCfg = s.loggingConfig ?? {};

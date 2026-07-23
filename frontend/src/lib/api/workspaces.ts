@@ -2,8 +2,13 @@
  * Workspace management API client (migrated to SDK)
  */
 
-import { createSdkClient } from '../sdk';
-import type { Workspace, WorkspaceWithMembership, WorkspaceCreate, WorkspaceUpdate } from '@inneropen/marvin-sdk/platform';
+import type {
+  Workspace,
+  WorkspaceCreate,
+  WorkspaceUpdate,
+  WorkspaceWithMembership,
+} from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
 /**
  * Get the user's currently active workspace

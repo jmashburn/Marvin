@@ -22,7 +22,7 @@ const RETRY_DELAY_MS = 1000;
  * Sleep for specified milliseconds
  */
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -41,7 +41,7 @@ function isRetryable(error: unknown): boolean {
  */
 export function getAuthToken(cookies?: { get: (name: string) => { value?: string } | undefined }): string | undefined {
   if (!cookies) return undefined;
-  const cookie = cookies.get('marvin.access_token');
+  const cookie = cookies.get("marvin.access_token");
   return cookie?.value;
 }
 
@@ -72,7 +72,7 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
   const fetchInit: RequestInit = {
     ...init,
     headers,
-    credentials: 'include', // Send cookies with cross-origin requests
+    credentials: "include", // Send cookies with cross-origin requests
   };
 
   let lastError: Error | null = null;
@@ -80,8 +80,8 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       if (DEV_MODE && attempt === 0) {
-        const context = typeof window === 'undefined' ? 'SSR' : 'Client';
-        console.log(`[${context}] ➡️  ${init.method || 'GET'} ${path}`);
+        const context = typeof window === "undefined" ? "SSR" : "Client";
+        console.log(`[${context}] ➡️  ${init.method || "GET"} ${path}`);
         if (authToken) {
           console.log(`[${context}]    Auth: ${authToken.substring(0, 20)}...`);
         }
@@ -92,39 +92,35 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
 
       if (DEV_MODE && attempt === 0) {
         const duration = Date.now() - startTime;
-        const context = typeof window === 'undefined' ? 'SSR' : 'Client';
-        const statusEmoji = response.ok ? '✅' : '❌';
-        console.log(`[${context}] ${statusEmoji} ${init.method || 'GET'} ${path} → ${response.status} (${duration}ms)`);
+        const context = typeof window === "undefined" ? "SSR" : "Client";
+        const statusEmoji = response.ok ? "✅" : "❌";
+        console.log(`[${context}] ${statusEmoji} ${init.method || "GET"} ${path} → ${response.status} (${duration}ms)`);
       }
 
       // Handle 401 Unauthorized - redirect to login
       if (response.status === 401) {
         if (DEV_MODE) {
-          console.warn('[API] 401 Unauthorized - user needs to login');
+          console.warn("[API] 401 Unauthorized - user needs to login");
         }
         // In SSR context we can't redirect, throw error instead
-        throw new ApiRequestError(
-          'Unauthorized - please log in',
-          response.status,
-          url.toString()
-        );
+        throw new ApiRequestError("Unauthorized - please log in", response.status, url.toString());
       }
 
       // Handle other errors
       if (!response.ok) {
-        let errorBody;
-        const contentType = response.headers.get('content-type');
+        let errorBody: any;
+        const contentType = response.headers.get("content-type");
 
         try {
           // Clone response to allow reading body multiple times if needed
-          const responseClone = response.clone();
+          const _responseClone = response.clone();
 
-          if (contentType?.includes('application/json')) {
+          if (contentType?.includes("application/json")) {
             errorBody = await response.json();
           } else {
             errorBody = await response.text();
           }
-        } catch (parseError) {
+        } catch (_parseError) {
           // If parsing fails, try to get text from the clone
           try {
             errorBody = await response.text();
@@ -136,26 +132,21 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
         // FastAPI error `detail` may be a string, or an array/object (e.g. 422 validation
         // errors). Never String() an object — that yields "[object Object]".
         let detailText: string | undefined;
-        if (typeof errorBody === 'object' && errorBody !== null && 'detail' in errorBody) {
+        if (typeof errorBody === "object" && errorBody !== null && "detail" in errorBody) {
           const d = (errorBody as { detail: unknown }).detail;
-          if (typeof d === 'string') {
+          if (typeof d === "string") {
             detailText = d;
           } else if (Array.isArray(d)) {
             detailText = d
-              .map((x) => (x && typeof x === 'object' ? ((x as any).msg ?? JSON.stringify(x)) : String(x)))
-              .join('; ');
+              .map((x) => (x && typeof x === "object" ? ((x as any).msg ?? JSON.stringify(x)) : String(x)))
+              .join("; ");
           } else if (d != null) {
             detailText = JSON.stringify(d);
           }
         }
         const errorMessage = detailText ?? `API request failed with ${response.status}`;
 
-        const error = new ApiRequestError(
-          errorMessage,
-          response.status,
-          url.toString(),
-          errorBody
-        );
+        const error = new ApiRequestError(errorMessage, response.status, url.toString(), errorBody);
 
         // Retry on 5xx errors
         if (attempt < MAX_RETRIES && error.status >= 500) {
@@ -169,9 +160,8 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
         throw error;
       }
 
-      const data = await response.json() as T;
+      const data = (await response.json()) as T;
       return data;
-
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
@@ -193,5 +183,5 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
     }
   }
 
-  throw lastError || new Error('Request failed after retries');
+  throw lastError || new Error("Request failed after retries");
 }

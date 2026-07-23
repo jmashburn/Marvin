@@ -17,11 +17,7 @@ interface Props {
   searchId?: string;
 }
 
-const {
-  searchPlaceholder = "Search...",
-  filters = [],
-  searchId = "filter-search"
-} = Astro.props;
+const { searchPlaceholder = "Search...", filters = [], searchId = "filter-search" } = Astro.props;
 ---
 
 <div class="filter-bar">

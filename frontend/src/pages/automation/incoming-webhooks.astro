@@ -1,9 +1,9 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { API_BASE_URL } from "@/lib/api/config";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);

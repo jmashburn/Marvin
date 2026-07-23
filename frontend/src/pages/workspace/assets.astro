@@ -1,9 +1,9 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
 import TagList from "@/components/TagList.astro";
-import { getAssets } from "@/lib/api/platform";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
+import { getAssets } from "@/lib/api/platform";
 
 const authToken = getAuthToken(Astro.cookies);
 
@@ -14,25 +14,25 @@ try {
   assets = await getAssets(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
-  console.error('[Assets] Failed to load:', error);
+  console.error("[Assets] Failed to load:", error);
 }
 
 // Categorize by MIME type
 function getMimeCategory(mimeType: string): string {
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (mimeType.includes('pdf')) return 'document';
-  return 'other';
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
+  if (mimeType.includes("pdf")) return "document";
+  return "other";
 }
 
 // Group assets by MIME category
 const categoryLabels: Record<string, string> = {
-  image: 'Images',
-  video: 'Videos',
-  audio: 'Audio',
-  document: 'Documents',
-  other: 'Other',
+  image: "Images",
+  video: "Videos",
+  audio: "Audio",
+  document: "Documents",
+  other: "Other",
 };
 const categoryGroups = new Map<string, { label: string; assets: any[] }>();
 for (const asset of assets) {
@@ -42,10 +42,10 @@ for (const asset of assets) {
   }
   categoryGroups.get(cat)!.assets.push(asset);
 }
-const categoryOrder = ['image', 'video', 'audio', 'document', 'other'];
+const categoryOrder = ["image", "video", "audio", "document", "other"];
 const sortedCategoryGroups = categoryOrder
-  .filter(cat => categoryGroups.has(cat))
-  .map(cat => ({ key: cat, ...categoryGroups.get(cat)! }));
+  .filter((cat) => categoryGroups.has(cat))
+  .map((cat) => ({ key: cat, ...categoryGroups.get(cat)! }));
 ---
 
 <AppLayout title="Assets">

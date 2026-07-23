@@ -41,7 +41,7 @@ export function getPageContext(): PageContext {
     entityType: data.entityType || undefined,
     entityId: data.entityId || undefined,
     entityLabel: data.entityLabel || undefined,
-    route: typeof location !== 'undefined' ? location.pathname : '',
+    route: typeof location !== "undefined" ? location.pathname : "",
   };
 }
 

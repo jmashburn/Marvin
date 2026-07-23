@@ -1,10 +1,10 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken, fetchApi, ApiRequestError } from "@/lib/api/client";
+import { ApiRequestError, fetchApi, getAuthToken } from "@/lib/api/client";
 import { listEmailTemplates } from "@/lib/api/emailTemplates";
+import { listIntegrations, listProviders, listSubscriptions } from "@/lib/api/integrations";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
-import { listIntegrations, listSubscriptions, listProviders } from "@/lib/api/integrations";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -23,20 +23,20 @@ let integrationsAvailable = true;
 let error: string | null = null;
 let wsId: string | null = null;
 
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
 
 try {
-  const allTypes = await sdk.events.getOptions() as any[];
+  const allTypes = (await sdk.events.getOptions()) as any[];
   eventInfo = allTypes.find((e: any) => e.value === type) || null;
 
   if (!eventInfo) {
-    return Astro.redirect('/automation/events');
+    return Astro.redirect("/automation/events");
   }
 
   const workspace = await getCurrentWorkspace(authToken!);
   wsId = workspace?.id ?? null;
 
-  const emailSubsRes = await fetchApi<any[]>('/api/groups/email-event-subscriptions', {}, authToken).catch(() => []);
+  const emailSubsRes = await fetchApi<any[]>("/api/groups/email-event-subscriptions", {}, authToken).catch(() => []);
   emailSubscriptions = Array.isArray(emailSubsRes) ? emailSubsRes : [];
 
   const [emailRes, webhookRes, notifRes] = await Promise.all([
@@ -44,9 +44,9 @@ try {
     sdk.webhooks.list().catch(() => []),
     sdk.notifications.list().catch(() => ({ items: [] })),
   ]);
-  emailTemplates = Array.isArray(emailRes) ? emailRes : (emailRes as any)?.items ?? [];
-  webhooks = Array.isArray(webhookRes) ? webhookRes : (webhookRes as any)?.items ?? [];
-  notifications = Array.isArray(notifRes) ? notifRes : (notifRes as any)?.items ?? [];
+  emailTemplates = Array.isArray(emailRes) ? emailRes : ((emailRes as any)?.items ?? []);
+  webhooks = Array.isArray(webhookRes) ? webhookRes : ((webhookRes as any)?.items ?? []);
+  notifications = Array.isArray(notifRes) ? notifRes : ((notifRes as any)?.items ?? []);
 
   [integrations, integrationSubs, integrationProviders] = await Promise.all([
     listIntegrations(authToken).catch(() => []),
@@ -58,7 +58,7 @@ try {
   // integration package is installed. Probe the providers endpoint: a 404 means it's not installed,
   // so we surface a note instead of the "connect an action" affordance.
   try {
-    await fetchApi('/api/groups/integrations/providers', {}, authToken);
+    await fetchApi("/api/groups/integrations/providers", {}, authToken);
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 404) {
       integrationsAvailable = false;
@@ -68,14 +68,20 @@ try {
   // Fetch event-connections to show system template row
   if (wsId) {
     try {
-      const connRes = await fetchApi<any[]>(`/api/platform/workspaces/${wsId}/email-templates/event-connections`, {}, authToken).catch(() => []);
+      const connRes = await fetchApi<any[]>(
+        `/api/platform/workspaces/${wsId}/email-templates/event-connections`,
+        {},
+        authToken,
+      ).catch(() => []);
       if (Array.isArray(connRes)) {
         (eventConnections as any[]).push(...connRes);
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
   }
 } catch (e) {
-  console.error('[events/type] Error:', e);
+  console.error("[events/type] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
@@ -85,16 +91,17 @@ function buildExamplePayload(eventType: string, variables: any[]): object {
   return {
     eventType,
     eventId: "evt_a1b2c3d4-...",
-    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     workspaceId: "<workspace-uuid>",
-    message: { title: eventType.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()), body: eventType },
+    message: { title: eventType.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()), body: eventType },
     documentData: varExamples,
     userId: "<user-uuid>",
   };
 }
 
 // Use real payload structure from the API if available, else fall back to client builder
-const examplePayload = eventInfo?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables || []) : {});
+const examplePayload =
+  eventInfo?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables || []) : {});
 ---
 
 <AppLayout title={eventInfo ? eventInfo.label : 'Event'} eyebrow="Events">

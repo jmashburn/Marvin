@@ -3,8 +3,8 @@
  * Migrated to use @inneropen/marvin-sdk
  */
 
-import { createSdkClient } from '../sdk';
-import type { PlatformEntryType } from '@inneropen/marvin-sdk/platform';
+import type { PlatformEntryType } from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
 export interface EntryTypeCreate {
   name: string;

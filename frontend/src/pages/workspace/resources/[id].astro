@@ -1,7 +1,7 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
-import TagChips from "@/components/TagChips.astro";
 import SuggestionBanner from "@/components/SuggestionBanner.astro";
+import TagChips from "@/components/TagChips.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getResource } from "@/lib/api/resources";
 import { listTags, type TagRead } from "@/lib/api/tags";
@@ -20,7 +20,7 @@ if (!id) {
     [resource, allTags] = await Promise.all([getResource(id, authToken), listTags(authToken)]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Resource] Failed to load:', error);
+    console.error("[Resource] Failed to load:", error);
   }
 }
 

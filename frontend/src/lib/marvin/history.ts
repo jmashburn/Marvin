@@ -14,7 +14,7 @@
  */
 
 export interface HistoryTurn {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 }
 

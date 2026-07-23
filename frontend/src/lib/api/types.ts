@@ -48,11 +48,11 @@ export interface MarvinEntry {
 
 // SDK Types - Re-export from SDK for type compatibility
 import type {
+  PlatformAPIClient,
+  PlatformCollection,
   PlatformEntry,
   PlatformEntryType,
-  PlatformCollection,
-  PlatformAPIClient
-} from '@inneropen/marvin-sdk/platform';
+} from "@inneropen/marvin-sdk/platform";
 
 export type EntryRead = PlatformEntry;
 export type EntryTypeRead = PlatformEntryType;

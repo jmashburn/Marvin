@@ -1,12 +1,12 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const authed = !!authToken;
 
-const filter = Astro.url.searchParams.get('filter') || 'all';
+const filter = Astro.url.searchParams.get("filter") || "all";
 
 let executions: any[] = [];
 let error: string | null = null;
@@ -23,7 +23,7 @@ if (authed) {
     executions = execs;
     if (settings) aiEnabled = (settings as any).enabled !== false;
   } catch (e) {
-    console.error('[ai-executions] Error:', e);
+    console.error("[ai-executions] Error:", e);
     error = e instanceof Error ? e.message : String(e);
   }
 }
@@ -33,37 +33,35 @@ function getField(row: any, camel: string, snake: string) {
   return row[camel] ?? row[snake];
 }
 
-const filteredExecutions = filter === 'all'
-  ? executions
-  : executions.filter((e: any) => e.status === filter);
+const filteredExecutions = filter === "all" ? executions : executions.filter((e: any) => e.status === filter);
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "—";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 function statusClass(status: string): string {
-  if (status === 'completed') return 'success';
-  if (status === 'failed') return 'failed';
-  if (status === 'running' || status === 'pending') return 'running';
-  return 'none';
+  if (status === "completed") return "success";
+  if (status === "failed") return "failed";
+  if (status === "running" || status === "pending") return "running";
+  return "none";
 }
 
 function formatTokens(n: number | null): string {
-  return n == null ? '—' : n.toLocaleString();
+  return n == null ? "—" : n.toLocaleString();
 }
 
 function formatCost(cost: number | null): string {
-  if (cost == null) return '—';
-  if (cost === 0) return 'Free';
-  if (cost < 0.0001) return '<$0.0001';
+  if (cost == null) return "—";
+  if (cost === 0) return "Free";
+  if (cost < 0.0001) return "<$0.0001";
   return `$${cost.toFixed(4)}`;
 }
 
 function formatDuration(ms: number | null): string {
-  if (ms == null) return '—';
+  if (ms == null) return "—";
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }

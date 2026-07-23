@@ -1,8 +1,8 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -17,15 +17,15 @@ try {
     webhooks = await sdk.webhooks.list();
   }
 } catch (e) {
-  console.error('[webhooks] Error loading:', e);
+  console.error("[webhooks] Error loading:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 function formatScheduledTime(time: string | null | undefined): string {
-  if (!time) return 'Not scheduled';
-  const normalized = time.replace(/(\.\d{3})\d+/, '$1');
+  if (!time) return "Not scheduled";
+  const normalized = time.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? time : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? time : d.toLocaleString();
 }
 ---
 

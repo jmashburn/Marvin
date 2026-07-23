@@ -1,8 +1,8 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
 import { getApiUrl } from "@/lib/api/config";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -15,55 +15,56 @@ let error: string | null = null;
 let appriseReady = false;
 
 try {
-  const configCheck = await sdk.adminSystem.check() as any;
+  const configCheck = (await sdk.adminSystem.check()) as any;
   appriseReady = (configCheck as any)?.appriseReady ?? configCheck?.apprise_ready ?? false;
 } catch (e) {
-  console.error('[notifications/edit] Error checking Apprise availability:', e);
+  console.error("[notifications/edit] Error checking Apprise availability:", e);
 }
 
 if (!appriseReady) {
-  return Astro.redirect('/automation/notifications');
+  return Astro.redirect("/automation/notifications");
 }
 
 try {
   [notification, eventOptions] = await Promise.all([
     sdk.notifications.get(id!),
-    sdk.events.getOptions().then((r: any) => Array.isArray(r) ? r : (r?.items ?? [])).catch(() => []),
+    sdk.events
+      .getOptions()
+      .then((r: any) => (Array.isArray(r) ? r : (r?.items ?? [])))
+      .catch(() => []),
   ]);
 } catch (e) {
-  console.error('[notifications/edit] Error:', e);
+  console.error("[notifications/edit] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 if (notification && authToken) {
   try {
     const resp = await fetch(getApiUrl(`/api/group/notifications/${id}/logs?limit=50`).toString(), {
-      headers: { 'Authorization': `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${authToken}` },
     });
     if (resp.ok) history = await resp.json();
-    else console.error('[notifications/edit] Logs fetch status:', resp.status);
+    else console.error("[notifications/edit] Logs fetch status:", resp.status);
   } catch (e) {
-    console.error('[notifications/edit] Error loading history:', e);
+    console.error("[notifications/edit] Error loading history:", e);
   }
 }
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "—";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 function statusClass(status: string): string {
-  return status === 'success' ? 'success' : status === 'failed' ? 'failed' : 'none';
+  return status === "success" ? "success" : status === "failed" ? "failed" : "none";
 }
 
 // Build set of currently subscribed option strings e.g. "core.invitation_created"
-const subscribedSet = new Set<string>(
-  (notification?.options ?? []).map((o: any) => o.option ?? o)
-);
+const subscribedSet = new Set<string>((notification?.options ?? []).map((o: any) => o.option ?? o));
 
-const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url ?? '';
+const currentAppriseUrl = notification?.appriseUrl ?? notification?.apprise_url ?? "";
 ---
 
 <AppLayout title="Edit Notification" eyebrow="Automation">

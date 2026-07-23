@@ -1,10 +1,9 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { requireAdmin } from "@/lib/auth";
-import { getAuthToken } from "@/lib/api/client";
+import type { ScheduledTaskExecutionLogRead, ScheduledTaskRead } from "@/lib/api/admin/scheduledTasks";
 import { getSystemTask, getSystemTaskHistory } from "@/lib/api/admin/scheduledTasks";
-import { fetchApi } from "@/lib/api/client";
-import type { ScheduledTaskRead, ScheduledTaskExecutionLogRead } from "@/lib/api/admin/scheduledTasks";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
 
 await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
@@ -18,32 +17,32 @@ let error: string | null = null;
 try {
   [task, taskTypes, history] = await Promise.all([
     getSystemTask(id!, authToken),
-    fetchApi<any[]>('/api/admin/scheduled-tasks/task-types?detailed=true', { method: 'GET' }, authToken),
+    fetchApi<any[]>("/api/admin/scheduled-tasks/task-types?detailed=true", { method: "GET" }, authToken),
     getSystemTaskHistory(id!, 50, authToken),
   ]);
 } catch (e) {
-  console.error('[admin/scheduled-tasks/edit] Error:', e);
+  console.error("[admin/scheduled-tasks/edit] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "—";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 function statusClass(status: string | null): string {
-  if (status === 'success') return 'success';
-  if (status === 'failed') return 'failed';
-  if (status === 'timeout') return 'timeout';
-  if (status === 'cancelled') return 'cancelled';
-  return 'none';
+  if (status === "success") return "success";
+  if (status === "failed") return "failed";
+  if (status === "timeout") return "timeout";
+  if (status === "cancelled") return "cancelled";
+  return "none";
 }
 
 // Normalize camelCase API response fields (alias_generator=camelize on backend)
-const taskType = task ? ((task as any).taskType ?? task.task_type) : '';
-const scheduleType = task ? ((task as any).scheduleType ?? task.schedule_type) : '';
+const taskType = task ? ((task as any).taskType ?? task.task_type) : "";
+const scheduleType = task ? ((task as any).scheduleType ?? task.schedule_type) : "";
 const scheduleConfig = task ? ((task as any).scheduleConfig ?? task.schedule_config) : null;
 ---
 

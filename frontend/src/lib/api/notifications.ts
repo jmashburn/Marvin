@@ -3,12 +3,8 @@
  * Migrated to use @inneropen/marvin-sdk
  */
 
-import { createSdkClient } from '../sdk';
-import type {
-  Notification,
-  NotificationCreate,
-  NotificationUpdate,
-} from '@inneropen/marvin-sdk/platform';
+import type { Notification, NotificationCreate, NotificationUpdate } from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
 export type { Notification, NotificationCreate, NotificationUpdate };
 
@@ -39,7 +35,11 @@ export async function createNotification(data: NotificationCreate, authToken: st
 /**
  * Update a notification
  */
-export async function updateNotification(id: string, data: NotificationUpdate, authToken: string): Promise<Notification> {
+export async function updateNotification(
+  id: string,
+  data: NotificationUpdate,
+  authToken: string,
+): Promise<Notification> {
   const sdk = createSdkClient(authToken);
   return sdk.notifications.update(id, data);
 }

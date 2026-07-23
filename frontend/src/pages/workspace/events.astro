@@ -10,10 +10,10 @@ let error: string | null = null;
 
 if (authed) {
   try {
-    events = await fetchApi<any[]>('/api/platform/events?limit=100', {}, authToken);
+    events = await fetchApi<any[]>("/api/platform/events?limit=100", {}, authToken);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[events] Failed to load:', error);
+    console.error("[events] Failed to load:", error);
   }
 }
 
@@ -22,31 +22,32 @@ function fld(row: any, camel: string, snake: string) {
 }
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "—";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 // Legacy rows stored the enum ordinal; new rows store the name. Prettify both.
 function prettyType(t: any): string {
-  const s = String(t ?? '');
+  const s = String(t ?? "");
   if (/^\d+$/.test(s)) return `event #${s}`;
-  return s.replace(/[._]/g, ' ');
+  return s.replace(/[._]/g, " ");
 }
 
 // Derive a coarse outcome status from the event type + title. Uses message_title too, so it
 // still works for legacy numeric-coded rows. Order matters: check failed, then removed (so
 // "unpublished" isn't caught by "publish"), then success.
 function statusOf(eventType: any, title: any): string {
-  const s = `${eventType ?? ''} ${title ?? ''}`.toLowerCase();
-  if (/fail|error|denied|reject|quota|exceed/.test(s)) return 'failed';
-  if (/delet|remov|revok|unpublish|archiv|cancel|expir/.test(s)) return 'removed';
-  if (/complet|success|execut|publish|reindex|creat|upload|added|accept|activ|sent|restor|approv/.test(s)) return 'success';
-  return 'info';
+  const s = `${eventType ?? ""} ${title ?? ""}`.toLowerCase();
+  if (/fail|error|denied|reject|quota|exceed/.test(s)) return "failed";
+  if (/delet|remov|revok|unpublish|archiv|cancel|expir/.test(s)) return "removed";
+  if (/complet|success|execut|publish|reindex|creat|upload|added|accept|activ|sent|restor|approv/.test(s))
+    return "success";
+  return "info";
 }
-const STATUS_ORDER = ['failed', 'success', 'removed', 'info'];
-const STATUS_LABEL: Record<string, string> = { failed: 'Failed', success: 'Success', removed: 'Removed', info: 'Info' };
+const STATUS_ORDER = ["failed", "success", "removed", "info"];
+const STATUS_LABEL: Record<string, string> = { failed: "Failed", success: "Success", removed: "Removed", info: "Info" };
 
 // Event types with auditing turned OFF in the backend catalog (CatalogEntry.audited = false).
 // These are never written to this log. KEEP IN SYNC with the `audited=False` entries in
@@ -54,19 +55,17 @@ const STATUS_LABEL: Record<string, string> = { failed: 'Failed', success: 'Succe
 // per-type `audited` flag, so this is a read-only mirror. Surfacing it dynamically (or letting an
 // admin toggle it) would require a backend endpoint. (Precedent for such a mirror: webhooks/[id].astro.)
 const NON_AUDITED_EVENT_TYPES: { type: string; label: string }[] = [
-  { type: 'scheduled_task_triggered', label: 'Scheduled Task Triggered' },
-  { type: 'scheduled_task_started', label: 'Scheduled Task Started' },
-  { type: 'webhook_task', label: 'Webhook Task (internal)' },
+  { type: "scheduled_task_triggered", label: "Scheduled Task Triggered" },
+  { type: "scheduled_task_started", label: "Scheduled Task Started" },
+  { type: "webhook_task", label: "Webhook Task (internal)" },
 ];
 
 // Distinct entity types present, for the filter chips.
-const entityTypes = Array.from(
-  new Set(events.map((e) => fld(e, 'entityType', 'entity_type')).filter(Boolean))
-).sort();
+const entityTypes = Array.from(new Set(events.map((e) => fld(e, "entityType", "entity_type")).filter(Boolean))).sort();
 
 // Statuses actually present (fixed order), for the status filter chips.
 const presentStatuses = STATUS_ORDER.filter((st) =>
-  events.some((e) => statusOf(fld(e, 'eventType', 'event_type'), fld(e, 'messageTitle', 'message_title')) === st)
+  events.some((e) => statusOf(fld(e, "eventType", "event_type"), fld(e, "messageTitle", "message_title")) === st),
 );
 ---
 

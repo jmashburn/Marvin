@@ -1,5 +1,5 @@
 ---
-import type { EntryRead, CollectionRead } from "@/lib/api/types";
+import type { CollectionRead, EntryRead } from "@/lib/api/types";
 
 interface Props {
   entry: EntryRead;
@@ -11,7 +11,7 @@ const { entry, collectionsMap } = Astro.props;
 // Get collections for this entry
 const entryCollections = entry.collections
   ?.map((item: any) => {
-    const id = typeof item === 'string' ? item : item.id;
+    const id = typeof item === "string" ? item : item.id;
     return collectionsMap?.get(id);
   })
   .filter(Boolean) as CollectionRead[] | undefined;

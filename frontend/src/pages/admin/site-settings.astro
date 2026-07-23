@@ -1,8 +1,8 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { requireAdmin } from "@/lib/auth";
-import { createSdkClient } from '@/lib/sdk';
 import { getAuthToken } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
+import { createSdkClient } from "@/lib/sdk";
 
 const currentUser = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
@@ -13,7 +13,7 @@ let settings: any = null;
 try {
   settings = await sdk.adminSystem.getStartupInfo();
 } catch (e) {
-  console.error('Could not fetch settings:', e);
+  console.error("Could not fetch settings:", e);
 }
 
 // Group settings by prefix
@@ -23,23 +23,23 @@ const featureSettings: any[] = [];
 if (settings) {
   Object.entries(settings).forEach(([key, value]) => {
     // Extract features (enabled/feature pairs)
-    if (key.endsWith('Enabled') || key.endsWith('Ready')) {
-      const baseName = key.replace(/Enabled$|Ready$/, '');
-      const featureKey = baseName + 'Feature';
+    if (key.endsWith("Enabled") || key.endsWith("Ready")) {
+      const baseName = key.replace(/Enabled$|Ready$/, "");
+      const featureKey = `${baseName}Feature`;
       featureSettings.push({
         name: baseName,
         enabled: value,
-        feature: settings[featureKey]
+        feature: settings[featureKey],
       });
       return;
     }
-    if (key.endsWith('Feature')) {
+    if (key.endsWith("Feature")) {
       return; // Skip, handled above
     }
 
     // Group by prefix (first word before capital letter)
     const match = key.match(/^([a-z]+)/);
-    const prefix = match ? match[1] : 'general';
+    const prefix = match ? match[1] : "general";
 
     if (!settingsGroups[prefix]) {
       settingsGroups[prefix] = [];
@@ -51,7 +51,7 @@ if (settings) {
 // Convert camelCase to Title Case
 function toTitleCase(str: string) {
   return str
-    .replace(/([A-Z])/g, ' $1')
+    .replace(/([A-Z])/g, " $1")
     .replace(/^./, (s) => s.toUpperCase())
     .trim();
 }

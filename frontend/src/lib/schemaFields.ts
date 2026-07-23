@@ -17,13 +17,13 @@ export function fieldTypeMap(schemaJson: unknown): Record<string, string> {
 
 /** Coerce a raw form value (always a string) to its declared schema field type. */
 export function coerceDataJsonValue(fieldType: string | undefined, value: string): unknown {
-  if (fieldType === 'boolean') return value === 'true';
-  if (value === '') return null;
-  if (fieldType === 'number') {
+  if (fieldType === "boolean") return value === "true";
+  if (value === "") return null;
+  if (fieldType === "number") {
     const parsed = Number(value);
     return Number.isNaN(parsed) ? null : parsed;
   }
   // Back-compat: a checkbox with no declared type still posts 'true'/'false'.
-  if (value === 'true' || value === 'false') return value === 'true';
+  if (value === "true" || value === "false") return value === "true";
   return value;
 }

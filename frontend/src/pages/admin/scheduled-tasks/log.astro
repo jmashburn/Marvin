@@ -1,47 +1,44 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { requireAdmin } from "@/lib/auth";
-import { getAuthToken } from "@/lib/api/client";
-import { getGlobalLog, listAllTasks } from "@/lib/api/admin/scheduledTasks";
 import type { ScheduledTaskExecutionLogRead } from "@/lib/api/admin/scheduledTasks";
+import { getGlobalLog, listAllTasks } from "@/lib/api/admin/scheduledTasks";
+import { getAuthToken } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
 
 await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
 
-const filter = Astro.url.searchParams.get('filter') || 'all';
+const filter = Astro.url.searchParams.get("filter") || "all";
 
 let logs: ScheduledTaskExecutionLogRead[] = [];
 let error: string | null = null;
 let taskMap = new Map<string, { name: string; task_type: string }>();
 
 try {
-  const [logsResult, tasksResult] = await Promise.all([
-    getGlobalLog(200, authToken),
-    listAllTasks(authToken),
-  ]);
-  logs = Array.isArray(logsResult) ? logsResult : (logsResult as any)?.items ?? [];
-  const tasks = Array.isArray(tasksResult) ? tasksResult : (tasksResult as any)?.items ?? [];
-  taskMap = new Map(tasks.map((t: any) => [t.id, { name: t.name, task_type: t.task_type ?? t.taskType ?? '' }]));
+  const [logsResult, tasksResult] = await Promise.all([getGlobalLog(200, authToken), listAllTasks(authToken)]);
+  logs = Array.isArray(logsResult) ? logsResult : ((logsResult as any)?.items ?? []);
+  const tasks = Array.isArray(tasksResult) ? tasksResult : ((tasksResult as any)?.items ?? []);
+  taskMap = new Map(tasks.map((t: any) => [t.id, { name: t.name, task_type: t.task_type ?? t.taskType ?? "" }]));
 } catch (e) {
-  console.error('[admin/scheduled-tasks/log] Error:', e);
+  console.error("[admin/scheduled-tasks/log] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
-const filteredLogs = filter === 'all' ? logs : logs.filter(l => l.status === filter);
+const filteredLogs = filter === "all" ? logs : logs.filter((l) => l.status === filter);
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "—";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 function statusClass(status: string): string {
-  if (status === 'success') return 'success';
-  if (status === 'failed') return 'failed';
-  if (status === 'timeout') return 'timeout';
-  if (status === 'cancelled') return 'cancelled';
-  return 'none';
+  if (status === "success") return "success";
+  if (status === "failed") return "failed";
+  if (status === "timeout") return "timeout";
+  if (status === "cancelled") return "cancelled";
+  return "none";
 }
 ---
 

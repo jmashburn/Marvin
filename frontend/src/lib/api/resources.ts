@@ -3,14 +3,14 @@
  * Migrated to use @inneropen/marvin-sdk
  */
 
-import { createSdkClient } from '../sdk';
-import { getApiUrl } from './config';
 import type {
+  PlatformEntry,
   PlatformResource,
   PlatformResourceCreate,
   PlatformResourceUpdate,
-  PlatformEntry,
-} from '@inneropen/marvin-sdk/platform';
+} from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
+import { getApiUrl } from "./config";
 
 // Re-export SDK types with legacy names for backward compatibility
 export type ResourceRead = PlatformResource;
@@ -69,7 +69,7 @@ export async function getResourceEntries(resourceId: string, authToken: string):
 /** Apply the resource's staged AI suggestion (suggestion_json) and clear it. */
 export async function applyResourceSuggestion(id: string, authToken: string): Promise<ResourceRead> {
   const res = await fetch(getApiUrl(`/api/platform/resources/${id}/apply-suggestion`), {
-    method: 'POST',
+    method: "POST",
     headers: { Authorization: `Bearer ${authToken}` },
   });
   if (!res.ok) throw new Error(`apply-suggestion failed: ${res.status}`);
@@ -79,7 +79,7 @@ export async function applyResourceSuggestion(id: string, authToken: string): Pr
 /** Discard the resource's staged AI suggestion without applying it. */
 export async function rejectResourceSuggestion(id: string, authToken: string): Promise<ResourceRead> {
   const res = await fetch(getApiUrl(`/api/platform/resources/${id}/reject-suggestion`), {
-    method: 'POST',
+    method: "POST",
     headers: { Authorization: `Bearer ${authToken}` },
   });
   if (!res.ok) throw new Error(`reject-suggestion failed: ${res.status}`);

@@ -21,22 +21,20 @@ export interface Props {
 }
 
 const { schema } = Astro.props;
-const initialSchema = (schema && typeof schema === 'object' && 'fields' in schema)
-  ? schema
-  : { fields: [] };
+const initialSchema = schema && typeof schema === "object" && "fields" in schema ? schema : { fields: [] };
 
 // Available field types
 // Note: Asset and Resource fields are managed through the entry UI sidebar, not schema
 const fieldTypes = [
-  { value: 'text', label: 'Text', description: 'Single-line text input' },
-  { value: 'textarea', label: 'Textarea', description: 'Multi-line plain text' },
-  { value: 'markdown', label: 'Markdown', description: 'Markdown editor with preview' },
-  { value: 'number', label: 'Number', description: 'Numeric input' },
-  { value: 'boolean', label: 'Boolean', description: 'Checkbox toggle' },
-  { value: 'select', label: 'Select', description: 'Dropdown selection' },
-  { value: 'date', label: 'Date', description: 'Date picker' },
-  { value: 'datetime', label: 'DateTime', description: 'Date and time picker' },
-  { value: 'json', label: 'JSON', description: 'Free-form JSON data' },
+  { value: "text", label: "Text", description: "Single-line text input" },
+  { value: "textarea", label: "Textarea", description: "Multi-line plain text" },
+  { value: "markdown", label: "Markdown", description: "Markdown editor with preview" },
+  { value: "number", label: "Number", description: "Numeric input" },
+  { value: "boolean", label: "Boolean", description: "Checkbox toggle" },
+  { value: "select", label: "Select", description: "Dropdown selection" },
+  { value: "date", label: "Date", description: "Date picker" },
+  { value: "datetime", label: "DateTime", description: "Date and time picker" },
+  { value: "json", label: "JSON", description: "Free-form JSON data" },
 ];
 ---
 

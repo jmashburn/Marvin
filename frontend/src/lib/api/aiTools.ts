@@ -3,8 +3,8 @@
  * Pass authToken in SSR (from Astro.cookies); omit it in the browser to use the HttpOnly cookie.
  */
 
-import { createSdkClient } from '../sdk';
-import type { AgentToolInfo } from '@inneropen/marvin-sdk/platform';
+import type { AgentToolInfo } from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
 export type { AgentToolInfo };
 

@@ -1,9 +1,9 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
-import { requireAdmin } from "@/lib/auth";
-import { createSdkClient } from '@/lib/sdk';
-import { getAuthToken } from '@/lib/api/client';
 import { listSystemEmailTemplates } from "@/lib/api/admin/emailTemplates";
+import { getAuthToken } from "@/lib/api/client";
+import { requireAdmin } from "@/lib/auth";
+import { createSdkClient } from "@/lib/sdk";
 
 // Require admin authentication
 const user = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
@@ -24,7 +24,7 @@ try {
   // Fetch system email templates
   emailTemplates = await listSystemEmailTemplates(authToken);
 } catch (e) {
-  console.error('Could not fetch settings:', e);
+  console.error("Could not fetch settings:", e);
 }
 ---
 

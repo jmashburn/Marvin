@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -12,7 +12,7 @@ let webhook: any = null;
 let isConnected = false;
 let error: string | null = null;
 
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
 
 function buildExamplePayload(eventType: string, variables: any[]): object {
   const varExamples: Record<string, string> = {};
@@ -23,10 +23,10 @@ function buildExamplePayload(eventType: string, variables: any[]): object {
   return {
     eventType,
     eventId: "evt_a1b2c3d4-...",
-    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     workspaceId: "<workspace-uuid>",
     message: {
-      title: eventType.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+      title: eventType.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
       body: eventType,
     },
     documentData: varExamples,
@@ -44,17 +44,18 @@ try {
   webhook = webhookData;
 
   if (!eventInfo) {
-    return Astro.redirect('/automation/events');
+    return Astro.redirect("/automation/events");
   }
 
   const subscribedEvents: string[] = (webhook as any)?.subscribedEvents ?? (webhook as any)?.subscribed_events ?? [];
-  isConnected = subscribedEvents.includes(type || '');
+  isConnected = subscribedEvents.includes(type || "");
 } catch (e) {
-  console.error('[events/webhook-connect] Error:', e);
+  console.error("[events/webhook-connect] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
-const examplePayload = (eventInfo as any)?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables ?? []) : {});
+const examplePayload =
+  (eventInfo as any)?.payloadExample ?? (eventInfo ? buildExamplePayload(type!, eventInfo.variables ?? []) : {});
 ---
 
 <AppLayout title="Connect Webhook" eyebrow="Events">

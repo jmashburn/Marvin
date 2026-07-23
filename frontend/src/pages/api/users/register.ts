@@ -1,5 +1,5 @@
-import type { APIRoute } from 'astro';
-import { API_BASE_URL } from '@/lib/api/config';
+import type { APIRoute } from "astro";
+import { API_BASE_URL } from "@/lib/api/config";
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -7,9 +7,9 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Call backend registration endpoint directly
     const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     });
@@ -19,7 +19,7 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify(errorData), {
         status: response.status,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
     }
@@ -29,16 +29,16 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify(user), {
       status: 201,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
   } catch (error: any) {
-    console.error('[register] Error:', error);
+    console.error("[register] Error:", error);
 
-    return new Response(JSON.stringify({ detail: error.message || 'Registration failed' }), {
+    return new Response(JSON.stringify({ detail: error.message || "Registration failed" }), {
       status: 500,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
   }

@@ -1,30 +1,30 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
-import SlugInput from "@/components/SlugInput.astro";
 import EmojiPicker from "@/components/EmojiPicker.astro";
+import SlugInput from "@/components/SlugInput.astro";
 import SmartCollectionFields from "@/components/SmartCollectionFields.astro";
-import { createCollection } from "@/lib/api/collections";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
+import { createCollection } from "@/lib/api/collections";
 
 const authToken = getAuthToken(Astro.cookies);
 if (!authToken) {
-  return Astro.redirect('/auth/login');
+  return Astro.redirect("/auth/login");
 }
 
 // Handle form submission (server-side)
-if (Astro.request.method === 'POST') {
+if (Astro.request.method === "POST") {
   try {
     const formData = await Astro.request.formData();
     const data: Record<string, any> = {};
 
     formData.forEach((value, key) => {
-      if (value !== '') {
+      if (value !== "") {
         // Handle checkbox
-        if (key === 'is_smart') {
-          data[key] = value === 'true';
+        if (key === "is_smart") {
+          data[key] = value === "true";
         }
         // Handle JSON fields (smartRules = smart-collection rules; metadata = custom metadata)
-        else if (key === 'smartRules' || key === 'metadata') {
+        else if (key === "smartRules" || key === "metadata") {
           try {
             data[key] = JSON.parse(value as string);
           } catch (e) {
@@ -32,10 +32,9 @@ if (Astro.request.method === 'POST') {
           }
         }
         // Handle number fields
-        else if (key === 'sort_order') {
+        else if (key === "sort_order") {
           data[key] = parseInt(value as string, 10);
-        }
-        else {
+        } else {
           data[key] = value;
         }
       }
@@ -44,7 +43,7 @@ if (Astro.request.method === 'POST') {
     const collection = await createCollection(data, authToken);
     return Astro.redirect(`/workspace/collections/${collection.id}`);
   } catch (e) {
-    console.error('[NewCollection] Failed to create collection:', e);
+    console.error("[NewCollection] Failed to create collection:", e);
     // Error will be shown below
   }
 }

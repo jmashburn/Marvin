@@ -1,22 +1,22 @@
 ---
-import { isAuthenticated } from '@/lib/auth';
-import { API_BASE_URL } from '@/lib/api/config';
+import { API_BASE_URL } from "@/lib/api/config";
+import { isAuthenticated } from "@/lib/auth";
 
 // Ensure this page is server-rendered (not prerendered)
 export const prerender = false;
 
 // Check if user is already logged in
 if (await isAuthenticated(Astro.cookies)) {
-  const returnPath = Astro.url.searchParams.get('return') || '/';
+  const returnPath = Astro.url.searchParams.get("return") || "/";
   return Astro.redirect(returnPath);
 }
 
-const error = Astro.url.searchParams.get('error');
-const returnPath = Astro.url.searchParams.get('return');
+const error = Astro.url.searchParams.get("error");
+const returnPath = Astro.url.searchParams.get("return");
 
 // Fetch public login info for OIDC settings
 let oidcEnabled = false;
-let oidcProviderName = 'OAuth';
+let oidcProviderName = "OAuth";
 let oidcAutoRedirect = false;
 let isDemo = false;
 
@@ -25,7 +25,7 @@ try {
   if (res.ok) {
     const info = await res.json();
     oidcEnabled = info.oidc_enabled ?? false;
-    oidcProviderName = info.oidc_provider_name ?? 'OAuth';
+    oidcProviderName = info.oidc_provider_name ?? "OAuth";
     oidcAutoRedirect = info.oidc_auto_redirect ?? false;
     isDemo = info.is_demo ?? false;
   }

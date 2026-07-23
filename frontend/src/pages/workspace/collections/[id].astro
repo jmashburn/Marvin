@@ -1,9 +1,14 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { getCollection, getCollectionEntries, getCollectionMembers, type CollectionMember } from "@/lib/api/collections";
+import {
+  type CollectionMember,
+  getCollection,
+  getCollectionEntries,
+  getCollectionMembers,
+} from "@/lib/api/collections";
+import type { CollectionRead, EntryRead } from "@/lib/api/entries";
 import { listEntryTypes } from "@/lib/api/entryTypes";
-import type { EntryRead, CollectionRead } from "@/lib/api/entries";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
@@ -38,7 +43,11 @@ if (!authToken) {
 
 const targetType = ((collection as any)?.targetType ?? "entry") as string;
 const memberHref = (m: CollectionMember) =>
-  m.type === "asset" ? `/workspace/assets/${m.id}` : m.type === "resource" ? `/workspace/resources/${m.id}` : `/workspace/entries/${m.id}`;
+  m.type === "asset"
+    ? `/workspace/assets/${m.id}`
+    : m.type === "resource"
+      ? `/workspace/resources/${m.id}`
+      : `/workspace/entries/${m.id}`;
 const totalCount = targetType === "entry" ? entries.length : members.length;
 
 const statusMeta: Record<string, { label: string; cls: string }> = {

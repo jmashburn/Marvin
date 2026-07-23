@@ -1,9 +1,9 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -15,7 +15,7 @@ let subscriptions: any[] = [];
 let wsId: string | null = null;
 let error: string | null = null;
 
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
 
 try {
   const workspace = await getCurrentWorkspace(authToken!);
@@ -25,25 +25,26 @@ try {
 
   [template, eventOptions, subscriptions] = await Promise.all([
     fetchApi<any>(`/api/platform/workspaces/${wsId}/email-templates/${id}`, {}, authToken),
-    sdk.events.getOptions().then((r: any) => Array.isArray(r) ? r : (r?.items ?? [])).catch(() => []),
-    fetchApi<any[]>('/api/groups/email-event-subscriptions', {}, authToken).catch(() => []),
+    sdk.events
+      .getOptions()
+      .then((r: any) => (Array.isArray(r) ? r : (r?.items ?? [])))
+      .catch(() => []),
+    fetchApi<any[]>("/api/groups/email-event-subscriptions", {}, authToken).catch(() => []),
   ]);
 } catch (e) {
-  console.error('[email/edit] Error:', e);
+  console.error("[email/edit] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 if (!template && !error) {
-  return Astro.redirect('/workspace/settings/email');
+  return Astro.redirect("/workspace/settings/email");
 }
 
 const isSystem = template && !(template.groupId ?? template.group_id);
-const templateType: string = template?.templateType ?? template?.template_type ?? '';
+const templateType: string = template?.templateType ?? template?.template_type ?? "";
 
 // Subscriptions for this template
-const mySubscriptions = (subscriptions ?? []).filter((s: any) =>
-  (s.template_id ?? s.templateId) === id
-);
+const mySubscriptions = (subscriptions ?? []).filter((s: any) => (s.template_id ?? s.templateId) === id);
 const subscribedEvents = new Set(mySubscriptions.map((s: any) => s.event_type ?? s.eventType));
 
 // System template event mapping (mirrors backend SYSTEM_TEMPLATE_EVENT_MAP)
@@ -65,17 +66,17 @@ for (const s of mySubscriptions) {
 // Collect event variables from connected events
 const connectedEventTypes = [
   ...(systemHardcodedEvent ? [systemHardcodedEvent] : []),
-  ...[...subscribedEvents].filter(e => e !== systemHardcodedEvent),
+  ...[...subscribedEvents].filter((e) => e !== systemHardcodedEvent),
 ];
 
 const eventVarSeen = new Set();
 const eventVars: Array<{ slug: string; description: string; example: string; fromEvent: string }> = [];
 for (const evtType of connectedEventTypes) {
   const evtInfo = eventOptions.find((e: any) => e.value === evtType);
-  for (const v of (evtInfo?.variables ?? [])) {
+  for (const v of evtInfo?.variables ?? []) {
     if (!eventVarSeen.has(v.slug)) {
       eventVarSeen.add(v.slug);
-      eventVars.push({ slug: v.slug, description: v.description ?? '', example: v.example ?? '', fromEvent: evtType });
+      eventVars.push({ slug: v.slug, description: v.description ?? "", example: v.example ?? "", fromEvent: evtType });
     }
   }
 }

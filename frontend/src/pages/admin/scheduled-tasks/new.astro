@@ -1,8 +1,7 @@
 ---
 import AdminLayout from "@/layouts/AdminLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { requireAdmin } from "@/lib/auth";
-import { getAuthToken } from "@/lib/api/client";
-import { fetchApi } from "@/lib/api/client";
 
 await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 const authToken = getAuthToken(Astro.cookies);
@@ -12,12 +11,12 @@ let error: string | null = null;
 
 try {
   taskTypes = await fetchApi<any[]>(
-    '/api/admin/scheduled-tasks/task-types?detailed=true',
-    { method: 'GET' },
-    authToken
+    "/api/admin/scheduled-tasks/task-types?detailed=true",
+    { method: "GET" },
+    authToken,
   );
 } catch (e) {
-  console.error('[admin/scheduled-tasks/new] Error:', e);
+  console.error("[admin/scheduled-tasks/new] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 ---

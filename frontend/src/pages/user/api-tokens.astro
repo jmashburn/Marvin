@@ -1,14 +1,14 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { createSdkClient } from '@/lib/sdk';
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
 let tokens = [];
 let error: string | null = null;
-const newToken = Astro.url.searchParams.get('token');
-const newTokenName = Astro.url.searchParams.get('token_name');
+const newToken = Astro.url.searchParams.get("token");
+const newTokenName = Astro.url.searchParams.get("token_name");
 
 try {
   tokens = await sdk.user.listApiTokens();
@@ -17,11 +17,11 @@ try {
 }
 
 function formatDate(date: string | null | undefined): string {
-  if (!date) return 'Never';
+  if (!date) return "Never";
   const d = new Date(date);
   const now = new Date();
   const diff = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff === 0) return 'Today';
+  if (diff === 0) return "Today";
   if (diff < 7) return `${diff}d ago`;
   return d.toLocaleDateString();
 }

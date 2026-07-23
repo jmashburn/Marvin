@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -18,13 +18,13 @@ try {
     sdk.webhooks.list().catch(() => []),
   ]);
   const notifRes = await sdk.notifications.list().catch(() => ({ items: [] }));
-  notifications = Array.isArray(notifRes) ? notifRes : (notifRes as any)?.items ?? [];
+  notifications = Array.isArray(notifRes) ? notifRes : ((notifRes as any)?.items ?? []);
   // Email subscriptions are a third connection type — count them too, or an event wired only
   // to an email (e.g. Incoming Webhook Received) wrongly reads as "not subscribed".
-  const emailSubsRes = await fetchApi<any[]>('/api/groups/email-event-subscriptions', {}, authToken).catch(() => []);
+  const emailSubsRes = await fetchApi<any[]>("/api/groups/email-event-subscriptions", {}, authToken).catch(() => []);
   emailSubscriptions = Array.isArray(emailSubsRes) ? emailSubsRes : [];
 } catch (e) {
-  console.error('[events] Error:', e);
+  console.error("[events] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
@@ -35,16 +35,14 @@ function getConnections(eventType: string) {
   });
   const connectedNotifs = notifications.filter((n: any) => {
     const opts: any[] = (n as any).options ?? [];
-    return opts.some((o: any) => (o.option || o.slug || o) === ('core.' + eventType));
+    return opts.some((o: any) => (o.option || o.slug || o) === `core.${eventType}`);
   });
-  const connectedEmails = emailSubscriptions.filter((s: any) =>
-    ((s.eventType ?? s.event_type) === eventType)
-  );
+  const connectedEmails = emailSubscriptions.filter((s: any) => (s.eventType ?? s.event_type) === eventType);
   return { webhooks: connectedWebhooks, notifications: connectedNotifs, emails: connectedEmails };
 }
 
 const categories = [...new Set(eventTypes.map((e: any) => e.category).filter(Boolean))] as string[];
-const groupedByCategory = categories.map(cat => {
+const groupedByCategory = categories.map((cat) => {
   const events = eventTypes.filter((e: any) => e.category === cat);
   const connectedCount = events.filter((e: any) => {
     const c = getConnections(e.value);

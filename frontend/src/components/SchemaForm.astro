@@ -1,20 +1,20 @@
 ---
+import AssetField from "./schema-fields/AssetField.astro";
+import AssetListField from "./schema-fields/AssetListField.astro";
+import BooleanField from "./schema-fields/BooleanField.astro";
+import DateField from "./schema-fields/DateField.astro";
+import DateTimeField from "./schema-fields/DateTimeField.astro";
+import MarkdownField from "./schema-fields/MarkdownField.astro";
+import NumberField from "./schema-fields/NumberField.astro";
+import ResourceField from "./schema-fields/ResourceField.astro";
+import ResourceListField from "./schema-fields/ResourceListField.astro";
+import SelectField from "./schema-fields/SelectField.astro";
+import TextareaField from "./schema-fields/TextareaField.astro";
 /**
  * SchemaForm Component
  * Dynamically renders a form based on an entry type's schema definition
  */
-import TextField from './schema-fields/TextField.astro';
-import TextareaField from './schema-fields/TextareaField.astro';
-import MarkdownField from './schema-fields/MarkdownField.astro';
-import NumberField from './schema-fields/NumberField.astro';
-import BooleanField from './schema-fields/BooleanField.astro';
-import SelectField from './schema-fields/SelectField.astro';
-import DateField from './schema-fields/DateField.astro';
-import DateTimeField from './schema-fields/DateTimeField.astro';
-import AssetField from './schema-fields/AssetField.astro';
-import AssetListField from './schema-fields/AssetListField.astro';
-import ResourceField from './schema-fields/ResourceField.astro';
-import ResourceListField from './schema-fields/ResourceListField.astro';
+import TextField from "./schema-fields/TextField.astro";
 
 export interface FieldSchema {
   key: string;
@@ -39,7 +39,7 @@ export interface Props {
 const { schema, values = {}, errors = {} } = Astro.props;
 
 // If no schema provided, show empty state
-if (!schema || !schema.fields || schema.fields.length === 0) {
+if (!schema?.fields || schema.fields.length === 0) {
   // Don't render anything - parent component should handle empty state
   return;
 }

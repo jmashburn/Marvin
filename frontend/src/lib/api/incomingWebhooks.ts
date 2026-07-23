@@ -3,12 +3,8 @@
  * Pass authToken in SSR (from Astro.cookies); omit it in the browser to use the HttpOnly cookie.
  */
 
-import { createSdkClient } from '../sdk';
-import type {
-  IncomingWebhook,
-  IncomingWebhookCreate,
-  IncomingWebhookUpdate,
-} from '@inneropen/marvin-sdk/platform';
+import type { IncomingWebhook, IncomingWebhookCreate, IncomingWebhookUpdate } from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
 export type { IncomingWebhook, IncomingWebhookCreate, IncomingWebhookUpdate };
 
@@ -20,7 +16,11 @@ export async function createIncomingWebhook(data: IncomingWebhookCreate, authTok
   return createSdkClient(authToken).incomingWebhooks.create(data);
 }
 
-export async function updateIncomingWebhook(id: string, data: IncomingWebhookUpdate, authToken?: string): Promise<IncomingWebhook> {
+export async function updateIncomingWebhook(
+  id: string,
+  data: IncomingWebhookUpdate,
+  authToken?: string,
+): Promise<IncomingWebhook> {
   return createSdkClient(authToken).incomingWebhooks.update(id, data);
 }
 

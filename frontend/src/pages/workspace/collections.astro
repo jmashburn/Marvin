@@ -1,8 +1,8 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
-import { listCollections, type CollectionRead } from "@/lib/api/collections";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
+import { type CollectionRead, listCollections } from "@/lib/api/collections";
 
 const authToken = getAuthToken(Astro.cookies);
 
@@ -10,13 +10,13 @@ let collections: CollectionRead[] = [];
 let error: string | null = null;
 
 if (!authToken) {
-  error = 'Not authenticated';
+  error = "Not authenticated";
 } else {
   try {
     collections = await listCollections(authToken);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Collections] Failed to load:', error);
+    console.error("[Collections] Failed to load:", error);
   }
 }
 
@@ -24,13 +24,13 @@ if (!authToken) {
 const sortedCollections = collections.sort((a, b) => a.sortOrder - b.sortOrder);
 
 // Group by type (Manual vs Smart) — used by the "Types" view
-const manualCollections = sortedCollections.filter(c => !c.isSmart);
-const smartCollections = sortedCollections.filter(c => c.isSmart);
+const manualCollections = sortedCollections.filter((c) => !c.isSmart);
+const smartCollections = sortedCollections.filter((c) => c.isSmart);
 
 // Group by ownership (Custom vs System) — the primary two-section layout.
 // Custom = user-created (editable, reorderable); System = workflow pipeline (locked).
-const customCollections = sortedCollections.filter(c => !c.isSystem);
-const systemCollections = sortedCollections.filter(c => c.isSystem);
+const customCollections = sortedCollections.filter((c) => !c.isSystem);
+const systemCollections = sortedCollections.filter((c) => c.isSystem);
 ---
 
 <AppLayout title="Collections">

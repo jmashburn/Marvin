@@ -3,14 +3,14 @@
  * Migrated to use @inneropen/marvin-sdk
  */
 
-import { createSdkClient } from '../sdk';
-import { getApiUrl } from './config';
 import type {
+  PlatformCollection,
   PlatformEntry,
   PlatformEntryCreate,
   PlatformEntryUpdate,
-  PlatformCollection,
-} from '@inneropen/marvin-sdk/platform';
+} from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
+import { getApiUrl } from "./config";
 
 // Re-export SDK types with legacy names for backward compatibility
 export type EntryRead = PlatformEntry;
@@ -64,7 +64,7 @@ export async function deleteEntry(id: string, authToken: string): Promise<void> 
  */
 export async function applyEntrySuggestion(id: string, authToken: string): Promise<EntryRead> {
   const res = await fetch(getApiUrl(`/api/platform/entries/${id}/apply-suggestion`), {
-    method: 'POST',
+    method: "POST",
     headers: { Authorization: `Bearer ${authToken}` },
   });
   if (!res.ok) throw new Error(`apply-suggestion failed: ${res.status}`);
@@ -74,7 +74,7 @@ export async function applyEntrySuggestion(id: string, authToken: string): Promi
 /** Discard the entry's staged AI suggestion without applying it. */
 export async function rejectEntrySuggestion(id: string, authToken: string): Promise<EntryRead> {
   const res = await fetch(getApiUrl(`/api/platform/entries/${id}/reject-suggestion`), {
-    method: 'POST',
+    method: "POST",
     headers: { Authorization: `Bearer ${authToken}` },
   });
   if (!res.ok) throw new Error(`reject-suggestion failed: ${res.status}`);
@@ -100,7 +100,11 @@ export async function addEntryToCollection(entryId: string, collectionId: string
 /**
  * Remove an entry from a collection
  */
-export async function removeEntryFromCollection(entryId: string, collectionId: string, authToken: string): Promise<void> {
+export async function removeEntryFromCollection(
+  entryId: string,
+  collectionId: string,
+  authToken: string,
+): Promise<void> {
   const sdk = createSdkClient(authToken);
   return sdk.entries.removeFromCollection(entryId, collectionId);
 }

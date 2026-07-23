@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { getAuthToken } from "@/lib/api/client";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
 const authToken = getAuthToken(Astro.cookies);
 

@@ -14,9 +14,7 @@ const path = Astro.url.pathname;
 const adminNavGroups = [
   {
     label: null,
-    items: [
-      { href: "/admin", label: "Dashboard", icon: "⌂" },
-    ]
+    items: [{ href: "/admin", label: "Dashboard", icon: "⌂" }],
   },
   {
     label: "Platform Management",
@@ -24,7 +22,7 @@ const adminNavGroups = [
       { href: "/admin/users", label: "Users", icon: "👥" },
       { href: "/admin/workspaces", label: "Workspaces", icon: "◫" },
       { href: "/admin/system", label: "System", icon: "📊" },
-    ]
+    ],
   },
   {
     label: "Configuration",
@@ -33,13 +31,11 @@ const adminNavGroups = [
       { href: "/admin/email-settings", label: "Email Settings", icon: "📧" },
       { href: "/admin/backups", label: "Backups", icon: "💾" },
       { href: "/admin/maintenance", label: "Maintenance", icon: "🔧" },
-    ]
+    ],
   },
   {
     label: "Back to User",
-    items: [
-      { href: "/", label: "User Settings", icon: "◄" },
-    ]
+    items: [{ href: "/", label: "User Settings", icon: "◄" }],
   },
 ];
 
@@ -48,7 +44,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
   if (itemPath === "/admin") {
     return currentPath === "/admin";
   }
-  return currentPath === itemPath || currentPath.startsWith(itemPath + "/");
+  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
 ---
 

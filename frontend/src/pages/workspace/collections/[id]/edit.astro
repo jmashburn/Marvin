@@ -1,11 +1,11 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import EmojiPicker from "@/components/EmojiPicker.astro";
 import SmartCollectionFields from "@/components/SmartCollectionFields.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCollection, getCollectionEntries } from "@/lib/api/collections";
+import type { CollectionRead, EntryRead } from "@/lib/api/entries";
 import { listEntries } from "@/lib/api/entries";
-import type { EntryRead, CollectionRead } from "@/lib/api/entries";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
@@ -29,10 +29,9 @@ if (!authToken) {
 
     // Sort collection entries by order field (already sorted by API, but ensure it)
     collectionEntries.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Collection] Failed to load:', error);
+    console.error("[Collection] Failed to load:", error);
   }
 }
 ---

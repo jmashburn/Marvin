@@ -1,12 +1,12 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
-import { requireAuth } from "@/lib/auth";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { createSdkClient } from '@/lib/sdk';
-import { getCurrentWorkspace } from "@/lib/api/workspaces";
-import { listWorkspaceMembers, type WorkspaceMemberRead } from "@/lib/api/workspaceMembers";
 import type { WorkspaceRole } from "@/lib/api/types";
+import { listWorkspaceMembers, type WorkspaceMemberRead } from "@/lib/api/workspaceMembers";
+import { getCurrentWorkspace } from "@/lib/api/workspaces";
+import { requireAuth } from "@/lib/auth";
+import { createSdkClient } from "@/lib/sdk";
 
 const currentUser = await requireAuth(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
@@ -28,19 +28,19 @@ try {
 
     // Use authenticated user info to find their role
     currentUserId = currentUser.id;
-    const currentMembership = members.find(m => m.userId === currentUser.id);
+    const currentMembership = members.find((m) => m.userId === currentUser.id);
     currentUserRole = currentMembership?.workspaceRole || null;
 
     // Fetch invite tokens for this workspace
     try {
-      inviteTokens = await sdk.invites.list() || [];
+      inviteTokens = (await sdk.invites.list()) || [];
     } catch (e) {
-      console.error('[members] Error loading invite tokens:', e);
+      console.error("[members] Error loading invite tokens:", e);
       // Don't fail the whole page if invite tokens fail to load
     }
   }
 } catch (e) {
-  console.error('[members] Error loading:', e);
+  console.error("[members] Error loading:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
@@ -63,10 +63,10 @@ const roleDescriptions: Record<WorkspaceRole, string> = {
 };
 
 // Check if current user can manage members
-const canManage = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN';
+const canManage = currentUserRole === "OWNER" || currentUserRole === "ADMIN";
 
 // Count owners to detect if someone is the last owner
-const ownerCount = members.filter(m => m.workspaceRole === 'OWNER').length;
+const ownerCount = members.filter((m) => m.workspaceRole === "OWNER").length;
 ---
 
 <AppLayout title="Workspace Members" eyebrow="Workspace">

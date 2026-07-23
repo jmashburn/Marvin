@@ -4,16 +4,16 @@ import { requireAdmin } from "@/lib/auth";
 
 await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
-let currentTab = Astro.url.searchParams.get('tab') || 'general';
+let currentTab = Astro.url.searchParams.get("tab") || "general";
 // Users and Workspaces are one tab now; keep old ?tab= links working.
-if (currentTab === 'users' || currentTab === 'workspaces') currentTab = 'accounts';
+if (currentTab === "users" || currentTab === "workspaces") currentTab = "accounts";
 
 const tabs = [
-  { id: 'general', label: 'General', icon: '⚙' },
-  { id: 'accounts', label: 'Users & Workspaces', icon: '👥' },
-  { id: 'email', label: 'Email', icon: '📧' },
-  { id: 'backups', label: 'Backups', icon: '💾' },
-  { id: 'maintenance', label: 'Maintenance', icon: '🔧' },
+  { id: "general", label: "General", icon: "⚙" },
+  { id: "accounts", label: "Users & Workspaces", icon: "👥" },
+  { id: "email", label: "Email", icon: "📧" },
+  { id: "backups", label: "Backups", icon: "💾" },
+  { id: "maintenance", label: "Maintenance", icon: "🔧" },
 ];
 ---
 

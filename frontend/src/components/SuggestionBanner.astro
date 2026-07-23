@@ -20,21 +20,22 @@ const { suggestion, entity, apiBase, entityId } = Astro.props;
 
 function currentOf(target: string): any {
   if (!entity) return undefined;
-  if (target === 'tags') return entity.tags;
-  if (target.startsWith('metadata_json.')) return (entity.metadataJson ?? entity.metadata_json)?.[target.slice('metadata_json.'.length)];
+  if (target === "tags") return entity.tags;
+  if (target.startsWith("metadata_json."))
+    return (entity.metadataJson ?? entity.metadata_json)?.[target.slice("metadata_json.".length)];
   return entity[target];
 }
 function fmt(v: any): string {
-  if (v == null || v === '') return '—';
-  if (Array.isArray(v)) return v.join(', ');
-  if (typeof v === 'object') return JSON.stringify(v);
+  if (v == null || v === "") return "—";
+  if (Array.isArray(v)) return v.join(", ");
+  if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
 const fields = suggestion
   ? Object.keys(suggestion)
-      .filter((k) => k !== '_meta')
+      .filter((k) => k !== "_meta")
       .map((target) => ({
-        label: target.replace(/^data_json\./, '').replace(/^metadata_json\./, ''),
+        label: target.replace(/^data_json\./, "").replace(/^metadata_json\./, ""),
         current: fmt(currentOf(target)),
         proposed: fmt(suggestion[target]),
       }))

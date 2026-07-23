@@ -1,11 +1,11 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
-import TagChips from "@/components/TagChips.astro";
-import SuggestionBanner from "@/components/SuggestionBanner.astro";
-import { getAuthToken } from "@/lib/api/client";
-import { createSdkClient } from "@/lib/sdk";
-import { listTags, type TagRead } from "@/lib/api/tags";
 import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
+import SuggestionBanner from "@/components/SuggestionBanner.astro";
+import TagChips from "@/components/TagChips.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { listTags, type TagRead } from "@/lib/api/tags";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
@@ -24,7 +24,7 @@ if (!id) {
     [asset, allTags] = await Promise.all([sdk.assets.get(id), listTags(authToken)]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Asset] Failed to load:', error);
+    console.error("[Asset] Failed to load:", error);
   }
 }
 
@@ -48,7 +48,7 @@ if (asset && authToken) {
     aiEnabled = false; // fail closed — hide the panel if settings can't be read
   }
 }
-const isImage = (asset as any)?.mimeType?.startsWith('image/') ?? false;
+const isImage = (asset as any)?.mimeType?.startsWith("image/") ?? false;
 const showAiPanel = aiEnabled && isImage;
 ---
 

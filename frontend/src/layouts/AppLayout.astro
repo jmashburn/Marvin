@@ -1,8 +1,8 @@
 ---
 import "../styles/global.css";
-import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
-import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
 import Marvin from "@/components/Marvin.astro";
+import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
+import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
 
@@ -24,13 +24,7 @@ interface Props {
   entityLabel?: string;
 }
 
-const {
-  title,
-  eyebrow = "Marvin Platform",
-  entityType,
-  entityId,
-  entityLabel,
-} = Astro.props;
+const { title, eyebrow = "Marvin Platform", entityType, entityId, entityLabel } = Astro.props;
 const path = Astro.url.pathname;
 
 // Check if user is admin and get platform role
@@ -39,18 +33,18 @@ const sdk = createSdkClient(authToken);
 let isAdmin = false;
 let isSuperAdmin = false;
 try {
-  const currentUser = await sdk.user.getProfile() as any;
+  const currentUser = (await sdk.user.getProfile()) as any;
   isAdmin = currentUser?.admin === true;
-  isSuperAdmin = currentUser?.platformRole === 'SUPER_ADMIN';
+  isSuperAdmin = currentUser?.platformRole === "SUPER_ADMIN";
 
   if (import.meta.env.DEV) {
-    console.log('[AppLayout] User role check:', {
+    console.log("[AppLayout] User role check:", {
       admin: isAdmin,
       superAdmin: isSuperAdmin,
       platformRole: currentUser?.platformRole,
       workspaceMemberships: currentUser?.workspaceMemberships,
     });
-    console.log('[AppLayout] Full user object:', currentUser);
+    console.log("[AppLayout] Full user object:", currentUser);
   }
 } catch (e) {
   // Not logged in or error
@@ -61,9 +55,7 @@ try {
 const navGroups = [
   {
     label: null,
-    items: [
-      { href: "/", label: "Dashboard", icon: "⌂" },
-    ]
+    items: [{ href: "/", label: "Dashboard", icon: "⌂" }],
   },
   {
     label: "Content",
@@ -72,14 +64,14 @@ const navGroups = [
       { href: "/workspace/collections", label: "Collections", icon: "📚" },
       { href: "/workspace/assets", label: "Assets", icon: "🖼" },
       { href: "/workspace/resources", label: "Resources", icon: "🔗" },
-    ]
+    ],
   },
   {
     label: "Workspace",
     items: [
       // Lands on the workspace dashboard (/workspace); its tab banner navigates into each settings section.
       { href: "/workspace", label: "Settings", icon: "⚙" },
-    ]
+    ],
   },
 ];
 
@@ -87,9 +79,7 @@ const finalNavGroups = [
   ...navGroups,
   {
     label: null,
-    items: [
-      { href: "/user/profile", label: "Profile", icon: "👤" },
-    ]
+    items: [{ href: "/user/profile", label: "Profile", icon: "👤" }],
   },
 ];
 
@@ -98,9 +88,7 @@ const finalNavGroups = [
 if (isSuperAdmin) {
   finalNavGroups.push({
     label: "Administration",
-    items: [
-      { href: "/admin", label: "Admin Settings", icon: "⚙" },
-    ]
+    items: [{ href: "/admin", label: "Admin Settings", icon: "⚙" }],
   });
 }
 
@@ -114,7 +102,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
   if (itemPath === "/workspace") {
     return currentPath === "/workspace" || currentPath.startsWith("/workspace/settings");
   }
-  return currentPath === itemPath || currentPath.startsWith(itemPath + "/");
+  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
 ---
 

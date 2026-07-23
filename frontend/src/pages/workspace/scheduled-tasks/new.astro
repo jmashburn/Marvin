@@ -1,8 +1,8 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
-import { getAuthToken } from "@/lib/api/client";
 import type { TaskTypeInfo } from "@inneropen/marvin-sdk/platform";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -13,7 +13,7 @@ let error: string | null = null;
 try {
   taskTypes = (await sdk.scheduledTasks.taskTypes({ detailed: true })) as TaskTypeInfo[];
 } catch (e) {
-  console.error('[scheduled-tasks/new] Error loading task types:', e);
+  console.error("[scheduled-tasks/new] Error loading task types:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 ---

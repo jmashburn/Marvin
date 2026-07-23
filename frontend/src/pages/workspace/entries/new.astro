@@ -1,64 +1,64 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import SchemaForm from "@/components/SchemaForm.astro";
-import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
-import { createEntry } from "@/lib/api/entries";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { fieldTypeMap, coerceDataJsonValue } from "@/lib/schemaFields";
+import { createEntry } from "@/lib/api/entries";
+import { type EntryTypeRead, listEntryTypes } from "@/lib/api/entryTypes";
+import { coerceDataJsonValue, fieldTypeMap } from "@/lib/schemaFields";
 
 const authToken = getAuthToken(Astro.cookies);
 if (!authToken) {
-  return Astro.redirect('/auth/login');
+  return Astro.redirect("/auth/login");
 }
 
 let error: string | null = null;
 
 // Handle form submission (server-side)
-if (Astro.request.method === 'POST') {
+if (Astro.request.method === "POST") {
   try {
     const formData = await Astro.request.formData();
 
     // Collect dataJson.* fields from form. FormData is all strings, so coerce each value to its
     // declared schema type — a `number` field like "order" must be sent as a real number or the
     // content validator rejects it and the value silently never saves.
-    const entryTypeId = formData.get('entry_type_id') as string | null;
+    const entryTypeId = formData.get("entry_type_id") as string | null;
     let fieldTypes: Record<string, string> = {};
     if (entryTypeId) {
       try {
-        const type = (await listEntryTypes(authToken)).find(t => t.id === entryTypeId);
+        const type = (await listEntryTypes(authToken)).find((t) => t.id === entryTypeId);
         fieldTypes = fieldTypeMap(type?.schemaJson);
       } catch (e) {
-        console.error('[NewEntry] Could not load schema for field coercion:', e);
+        console.error("[NewEntry] Could not load schema for field coercion:", e);
       }
     }
     const dataJson: Record<string, any> = {};
     for (const [key, value] of formData.entries()) {
-      if (key.startsWith('dataJson.')) {
-        const fieldKey = key.replace('dataJson.', '');
+      if (key.startsWith("dataJson.")) {
+        const fieldKey = key.replace("dataJson.", "");
         dataJson[fieldKey] = coerceDataJsonValue(fieldTypes[fieldKey], value as string);
       }
     }
 
     const data: Record<string, any> = {
-      entry_type_id: formData.get('entry_type_id') as string,
-      title: formData.get('title') as string,
-      slug: (formData.get('slug') as string) || null,
-      summary: (formData.get('summary') as string) || null,
-      description: (formData.get('description') as string) || null,
-      status: formData.get('status') as string,
+      entry_type_id: formData.get("entry_type_id") as string,
+      title: formData.get("title") as string,
+      slug: (formData.get("slug") as string) || null,
+      summary: (formData.get("summary") as string) || null,
+      description: (formData.get("description") as string) || null,
+      status: formData.get("status") as string,
       data_json: Object.keys(dataJson).length > 0 ? dataJson : {},
     };
 
     const entry = await createEntry(data, authToken);
     return Astro.redirect(`/workspace/entries/${entry.id}`);
   } catch (e) {
-    console.error('[NewEntry] Failed to create entry:', e);
+    console.error("[NewEntry] Failed to create entry:", e);
     error = e instanceof Error ? e.message : String(e);
   }
 }
 
 // Get pre-selected type from query parameter (e.g., from Quick Create)
-const preSelectedTypeId = Astro.url.searchParams.get('type');
+const preSelectedTypeId = Astro.url.searchParams.get("type");
 
 let entryTypes: EntryTypeRead[] = [];
 
@@ -66,16 +66,17 @@ try {
   entryTypes = await listEntryTypes(authToken);
 } catch (e) {
   error = e instanceof Error ? e.message : String(e);
-  console.error('[NewEntry] Failed to load entry types:', error);
+  console.error("[NewEntry] Failed to load entry types:", error);
 }
 
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 
 // Get pre-selected entry type schema if available
-const preSelectedType = preSelectedTypeId ? entryTypes.find(t => t.id === preSelectedTypeId) : null;
-const preSelectedSchema = preSelectedType?.schemaJson && (preSelectedType.schemaJson as any).fields?.length > 0
-  ? preSelectedType.schemaJson
-  : null;
+const preSelectedType = preSelectedTypeId ? entryTypes.find((t) => t.id === preSelectedTypeId) : null;
+const preSelectedSchema =
+  preSelectedType?.schemaJson && (preSelectedType.schemaJson as any).fields?.length > 0
+    ? preSelectedType.schemaJson
+    : null;
 ---
 
 <AppLayout title="New Entry" eyebrow="Entries">

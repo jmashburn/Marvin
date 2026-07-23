@@ -3,14 +3,14 @@
  * Migrated to use @inneropen/marvin-sdk
  */
 
-import { createSdkClient } from '../sdk';
-import { getApiUrl } from './config';
 import type {
   PlatformCollection,
   PlatformCollectionCreate,
   PlatformCollectionUpdate,
   PlatformEntry,
-} from '@inneropen/marvin-sdk/platform';
+} from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
+import { getApiUrl } from "./config";
 
 // Re-export SDK types with legacy names for backward compatibility
 export type CollectionRead = PlatformCollection;
@@ -63,7 +63,7 @@ export async function deleteCollection(id: string, authToken: string): Promise<v
  */
 export async function reorderCollections(
   order: Array<{ id: string; sortOrder: number }>,
-  authToken: string
+  authToken: string,
 ): Promise<{ updated: number }> {
   const sdk = createSdkClient(authToken);
   return sdk.collections.reorder(order);
@@ -81,7 +81,7 @@ export interface CollectionMember {
   id: string;
   label: string;
   slug: string;
-  type: 'entry' | 'asset' | 'resource';
+  type: "entry" | "asset" | "resource";
 }
 
 /**
@@ -103,7 +103,7 @@ export async function updateCollectionEntry(
   collectionId: string,
   entryId: string,
   data: { role?: string | null; metadataJson?: Record<string, unknown> | null },
-  authToken: string
+  authToken: string,
 ): Promise<void> {
   const sdk = createSdkClient(authToken);
   return sdk.collections.updateEntryJunction(collectionId, entryId, data);

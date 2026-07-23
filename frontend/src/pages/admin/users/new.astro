@@ -1,8 +1,8 @@
 ---
-import AdminLayout from "@/layouts/AdminLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import AdminLayout from "@/layouts/AdminLayout.astro";
+import { fetchApi, getAuthToken } from "@/lib/api/client";
 import { requireAdmin } from "@/lib/auth";
-import { getAuthToken, fetchApi } from "@/lib/api/client";
 
 const currentUser = await requireAdmin(Astro.cookies, Astro.redirect, Astro.url.pathname);
 
@@ -12,18 +12,18 @@ let error: string | null = null;
 
 try {
   // Fetch available workspaces for initial membership
-  const workspacesResponse = await fetchApi<any>('/api/admin/groups', {}, authToken);
+  const workspacesResponse = await fetchApi<any>("/api/admin/groups", {}, authToken);
   workspaces = workspacesResponse.items || [];
 } catch (e) {
-  console.error('[admin/users/new] Error loading workspaces:', e);
+  console.error("[admin/users/new] Error loading workspaces:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 // Role options
 const platformRoles = [
-  { value: 'USER', label: 'User' },
-  { value: 'ADMIN', label: 'Admin' },
-  { value: 'SUPER_ADMIN', label: 'Super Admin' },
+  { value: "USER", label: "User" },
+  { value: "ADMIN", label: "Admin" },
+  { value: "SUPER_ADMIN", label: "Super Admin" },
 ];
 ---
 

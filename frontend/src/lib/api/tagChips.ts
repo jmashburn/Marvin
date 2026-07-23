@@ -7,7 +7,7 @@
  * (POST /tags). De-duplicates while preserving order.
  */
 
-import { createSdkClient } from '../sdk';
+import { createSdkClient } from "../sdk";
 
 export interface TagChip {
   name: string;
@@ -19,7 +19,7 @@ export async function resolveTagIds(payloadEl: HTMLInputElement | null, authToke
   if (!payloadEl) return [];
   let chips: TagChip[] = [];
   try {
-    chips = JSON.parse(payloadEl.value || '[]');
+    chips = JSON.parse(payloadEl.value || "[]");
   } catch {
     chips = [];
   }

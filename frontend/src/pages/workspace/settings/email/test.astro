@@ -1,6 +1,6 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
@@ -10,10 +10,10 @@ let workspace = null;
 try {
   workspace = await getCurrentWorkspace(authToken);
 } catch (e) {
-  console.error('[email-test] Error loading workspace:', e);
+  console.error("[email-test] Error loading workspace:", e);
 }
 
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || 'http://localhost:8080';
+const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
 ---
 
 <AppLayout title="Test Emails" eyebrow="Workspace">

@@ -5,8 +5,8 @@
  * tag name to a stable id (the "create-on-type" primitive the entry editor uses on save).
  */
 
-import { createSdkClient } from '../sdk';
-import type { PlatformTag, PlatformTagCreate, PlatformTagUpdate } from '@inneropen/marvin-sdk/platform';
+import type { PlatformTag, PlatformTagCreate, PlatformTagUpdate } from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
 export type TagRead = PlatformTag;
 export type TagCreate = PlatformTagCreate;

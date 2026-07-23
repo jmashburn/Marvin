@@ -2,22 +2,22 @@
 // Ensure this page is server-rendered (not prerendered)
 export const prerender = false;
 
-import { forgotPassword } from '@/lib/api/auth';
+import { forgotPassword } from "@/lib/api/auth";
 
 let success = false;
 let error: string | null = null;
 
 // Handle form submission (server-side)
-if (Astro.request.method === 'POST') {
+if (Astro.request.method === "POST") {
   try {
     const formData = await Astro.request.formData();
-    const email = formData.get('email') as string;
+    const email = formData.get("email") as string;
 
     await forgotPassword({ email });
     success = true;
   } catch (e: any) {
-    console.error('[ForgotPassword] Error:', e);
-    error = e?.message || 'An error occurred. Please try again.';
+    console.error("[ForgotPassword] Error:", e);
+    error = e?.message || "An error occurred. Please try again.";
   }
 }
 ---

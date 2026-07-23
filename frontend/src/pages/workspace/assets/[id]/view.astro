@@ -1,9 +1,9 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
+import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
 import TagList from "@/components/TagList.astro";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
 import { createSdkClient } from "@/lib/sdk";
-import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
 
 const authToken = getAuthToken(Astro.cookies);
 const { id } = Astro.params;
@@ -21,14 +21,14 @@ if (!id) {
     asset = await sdk.assets.get(id);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Asset View] Failed to load:', error);
+    console.error("[Asset View] Failed to load:", error);
   }
 }
 
-const isImage = asset?.mimeType?.startsWith('image/');
-const isVideo = asset?.mimeType?.startsWith('video/');
-const isAudio = asset?.mimeType?.startsWith('audio/');
-const isPdf = asset?.mimeType?.includes('pdf');
+const isImage = asset?.mimeType?.startsWith("image/");
+const isVideo = asset?.mimeType?.startsWith("video/");
+const isAudio = asset?.mimeType?.startsWith("audio/");
+const isPdf = asset?.mimeType?.includes("pdf");
 ---
 
 <AppLayout

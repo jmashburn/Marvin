@@ -1,8 +1,8 @@
 ---
-import AppLayout from "@/layouts/AppLayout.astro";
-import { getSiteClients } from "@/lib/api/platform";
-import { getAuthToken } from "@/lib/api/client";
 import type { PlatformAPIClient } from "@inneropen/marvin-sdk/platform";
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getAuthToken } from "@/lib/api/client";
+import { getSiteClients } from "@/lib/api/platform";
 
 const authToken = getAuthToken(Astro.cookies);
 let clients: PlatformAPIClient[] = [];
@@ -10,8 +10,8 @@ let error: string | null = null;
 
 // Check for query params
 const urlParams = Astro.url.searchParams;
-const newToken = urlParams.get('token');
-const newClientName = urlParams.get('client_name');
+const newToken = urlParams.get("token");
+const newClientName = urlParams.get("client_name");
 
 if (!authToken) {
   error = "Authentication required";
@@ -19,7 +19,7 @@ if (!authToken) {
   try {
     clients = await getSiteClients(authToken);
   } catch (e) {
-    console.error('[clients] Error loading:', e);
+    console.error("[clients] Error loading:", e);
     error = e instanceof Error ? e.message : String(e);
   }
 }

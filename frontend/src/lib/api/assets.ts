@@ -5,15 +5,15 @@
  * helpers hit the apply/reject-suggestion endpoints the SDK doesn't wrap yet, mirroring entries.
  */
 
-import { getApiUrl } from './config';
-import type { PlatformAsset } from '@inneropen/marvin-sdk/platform';
+import type { PlatformAsset } from "@inneropen/marvin-sdk/platform";
+import { getApiUrl } from "./config";
 
 export type AssetRead = PlatformAsset;
 
 /** Apply the asset's staged AI suggestion (suggestion_json) and clear it. */
 export async function applyAssetSuggestion(id: string, authToken: string): Promise<AssetRead> {
   const res = await fetch(getApiUrl(`/api/platform/assets/${id}/apply-suggestion`), {
-    method: 'POST',
+    method: "POST",
     headers: { Authorization: `Bearer ${authToken}` },
   });
   if (!res.ok) throw new Error(`apply-suggestion failed: ${res.status}`);
@@ -23,7 +23,7 @@ export async function applyAssetSuggestion(id: string, authToken: string): Promi
 /** Discard the asset's staged AI suggestion without applying it. */
 export async function rejectAssetSuggestion(id: string, authToken: string): Promise<AssetRead> {
   const res = await fetch(getApiUrl(`/api/platform/assets/${id}/reject-suggestion`), {
-    method: 'POST',
+    method: "POST",
     headers: { Authorization: `Bearer ${authToken}` },
   });
   if (!res.ok) throw new Error(`reject-suggestion failed: ${res.status}`);

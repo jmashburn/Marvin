@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -12,33 +12,33 @@ let appriseReady = false;
 
 // Check if Apprise is available
 try {
-  const configCheck = await sdk.adminSystem.check() as any;
+  const configCheck = (await sdk.adminSystem.check()) as any;
   appriseReady = (configCheck as any)?.appriseReady === true;
 } catch (e) {
-  console.error('[notifications/new] Error checking Apprise availability:', e);
+  console.error("[notifications/new] Error checking Apprise availability:", e);
 }
 
 // Redirect if Apprise is not available
 if (!appriseReady) {
-  return Astro.redirect('/automation/notifications');
+  return Astro.redirect("/automation/notifications");
 }
 
 try {
   const result = await sdk.events.getOptions();
   eventOptions = Array.isArray(result) ? result : ((result as any)?.items ?? []);
 } catch (e) {
-  console.error('[notifications/new] Error loading events:', e);
+  console.error("[notifications/new] Error loading events:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 // Pre-select commonly used events
 const defaultEvents = [
-  'core.entry_created',
-  'core.entry_published',
-  'core.site_deployment_failed',
-  'core.site_build_failed',
-  'core.backup_failed',
-  'core.storage_quota_exceeded'
+  "core.entry_created",
+  "core.entry_published",
+  "core.site_deployment_failed",
+  "core.site_build_failed",
+  "core.backup_failed",
+  "core.storage_quota_exceeded",
 ];
 ---
 

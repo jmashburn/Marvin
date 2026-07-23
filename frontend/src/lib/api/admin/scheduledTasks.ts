@@ -2,7 +2,7 @@
  * Admin Scheduled Tasks API - manage system and workspace tasks
  */
 
-import { fetchApi } from '../client';
+import { fetchApi } from "../client";
 
 export interface ScheduledTaskRead {
   id: string;
@@ -56,90 +56,65 @@ export interface ScheduledTaskExecutionLogRead {
 }
 
 export async function listAllTasks(authToken?: string): Promise<ScheduledTaskRead[]> {
-  return fetchApi<ScheduledTaskRead[]>(
-    '/api/admin/scheduled-tasks',
-    { method: 'GET' },
-    authToken
-  );
+  return fetchApi<ScheduledTaskRead[]>("/api/admin/scheduled-tasks", { method: "GET" }, authToken);
 }
 
-export async function createSystemTask(
-  data: ScheduledTaskCreate,
-  authToken?: string
-): Promise<ScheduledTaskRead> {
+export async function createSystemTask(data: ScheduledTaskCreate, authToken?: string): Promise<ScheduledTaskRead> {
   return fetchApi<ScheduledTaskRead>(
-    '/api/admin/scheduled-tasks',
+    "/api/admin/scheduled-tasks",
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     },
-    authToken
+    authToken,
   );
 }
 
 export async function getSystemTask(id: string, authToken?: string): Promise<ScheduledTaskRead> {
-  return fetchApi<ScheduledTaskRead>(
-    `/api/admin/scheduled-tasks/${id}`,
-    { method: 'GET' },
-    authToken
-  );
+  return fetchApi<ScheduledTaskRead>(`/api/admin/scheduled-tasks/${id}`, { method: "GET" }, authToken);
 }
 
 export async function updateSystemTask(
   id: string,
   data: ScheduledTaskUpdate,
-  authToken?: string
+  authToken?: string,
 ): Promise<ScheduledTaskRead> {
   return fetchApi<ScheduledTaskRead>(
     `/api/admin/scheduled-tasks/${id}`,
     {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     },
-    authToken
+    authToken,
   );
 }
 
 export async function deleteSystemTask(id: string, authToken?: string): Promise<void> {
-  await fetchApi<void>(
-    `/api/admin/scheduled-tasks/${id}`,
-    { method: 'DELETE' },
-    authToken
-  );
+  await fetchApi<void>(`/api/admin/scheduled-tasks/${id}`, { method: "DELETE" }, authToken);
 }
 
-export async function executeSystemTask(
-  id: string,
-  authToken?: string
-): Promise<{ message: string }> {
-  return fetchApi<{ message: string }>(
-    `/api/admin/scheduled-tasks/${id}/execute`,
-    { method: 'POST' },
-    authToken
-  );
+export async function executeSystemTask(id: string, authToken?: string): Promise<{ message: string }> {
+  return fetchApi<{ message: string }>(`/api/admin/scheduled-tasks/${id}/execute`, { method: "POST" }, authToken);
 }
 
 export async function getSystemTaskHistory(
   id: string,
   limit = 50,
-  authToken?: string
+  authToken?: string,
 ): Promise<ScheduledTaskExecutionLogRead[]> {
   return fetchApi<ScheduledTaskExecutionLogRead[]>(
     `/api/admin/scheduled-tasks/${id}/history?limit=${limit}`,
-    { method: 'GET' },
-    authToken
+    { method: "GET" },
+    authToken,
   );
 }
 
-export async function getGlobalLog(
-  limit = 100,
-  authToken?: string
-): Promise<ScheduledTaskExecutionLogRead[]> {
+export async function getGlobalLog(limit = 100, authToken?: string): Promise<ScheduledTaskExecutionLogRead[]> {
   return fetchApi<ScheduledTaskExecutionLogRead[]>(
     `/api/admin/scheduled-tasks/log?limit=${limit}`,
-    { method: 'GET' },
-    authToken
+    { method: "GET" },
+    authToken,
   );
 }

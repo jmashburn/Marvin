@@ -3,17 +3,17 @@
  * Pass authToken in SSR (from Astro.cookies); omit it in the browser to use the HttpOnly cookie.
  */
 
-import { createSdkClient } from '../sdk';
 import type {
-  McpServer,
-  McpServerCreate,
-  McpServerUpdate,
-  McpServerTestResult,
   AISettings,
   AISettingsUpdate,
-} from '@inneropen/marvin-sdk/platform';
+  McpServer,
+  McpServerCreate,
+  McpServerTestResult,
+  McpServerUpdate,
+} from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
-export type { McpServer, McpServerCreate, McpServerUpdate, McpServerTestResult };
+export type { McpServer, McpServerCreate, McpServerTestResult, McpServerUpdate };
 
 export async function listMcpServers(authToken?: string): Promise<McpServer[]> {
   return createSdkClient(authToken).ai.mcpServers.list();

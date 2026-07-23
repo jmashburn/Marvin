@@ -1,9 +1,9 @@
 ---
+import type { Workspace } from "@inneropen/marvin-sdk/platform";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { createSdkClient } from '@/lib/sdk';
-import type { Workspace } from '@inneropen/marvin-sdk/platform';
 import type { GroupPreferencesRead } from "@/lib/api/types";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
@@ -15,10 +15,10 @@ let success: boolean = false;
 
 // Check for success/error query params
 const urlParams = Astro.url.searchParams;
-if (urlParams.get('success')) {
+if (urlParams.get("success")) {
   success = true;
 }
-if (urlParams.get('error')) {
+if (urlParams.get("error")) {
   error = "Failed to save site configuration. Please try again.";
 }
 
@@ -27,19 +27,19 @@ try {
 
   if (workspace?.id) {
     // Get preferences for this workspace
-    preferences = await sdk.workspaces.getPreferences(workspace.id) as GroupPreferencesRead;
+    preferences = (await sdk.workspaces.getPreferences(workspace.id)) as GroupPreferencesRead;
   } else {
     error = "No active workspace found. Please activate a workspace first.";
   }
 } catch (e) {
-  console.error('[site] Error loading:', e);
+  console.error("[site] Error loading:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 // SEO lives under site_metadata_json.seo — surface it as a structured section (not raw JSON).
 const siteMeta = (preferences?.siteMetadataJson || {}) as Record<string, any>;
 const seo = (siteMeta.seo || {}) as Record<string, any>;
-const seoKeywords = Array.isArray(seo.keywords) ? seo.keywords.join(', ') : (seo.keywords ?? '');
+const seoKeywords = Array.isArray(seo.keywords) ? seo.keywords.join(", ") : (seo.keywords ?? "");
 
 // The raw metadata editor owns everything EXCEPT seo (structured above) — compute its display value
 // here in the frontmatter, since TS generics/casts can't live inside Astro template expressions.
@@ -47,11 +47,8 @@ const metaWithoutSeo: Record<string, any> = { ...siteMeta };
 delete metaWithoutSeo.seo;
 const siteSocial = (preferences?.siteSocialJson || null) as Record<string, any> | null;
 const metaForDisplay: Record<string, any> =
-  siteSocial && Object.keys(siteSocial).length > 0
-    ? { ...metaWithoutSeo, social: siteSocial }
-    : metaWithoutSeo;
-const metadataEditorValue =
-  Object.keys(metaForDisplay).length > 0 ? JSON.stringify(metaForDisplay, null, 2) : "";
+  siteSocial && Object.keys(siteSocial).length > 0 ? { ...metaWithoutSeo, social: siteSocial } : metaWithoutSeo;
+const metadataEditorValue = Object.keys(metaForDisplay).length > 0 ? JSON.stringify(metaForDisplay, null, 2) : "";
 ---
 
 <AppLayout title="Site Configuration" eyebrow="Publishing">

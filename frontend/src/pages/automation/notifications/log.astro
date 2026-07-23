@@ -1,13 +1,13 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { createSdkClient } from "@/lib/sdk";
 import { getAuthToken } from "@/lib/api/client";
 import { getApiUrl } from "@/lib/api/config";
+import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
 const sdk = createSdkClient(authToken);
 
-const filter = Astro.url.searchParams.get('filter') || 'all';
+const filter = Astro.url.searchParams.get("filter") || "all";
 
 let logs: any[] = [];
 let notifiers: any[] = [];
@@ -16,31 +16,31 @@ let error: string | null = null;
 try {
   const [logsResp, notifResult] = await Promise.all([
     authToken
-      ? fetch(getApiUrl('/api/group/notifications/log?limit=200').toString(), {
-          headers: { 'Authorization': `Bearer ${authToken}` },
-        }).then(r => r.ok ? r.json() : [])
+      ? fetch(getApiUrl("/api/group/notifications/log?limit=200").toString(), {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }).then((r) => (r.ok ? r.json() : []))
       : Promise.resolve([]),
     sdk.notifications.list(),
   ]);
   logs = Array.isArray(logsResp) ? logsResp : [];
   notifiers = Array.isArray(notifResult) ? notifResult : ((notifResult as any)?.items ?? []);
 } catch (e) {
-  console.error('[notifications/log] Error:', e);
+  console.error("[notifications/log] Error:", e);
   error = e instanceof Error ? e.message : String(e);
 }
 
 const notifierMap = new Map(notifiers.map((n: any) => [n.id, n]));
-const filteredLogs = filter === 'all' ? logs : logs.filter((l: any) => l.status === filter);
+const filteredLogs = filter === "all" ? logs : logs.filter((l: any) => l.status === filter);
 
 function formatDate(isoStr: string): string {
-  if (!isoStr) return '—';
-  const normalized = isoStr.replace(/(\.\d{3})\d+/, '$1');
+  if (!isoStr) return "—";
+  const normalized = isoStr.replace(/(\.\d{3})\d+/, "$1");
   const d = new Date(normalized);
-  return isNaN(d.getTime()) ? isoStr : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? isoStr : d.toLocaleString();
 }
 
 function statusClass(status: string): string {
-  return status === 'success' ? 'success' : status === 'failed' ? 'failed' : 'none';
+  return status === "success" ? "success" : status === "failed" ? "failed" : "none";
 }
 ---
 

@@ -9,7 +9,11 @@
  *   attachedTags — the entity's current tags, resolved to {id, name}
  *   allTags      — the workspace vocabulary, for autocomplete + name→id resolution
  */
-interface TagLite { id: string; name: string; slug?: string }
+interface TagLite {
+  id: string;
+  name: string;
+  slug?: string;
+}
 interface Props {
   attachedTags?: TagLite[];
   allTags?: TagLite[];

@@ -3,26 +3,33 @@
  * Pass authToken in SSR (from Astro.cookies); omit it in the browser to use the HttpOnly cookie.
  */
 
-import { createSdkClient } from '../sdk';
 import type {
   Automation,
   AutomationCreate,
-  AutomationUpdate,
-  AutomationOptions,
   AutomationDefinition,
-  AutomationValidateResult,
+  AutomationOptions,
   AutomationPreviewResult,
-} from '@inneropen/marvin-sdk/platform';
+  AutomationUpdate,
+  AutomationValidateResult,
+} from "@inneropen/marvin-sdk/platform";
+import { createSdkClient } from "../sdk";
 
-export type { Automation, AutomationCreate, AutomationUpdate, AutomationOptions };
+export type { Automation, AutomationCreate, AutomationOptions, AutomationUpdate };
 
 /** Advisory coherence check for a definition (warnings, non-blocking). */
-export async function validateAutomation(definition: AutomationDefinition, authToken?: string): Promise<AutomationValidateResult> {
+export async function validateAutomation(
+  definition: AutomationDefinition,
+  authToken?: string,
+): Promise<AutomationValidateResult> {
   return createSdkClient(authToken).automations.validate(definition);
 }
 
 /** Dry-run a target selector — which entities it would act on, without running anything. */
-export async function previewAutomation(definition: AutomationDefinition, payload: Record<string, unknown> = {}, authToken?: string): Promise<AutomationPreviewResult> {
+export async function previewAutomation(
+  definition: AutomationDefinition,
+  payload: Record<string, unknown> = {},
+  authToken?: string,
+): Promise<AutomationPreviewResult> {
   return createSdkClient(authToken).automations.preview(definition, payload);
 }
 

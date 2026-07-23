@@ -1,20 +1,20 @@
 ---
 import EntryCard from "@/components/EntryCard.astro";
-import AppLayout from "@/layouts/AppLayout.astro";
 import FilterBar from "@/components/FilterBar.astro";
-import { listEntries, type EntryRead } from "@/lib/api/entries";
-import { listEntryTypes, type EntryTypeRead } from "@/lib/api/entryTypes";
-import { listCollections, type CollectionRead } from "@/lib/api/collections";
-import { listTags, type TagRead } from "@/lib/api/tags";
+import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
+import { type CollectionRead, listCollections } from "@/lib/api/collections";
+import { type EntryRead, listEntries } from "@/lib/api/entries";
+import { type EntryTypeRead, listEntryTypes } from "@/lib/api/entryTypes";
+import { listTags, type TagRead } from "@/lib/api/tags";
 
 const authToken = getAuthToken(Astro.cookies);
 
 // Get URL parameters for pre-filtering
-const statusParam = Astro.url.searchParams.get('status');
-const statusFilters = statusParam ? statusParam.split(',').map(s => s.trim()) : [];
+const statusParam = Astro.url.searchParams.get("status");
+const statusFilters = statusParam ? statusParam.split(",").map((s) => s.trim()) : [];
 // A single tag slug can pre-select the tag filter (deep-link, e.g. ?tag=leather).
-const tagParam = Astro.url.searchParams.get('tag') || '';
+const tagParam = Astro.url.searchParams.get("tag") || "";
 
 let entries: EntryRead[] = [];
 let entryTypes: EntryTypeRead[] = [];
@@ -24,7 +24,7 @@ let error: string | null = null;
 
 // Ensure we have auth token before making requests
 if (!authToken) {
-  error = 'Authentication required';
+  error = "Authentication required";
 } else {
   try {
     [entries, entryTypes, collections, allTags] = await Promise.all([
@@ -35,20 +35,18 @@ if (!authToken) {
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
-    console.error('[Entries] Failed to load:', error);
+    console.error("[Entries] Failed to load:", error);
   }
 }
 
 // Create a map of collection ID to collection for quick lookup
-const collectionsMap = new Map(collections.map(c => [c.id, c]));
+const collectionsMap = new Map(collections.map((c) => [c.id, c]));
 
 // Sort entry types by sort_order
 const sortedTypes = entryTypes.sort((a, b) => a.sortOrder - b.sortOrder);
 
 // Tags that are actually applied to something, for the filter dropdown (alpha by name).
-const filterTags = allTags
-  .filter((t) => (t.entryCount ?? 0) > 0)
-  .sort((a, b) => a.name.localeCompare(b.name));
+const filterTags = allTags.filter((t) => (t.entryCount ?? 0) > 0).sort((a, b) => a.name.localeCompare(b.name));
 
 // Group entries by collection (entries can appear in multiple collections)
 const collectionGroups = new Map<string, { collection: CollectionRead; entries: EntryRead[] }>();
@@ -57,7 +55,7 @@ const uncollected: EntryRead[] = [];
 for (const entry of entries) {
   if (entry.collections && entry.collections.length > 0) {
     for (const item of entry.collections) {
-      const colId = typeof item === 'string' ? item : item.id;
+      const colId = typeof item === "string" ? item : item.id;
       const col = collectionsMap.get(colId);
       if (col) {
         if (!collectionGroups.has(colId)) {
@@ -72,8 +70,8 @@ for (const entry of entries) {
 }
 
 // Sort groups by collection sort_order (Inbox/Drafts/… lead), then name as a tiebreaker.
-const sortedGroups = [...collectionGroups.values()].sort((a, b) =>
-  (a.collection.sortOrder - b.collection.sortOrder) || a.collection.name.localeCompare(b.collection.name)
+const sortedGroups = [...collectionGroups.values()].sort(
+  (a, b) => a.collection.sortOrder - b.collection.sortOrder || a.collection.name.localeCompare(b.collection.name),
 );
 ---
 
