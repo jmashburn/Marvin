@@ -112,7 +112,7 @@ async def get_public_group(group_slug: str = fastapi.Path(...), session=Depends(
     repos = get_repositories(session)
     group = repos.groups.get_by_slug_or_id(group_slug)
 
-    if not group or group.preferences.private_group:
+    if not group or (group.preferences and group.preferences.private_group):
         raise HTTPException(404, "Group not found")
     else:
         return group

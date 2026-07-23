@@ -209,15 +209,18 @@ class AdminGroupManagementRoutes(BaseAdminController):
         Raises:
             HTTPException (404 Not Found): If the group or its preferences are not found.
         """
-        # Retrieve the existing group model instance
-        group_model_instance = self.repo.get_one_raw(item_id)  # Assuming get_one_raw returns the SQLAlchemy model
+        from marvin.db.models.groups.groups import Groups
+        from marvin.db.models.groups.preferences import GroupPreferencesModel
+
+        # Retrieve the existing group ORM model instance
+        group_model_instance = self.session.get(Groups, item_id)
         if not group_model_instance:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Group not found.")
 
         # Update group preferences if provided in the request data
         if data.preferences:
             # Fetch existing preferences for the group
-            preferences_model = self.repos.group_preferences.get_one_raw(value=item_id, key="group_id")
+            preferences_model = self.session.query(GroupPreferencesModel).filter_by(group_id=item_id).first()
             if not preferences_model:
                 # This case might indicate data inconsistency or preferences are not yet created.
                 # Depending on design, could create preferences here or raise error.
@@ -227,22 +230,15 @@ class AdminGroupManagementRoutes(BaseAdminController):
             # Map incoming preference data to the existing preferences model
             updated_preferences_data = mapper(data.preferences, preferences_model)
             # Update preferences in the database
-            # The group_model_instance.preferences will be updated by the relationship if correctly configured
-            # or by direct assignment after the update.
             self.repos.group_preferences.update(preferences_model.id, updated_preferences_data)  # Update by preference ID
 
         # Update group name if it's provided and different from the current name
-        # The repository's update method should handle slug regeneration if name changes.
+        # The repository's update method handles slug regeneration when the name changes.
         if data.name is not None and data.name.strip() and data.name != group_model_instance.name:
-            # Prepare data dictionary for group update
-            group_update_dict = {"name": data.name}
-            # Update the group using the repository. This will also handle slug update.
-            group_model_instance = self.repo.update(item_id, group_update_dict)
+            self.repo.update(item_id, {"name": data.name})
 
-        # After all updates, refresh the group_model_instance to get the latest state
-        # and convert to the response schema.
-        # If repo.update already returns the schema, this explicit get might be redundant.
-        # However, to ensure all changes (name, preferences via relationship) are reflected:
+        # After all updates, refresh the ORM instance to capture name/slug and
+        # relationship (preferences) changes, then convert to the response schema.
         self.session.refresh(group_model_instance)  # Refresh to capture potential relationship updates
 
         result = self.repo.schema.model_validate(group_model_instance)

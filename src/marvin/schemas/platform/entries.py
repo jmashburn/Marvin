@@ -146,7 +146,7 @@ class EntryUpdate(_MarvinModel):
 
     @field_validator("published_at", "publish_at", "expire_at", mode="before")
     @classmethod
-    def validate_datetime_fields(cls, value: str | datetime | None) -> datetime | None:
+    def validate_datetime_fields(cls, value: str | datetime | None) -> str | datetime | None:
         """Convert empty strings to None for datetime fields."""
         if value == "":
             return None

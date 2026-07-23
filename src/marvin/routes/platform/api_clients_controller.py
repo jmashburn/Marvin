@@ -1,6 +1,6 @@
 """API client routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
 
 from marvin.db.db_setup import generate_session
@@ -94,7 +94,7 @@ class APIClientsController(BaseUserController):
                 "slug": {"summary": "Slug", "value": "my-site-client"},
             },
         ),
-        data: APIClientUpdate = ...,
+        data: APIClientUpdate = Body(...),
     ) -> APIClientRead:
         """Update an API client by ID or slug."""
         # Try UUID first, then slug

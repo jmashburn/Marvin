@@ -77,7 +77,7 @@ def resolve_retrieved_sources(session, retrieved: list[dict]) -> list[dict]:
                 "index": i + 1,
                 "entity_type": et,
                 "entity_id": eid,
-                "title": titles.get((et, eid), f"{et} {eid[:8]}"),
+                "title": titles.get((et or "", eid), f"{et} {eid[:8]}"),
                 "score": c.get("score"),
             }
         )
