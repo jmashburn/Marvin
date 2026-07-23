@@ -831,7 +831,7 @@ def app_settings_constructor(
     production: bool,
     env_file: Path,
     env_secrets: Path,
-    secrets_dir: Path,
+    secrets_dir: Path | None,
     env_encoding: str = "utf-8",
 ) -> AppSettings:
     """
@@ -874,11 +874,11 @@ def app_settings_constructor(
 def app_plugin_settings_constructor(
     name: str,
     version: str,
-    env_file: Path,
+    env_file: Path | None,
     data_dir: Path,
     production: bool,
-    env_secrets: Path,
-    secrets_dir: Path,
+    env_secrets: Path | None,
+    secrets_dir: Path | None,
     env_encoding: str = "utf-8",
     description: str | None = None,
     author: str | None = None,

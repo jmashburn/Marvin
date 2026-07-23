@@ -11,6 +11,9 @@ The registry is the single source of truth. The internal agent binds each spec *
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
+
+from sqlalchemy.orm import Session
 
 from ..operations.base import INVOCATION_SOURCES, ROLE_VIEWER
 
@@ -23,11 +26,11 @@ class ToolContext:
     stay free of controller/request coupling.
     """
 
-    session: object
+    session: Session
     group_id: object
-    user: object = None
-    provider: object = None  # optional — only tools that embed/generate need one
-    logger: object = None
+    user: Any = None
+    provider: Any = None  # optional — only tools that embed/generate need one
+    logger: Any = None
 
 
 # handler(ctx, args) -> str : returns a JSON string fed back to the model / returned to callers.
