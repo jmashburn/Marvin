@@ -55,7 +55,7 @@ def init_plugin_db(session: orm.Session, plugins: AppPlugins) -> None:
         logger.info("-------Plugins: Init DB-------")
         for plugin_name, plugin in plugins.LOADED_PLUGINS.items():
             logger.debug(f"-------Initializing Plugin DB: {plugin_name}-------")
-            plugin_dir = Path(os.path.dirname(plugin.__file__))
+            plugin_dir = Path(os.path.dirname(plugin.__file__ or ""))
             plugin_db_path = str(plugin_dir / "db" / "init_db.py")
 
             if os.path.isfile(plugin_db_path):
@@ -192,13 +192,13 @@ def include_name(name: str, type_: str, parent_names: dict[str, Any]) -> bool:
         try:
             # This is a placeholder for how these might be accessed.
             # The actual mechanism might be different in Alembic's execution context.
-            from marvin.db.models import Base  # Assuming Base has the metadata
+            from marvin.db.models import SqlAlchemyBase as Base  # Assuming Base has the metadata
 
             target_metadata = Base.metadata
             # PLUGIN_PREFIX would likely come from settings or another global config
             settings = get_app_settings()
             PLUGIN_PREFIX = settings.PLUGIN_PREFIX
-            return name in target_metadata.tables or name.startswith(PLUGIN_PREFIX)
+            return name in target_metadata.tables or name.startswith(PLUGIN_PREFIX or "")
         except ImportError:
             logger.warning("Could not import Base for target_metadata in include_name hook.")
             # Fallback or stricter behavior might be needed
@@ -308,7 +308,7 @@ def main() -> None:
             logger.info("-------Plugins Alembic Enabled-------")
             plugins = get_app_plugins(settings.PLUGIN_PREFIX)
             for plugin_name, plugin in plugins.LOADED_PLUGINS.items():
-                PLUGIN_DIR = Path(os.path.dirname(plugin.__file__))
+                PLUGIN_DIR = Path(os.path.dirname(plugin.__file__ or ""))
                 plugin_alembic_path = str(PLUGIN_DIR / "alembic.ini")
 
                 if os.path.isfile(plugin_alembic_path):

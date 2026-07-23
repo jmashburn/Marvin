@@ -41,7 +41,7 @@ class WorkspaceExporter:
         """
         self.logger.info("Exporting workspace data...")
 
-        export_data = {
+        export_data: dict[str, Any] = {
             "version": 1,
             "workspace": self._export_workspace_metadata(),
             "site": self._export_site_preferences(),
@@ -141,7 +141,7 @@ class WorkspaceExporter:
             if user and user.email:
                 owner_emails.append(user.email)
 
-        result = {
+        result: dict[str, Any] = {
             "name": workspace.name,
             # Note: slug NOT exported to prevent conflicts on re-import
             # The workspace will be matched by name, keeping its existing slug

@@ -36,7 +36,7 @@ def dev_users() -> list[dict]:
             "full_name": "Jason",
             "username": "jason",
             "email": "jason@example.com",
-            "password": hash_password(settings.DEFAULT_PASSWORD),  # Use hashed default password
+            "password": hash_password(settings.DEFAULT_PASSWORD or ""),  # Use hashed default password
             "group": settings.DEFAULT_GROUP,  # Assign to default group
             "platform_role": PlatformRole.NONE,  # Standard user (no platform-level privileges)
             "admin": False,  # DEPRECATED: Use workspace roles instead
@@ -46,7 +46,7 @@ def dev_users() -> list[dict]:
             "full_name": "Bob",
             "username": "bob",
             "email": "bob@example.com",
-            "password": hash_password(settings.DEFAULT_PASSWORD),
+            "password": hash_password(settings.DEFAULT_PASSWORD or ""),
             "group": settings.DEFAULT_GROUP,
             "platform_role": PlatformRole.NONE,
             "admin": False,  # DEPRECATED
@@ -56,7 +56,7 @@ def dev_users() -> list[dict]:
             "full_name": "Sarah",
             "username": "sarah",
             "email": "sarah@example.com",
-            "password": hash_password(settings.DEFAULT_PASSWORD),
+            "password": hash_password(settings.DEFAULT_PASSWORD or ""),
             "group": settings.DEFAULT_GROUP,
             "platform_role": PlatformRole.NONE,
             "admin": False,  # DEPRECATED
@@ -66,7 +66,7 @@ def dev_users() -> list[dict]:
             "full_name": "Sammy",
             "username": "sammy",
             "email": "sammy@example.com",
-            "password": hash_password(settings.DEFAULT_PASSWORD),
+            "password": hash_password(settings.DEFAULT_PASSWORD or ""),
             "group": settings.DEFAULT_GROUP,
             "platform_role": PlatformRole.NONE,
             "admin": False,  # DEPRECATED
@@ -103,7 +103,7 @@ def default_user_init(db: AllRepositories) -> None:
         "full_name": "Change Me",  # Default full name, intended to be changed
         "username": "admin",  # Default admin username
         "email": settings.DEFAULT_EMAIL,
-        "password": hash_password(settings.DEFAULT_PASSWORD),
+        "password": hash_password(settings.DEFAULT_PASSWORD or ""),
         "group": settings.DEFAULT_GROUP,  # Assign to the default group
         "platform_role": PlatformRole.SUPER_ADMIN,  # Platform administrator with unrestricted access
         "admin": True,  # DEPRECATED: Use platform_role instead

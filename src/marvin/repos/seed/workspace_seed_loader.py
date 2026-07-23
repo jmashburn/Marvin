@@ -32,6 +32,7 @@ class WorkspaceSeedLoader:
         """
         self.repos = repos
         self.logger = logger or get_logger(__name__)
+        self._seed_user_id: str | None  # lazily cached by _get_seed_user_id (guarded by hasattr)
 
     def load_seed_file(self, seed_file: Path, overwrite: bool = False, target_group_id: str | None = None) -> dict[str, int]:
         """Load a complete workspace seed from a JSON file.
@@ -261,6 +262,7 @@ class WorkspaceSeedLoader:
             checksum_val = asset.get("checksum")
 
             if has_binary:
+                assert zip_file is not None  # has_binary is only set when a zip is present
                 try:
                     raw_bytes = zip_file.read(zip_path)
                     binary_data = BytesIO(raw_bytes)
