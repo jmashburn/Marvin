@@ -43,7 +43,11 @@ class RunAutomationHandler(ScheduledTaskHandler):
             if not automation.enabled:
                 return f"automation '{automation.slug}' is disabled — skipped"
             res = run_automation_now(
-                session, automation.group_id, automation, user_id=None, logger=logger,
+                session,
+                automation.group_id,
+                automation,
+                user_id=None,
+                logger=logger,
                 recorder=ExecutionRecorder(session, automation.group_id),
             )
 

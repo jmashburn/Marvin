@@ -7,7 +7,7 @@ API request validation, response serialization, and potentially for internal
 data transfer.
 """
 
-from typing import TYPE_CHECKING, Annotated  # For adding metadata to type hints (e.g., StringConstraints)
+from typing import Annotated  # For adding metadata to type hints (e.g., StringConstraints)
 
 from pydantic import UUID4, ConfigDict, StringConstraints  # Core Pydantic components and constraints
 

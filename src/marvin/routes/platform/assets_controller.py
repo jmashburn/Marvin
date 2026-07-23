@@ -54,7 +54,7 @@ class AssetsController(BaseUserController):
             try:
                 metadata_dict = json.loads(metadata)
             except json.JSONDecodeError:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON in metadata field.")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON in metadata field.") from None
 
         # Create upload request
         upload_request = AssetUploadRequest(
@@ -184,8 +184,9 @@ class AssetsController(BaseUserController):
         For local storage, serves the file from disk.
         For S3 storage, redirects to the public URL or signed URL.
         """
-        from fastapi.responses import FileResponse, RedirectResponse
         from pathlib import Path
+
+        from fastapi.responses import FileResponse, RedirectResponse
 
         asset = self.repos.assets.get_one(item_id)
         if not asset:

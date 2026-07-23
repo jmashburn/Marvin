@@ -18,7 +18,7 @@ from typing import Annotated, Any, NamedTuple
 
 from dateutil.tz import tzlocal
 from dotenv import dotenv_values
-from pydantic import PlainSerializer, field_validator, SecretStr
+from pydantic import PlainSerializer, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .db_providers import AbstractDBProvider, db_provider_factory

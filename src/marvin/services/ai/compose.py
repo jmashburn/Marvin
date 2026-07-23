@@ -53,10 +53,12 @@ def generate_recipe(schema_json: dict | None, slug: str, capabilities: dict | No
         recipe["assets"]["roles"][0]["required"] = True
 
     if long_text:
-        recipe["resources"] = {"extract": [
-            {"type": "supplier", "source": long_text[0], "capture": ["name", "url"]},
-            {"type": "tool", "source": long_text[0], "capture": ["name"]},
-        ]}
+        recipe["resources"] = {
+            "extract": [
+                {"type": "supplier", "source": long_text[0], "capture": ["name", "url"]},
+                {"type": "tool", "source": long_text[0], "capture": ["name"]},
+            ]
+        }
     return recipe
 
 

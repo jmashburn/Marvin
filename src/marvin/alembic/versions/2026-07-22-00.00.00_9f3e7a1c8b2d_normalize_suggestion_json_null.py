@@ -11,34 +11,29 @@ Revises: c5c7eae2b8bf
 Create Date: 2026-07-22 00:00:00.000000
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '9f3e7a1c8b2d'
-down_revision: Union[str, None] = 'c5c7eae2b8bf'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "9f3e7a1c8b2d"
+down_revision: str | None = "c5c7eae2b8bf"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
-_TABLES = ('entries', 'assets', 'resources')
+_TABLES = ("entries", "assets", "resources")
 
 
 def upgrade() -> None:
     bind = op.get_bind()
-    if bind.dialect.name == 'postgresql':
+    if bind.dialect.name == "postgresql":
         for tbl in _TABLES:
-            op.execute(
-                f"UPDATE {tbl} SET suggestion_json = NULL "
-                f"WHERE suggestion_json IS NOT NULL AND suggestion_json::text = 'null'"
-            )
+            op.execute(f"UPDATE {tbl} SET suggestion_json = NULL WHERE suggestion_json IS NOT NULL AND suggestion_json::text = 'null'")
     else:
         # sqlite (and others) store JSON as text; the literal is the 4-char string `null`.
         for tbl in _TABLES:
-            op.execute(
-                f"UPDATE {tbl} SET suggestion_json = NULL "
-                f"WHERE suggestion_json IS NOT NULL AND suggestion_json = 'null'"
-            )
+            op.execute(f"UPDATE {tbl} SET suggestion_json = NULL WHERE suggestion_json IS NOT NULL AND suggestion_json = 'null'")
 
 
 def downgrade() -> None:

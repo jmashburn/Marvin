@@ -70,10 +70,7 @@ class MediaEnrichmentService:
         self._grade_presets = self._resolve_grade_presets()
 
         # role -> media tokens declared for it
-        role_tokens = {
-            r.role: [t for t in (r.derive or []) if transforms.is_media_token(t)]
-            for r in recipe.assets.roles
-        }
+        role_tokens = {r.role: [t for t in (r.derive or []) if transforms.is_media_token(t)] for r in recipe.assets.roles}
         role_tokens = {role: toks for role, toks in role_tokens.items() if toks}
         if not role_tokens:
             return []
@@ -104,28 +101,47 @@ class MediaEnrichmentService:
                     # Reuse an existing derivative of this (source, token) — the transform is
                     # deterministic, so a hero shared by two entries produces one graded asset
                     # linked to both (reuse-first, like resources).
-                    new_asset = self.session.query(Assets).filter(
-                        Assets.group_id == self.group_id, Assets.slug == slug,
-                    ).first()
+                    new_asset = (
+                        self.session.query(Assets)
+                        .filter(
+                            Assets.group_id == self.group_id,
+                            Assets.slug == slug,
+                        )
+                        .first()
+                    )
                     if new_asset is None:
                         out = self._produce(token, src, assets_svc)
                         if not out:
                             continue
                         name = f"{src.name or src.filename} ({op} {arg})".strip()
                         new_asset = assets_svc.create_derivative(
-                            source=src, data=out, group_id=self.group_id,
-                            derivation=token, slug=slug, name=name, user_id=self.user_id,
+                            source=src,
+                            data=out,
+                            group_id=self.group_id,
+                            derivation=token,
+                            slug=slug,
+                            name=name,
+                            user_id=self.user_id,
                         )
-                    already_linked = self.session.query(EntryAssets).filter(
-                        EntryAssets.entry_id == entry.id, EntryAssets.asset_id == new_asset.id,
-                    ).first()
+                    already_linked = (
+                        self.session.query(EntryAssets)
+                        .filter(
+                            EntryAssets.entry_id == entry.id,
+                            EntryAssets.asset_id == new_asset.id,
+                        )
+                        .first()
+                    )
                     if already_linked is None:
-                        self.session.add(EntryAssets(
-                            entry_id=entry.id, asset_id=new_asset.id,
-                            role=f"{ea.role}-{op}", position=(ea.position or 0) + 100,
-                            metadata_json={"derived_from": str(src.id), "derivation": token},
-                        ))
-                    self.session.commit()   # each derivative is atomic
+                        self.session.add(
+                            EntryAssets(
+                                entry_id=entry.id,
+                                asset_id=new_asset.id,
+                                role=f"{ea.role}-{op}",
+                                position=(ea.position or 0) + 100,
+                                metadata_json={"derived_from": str(src.id), "derivation": token},
+                            )
+                        )
+                    self.session.commit()  # each derivative is atomic
                     already.add((str(src.id), token))
                     summaries.append(f"{ea.role}: {token} → {new_asset.slug}")
                 except Exception as e:  # noqa: BLE001 — best-effort per asset/token
@@ -172,11 +188,7 @@ class MediaEnrichmentService:
 
         overrides = None
         try:
-            row = (
-                self.session.query(WorkspaceAISettingsModel)
-                .filter_by(group_id=self.group_id)
-                .first()
-            )
+            row = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
             overrides = getattr(row, "media_presets", None) if row is not None else None
         except Exception as e:  # noqa: BLE001 — a settings read failure must not break enrichment
             logger.debug("media: media_presets read failed for %s: %s", self.group_id, e)
@@ -189,19 +201,23 @@ class MediaEnrichmentService:
         (returns ``None``) when no vision backend is configured — never raises."""
         handler = capability.resolve_capability(
             capability.KIND_DETECT_SUBJECT,
-            session=self.session, group_id=self.group_id,
-            provider=self.provider, model=self.model,
+            session=self.session,
+            group_id=self.group_id,
+            provider=self.provider,
+            model=self.model,
         )
         if handler is None:
             logger.debug("media: crop:subject skipped for %s (no vision/integration backend)", src.slug)
             return None
         # Resolver owns asset I/O: pass the asset id (vision handler reads via ContextBuilder) and
         # base64 bytes (an integration handler is DB-free and consumes bytes in the inputs).
-        result = handler.invoke({
-            "asset_id": src.id,
-            "image_bytes": data,
-            "image_b64": base64.b64encode(data).decode("ascii"),
-        })
+        result = handler.invoke(
+            {
+                "asset_id": src.id,
+                "image_bytes": data,
+                "image_b64": base64.b64encode(data).decode("ascii"),
+            }
+        )
         box = (result or {}).get("box")
         if not box:
             return None
@@ -234,8 +250,11 @@ class MediaEnrichmentService:
             if kind is None:
                 continue
             handler = capability.resolve_capability(
-                kind, session=self.session, group_id=self.group_id,
-                provider=self.provider, model=self.model,
+                kind,
+                session=self.session,
+                group_id=self.group_id,
+                provider=self.provider,
+                model=self.model,
             )
             if handler is None:
                 logger.debug("media: pipeline step %r skipped (no %s handler)", op, kind)
@@ -269,13 +288,18 @@ class MediaEnrichmentService:
             return None
 
         data = assets_svc.read_bytes(src.storage_key)
-        result = handler.invoke({
-            "asset_id": src.id,
-            "image_bytes": data,
-            "image_b64": base64.b64encode(data).decode("ascii"),
-            "prompt": step.get("prompt"),
-            "arg": step.get("arg"),
-        }) or {}
+        result = (
+            handler.invoke(
+                {
+                    "asset_id": src.id,
+                    "image_bytes": data,
+                    "image_b64": base64.b64encode(data).decode("ascii"),
+                    "prompt": step.get("prompt"),
+                    "arg": step.get("arg"),
+                }
+            )
+            or {}
+        )
 
         out = self._materialize(result)
         if not out:
@@ -285,9 +309,13 @@ class MediaEnrichmentService:
         target_role = step.get("target_role") or f"{src.slug}-{op}"
         slug = f"{src.slug}--{op}".replace(":", "-").replace("/", "-")[:200]
         new_asset = assets_svc.create_derivative(
-            source=src, data=out, group_id=self.group_id,
-            derivation=derivation, slug=slug,
-            name=f"{src.name or src.filename} ({op})".strip(), user_id=self.user_id,
+            source=src,
+            data=out,
+            group_id=self.group_id,
+            derivation=derivation,
+            slug=slug,
+            name=f"{src.name or src.filename} ({op})".strip(),
+            user_id=self.user_id,
             extra_metadata={"media_op": op, "prompt": step.get("prompt")},
         )
 
@@ -298,20 +326,31 @@ class MediaEnrichmentService:
         requires_approval = getattr(handler, "requires_approval", True)
         metadata_json = {"derived_from": str(src.id), "derivation": derivation}
         if requires_approval:
-            metadata_json.update({
-                "suggested": True,
-                "media_op": op,
-                "prompt": step.get("prompt"),
-            })
-        already_linked = self.session.query(EntryAssets).filter(
-            EntryAssets.entry_id == entry.id, EntryAssets.asset_id == new_asset.id,
-        ).first()
+            metadata_json.update(
+                {
+                    "suggested": True,
+                    "media_op": op,
+                    "prompt": step.get("prompt"),
+                }
+            )
+        already_linked = (
+            self.session.query(EntryAssets)
+            .filter(
+                EntryAssets.entry_id == entry.id,
+                EntryAssets.asset_id == new_asset.id,
+            )
+            .first()
+        )
         if already_linked is None:
-            self.session.add(EntryAssets(
-                entry_id=entry.id, asset_id=new_asset.id,
-                role=target_role, position=0,
-                metadata_json=metadata_json,
-            ))
+            self.session.add(
+                EntryAssets(
+                    entry_id=entry.id,
+                    asset_id=new_asset.id,
+                    role=target_role,
+                    position=0,
+                    metadata_json=metadata_json,
+                )
+            )
         self.session.commit()
         state = "suggested" if requires_approval else "linked"
         return f"{op}: {src.slug} → {new_asset.slug} ({state})"

@@ -1,6 +1,6 @@
 """System email template → event type mapping and virtual subscription."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 # Maps template_type → event settings for the 3 system email templates.
@@ -24,9 +24,7 @@ SYSTEM_TEMPLATE_EVENT_MAP: dict[str, dict] = {
 }
 
 # Reverse lookup: event_type → template_type
-_EVENT_TO_TEMPLATE_TYPE: dict[str, str] = {
-    v["event_type"]: k for k, v in SYSTEM_TEMPLATE_EVENT_MAP.items()
-}
+_EVENT_TO_TEMPLATE_TYPE: dict[str, str] = {v["event_type"]: k for k, v in SYSTEM_TEMPLATE_EVENT_MAP.items()}
 
 
 def get_template_type_for_event(event_type_name: str) -> str | None:

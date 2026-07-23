@@ -18,9 +18,7 @@ class WorkspaceAISettingsModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "workspace_ai_settings"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True, unique=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
     group: Mapped[Optional["Groups"]] = orm.relationship("Groups", back_populates="ai_settings")
 
     enabled: Mapped[bool] = mapped_column(sa.Boolean, default=True, nullable=False)
@@ -49,9 +47,7 @@ class WorkspaceAISettingsModel(SqlAlchemyBase, BaseMixins):
     media_presets: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
 
     # Master switch for the agent drawing tools from registered external MCP servers (off by default).
-    external_mcp_enabled: Mapped[bool] = mapped_column(
-        sa.Boolean, default=False, nullable=False, server_default=sa.false()
-    )
+    external_mcp_enabled: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False, server_default=sa.false())
 
     # Per-workspace AI persona. Display name for the assistant (defaults to "Marvin" in code when unset).
     assistant_name: Mapped[str | None] = mapped_column(sa.String, nullable=True)

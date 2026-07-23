@@ -54,6 +54,7 @@ def list_operations() -> list["AIOperation"]:
 @dataclass
 class OperationContext:
     """Resolved context assembled by ContextBuilder before prompt construction."""
+
     workspace_name: str = ""
     site_title: str = ""
     site_locale: str = "en-US"
@@ -84,7 +85,7 @@ class AIOperation(ABC):
     input_schema: dict = {}
     output_schema: dict = {}
     min_role: int = ROLE_AUTHOR
-    entity_types: list[str] = []   # which entity types this operation supports
+    entity_types: list[str] = []  # which entity types this operation supports
     requires_vision: bool = False
     requires_retrieval: bool = False  # RAG: retrieve workspace chunks before prompting
     # Surfaces this operation may be invoked from (default: all). Intersected with the

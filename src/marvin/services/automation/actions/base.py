@@ -16,7 +16,7 @@ its inputs (interpolation, target lookup) but does NOT execute — it returns a 
 :class:`AutomationActionError` on any failure — the engine logs and stops that pipeline.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 from marvin.services.ai.operations.base import ROLE_OWNER
 
@@ -30,9 +30,11 @@ ACTION_EXECUTORS: dict[str, Callable] = {}
 
 def register_action(kind: str) -> Callable:
     """Decorator: register an executor for an action `kind`."""
+
     def deco(fn: Callable) -> Callable:
         ACTION_EXECUTORS[kind] = fn
         return fn
+
     return deco
 
 
@@ -41,13 +43,11 @@ def available_kinds() -> list[str]:
     return sorted(ACTION_EXECUTORS)
 
 
-def run_action(session, group_id, action: dict, context: dict, *, user_id=None,
-               authorizer_role=ROLE_OWNER, dry_run=False) -> dict:
+def run_action(session, group_id, action: dict, context: dict, *, user_id=None, authorizer_role=ROLE_OWNER, dry_run=False) -> dict:
     """Dispatch one action to its registered executor by `kind`."""
     kind = action.get("kind")
     fn = ACTION_EXECUTORS.get(kind)
     if fn is None:
         raise AutomationActionError(f"unsupported action kind '{kind}'")
-    out = fn(session, group_id, action, context, user_id=user_id,
-             authorizer_role=authorizer_role, dry_run=dry_run)
+    out = fn(session, group_id, action, context, user_id=user_id, authorizer_role=authorizer_role, dry_run=dry_run)
     return out if isinstance(out, dict) else {}

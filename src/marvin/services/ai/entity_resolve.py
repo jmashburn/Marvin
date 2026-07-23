@@ -27,21 +27,20 @@ def resolve_entity_id(session, group_id, entity_type: str | None, entity_id):
     model = None
     if entity_type == "entry":
         from marvin.db.models.platform.entries import Entries
+
         model = Entries
     elif entity_type == "resource":
         from marvin.db.models.platform.resources import Resources
+
         model = Resources
     elif entity_type == "asset":
         from marvin.db.models.platform.assets import Assets
+
         model = Assets
     if model is None:
         return entity_id
 
-    row = (
-        session.query(model)
-        .filter_by(group_id=group_id, slug=str(entity_id))
-        .first()
-    )
+    row = session.query(model).filter_by(group_id=group_id, slug=str(entity_id)).first()
     return row.id if row else entity_id
 
 
@@ -73,11 +72,13 @@ def resolve_retrieved_sources(session, retrieved: list[dict]) -> list[dict]:
     for i, c in enumerate(retrieved):
         et = c.get("entity_type")
         eid = str(c.get("entity_id"))
-        sources.append({
-            "index": i + 1,
-            "entity_type": et,
-            "entity_id": eid,
-            "title": titles.get((et, eid), f"{et} {eid[:8]}"),
-            "score": c.get("score"),
-        })
+        sources.append(
+            {
+                "index": i + 1,
+                "entity_type": et,
+                "entity_id": eid,
+                "title": titles.get((et, eid), f"{et} {eid[:8]}"),
+                "score": c.get("score"),
+            }
+        )
     return sources

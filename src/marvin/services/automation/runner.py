@@ -12,7 +12,6 @@ This reuses the already-factored primitives (ContextBuilder, provider factory,
 
 import time
 from datetime import UTC, datetime
-from typing import Any
 
 from marvin.services.ai.operations import get_operation
 
@@ -28,9 +27,7 @@ __all__ = ["AUTOMATION_SOURCE", "AutomationActionError", "run_operation_action"]
 def _gate_source(session, group_id, operation) -> None:
     """Enforce the operation's declared sources ∩ workspace policy for ``"automation"``."""
     if AUTOMATION_SOURCE not in operation.invocation_sources:
-        raise AutomationActionError(
-            f"operation '{operation.slug}' cannot be invoked from the automation source"
-        )
+        raise AutomationActionError(f"operation '{operation.slug}' cannot be invoked from the automation source")
     from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
 
     settings = session.query(WorkspaceAISettingsModel).filter_by(group_id=group_id).first()
@@ -50,17 +47,9 @@ def _resolve_model(session, group_id, settings) -> str | None:
         return settings.model
     from marvin.db.models.groups.ai_providers import AIModelModel, AIProviderModel
 
-    provider = (
-        session.query(AIProviderModel)
-        .filter_by(group_id=group_id, is_default=True, enabled=True)
-        .first()
-    )
+    provider = session.query(AIProviderModel).filter_by(group_id=group_id, is_default=True, enabled=True).first()
     if provider:
-        model = (
-            session.query(AIModelModel)
-            .filter_by(provider_id=provider.id, is_default=True, enabled=True)
-            .first()
-        )
+        model = session.query(AIModelModel).filter_by(provider_id=provider.id, is_default=True, enabled=True).first()
         if model:
             return model.model_id
     if settings and settings.credential_mode == "platform":
@@ -98,8 +87,7 @@ def run_operation_action(session, group_id, action: dict, context: dict, *, user
     # a direct caller that didn't thread authz (tests) → treated as OWNER.
     from .authz import ROLE_OWNER, require_role
 
-    require_role(ROLE_OWNER if authorizer_role is None else authorizer_role,
-                 operation.min_role, f"operation '{operation.slug}'")
+    require_role(ROLE_OWNER if authorizer_role is None else authorizer_role, operation.min_role, f"operation '{operation.slug}'")
 
     # Resolve entity (slice: entries). entity_id may be a $event/$previous template. An action may
     # instead target an entry by SLUG (`entity_slug`) — humans reference entries by slug, not UUID,
@@ -116,9 +104,15 @@ def run_operation_action(session, group_id, action: dict, context: dict, *, user
     if dry_run:
         # Preview: the op is authorized and its inputs/target resolve — but don't call the provider,
         # create an AIExecution row, or write back. (An AI call is the expensive, side-effectful part.)
-        return {"dry_run": True, "kind": "operation", "op": slug,
-                "entity_type": entity_type, "entity_id": str(entity_id) if entity_id else None,
-                "input": op_input, "would_write_back": bool(action.get("write_back"))}
+        return {
+            "dry_run": True,
+            "kind": "operation",
+            "op": slug,
+            "entity_type": entity_type,
+            "entity_id": str(entity_id) if entity_id else None,
+            "input": op_input,
+            "would_write_back": bool(action.get("write_back")),
+        }
 
     try:
         provider = get_workspace_ai_provider(session, group_id)
@@ -179,9 +173,7 @@ def run_operation_action(session, group_id, action: dict, context: dict, *, user
         execution.prompt_tokens = completion.prompt_tokens
         execution.completion_tokens = completion.completion_tokens
         execution.total_tokens = completion.total_tokens
-        execution.estimated_cost_usd = estimate_cost(
-            provider.provider_type, model, completion.prompt_tokens, completion.completion_tokens
-        )
+        execution.estimated_cost_usd = estimate_cost(provider.provider_type, model, completion.prompt_tokens, completion.completion_tokens)
         session.commit()
     except Exception as e:
         execution.status = "failed"
@@ -222,6 +214,4 @@ def _apply_writeback(session, group_id, entity_id, proposed: dict, user_id, dept
     """
     from marvin.services.entries import EntryService
 
-    EntryService(session, group_id, actor_id=user_id, integration_id="automation").apply_fields(
-        entity_id, proposed, reaction_depth=depth + 1
-    )
+    EntryService(session, group_id, actor_id=user_id, integration_id="automation").apply_fields(entity_id, proposed, reaction_depth=depth + 1)

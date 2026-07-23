@@ -31,9 +31,10 @@ def _get_variable(slug: str, group_id: UUID4 | None) -> str | None:
     if group_id is None:
         return None
     try:
+        from sqlalchemy import and_, select
+
         from marvin.db.db_setup import session_context
         from marvin.db.models.groups.variables import WorkspaceVariable
-        from sqlalchemy import select, and_
 
         with session_context() as session:
             result = session.execute(
@@ -97,6 +98,7 @@ def resolve(
                 return result
         logger.warning(f"'{{{{ {slug} }}}}' not resolved for group {group_id}")
         from marvin.core.config import get_app_settings
+
         if get_app_settings().PRODUCTION:
             return UNRESOLVED_SENTINEL
         return match.group(0)

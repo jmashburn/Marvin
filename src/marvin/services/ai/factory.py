@@ -35,23 +35,28 @@ def get_ai_provider(
     """
     if provider_type == "openai":
         from .providers.openai import OpenAIProvider
+
         return OpenAIProvider(api_key=api_key or "", base_url=base_url)
 
     if provider_type == "anthropic":
         from .providers.anthropic import AnthropicProvider
+
         return AnthropicProvider(api_key=api_key or "")
 
     if provider_type == "google":
         from .providers.google import GoogleProvider
+
         return GoogleProvider(api_key=api_key or "")
 
     if provider_type == "azure":
         from .providers.azure import AzureOpenAIProvider
+
         api_version = (metadata or {}).get("api_version", "2024-02-01")
         return AzureOpenAIProvider(api_key=api_key or "", base_url=base_url or "", api_version=api_version)
 
     if provider_type == "ollama":
         from .providers.ollama import OllamaProvider
+
         return OllamaProvider(base_url=base_url or "http://localhost:11434")
 
     raise ValueError(f"Unknown AI provider type: {provider_type!r}")
@@ -83,11 +88,7 @@ def get_workspace_ai_provider(session: Session, group_id: UUID4) -> AIProvider:
 
     if settings.credential_mode == "workspace":
         # Preferred: a full Providers row (supports base_url, api_version, multiple providers).
-        provider_row = (
-            session.query(AIProviderModel)
-            .filter_by(group_id=group_id, is_default=True, enabled=True)
-            .first()
-        )
+        provider_row = session.query(AIProviderModel).filter_by(group_id=group_id, is_default=True, enabled=True).first()
         if provider_row:
             api_key = resolve_secret(provider_row.secret_ref, group_id) if provider_row.secret_ref else None
             return get_ai_provider(

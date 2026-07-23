@@ -7,21 +7,18 @@ to prevent brute-force attacks.
 """
 
 from datetime import timedelta
-
 from logging import Logger
 
 from pydantic import ConfigDict
-
-from marvin.core.config import get_app_dirs, get_app_settings
-from marvin.core.root_logger import get_logger
-from marvin.core.settings import AppSettings
-from marvin.core.settings.directories import AppDirectories
-
 from sqlalchemy.orm.session import Session
 
+from marvin.core.config import get_app_dirs, get_app_settings
 from marvin.core.exceptions import UserLockedOut
+from marvin.core.root_logger import get_logger
 from marvin.core.security.hasher import get_hasher
 from marvin.core.security.providers.auth_providers import AuthProvider
+from marvin.core.settings import AppSettings
+from marvin.core.settings.directories import AppDirectories
 from marvin.db.models.users.users import AuthMethod
 from marvin.repos.all_repositories import get_repositories
 from marvin.schemas.user.auth import CredentialsRequest

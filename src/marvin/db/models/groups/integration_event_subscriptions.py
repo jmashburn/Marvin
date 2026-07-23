@@ -26,14 +26,10 @@ class IntegrationEventSubscriptionModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "integration_event_subscriptions"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = relationship("Groups", back_populates="integration_event_subscriptions", single_parent=True)
 
-    integration_id: Mapped[GUID] = mapped_column(
-        GUID, ForeignKey("integrations.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    integration_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("integrations.id", ondelete="CASCADE"), nullable=False, index=True)
     integration: Mapped[Optional["IntegrationModel"]] = relationship("IntegrationModel")
 
     event_type: Mapped[str] = mapped_column(String, nullable=False, index=True)

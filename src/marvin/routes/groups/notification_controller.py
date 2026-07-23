@@ -8,8 +8,6 @@ testing the notifier configurations.
 
 from functools import cached_property  # For lazy-loading properties
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status  # Added status for HTTP_201_CREATED
 from pydantic import UUID4  # For UUID type validation
 
@@ -71,8 +69,7 @@ class GroupEventsNotifierController(BaseUserController):
         if not settings.APPRISE_READY:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Apprise notification service is not enabled or configured. "
-                "Please enable APPRISE_ENABLED in settings to use notifications.",
+                detail="Apprise notification service is not enabled or configured. Please enable APPRISE_ENABLED in settings to use notifications.",
             )
 
     @cached_property
@@ -278,24 +275,21 @@ class GroupEventsNotifierController(BaseUserController):
 
         event_type = EventTypes.test_message
         test_event_payload = Event(
-            message=EventBusMessage.from_type(
-                event_type,
-                f"Test from Marvin — notification '{notifier_config.name}' is working correctly."
-            ),
+            message=EventBusMessage.from_type(event_type, f"Test from Marvin — notification '{notifier_config.name}' is working correctly."),
             event_type=event_type,
             integration_id="marvin_test_event_notification",
             workspace_id=self.group_id,
-            document_data=EventDocumentDataBase(
-                document_type=EventDocumentType.generic, operation=EventOperation.info
-            ),
+            document_data=EventDocumentDataBase(document_type=EventDocumentType.generic, operation=EventOperation.info),
         )
 
         try:
             from marvin.services.secrets.resolver import resolve
+
             resolved_url = resolve(notifier_config.apprise_url, group_id=self.group_id)
             enriched_urls = AppriseEventListener.update_urls_with_event_data([resolved_url], test_event_payload)
             # Publish directly — the publisher will log the attempt with notifier_id/group_id
             from marvin.services.event_bus_service.publisher import ApprisePublisher
+
             publisher = ApprisePublisher()
             publisher.publish(
                 test_event_payload,

@@ -16,9 +16,7 @@ Stage 1 moves the compose flow here behavior-preservingly; grounding + revise la
 from __future__ import annotations
 
 import time
-import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 from marvin.core.root_logger import get_logger
 
@@ -106,16 +104,21 @@ class AuthoringService:
         # (both grounded below). Resources are linked reuse-only after create (like revise).
         if isinstance(output_schema, dict) and isinstance(output_schema.get("properties"), dict):
             output_schema["properties"]["tags"] = {
-                "type": "array", "items": {"type": "string"},
+                "type": "array",
+                "items": {"type": "string"},
                 "description": "Relevant tags. Reuse the existing tag names listed in the prompt where they fit; only add a new tag when none match.",
             }
             output_schema["properties"]["resources"] = {
-                "type": "array", "items": {"type": "string"},
-                "description": "Existing resources (materials, suppliers, techniques, …) this entry uses — by name or slug, from the list in the prompt. Reuse only; do not invent.",
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Existing resources (materials, suppliers, techniques, …) this entry uses — by name or slug, "
+                "from the list in the prompt. Reuse only; do not invent.",
             }
             output_schema["properties"]["assets"] = {
-                "type": "array", "items": {"type": "string"},
-                "description": "Existing images/assets from this workspace that belong on this entry — by name or slug, from the list in the prompt. Reuse only; do not invent. The first is treated as the hero.",
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Existing images/assets from this workspace that belong on this entry — by name or slug, "
+                "from the list in the prompt. Reuse only; do not invent. The first is treated as the hero.",
             }
 
         # Context + vision images.
@@ -144,10 +147,7 @@ class AuthoringService:
                 parts.append(ImagePart(data=img, mime_type=a.get("mime_type") or "image/png"))
 
         voice = recipe.enrichment.get("voice") if isinstance(recipe.enrichment, dict) else None
-        system_content = (
-            f"You are a content author. Produce a complete, publish-ready '{entry_type.name}'. "
-            f"Return ONLY the requested fields."
-        )
+        system_content = f"You are a content author. Produce a complete, publish-ready '{entry_type.name}'. Return ONLY the requested fields."
         if voice:
             system_content += f" Voice/tone: {voice}"
         messages = [
@@ -157,10 +157,16 @@ class AuthoringService:
         messages = resolve_prompt_messages(messages, self.group_id, ctx.variables)
 
         execution = AIExecutionModel(
-            session=self.session, group_id=self.group_id, operation_slug="compose-entry",
-            provider_type=self.provider.provider_type, model_id=self.model, status="pending",
-            triggered_by=getattr(self.user, "id", None), trigger_type=source,
-            entity_type="entry_type", entity_id=entry_type.id,
+            session=self.session,
+            group_id=self.group_id,
+            operation_slug="compose-entry",
+            provider_type=self.provider.provider_type,
+            model_id=self.model,
+            status="pending",
+            triggered_by=getattr(self.user, "id", None),
+            trigger_type=source,
+            entity_type="entry_type",
+            entity_id=entry_type.id,
             input_json={"entry_type": entry_type.slug, "brief": brief} if log_inputs else None,
         )
         self.session.add(execution)
@@ -206,18 +212,20 @@ class AuthoringService:
                 final_attachments = asset_attachments or None
             recipe_warnings = self._validate_recipe_assets(recipe, final_attachments)
 
-            entry = self.repos.entries.create({
-                "title": title,
-                "summary": summary,
-                "entry_type_id": entry_type.id,
-                "status": "inbox",  # draft — review before publishing
-                "data_json": data_json,
-                "asset_attachments": final_attachments,
-                "created_by": getattr(self.user, "id", None),
-            })
+            entry = self.repos.entries.create(
+                {
+                    "title": title,
+                    "summary": summary,
+                    "entry_type_id": entry_type.id,
+                    "status": "inbox",  # draft — review before publishing
+                    "data_json": data_json,
+                    "asset_attachments": final_attachments,
+                    "created_by": getattr(self.user, "id", None),
+                }
+            )
             self.session.commit()
             # Link the model's tags onto the draft — find-or-create by slug, reusing the vocabulary.
-            if isinstance(proposed_tags, (list, tuple)) and proposed_tags:
+            if isinstance(proposed_tags, list | tuple) and proposed_tags:
                 self.repos.entries.apply_fields(entry.id, {"tags": list(proposed_tags)})
             # Link the resources it references — reuse-only (existing catalog), like revise. So a recipe
             # that extracts suppliers/materials lands them linked, without inventing duplicate resources.
@@ -245,12 +253,28 @@ class AuthoringService:
             # asset `derive` tokens — deterministic, no model, best-effort.
             self._run_media_enrichment(entry.id)
 
-            self._complete_execution(execution, completion, start, entity_id=entry.id, output={
-                "entry_id": str(entry.id), "title": title, "status": entry.status,
-                **({"fields": data_json, "tags": list(proposed_tags or []),
-                    "resources": attached_resources, "assets": auto_asset_slugs,
-                    "altText": enriched_alt} if log_outputs else {}),
-            })
+            self._complete_execution(
+                execution,
+                completion,
+                start,
+                entity_id=entry.id,
+                output={
+                    "entry_id": str(entry.id),
+                    "title": title,
+                    "status": entry.status,
+                    **(
+                        {
+                            "fields": data_json,
+                            "tags": list(proposed_tags or []),
+                            "resources": attached_resources,
+                            "assets": auto_asset_slugs,
+                            "altText": enriched_alt,
+                        }
+                        if log_outputs
+                        else {}
+                    ),
+                },
+            )
         except Exception as e:
             self._fail_execution(execution, str(e), start)
             raise
@@ -294,11 +318,10 @@ class AuthoringService:
 
         from marvin.db.models.groups.ai_executions import AIExecutionModel
         from marvin.db.models.platform.entry_types import EntryTypes
+        from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
         from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
         from marvin.services.ai.base import CompletionOptions, Message
         from marvin.services.ai.compose import entry_type_to_output_schema
-
-        from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
 
         entry_type = self.session.get(EntryTypes, entry.entry_type_id)
         schema_def = EntryTypeSchemaDefinition.model_validate((entry_type.schema_json if entry_type else {}) or {})
@@ -310,11 +333,13 @@ class AuthoringService:
             # determines them.
             output_schema["required"] = ["tags", "resources"]
             output_schema["properties"]["tags"] = {
-                "type": "array", "items": {"type": "string"},
+                "type": "array",
+                "items": {"type": "string"},
                 "description": "Tags to associate. Reuse existing tag names where they fit; only add new when none match.",
             }
             output_schema["properties"]["resources"] = {
-                "type": "array", "items": {"type": "string"},
+                "type": "array",
+                "items": {"type": "string"},
                 "description": "Names/slugs of EXISTING resources to attach (from the list in the prompt). Do not invent new ones.",
             }
 
@@ -333,18 +358,27 @@ class AuthoringService:
             f"resources to associate.{self._recipe_instructions_block(recipe)}\n\n{current}\n\nInstruction: {instruction}{grounding}"
         )
         messages = [
-            Message(role="system", content=(
-                "You are a content editor revising an existing entry. Reuse the existing tags and resources listed; "
-                "never invent duplicates. Return ONLY the requested fields."
-            )),
+            Message(
+                role="system",
+                content=(
+                    "You are a content editor revising an existing entry. Reuse the existing tags and resources listed; "
+                    "never invent duplicates. Return ONLY the requested fields."
+                ),
+            ),
             Message(role="user", content=instruction_msg),
         ]
 
         execution = AIExecutionModel(
-            session=self.session, group_id=self.group_id, operation_slug="revise-entry",
-            provider_type=self.provider.provider_type, model_id=self.model, status="pending",
-            triggered_by=getattr(self.user, "id", None), trigger_type=source,
-            entity_type="entry", entity_id=entry.id,
+            session=self.session,
+            group_id=self.group_id,
+            operation_slug="revise-entry",
+            provider_type=self.provider.provider_type,
+            model_id=self.model,
+            status="pending",
+            triggered_by=getattr(self.user, "id", None),
+            trigger_type=source,
+            entity_type="entry",
+            entity_id=entry.id,
             input_json={"entry": str(entry.id), "instruction": instruction} if log_inputs else None,
         )
         self.session.add(execution)
@@ -367,11 +401,8 @@ class AuthoringService:
             proposed_resources = fields.pop("resources", None)
             allowed = schema_def.get_field_keys()
             new_fields = {k: v for k, v in fields.items() if k in allowed}
-            tag_list = list(proposed_tags) if isinstance(proposed_tags, (list, tuple)) else []
-            resource_refs = (
-                [str(r).strip() for r in proposed_resources if str(r).strip()]
-                if isinstance(proposed_resources, (list, tuple)) else []
-            )
+            tag_list = list(proposed_tags) if isinstance(proposed_tags, list | tuple) else []
+            resource_refs = [str(r).strip() for r in proposed_resources if str(r).strip()] if isinstance(proposed_resources, list | tuple) else []
 
             # Honor the workspace approval policy, exactly like the operations controller's write-back:
             # suggest-only always stages; allow-draft-update applies to drafts and stages published;
@@ -420,16 +451,25 @@ class AuthoringService:
                 if resource_refs:
                     proposed["resources"] = resource_refs
                 self.repos.entries.stage_suggestion(
-                    entry.id, {**proposed, "_meta": {"operation": "revise-entry", "executionId": str(execution.id)}},
+                    entry.id,
+                    {**proposed, "_meta": {"operation": "revise-entry", "executionId": str(execution.id)}},
                 )
                 self.session.commit()
                 attached_resources = []  # staged, not attached yet
                 outcome = "staged"
 
             changed = {"fields": list(new_fields), "tags": tag_list, "resources": attached_resources or resource_refs}
-            self._complete_execution(execution, completion, start, entity_id=entry.id, output={
-                "entry_id": str(entry.id), "outcome": outcome, **({"changed": changed} if log_outputs else {}),
-            })
+            self._complete_execution(
+                execution,
+                completion,
+                start,
+                entity_id=entry.id,
+                output={
+                    "entry_id": str(entry.id),
+                    "outcome": outcome,
+                    **({"changed": changed} if log_outputs else {}),
+                },
+            )
         except Exception as e:
             self._fail_execution(execution, str(e), start)
             raise
@@ -465,7 +505,7 @@ class AuthoringService:
         if assets.min and n < assets.min:
             warnings.append(f"This type expects at least {assets.min} image(s); {n} attached.")
         roles_present = {a.get("role") for a in attachments if isinstance(a, dict) and a.get("role")}
-        for r in (assets.roles or []):
+        for r in assets.roles or []:
             if (r.required or (r.min and r.min > 0)) and r.role not in roles_present:
                 warnings.append(f"This type expects a '{r.role}' image; none attached.")
         return warnings
@@ -488,8 +528,12 @@ class AuthoringService:
             from marvin.services.ai.media.enrichment import MediaEnrichmentService
 
             return MediaEnrichmentService(
-                self.session, self.repos, self.group_id, user_id=getattr(self.user, "id", None),
-                provider=self.provider, model=self.model,
+                self.session,
+                self.repos,
+                self.group_id,
+                user_id=getattr(self.user, "id", None),
+                provider=self.provider,
+                model=self.model,
             ).run_for_entry(entry_id)
         except Exception as e:  # noqa: BLE001
             self.logger.debug("media enrichment skipped: %s", e)
@@ -530,10 +574,7 @@ class AuthoringService:
                 continue
             try:
                 ctx = (
-                    ContextBuilder(self.session, self.group_id)
-                    .with_site_settings().with_variables()
-                    .with_asset(asset.id).with_asset_images()
-                    .build()
+                    ContextBuilder(self.session, self.group_id).with_site_settings().with_variables().with_asset(asset.id).with_asset_images().build()
                 )
                 if not (ctx.assets and ctx.assets[0].get("image_data")):
                     continue  # unreadable / not actually an image
@@ -600,14 +641,16 @@ class AuthoringService:
         parts: list[str] = []
         if required:
             parts.append(
-                "This entry type needs images for: " + ", ".join(_label(r) for r in required)
+                "This entry type needs images for: "
+                + ", ".join(_label(r) for r in required)
                 + ". Attach a fitting EXISTING image for each in `assets` (reuse only, by name or slug from the "
                 "list above); the first becomes the hero."
             )
         if optional:
             lead = "Optional image slot(s): " if required else "Images are optional here — "
             parts.append(
-                lead + ", ".join(_label(r) for r in optional)
+                lead
+                + ", ".join(_label(r) for r in optional)
                 + ". Only attach one if the brief explicitly calls for an image and an existing one clearly fits; "
                 "otherwise leave `assets` empty."
             )
@@ -621,7 +664,7 @@ class AuthoringService:
 
         Resolves each ref by id, slug, OR name — the grounding lists resources by *name*, so the model
         returns names; matching by name is essential (slug-only resolution silently linked nothing)."""
-        if not isinstance(refs, (list, tuple)) or not refs:
+        if not isinstance(refs, list | tuple) or not refs:
             return []
         import uuid as _uuid
 
@@ -654,7 +697,7 @@ class AuthoringService:
         """Resolve existing-asset refs (id, slug, OR name) to (id, slug), reuse-only, deduped and
         excluding ids the caller already supplied. The grounded catalog lists assets by name, so the
         model returns names — matching by name is essential. Unknown refs are ignored."""
-        if not isinstance(refs, (list, tuple)) or not refs:
+        if not isinstance(refs, list | tuple) or not refs:
             return []
         import uuid as _uuid
 
@@ -672,10 +715,7 @@ class AuthoringService:
                 asset = self.session.get(Assets, _uuid.UUID(ref))
             except (ValueError, TypeError):
                 asset = (
-                    self.session.query(Assets)
-                    .filter(Assets.group_id == self.group_id)
-                    .filter((Assets.slug == ref) | (Assets.name == ref))
-                    .first()
+                    self.session.query(Assets).filter(Assets.group_id == self.group_id).filter((Assets.slug == ref) | (Assets.name == ref)).first()
                 )
             if not asset or str(asset.group_id) != str(self.group_id):
                 continue
@@ -735,8 +775,7 @@ class AuthoringService:
         tags = self.session.query(Tags).filter_by(group_id=self.group_id).order_by(Tags.name).limit(80).all()
         if tags:
             parts.append(
-                "Existing tags — REUSE these exact names where they fit; do not invent near-duplicates:\n  "
-                + ", ".join(t.name for t in tags)
+                "Existing tags — REUSE these exact names where they fit; do not invent near-duplicates:\n  " + ", ".join(t.name for t in tags)
             )
         catalog = self._rag_catalog(seed_text)
         if catalog:
@@ -816,7 +855,10 @@ class AuthoringService:
         execution.completion_tokens = completion.completion_tokens
         execution.total_tokens = completion.total_tokens
         execution.estimated_cost_usd = estimate_cost(
-            self.provider.provider_type, self.model, completion.prompt_tokens, completion.completion_tokens,
+            self.provider.provider_type,
+            self.model,
+            completion.prompt_tokens,
+            completion.completion_tokens,
         )
         self.session.commit()
 

@@ -5,13 +5,14 @@ This module provides the database models for Marvin's scheduled task subsystem,
 enabling proactive automation by executing tasks on a schedule.
 """
 
-import sqlalchemy as sa
 from datetime import datetime
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
+
 from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
 

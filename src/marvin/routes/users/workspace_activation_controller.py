@@ -7,17 +7,12 @@ Endpoints:
 - GET /self/workspaces - List all accessible workspaces
 """
 
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import UUID4
-
-from marvin.core.dependencies import get_current_user
 from marvin.db.models.users.roles import PlatformRole
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
 from marvin.schemas.group.group import GroupRead
-from marvin.schemas.user.user import PrivateUser
 from marvin.schemas.workspace.workspace_activation import (
     WorkspaceActivationRequest,
     WorkspaceWithMembership,
@@ -88,12 +83,11 @@ class WorkspaceActivationController(BaseUserController):
                 )
 
         # Update user's active workspace
-        from marvin.db.models.users.users import Users
         from sqlalchemy import select
 
-        user_model = self.repos.session.execute(
-            select(Users).where(Users.id == self.user.id)
-        ).scalar_one_or_none()
+        from marvin.db.models.users.users import Users
+
+        user_model = self.repos.session.execute(select(Users).where(Users.id == self.user.id)).scalar_one_or_none()
 
         if not user_model:
             raise HTTPException(

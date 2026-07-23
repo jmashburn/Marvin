@@ -36,9 +36,7 @@ class WorkspaceIncomingWebhookModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "workspace_incoming_webhooks"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = orm.relationship("Groups", back_populates="incoming_webhooks")
 
     name: Mapped[str] = mapped_column(sa.String, nullable=False)

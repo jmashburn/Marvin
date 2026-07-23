@@ -37,14 +37,26 @@ _ENTRY_FIELDS = [
     {"field": "entry.id", "label": "Entry ID", "description": "The entry's UUID."},
     # Change detection (populated on entry_updated). before/after carry only the changed fields, so
     # `event.after.status == review` means "status changed to review".
-    {"field": "event.after.status", "label": "Status changed to…", "description": "New status, only if it changed (e.g. 'review'). Empty if status didn't change."},
+    {
+        "field": "event.after.status",
+        "label": "Status changed to…",
+        "description": "New status, only if it changed (e.g. 'review'). Empty if status didn't change.",
+    },
     {"field": "event.before.status", "label": "Status changed from…", "description": "Prior status, only if it changed (e.g. 'draft')."},
-    {"field": "event.changed_fields", "label": "Changed fields", "description": "Which fields changed — use with 'contains' (e.g. contains 'status')."},
+    {
+        "field": "event.changed_fields",
+        "label": "Changed fields",
+        "description": "Which fields changed — use with 'contains' (e.g. contains 'status').",
+    },
 ]
 
 _WEBHOOK_FIELDS = [
     {"field": "event.webhook_slug", "label": "Webhook", "description": "Which incoming webhook fired."},
-    {"field": "event.payload.", "label": "Payload field…", "description": "A field from the POST body, e.g. event.payload.type. Shape is caller-defined."},
+    {
+        "field": "event.payload.",
+        "label": "Payload field…",
+        "description": "A field from the POST body, e.g. event.payload.type. Shape is caller-defined.",
+    },
 ]
 
 _CHAINED_FIELDS = [
@@ -113,23 +125,33 @@ def validate_definition(definition: dict | None) -> list[dict]:
         if not field:
             issues.append(_issue("warning", "Condition has no field — it won't do anything.", "condition", i))
         elif seg in ("previous", "steps"):
-            issues.append(_issue(
-                "warning",
-                f"Condition uses “{field}”, but step outputs aren't available in conditions "
-                "(conditions are evaluated before any step runs).",
-                "condition", i))
+            issues.append(
+                _issue(
+                    "warning",
+                    f"Condition uses “{field}”, but step outputs aren't available in conditions (conditions are evaluated before any step runs).",
+                    "condition",
+                    i,
+                )
+            )
         elif seg == "entry" and not has_entry:
-            issues.append(_issue(
-                "warning",
-                f"Condition uses “{field}”, but this {_pretty(ttype)} trigger has no entry — "
-                "this condition will never match. Use event.payload.* (webhook) or an entry trigger.",
-                "condition", i))
+            issues.append(
+                _issue(
+                    "warning",
+                    f"Condition uses “{field}”, but this {_pretty(ttype)} trigger has no entry — "
+                    "this condition will never match. Use event.payload.* (webhook) or an entry trigger.",
+                    "condition",
+                    i,
+                )
+            )
         elif seg and seg not in namespaces and seg not in ("event", "entry"):
-            issues.append(_issue(
-                "warning",
-                f"Condition field “{field}” isn't in this trigger's context "
-                f"(available: {', '.join(sorted(namespaces))}).",
-                "condition", i))
+            issues.append(
+                _issue(
+                    "warning",
+                    f"Condition field “{field}” isn't in this trigger's context (available: {', '.join(sorted(namespaces))}).",
+                    "condition",
+                    i,
+                )
+            )
 
         if op not in _OPS:
             issues.append(_issue("warning", f"Unknown condition operator “{op}”.", "condition", i))
@@ -140,12 +162,16 @@ def validate_definition(definition: dict | None) -> list[dict]:
         issues.append(_issue("warning", "This workflow has no steps, so it does nothing.", "action"))
     else:
         from .engine import MAX_ACTIONS
+
         if len(actions) > MAX_ACTIONS:
-            issues.append(_issue(
-                "warning",
-                f"This workflow has {len(actions)} steps, but only the first {MAX_ACTIONS} will run "
-                f"(the rest are ignored). Split it into chained workflows.",
-                "action"))
+            issues.append(
+                _issue(
+                    "warning",
+                    f"This workflow has {len(actions)} steps, but only the first {MAX_ACTIONS} will run "
+                    f"(the rest are ignored). Split it into chained workflows.",
+                    "action",
+                )
+            )
 
     for i, act in enumerate(actions):
         if not isinstance(act, dict):
@@ -157,20 +183,31 @@ def validate_definition(definition: dict | None) -> list[dict]:
         # human-readable) or id (entity_id).
         if kind in ("operation", "entry") and not has_entry and not act.get("entity_slug") and not act.get("entity_id"):
             what = act.get("op", kind)
-            issues.append(_issue(
-                "warning",
-                f"Step “{what}” runs on an entry, but this {_pretty(ttype)} trigger has none. "
-                "Point it at one with entity_slug (e.g. $event.payload.entry_slug), add a Run-on target, "
-                "or use an entry trigger.",
-                "action", i))
+            issues.append(
+                _issue(
+                    "warning",
+                    f"Step “{what}” runs on an entry, but this {_pretty(ttype)} trigger has none. "
+                    "Point it at one with entity_slug (e.g. $event.payload.entry_slug), add a Run-on target, "
+                    "or use an entry trigger.",
+                    "action",
+                    i,
+                )
+            )
         # A collection-membership entry action needs a target collection.
-        if kind == "entry" and act.get("op") in ("add_to_collection", "remove_from_collection") \
-                and not act.get("collection_slug") and not act.get("collection_id"):
-            issues.append(_issue(
-                "warning",
-                f"Step “{act.get('op')}” needs a target collection — set collection_slug "
-                "(e.g. 'featured' or $event.payload.collection_slug).",
-                "action", i))
+        if (
+            kind == "entry"
+            and act.get("op") in ("add_to_collection", "remove_from_collection")
+            and not act.get("collection_slug")
+            and not act.get("collection_id")
+        ):
+            issues.append(
+                _issue(
+                    "warning",
+                    f"Step “{act.get('op')}” needs a target collection — set collection_slug (e.g. 'featured' or $event.payload.collection_slug).",
+                    "action",
+                    i,
+                )
+            )
 
     return issues
 

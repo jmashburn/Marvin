@@ -483,15 +483,18 @@ def get_payload_example(event_type: str) -> dict:
         },
     }
 
-    doc_data = doc_data_map.get(event_type, {
-        "documentType": "generic",
-        "operation": "info",
-        "workspaceId": "<workspace-uuid>",
-    })
+    doc_data = doc_data_map.get(
+        event_type,
+        {
+            "documentType": "generic",
+            "operation": "info",
+            "workspaceId": "<workspace-uuid>",
+        },
+    )
 
     # Find label from EventTypes if possible
     try:
-        et = EventTypes[event_type]
+        EventTypes[event_type]
         label = event_type.replace("_", " ").title()
     except KeyError:
         label = event_type.replace("_", " ").title()

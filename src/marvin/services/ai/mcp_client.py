@@ -20,6 +20,7 @@ DEFAULT_TIMEOUT = 20.0  # seconds, per call
 @dataclass
 class McpToolInfo:
     """A tool advertised by an external MCP server's tools/list."""
+
     name: str
     description: str
     input_schema: dict
@@ -43,6 +44,7 @@ def headers_for_server(server) -> dict:
     if not ref:
         return {}
     from marvin.services.secrets.resolver import resolve_secret
+
     token = resolve_secret(ref, server.group_id)
     return {"Authorization": f"Bearer {token}"} if token else {}
 
@@ -54,9 +56,11 @@ async def _open_session(url: str, transport: str, headers: dict | None, timeout:
 
     if transport == "sse":
         from mcp.client.sse import sse_client
+
         client_cm = sse_client(url, headers=headers or None, timeout=timeout)
     else:  # "http" (streamable)
         from mcp.client.streamable_http import streamablehttp_client
+
         client_cm = streamablehttp_client(url, headers=headers or None, timeout=timeout)
 
     async with client_cm as streams:
@@ -69,10 +73,7 @@ async def _open_session(url: str, transport: str, headers: dict | None, timeout:
 async def _alist_tools(url, transport, headers, timeout) -> list[McpToolInfo]:
     async with _open_session(url, transport, headers, timeout) as session:
         listed = await session.list_tools()
-        return [
-            McpToolInfo(name=t.name, description=t.description or "", input_schema=t.inputSchema or {})
-            for t in listed.tools
-        ]
+        return [McpToolInfo(name=t.name, description=t.description or "", input_schema=t.inputSchema or {}) for t in listed.tools]
 
 
 async def _acall_tool(url, transport, headers, name, args, timeout) -> tuple[str, bool]:
@@ -117,26 +118,30 @@ def _run(coro, timeout: float):
         raise McpClientError(_describe(e)) from e
 
 
-def list_tools(url: str, transport: str = "http", headers: dict | None = None,
-               timeout: float = DEFAULT_TIMEOUT) -> list[McpToolInfo]:
+def list_tools(url: str, transport: str = "http", headers: dict | None = None, timeout: float = DEFAULT_TIMEOUT) -> list[McpToolInfo]:
     return _run(_alist_tools(url, transport, headers, timeout), timeout)
 
 
-def call_tool(url: str, transport: str = "http", *, name: str, args: dict | None = None,
-              headers: dict | None = None, timeout: float = DEFAULT_TIMEOUT) -> tuple[str, bool]:
+def call_tool(
+    url: str, transport: str = "http", *, name: str, args: dict | None = None, headers: dict | None = None, timeout: float = DEFAULT_TIMEOUT
+) -> tuple[str, bool]:
     """Call a tool; returns (result_text, is_error)."""
     return _run(_acall_tool(url, transport, headers, name, args, timeout), timeout)
 
 
 # ── Convenience over a WorkspaceMcpServerModel row ─────────────────────────────
 
+
 def list_server_tools(server, timeout: float = DEFAULT_TIMEOUT) -> list[McpToolInfo]:
     return list_tools(server.url, server.transport, headers_for_server(server), timeout)
 
 
-def call_server_tool(server, name: str, args: dict | None = None,
-                     timeout: float = DEFAULT_TIMEOUT) -> tuple[str, bool]:
+def call_server_tool(server, name: str, args: dict | None = None, timeout: float = DEFAULT_TIMEOUT) -> tuple[str, bool]:
     return call_tool(
-        server.url, server.transport, name=name, args=args,
-        headers=headers_for_server(server), timeout=timeout,
+        server.url,
+        server.transport,
+        name=name,
+        args=args,
+        headers=headers_for_server(server),
+        timeout=timeout,
     )

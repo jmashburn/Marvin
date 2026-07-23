@@ -19,9 +19,9 @@ from fastapi.encoders import jsonable_encoder  # For encoding Pydantic models to
 
 from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
+from marvin.db.models._model_utils.guid import GUID
 from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
 from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
-from marvin.db.models._model_utils.guid import GUID
 from marvin.services.event_bus_service.event_types import Event  # Core Event model
 
 # from marvin.db.models.groups import Method # Method enum was imported but not used directly by string comparison in WebhookPublisher.
@@ -254,7 +254,15 @@ class WebhookPublisher:
         self.logger = get_logger()
 
     def publish(
-        self, event: Event, notification_urls: list[str], method: str = "POST", webhook_id: GUID | None = None, group_id: GUID | None = None, headers: dict[str, str] | None = None, payload_override: dict | None = None, **_: Any
+        self,
+        event: Event,
+        notification_urls: list[str],
+        method: str = "POST",
+        webhook_id: GUID | None = None,
+        group_id: GUID | None = None,
+        headers: dict[str, str] | None = None,
+        payload_override: dict | None = None,
+        **_: Any,
     ) -> None:
         """
         Publishes event data to a list of notification URLs using the specified HTTP method.
@@ -431,7 +439,7 @@ class AuditLogPublisher:
                 entity_type = event.entity_type
 
             with session_context() as session:
-                repos = AllRepositories(session=session, group_id=event.workspace_id)
+                AllRepositories(session=session, group_id=event.workspace_id)
 
                 log_entry = EventLogModel(
                     event_id=event.event_id,

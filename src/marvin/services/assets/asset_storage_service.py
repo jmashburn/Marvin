@@ -3,9 +3,8 @@
 import re
 import tempfile
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO
 
 from fastapi import UploadFile
 from pydantic import UUID4
@@ -91,12 +90,12 @@ class AssetStorageService(BaseService):
                 storage_key = self.generate_storage_key(
                     workspace_slug=group.slug,
                     filename=original_filename,
-                    upload_date=datetime.now(),
+                    upload_date=datetime.now(UTC),
                 )
 
                 # Reset file pointer and store via provider
                 upload_file.file.seek(0)
-                storage_metadata = self.storage.put(
+                self.storage.put(
                     storage_key=storage_key,
                     file_data=upload_file.file,
                     content_type=metadata.mime_type,
@@ -177,7 +176,9 @@ class AssetStorageService(BaseService):
             try:
                 metadata = self.metadata_extractor.extract_metadata(temp_path)
                 storage_key = self.generate_storage_key(
-                    workspace_slug=group.slug, filename=original_filename, upload_date=datetime.now(),
+                    workspace_slug=group.slug,
+                    filename=original_filename,
+                    upload_date=datetime.now(UTC),
                 )
                 provenance = {
                     "derived_from": str(getattr(source, "id", "")),
@@ -186,8 +187,10 @@ class AssetStorageService(BaseService):
                 }
                 with open(temp_path, "rb") as fh:
                     self.storage.put(
-                        storage_key=storage_key, file_data=fh,
-                        content_type=metadata.mime_type, metadata=None,
+                        storage_key=storage_key,
+                        file_data=fh,
+                        content_type=metadata.mime_type,
+                        metadata=None,
                     )
                 public_url = self.storage.get_public_url(storage_key)
                 asset_create = AssetCreateInternal(

@@ -1,5 +1,6 @@
 """Entry repositories."""
 
+from datetime import UTC
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -7,7 +8,7 @@ from pydantic import UUID4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from marvin.db.models.platform import Entries, EntryTypes, EntryCollections, EntryAssets, EntryResources, EntryTags
+from marvin.db.models.platform import Entries, EntryAssets, EntryCollections, EntryResources, EntryTags, EntryTypes
 from marvin.repos.platform._suggestions import SuggestionWritebackMixin
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryRead
@@ -106,7 +107,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Entry type has invalid schema: {e}",
-            )
+            ) from e
 
         # Validate content against schema
         try:
@@ -115,10 +116,11 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Content validation failed: {e.message}",
-            )
+            ) from e
 
     def create(self, data: Any) -> EntryRead:
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         from slugify import slugify
 
         data_dict = data if isinstance(data, dict) else data.model_dump()
@@ -134,9 +136,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
         base_slug = data_dict.get("slug")
         if base_slug:
             slug, n = base_slug, 2
-            while self.session.query(self.model.id).filter_by(
-                group_id=data_dict.get("group_id"), slug=slug
-            ).first():
+            while self.session.query(self.model.id).filter_by(group_id=data_dict.get("group_id"), slug=slug).first():
                 slug, n = f"{base_slug}-{n}", n + 1
             data_dict["slug"] = slug
 
@@ -153,7 +153,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
 
         # Auto-set published_at when creating with status 'published'
         if data_dict.get("status") == "published" and not data_dict.get("published_at"):
-            data_dict["published_at"] = datetime.now(timezone.utc)
+            data_dict["published_at"] = datetime.now(UTC)
 
         # Extract relationship IDs before creating entry
         collection_ids = data_dict.pop("collection_ids", None)
@@ -188,7 +188,8 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
         return self.get_one(new_entry.id)
 
     def update(self, match_value: Any, new_data: Any, match_key: str | None = None) -> EntryRead:
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         from slugify import slugify
 
         data_dict = new_data if isinstance(new_data, dict) else new_data.model_dump(exclude_unset=True)
@@ -221,7 +222,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
                     # Get current entry to check if it was already published
                     current_entry = self.get_one(match_value, key=match_key)
                     if current_entry and not current_entry.published_at:
-                        data_dict["published_at"] = datetime.now(timezone.utc)
+                        data_dict["published_at"] = datetime.now(UTC)
             else:
                 # If unpublishing (changing to draft/etc), clear published_at
                 data_dict["published_at"] = None
@@ -331,7 +332,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
         Additive (union with existing tags) — generate-tags SUGGESTS tags, it doesn't replace
         the curated set. No-op for a non-list value.
         """
-        if not isinstance(names, (list, tuple)):
+        if not isinstance(names, list | tuple):
             return
         from slugify import slugify
 
@@ -356,7 +357,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
         The grounding lists resources by name, so a suggestion carries names; matching by name is
         essential. Unknown refs are ignored (never invents resources). No-op for a non-list value.
         """
-        if not isinstance(refs, (list, tuple)):
+        if not isinstance(refs, list | tuple):
             return
         import uuid as _uuid
 
@@ -390,11 +391,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
         Only pending AI-suggested links qualify — a normal (confirmed) link returns None, so
         approve/reject can never touch a curated asset.
         """
-        junction = (
-            self.session.query(EntryAssets)
-            .filter(EntryAssets.entry_id == entry_id, EntryAssets.asset_id == asset_id)
-            .first()
-        )
+        junction = self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry_id, EntryAssets.asset_id == asset_id).first()
         if junction is None or not (junction.metadata_json or {}).get("suggested"):
             return None
         return junction
@@ -424,10 +421,7 @@ class EntriesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric[EntryRe
 
     def _attach_tags(self, entry_id: UUID4, tag_ids: list[UUID4]) -> None:
         """Attach tags to an entry, skipping any already present (idempotent)."""
-        existing = {
-            row.tag_id
-            for row in self.session.query(EntryTags.tag_id).filter(EntryTags.entry_id == entry_id).all()
-        }
+        existing = {row.tag_id for row in self.session.query(EntryTags.tag_id).filter(EntryTags.entry_id == entry_id).all()}
         for tag_id in tag_ids:
             if tag_id in existing:
                 continue

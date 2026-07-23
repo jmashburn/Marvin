@@ -5,17 +5,18 @@ Revises: b1dbbd08d7fd
 Create Date: 2026-07-19 22:38:41.318375
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 import marvin.db.migration_types
 
 # revision identifiers, used by Alembic.
-revision: str = 'e44490e23dbc'
-down_revision: Union[str, None] = 'b1dbbd08d7fd'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "e44490e23dbc"
+down_revision: str | None = "b1dbbd08d7fd"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -37,9 +38,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("group_id", "slug", name="uq_incoming_webhooks_group_slug"),
     )
     op.create_index("ix_workspace_incoming_webhooks_group_id", "workspace_incoming_webhooks", ["group_id"])
-    op.create_index(
-        "ix_workspace_incoming_webhooks_token", "workspace_incoming_webhooks", ["token"], unique=True
-    )
+    op.create_index("ix_workspace_incoming_webhooks_token", "workspace_incoming_webhooks", ["token"], unique=True)
 
 
 def downgrade() -> None:

@@ -11,7 +11,6 @@ from .._model_utils.auto_init import auto_init
 from .._model_utils.guid import GUID
 
 if TYPE_CHECKING:
-    from ..users import Users
     from .entries import Entries
     from .entry_resources import EntryResources
     from .tags import Tags

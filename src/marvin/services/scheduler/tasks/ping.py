@@ -7,7 +7,6 @@ to verify that the scheduler service is operational by observing the logs.
 """
 
 from marvin.core import root_logger  # Application logger
-from marvin.services.event_bus_service.event_bus_service import EventBusService
 
 # Logger instance for this module, typically will inherit the "scheduler" logger if called from there
 # or can be configured to be specific like "scheduler.tasks.ping".

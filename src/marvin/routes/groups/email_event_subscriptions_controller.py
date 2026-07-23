@@ -10,7 +10,6 @@ from marvin.routes._base.controller import controller
 from marvin.schemas.group.email_event_subscription import (
     EmailEventSubscriptionCreate,
     EmailEventSubscriptionRead,
-    EmailEventSubscriptionSummary,
 )
 
 router = APIRouter(prefix="/groups/email-event-subscriptions")
@@ -18,7 +17,6 @@ router = APIRouter(prefix="/groups/email-event-subscriptions")
 
 @controller(router)
 class EmailEventSubscriptionsController(BaseUserController):
-
     @cached_property
     def repo(self):
         return self.repos.email_event_subscriptions

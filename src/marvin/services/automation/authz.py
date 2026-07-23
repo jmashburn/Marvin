@@ -25,9 +25,17 @@ from marvin.services.ai.operations.base import (
 )
 
 __all__ = [
-    "ROLE_VIEWER", "ROLE_AUTHOR", "ROLE_EDITOR", "ROLE_ADMIN", "ROLE_OWNER",
-    "ENTRY_ACTION_MIN_ROLE", "EMIT_EVENT_MIN_ROLE", "HANDLER_MIN_ROLE", "WEBHOOK_MIN_ROLE",
-    "resolve_authorizer_role", "require_role",
+    "ROLE_VIEWER",
+    "ROLE_AUTHOR",
+    "ROLE_EDITOR",
+    "ROLE_ADMIN",
+    "ROLE_OWNER",
+    "ENTRY_ACTION_MIN_ROLE",
+    "EMIT_EVENT_MIN_ROLE",
+    "HANDLER_MIN_ROLE",
+    "WEBHOOK_MIN_ROLE",
+    "resolve_authorizer_role",
+    "require_role",
 ]
 
 from .actions.base import AutomationActionError
@@ -35,10 +43,10 @@ from .actions.base import AutomationActionError
 # Role each non-AI action kind requires of the automation's author. (The `operation` kind gates on
 # the AIOperation's own declared `min_role`, so it isn't listed here.) These document the privilege
 # each action wields and only bite when the author's live role has fallen below it.
-ENTRY_ACTION_MIN_ROLE = ROLE_AUTHOR   # publish/unpublish/archive/restore — a content mutation
-EMIT_EVENT_MIN_ROLE = ROLE_AUTHOR     # chain an internal event — the authoring privilege
-HANDLER_MIN_ROLE = ROLE_ADMIN         # run a maintenance/index/rebuild job
-WEBHOOK_MIN_ROLE = ROLE_ADMIN         # send workspace data to an external endpoint
+ENTRY_ACTION_MIN_ROLE = ROLE_AUTHOR  # publish/unpublish/archive/restore — a content mutation
+EMIT_EVENT_MIN_ROLE = ROLE_AUTHOR  # chain an internal event — the authoring privilege
+HANDLER_MIN_ROLE = ROLE_ADMIN  # run a maintenance/index/rebuild job
+WEBHOOK_MIN_ROLE = ROLE_ADMIN  # send workspace data to an external endpoint
 
 
 def resolve_authorizer_role(session, group_id, author_id) -> int:

@@ -65,8 +65,7 @@ class EntryService:
                    "automation" for write-back).
     """
 
-    def __init__(self, session, group_id, *, event_bus=None, actor_id=None,
-                 integration_id: str = "entry_management") -> None:
+    def __init__(self, session, group_id, *, event_bus=None, actor_id=None, integration_id: str = "entry_management") -> None:
         self.session = session
         self.group_id = group_id
         self.actor_id = actor_id
@@ -78,6 +77,7 @@ class EntryService:
     def event_bus(self):
         if self._event_bus is None:
             from marvin.services.event_bus_service.event_bus_service import EventBusService
+
             self._event_bus = EventBusService(bg_tasks=None)  # synchronous fan-out
         return self._event_bus
 
@@ -86,8 +86,7 @@ class EntryService:
         """Create an entry and emit `entry_created`. `data_dict` should already carry created_by."""
         entry = self.repos.entries.create(data_dict)
         names = self._names(entry)
-        self._emit(entry, EventTypes.entry_created, EventOperation.create,
-                   f"Entry '{entry.title}' created", names)
+        self._emit(entry, EventTypes.entry_created, EventOperation.create, f"Entry '{entry.title}' created", names)
         return entry
 
     def update(self, entry_id, data, *, reaction_depth: int = 0):
@@ -107,6 +106,7 @@ class EntryService:
         completeness contract. Evaluates the *projected* state (pending field changes overlaid on
         the persisted entry). Fail-open on any internal error — never block on our own bug — but a
         genuine unmet-requirement raises HTTP 422 with the specific gaps."""
+
         def _get(attr):
             return data.get(attr) if isinstance(data, dict) else getattr(data, attr, None)
 
@@ -126,8 +126,9 @@ class EntryService:
             if entry_type is None:
                 return
             report = C.evaluate_entry(
-                orm, entry_type,
-                data_json=_get("data_json"),   # None → uses the entry's stored data_json
+                orm,
+                entry_type,
+                data_json=_get("data_json"),  # None → uses the entry's stored data_json
                 title=_get("title"),
             )
         except Exception as e:  # noqa: BLE001 — a gate bug must not break publishing
@@ -159,8 +160,7 @@ class EntryService:
         """Commit an entry's staged AI suggestion (suggestion_json) and emit `entry_updated`."""
         entry = self.repos.entries.apply_suggestion(entry_id)
         names = self._names(entry)
-        self._emit(entry, EventTypes.entry_updated, EventOperation.update,
-                   f"AI suggestion applied to '{entry.title}'", names)
+        self._emit(entry, EventTypes.entry_updated, EventOperation.update, f"AI suggestion applied to '{entry.title}'", names)
         return entry
 
     def approve_suggested_asset(self, entry_id, asset_id):
@@ -174,8 +174,7 @@ class EntryService:
         junction.metadata_json = meta or None
         self.session.commit()
         entry = self.repos.entries.get_one(entry_id)
-        self._emit(entry, EventTypes.entry_updated, EventOperation.update,
-                   f"Suggested asset approved on '{entry.title}'", self._names(entry))
+        self._emit(entry, EventTypes.entry_updated, EventOperation.update, f"Suggested asset approved on '{entry.title}'", self._names(entry))
         return entry
 
     def reject_suggested_asset(self, entry_id, asset_id):
@@ -191,9 +190,7 @@ class EntryService:
         self.session.commit()
 
         # Orphan cleanup: a suggested asset that no other entry links to is discarded outright.
-        remaining = (
-            self.session.query(EntryAssets).filter(EntryAssets.asset_id == asset_id).count()
-        )
+        remaining = self.session.query(EntryAssets).filter(EntryAssets.asset_id == asset_id).count()
         if remaining == 0:
             from marvin.services.assets.asset_storage_service import AssetStorageService
             from marvin.services.storage.provider_factory import get_storage_provider
@@ -201,8 +198,7 @@ class EntryService:
             AssetStorageService(self.repos, get_storage_provider()).delete_asset(asset_id)
 
         entry = self.repos.entries.get_one(entry_id)
-        self._emit(entry, EventTypes.entry_updated, EventOperation.update,
-                   f"Suggested asset rejected on '{entry.title}'", self._names(entry))
+        self._emit(entry, EventTypes.entry_updated, EventOperation.update, f"Suggested asset rejected on '{entry.title}'", self._names(entry))
         return entry
 
     def delete(self, entry_id) -> bool:
@@ -211,8 +207,7 @@ class EntryService:
         if not entry:
             return False
         names = self._names(entry)
-        self._emit(entry, EventTypes.entry_deleted, EventOperation.delete,
-                   f"Entry '{entry.title}' deleted", names)
+        self._emit(entry, EventTypes.entry_deleted, EventOperation.delete, f"Entry '{entry.title}' deleted", names)
         self.repos.entries.delete(entry_id)
         return True
 
@@ -265,16 +260,17 @@ class EntryService:
         if existing:
             return "exists"
 
-        max_sort = (
-            self.session.query(sa.func.max(EntryCollections.sort_order))
-            .filter(EntryCollections.collection_id == collection.id)
-            .scalar()
-        )
+        max_sort = self.session.query(sa.func.max(EntryCollections.sort_order)).filter(EntryCollections.collection_id == collection.id).scalar()
         self.session.add(EntryCollections(entry_id=entry.id, collection_id=collection.id, sort_order=(max_sort or -1) + 1))
         self.session.commit()
-        self._emit(entry, EventTypes.entry_added_to_collection, EventOperation.update,
-                   f"Entry '{entry.title}' added to collection '{collection.name}'", self._names(entry),
-                   reaction_depth=reaction_depth)
+        self._emit(
+            entry,
+            EventTypes.entry_added_to_collection,
+            EventOperation.update,
+            f"Entry '{entry.title}' added to collection '{collection.name}'",
+            self._names(entry),
+            reaction_depth=reaction_depth,
+        )
         return "added"
 
     def remove_from_collection(self, entry_id, collection_ref, *, reaction_depth: int = 0) -> str | None:
@@ -298,9 +294,14 @@ class EntryService:
         if not deleted:
             return "absent"
         self.session.commit()
-        self._emit(entry, EventTypes.entry_removed_from_collection, EventOperation.update,
-                   f"Entry '{entry.title}' removed from collection '{collection.name}'", self._names(entry),
-                   reaction_depth=reaction_depth)
+        self._emit(
+            entry,
+            EventTypes.entry_removed_from_collection,
+            EventOperation.update,
+            f"Entry '{entry.title}' removed from collection '{collection.name}'",
+            self._names(entry),
+            reaction_depth=reaction_depth,
+        )
         return "removed"
 
     # ── Resource attachments ───────────────────────────────────────────────────
@@ -336,25 +337,21 @@ class EntryService:
         if not resource:
             return None
 
-        existing = (
-            self.session.query(EntryResources)
-            .filter(EntryResources.entry_id == entry.id, EntryResources.resource_id == resource.id)
-            .first()
-        )
+        existing = self.session.query(EntryResources).filter(EntryResources.entry_id == entry.id, EntryResources.resource_id == resource.id).first()
         if existing:
             return "exists"
 
-        max_pos = (
-            self.session.query(sa.func.max(EntryResources.position))
-            .filter(EntryResources.entry_id == entry.id)
-            .scalar()
-        )
-        self.session.add(EntryResources(entry_id=entry.id, resource_id=resource.id, role=role,
-                                        position=(max_pos + 1) if max_pos is not None else 0))
+        max_pos = self.session.query(sa.func.max(EntryResources.position)).filter(EntryResources.entry_id == entry.id).scalar()
+        self.session.add(EntryResources(entry_id=entry.id, resource_id=resource.id, role=role, position=(max_pos + 1) if max_pos is not None else 0))
         self.session.commit()
-        self._emit(entry, EventTypes.entry_resource_attached, EventOperation.update,
-                   f"Resource '{resource.name}' attached to entry '{entry.title}'", self._names(entry),
-                   reaction_depth=reaction_depth)
+        self._emit(
+            entry,
+            EventTypes.entry_resource_attached,
+            EventOperation.update,
+            f"Resource '{resource.name}' attached to entry '{entry.title}'",
+            self._names(entry),
+            reaction_depth=reaction_depth,
+        )
         return "attached"
 
     def detach_resource(self, entry_id, resource_ref, *, reaction_depth: int = 0) -> str | None:
@@ -370,17 +367,18 @@ class EntryService:
         if not resource:
             return None
 
-        deleted = (
-            self.session.query(EntryResources)
-            .filter(EntryResources.entry_id == entry.id, EntryResources.resource_id == resource.id)
-            .delete()
-        )
+        deleted = self.session.query(EntryResources).filter(EntryResources.entry_id == entry.id, EntryResources.resource_id == resource.id).delete()
         if not deleted:
             return "absent"
         self.session.commit()
-        self._emit(entry, EventTypes.entry_resource_detached, EventOperation.update,
-                   f"Resource '{resource.name}' detached from entry '{entry.title}'", self._names(entry),
-                   reaction_depth=reaction_depth)
+        self._emit(
+            entry,
+            EventTypes.entry_resource_detached,
+            EventOperation.update,
+            f"Resource '{resource.name}' detached from entry '{entry.title}'",
+            self._names(entry),
+            reaction_depth=reaction_depth,
+        )
         return "detached"
 
     # ── Tag attachments (entry-scoped convenience over the shared tagging service) ──────
@@ -390,16 +388,34 @@ class EntryService:
         `entry_tag_attached`."""
         from marvin.services.tagging import link_tag
 
-        return link_tag(self.session, self.group_id, "entry", entry_id, tag_ref, attach=True,
-                        actor_id=self.actor_id, event_bus=self._event_bus, reaction_depth=reaction_depth)
+        return link_tag(
+            self.session,
+            self.group_id,
+            "entry",
+            entry_id,
+            tag_ref,
+            attach=True,
+            actor_id=self.actor_id,
+            event_bus=self._event_bus,
+            reaction_depth=reaction_depth,
+        )
 
     def detach_tag(self, entry_id, tag_ref, *, reaction_depth: int = 0) -> str | None:
         """Detach a tag from an entry (idempotent). Returns detached/absent/None; emits
         `entry_tag_detached`."""
         from marvin.services.tagging import link_tag
 
-        return link_tag(self.session, self.group_id, "entry", entry_id, tag_ref, attach=False,
-                        actor_id=self.actor_id, event_bus=self._event_bus, reaction_depth=reaction_depth)
+        return link_tag(
+            self.session,
+            self.group_id,
+            "entry",
+            entry_id,
+            tag_ref,
+            attach=False,
+            actor_id=self.actor_id,
+            event_bus=self._event_bus,
+            reaction_depth=reaction_depth,
+        )
 
     # ── Asset attachments ──────────────────────────────────────────────────────
     def _resolve_asset(self, asset_ref):
@@ -428,23 +444,15 @@ class EntryService:
         asset = self._resolve_asset(asset_ref)
         if not asset:
             return None
-        existing = (
-            self.session.query(EntryAssets)
-            .filter(EntryAssets.entry_id == entry.id, EntryAssets.asset_id == asset.id)
-            .first()
-        )
+        existing = self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry.id, EntryAssets.asset_id == asset.id).first()
         if existing:
             return "exists"
-        max_pos = (
-            self.session.query(sa.func.max(EntryAssets.position))
-            .filter(EntryAssets.entry_id == entry.id)
-            .scalar()
-        )
-        self.session.add(EntryAssets(entry_id=entry.id, asset_id=asset.id, role=role,
-                                     position=(max_pos + 1) if max_pos is not None else 0))
+        max_pos = self.session.query(sa.func.max(EntryAssets.position)).filter(EntryAssets.entry_id == entry.id).scalar()
+        self.session.add(EntryAssets(entry_id=entry.id, asset_id=asset.id, role=role, position=(max_pos + 1) if max_pos is not None else 0))
         self.session.commit()
-        self._emit_asset_link(entry, asset, EventTypes.asset_attached_to_entry,
-                              f"Asset '{asset.name}' attached to entry '{entry.title}'", reaction_depth)
+        self._emit_asset_link(
+            entry, asset, EventTypes.asset_attached_to_entry, f"Asset '{asset.name}' attached to entry '{entry.title}'", reaction_depth
+        )
         return "attached"
 
     def detach_asset(self, entry_id, asset_ref, *, reaction_depth: int = 0) -> str | None:
@@ -458,16 +466,13 @@ class EntryService:
         asset = self._resolve_asset(asset_ref)
         if not asset:
             return None
-        deleted = (
-            self.session.query(EntryAssets)
-            .filter(EntryAssets.entry_id == entry.id, EntryAssets.asset_id == asset.id)
-            .delete()
-        )
+        deleted = self.session.query(EntryAssets).filter(EntryAssets.entry_id == entry.id, EntryAssets.asset_id == asset.id).delete()
         if not deleted:
             return "absent"
         self.session.commit()
-        self._emit_asset_link(entry, asset, EventTypes.asset_detached_from_entry,
-                              f"Asset '{asset.name}' detached from entry '{entry.title}'", reaction_depth)
+        self._emit_asset_link(
+            entry, asset, EventTypes.asset_detached_from_entry, f"Asset '{asset.name}' detached from entry '{entry.title}'", reaction_depth
+        )
         return "detached"
 
     def _emit_asset_link(self, entry, asset, event_type, message: str, reaction_depth: int) -> None:
@@ -483,9 +488,15 @@ class EntryService:
                 event_type=event_type,
                 document_data=EventAssetData(
                     operation=EventOperation.update,
-                    asset_id=asset.id, slug=asset.slug, name=asset.name,
-                    mime_type=asset.mime_type, asset_type=asset.asset_type, storage_key=asset.storage_key,
-                    workspace_id=self.group_id, workspace_name=workspace_name, uploader_id=self.actor_id,
+                    asset_id=asset.id,
+                    slug=asset.slug,
+                    name=asset.name,
+                    mime_type=asset.mime_type,
+                    asset_type=asset.asset_type,
+                    storage_key=asset.storage_key,
+                    workspace_id=self.group_id,
+                    workspace_name=workspace_name,
+                    uploader_id=self.actor_id,
                 ),
                 message=message,
                 user_id=self.actor_id,
@@ -511,22 +522,57 @@ class EntryService:
         diff = _diff(old, entry)
         old_status = getattr(old, "status", None)
         with correlation_scope():
-            self._emit(entry, EventTypes.entry_updated, EventOperation.update,
-                       f"Entry '{entry.title}' {verb}", names, reaction_depth=reaction_depth, diff=diff)
+            self._emit(
+                entry,
+                EventTypes.entry_updated,
+                EventOperation.update,
+                f"Entry '{entry.title}' {verb}",
+                names,
+                reaction_depth=reaction_depth,
+                diff=diff,
+            )
             if old_status == entry.status:
                 return
             if entry.status == "published":
-                self._emit(entry, EventTypes.entry_published, EventOperation.update,
-                           f"Entry '{entry.title}' published", names, reaction_depth=reaction_depth, diff=diff)
+                self._emit(
+                    entry,
+                    EventTypes.entry_published,
+                    EventOperation.update,
+                    f"Entry '{entry.title}' published",
+                    names,
+                    reaction_depth=reaction_depth,
+                    diff=diff,
+                )
             elif old_status == "published":
-                self._emit(entry, EventTypes.entry_unpublished, EventOperation.update,
-                           f"Entry '{entry.title}' unpublished", names, reaction_depth=reaction_depth, diff=diff)
+                self._emit(
+                    entry,
+                    EventTypes.entry_unpublished,
+                    EventOperation.update,
+                    f"Entry '{entry.title}' unpublished",
+                    names,
+                    reaction_depth=reaction_depth,
+                    diff=diff,
+                )
             if entry.status == "archived":
-                self._emit(entry, EventTypes.entry_archived, EventOperation.update,
-                           f"Entry '{entry.title}' archived", names, reaction_depth=reaction_depth, diff=diff)
+                self._emit(
+                    entry,
+                    EventTypes.entry_archived,
+                    EventOperation.update,
+                    f"Entry '{entry.title}' archived",
+                    names,
+                    reaction_depth=reaction_depth,
+                    diff=diff,
+                )
             elif old_status == "archived":
-                self._emit(entry, EventTypes.entry_restored, EventOperation.update,
-                           f"Entry '{entry.title}' restored from archive", names, reaction_depth=reaction_depth, diff=diff)
+                self._emit(
+                    entry,
+                    EventTypes.entry_restored,
+                    EventOperation.update,
+                    f"Entry '{entry.title}' restored from archive",
+                    names,
+                    reaction_depth=reaction_depth,
+                    diff=diff,
+                )
 
     def _names(self, entry) -> tuple[str | None, str | None, str | None]:
         """(entry_type_slug, workspace_name, author_name) for the event payload."""
@@ -546,9 +592,17 @@ class EntryService:
                 author_name = author.full_name
         return entry_type_slug, workspace_name, author_name
 
-    def _emit(self, entry, event_type, operation, message: str,
-              names: tuple[str | None, str | None, str | None], *, reaction_depth: int = 0,
-              diff: tuple[list[str], dict, dict] | None = None) -> None:
+    def _emit(
+        self,
+        entry,
+        event_type,
+        operation,
+        message: str,
+        names: tuple[str | None, str | None, str | None],
+        *,
+        reaction_depth: int = 0,
+        diff: tuple[list[str], dict, dict] | None = None,
+    ) -> None:
         """Dispatch one entry event. Best-effort — a dispatch failure never breaks the write."""
         entry_type_slug, workspace_name, author_name = names
         changed_fields, before, after = diff or ([], {}, {})

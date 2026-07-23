@@ -26,9 +26,9 @@ _RASTER_MIMES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 #   vignette: 0..1 strength of an edge darkening (0 = off).
 GRADE_PRESETS: dict[str, dict[str, float]] = {
     "rustic-warm": {"warmth": 1.10, "contrast": 1.12, "saturation": 0.92, "brightness": 0.98, "vignette": 0.18},
-    "warm":        {"warmth": 1.08, "contrast": 1.05, "saturation": 1.00, "brightness": 1.00, "vignette": 0.00},
-    "cool":        {"warmth": 0.92, "contrast": 1.05, "saturation": 0.98, "brightness": 1.00, "vignette": 0.00},
-    "muted":       {"warmth": 1.00, "contrast": 0.96, "saturation": 0.82, "brightness": 1.00, "vignette": 0.10},
+    "warm": {"warmth": 1.08, "contrast": 1.05, "saturation": 1.00, "brightness": 1.00, "vignette": 0.00},
+    "cool": {"warmth": 0.92, "contrast": 1.05, "saturation": 0.98, "brightness": 1.00, "vignette": 0.00},
+    "muted": {"warmth": 1.00, "contrast": 0.96, "saturation": 0.82, "brightness": 1.00, "vignette": 0.10},
 }
 
 
@@ -79,7 +79,7 @@ def _apply_vignette(img: Image.Image, strength: float) -> Image.Image:
     # Radial gradient mask: bright center → dark edges.
     mask = Image.new("L", (w, h), 0)
     cx, cy = w / 2, h / 2
-    max_d = (cx ** 2 + cy ** 2) ** 0.5
+    max_d = (cx**2 + cy**2) ** 0.5
     px = mask.load()
     for y in range(h):
         for x in range(w):
@@ -134,11 +134,11 @@ def crop_to_aspect(data: bytes, aspect: tuple[int, int]) -> bytes | None:
     current = w / h
     if abs(current - target) < 1e-3:
         return _dump(img, fmt)
-    if current > target:                      # too wide → trim sides
+    if current > target:  # too wide → trim sides
         new_w = int(h * target)
         left = (w - new_w) // 2
         box = (left, 0, left + new_w, h)
-    else:                                     # too tall → trim top/bottom
+    else:  # too tall → trim top/bottom
         new_h = int(w / target)
         top = (h - new_h) // 2
         box = (0, top, w, top + new_h)

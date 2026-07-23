@@ -19,7 +19,7 @@ from __future__ import annotations  # Enables using Self for return type hints
 
 import re  # For regular expression operations in datetime parsing
 from collections.abc import Sequence  # For typing sequences
-from datetime import datetime, UTC  # Standard datetime objects
+from datetime import UTC, datetime  # Standard datetime objects
 from enum import Enum  # For creating enumerations like SearchType
 from typing import Any, ClassVar, Protocol, TypeVar  # Typing utilities
 

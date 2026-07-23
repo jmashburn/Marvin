@@ -43,9 +43,7 @@ class ScheduledTasksRepository(GroupRepositoryGeneric[ScheduledTaskRead, Schedul
 
         # Calculate initial next_run_at from schedule
         if not data_dict.get("next_run_at"):
-            data_dict["next_run_at"] = self._compute_next_run(
-                data_dict.get("schedule_type"), data_dict.get("schedule_config")
-            )
+            data_dict["next_run_at"] = self._compute_next_run(data_dict.get("schedule_type"), data_dict.get("schedule_config"))
 
         return super().create(data_dict)
 
@@ -264,12 +262,7 @@ class ScheduledTaskExecutionLogRepository(GroupRepositoryGeneric[ScheduledTaskEx
 
         When group_id is None (admin context), returns logs across all workspaces.
         """
-        stmt = (
-            select(ScheduledTaskExecutionLogModel)
-            .order_by(ScheduledTaskExecutionLogModel.executed_at.desc())
-            .limit(limit)
-            .offset(offset)
-        )
+        stmt = select(ScheduledTaskExecutionLogModel).order_by(ScheduledTaskExecutionLogModel.executed_at.desc()).limit(limit).offset(offset)
 
         if self.group_id:
             stmt = stmt.where(ScheduledTaskExecutionLogModel.group_id == self.group_id)

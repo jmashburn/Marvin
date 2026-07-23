@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any
 
-from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
+from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_validator
 
 from marvin.schemas._marvin import _MarvinModel
 

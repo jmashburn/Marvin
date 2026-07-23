@@ -1,9 +1,9 @@
 """Entry schemas."""
 
 from datetime import datetime
-from typing import Annotated, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, UUID4, field_validator, field_serializer, model_validator, Field, AliasChoices
+from pydantic import UUID4, AliasChoices, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from marvin.schemas._marvin import _MarvinModel
 

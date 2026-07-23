@@ -24,16 +24,17 @@ Revises: f0382e299d4e
 Create Date: 2026-07-20 11:12:59.350599
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision: str = '22fc8d0a41bb'
-down_revision: Union[str, None] = 'f0382e299d4e'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "22fc8d0a41bb"
+down_revision: str | None = "f0382e299d4e"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Every table whose timestamps were created NOT NULL.
 TABLES = ("event_log", "scheduled_tasks", "forms", "form_submissions", "form_rate_limits")

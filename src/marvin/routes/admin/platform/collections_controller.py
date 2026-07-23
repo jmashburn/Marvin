@@ -2,14 +2,13 @@
 
 from functools import cached_property
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import UUID4
 
-from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate
-from marvin.schemas.response.pagination import PaginationQuery
 from marvin.repos.platform import CollectionsRepository
 from marvin.routes._base import BaseAdminController, controller
 from marvin.routes._base.mixins import HttpRepo
+from marvin.schemas.platform import CollectionCreate, CollectionRead, CollectionUpdate
 
 router = APIRouter(prefix="/collections")
 
@@ -28,9 +27,7 @@ class AdminCollectionsRoutes(BaseAdminController):
     @property
     def mixins(self) -> HttpRepo[CollectionCreate, CollectionRead, CollectionUpdate]:
         """Mixin for CRUD operations."""
-        return HttpRepo[CollectionCreate, CollectionRead, CollectionUpdate](
-            self.repo, self.logger, self.registered_exceptions
-        )
+        return HttpRepo[CollectionCreate, CollectionRead, CollectionUpdate](self.repo, self.logger, self.registered_exceptions)
 
     @router.get("", response_model=list[CollectionRead], summary="List Collections")
     def get_all(self) -> list[CollectionRead]:

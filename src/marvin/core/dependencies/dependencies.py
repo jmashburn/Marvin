@@ -59,7 +59,7 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
             repos = get_repositories(session, group_id=None)
             token_model = repos.api_tokens.validate_token(plaintext_token=token)
             return token_model is not None
-        except Exception as e:
+        except Exception:
             logger.debug(
                 "Unexpected error validating API token in is_logged_in",
                 exc_info=True,
@@ -76,7 +76,7 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
             try:
                 if validate_long_live_token(session, token, payload.get("id")):
                     return True
-            except Exception as e:
+            except Exception:
                 logger.debug(
                     "Unexpected error validating long-lived token in is_logged_in",
                     exc_info=True,
@@ -86,7 +86,7 @@ async def is_logged_in(token: str = Depends(oauth2_scheme_soft_fail), session=De
 
         return user_id is not None
 
-    except Exception as e:
+    except Exception:
         logger.debug(
             "Unexpected error decoding JWT in is_logged_in",
             exc_info=True,
@@ -138,7 +138,7 @@ async def try_get_current_user(
     """
     try:
         return await get_current_user(request, token, session)
-    except Exception as e:
+    except Exception:
         logger.debug(
             "Unable to get current user in try_get_current_user (expected behavior)",
             exc_info=True,
@@ -355,7 +355,7 @@ def require_workspace_role(required_role: WorkspaceRole, allow_platform_admin: b
             if user_role is None:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access denied. You are not a member of this workspace.",
+                    detail="Access denied. You are not a member of this workspace.",
                 )
             else:
                 raise HTTPException(

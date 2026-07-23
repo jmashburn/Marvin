@@ -28,7 +28,7 @@ class AzureOpenAIProvider(AIProvider):
         try:
             from openai import AzureOpenAI
         except ImportError:
-            raise ImportError("OpenAI SDK not installed. Run: uv sync --extra openai (or pip install 'marvin[openai]')")
+            raise ImportError("OpenAI SDK not installed. Run: uv sync --extra openai (or pip install 'marvin[openai]')") from None
         return AzureOpenAI(api_key=self._api_key, azure_endpoint=self._base_url, api_version=self._api_version)
 
     def _render_content(self, content):
@@ -56,18 +56,20 @@ class AzureOpenAIProvider(AIProvider):
                 content = m.content if isinstance(m.content, str) else str(m.content)
                 out.append({"role": "tool", "tool_call_id": m.tool_call_id, "content": content})
             elif m.role == "assistant" and m.tool_calls:
-                out.append({
-                    "role": "assistant",
-                    "content": m.content if (isinstance(m.content, str) and m.content) else None,
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
-                        }
-                        for tc in m.tool_calls
-                    ],
-                })
+                out.append(
+                    {
+                        "role": "assistant",
+                        "content": m.content if (isinstance(m.content, str) and m.content) else None,
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
+                            }
+                            for tc in m.tool_calls
+                        ],
+                    }
+                )
             else:
                 out.append({"role": m.role, "content": self._render_content(m.content)})
         return out
@@ -83,10 +85,7 @@ class AzureOpenAIProvider(AIProvider):
         import json
 
         opts = options or CompletionOptions()
-        api_tools = [
-            {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.input_schema}}
-            for t in tools
-        ]
+        api_tools = [{"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.input_schema}} for t in tools]
         choice_map = {"auto": "auto", "required": "required", "none": "none"}
         resp = self._client().chat.completions.create(
             model=model,
@@ -135,6 +134,7 @@ class AzureOpenAIProvider(AIProvider):
 
     def complete_structured(self, messages: list[Message], model: str, output_schema: dict, options: CompletionOptions | None = None) -> dict:
         import json
+
         opts = options or CompletionOptions()
         resp = self._client().chat.completions.create(
             model=model,

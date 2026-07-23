@@ -49,8 +49,7 @@ def _resolve_target(session, group_id, action: dict, context: dict):
     raw = interpolate(action.get("entity_id", "$event.entry_id"), context)
     if not raw:
         raise AutomationActionError(
-            "entry action has no target entry — set entity_slug (e.g. $event.payload.entry_slug), "
-            "add a Run-on target, or trigger on an entry event"
+            "entry action has no target entry — set entity_slug (e.g. $event.payload.entry_slug), add a Run-on target, or trigger on an entry event"
         )
     try:
         return raw if isinstance(raw, uuid.UUID) else uuid.UUID(str(raw))
@@ -65,8 +64,7 @@ def _resolve_collection_ref(action: dict, context: dict):
         ref = interpolate(action.get("collection_id"), context) if action.get("collection_id") else None
     if not ref:
         raise AutomationActionError(
-            "collection action needs a target collection — set collection_slug (e.g. 'featured' or "
-            "$event.payload.collection_slug)"
+            "collection action needs a target collection — set collection_slug (e.g. 'featured' or $event.payload.collection_slug)"
         )
     return str(ref)
 
@@ -91,8 +89,7 @@ def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=
     if op in COLLECTION_OPS:
         collection_ref = _resolve_collection_ref(action, context)
         if dry_run:  # resolve target + collection, but don't construct the service or mutate
-            return {"dry_run": True, "kind": "entry", "op": op,
-                    "entity_id": str(entity_id), "collection": collection_ref}
+            return {"dry_run": True, "kind": "entry", "op": op, "entity_id": str(entity_id), "collection": collection_ref}
         svc = EntryService(session, group_id, actor_id=user_id, integration_id="automation")
         result = getattr(svc, COLLECTION_OPS[op])(entity_id, collection_ref, reaction_depth=depth)
         if result is None:
@@ -101,8 +98,7 @@ def run_entry_action(session, group_id, action: dict, context: dict, *, user_id=
 
     # ── Status transition ──────────────────────────────────────────────────────
     if dry_run:
-        return {"dry_run": True, "kind": "entry", "op": op,
-                "entity_id": str(entity_id), "would_set_status": ENTRY_OPS[op]}
+        return {"dry_run": True, "kind": "entry", "op": op, "entity_id": str(entity_id), "would_set_status": ENTRY_OPS[op]}
     svc = EntryService(session, group_id, actor_id=user_id, integration_id="automation")
     entry = svc.set_status(entity_id, ENTRY_OPS[op], reaction_depth=depth)
     if entry is None:

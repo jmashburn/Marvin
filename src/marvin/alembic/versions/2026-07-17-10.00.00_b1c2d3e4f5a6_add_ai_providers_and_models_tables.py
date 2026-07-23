@@ -5,16 +5,17 @@ Revises: a9b0c1d2e3f4
 Create Date: 2026-07-17 10:00:00.000000
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 import marvin.db.migration_types
 
-revision: str = 'b1c2d3e4f5a6'
-down_revision: Union[str, None] = 'a9b0c1d2e3f4'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "b1c2d3e4f5a6"
+down_revision: str | None = "a9b0c1d2e3f4"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

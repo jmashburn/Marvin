@@ -88,6 +88,7 @@ def init_db(session: orm.Session) -> None:
     # Reconcile the notifier-options catalog to the code event catalog so newer subscribable
     # events (e.g. incoming_webhook) aren't missing — the static seed JSON drifts behind CATALOG.
     from marvin.services.events.event_catalog import sync_notifier_options
+
     added = sync_notifier_options(session)
     if added:
         logger.info(f"Synced {added} notifier option(s) from the event catalog")
@@ -337,7 +338,9 @@ def main() -> None:
                     "AUTO_MIGRATE is off and %s has %d pending migration(s): %s. "
                     "Review them, then apply with `task py:migrate:apply`. "
                     "The app is running against an OUT-OF-DATE schema until you do.",
-                    name, len(pending), ", ".join(pending) or "unknown",
+                    name,
+                    len(pending),
+                    ", ".join(pending) or "unknown",
                 )
             else:
                 logger.debug(f"Migration needed. Performing migration for {name}...")

@@ -7,10 +7,10 @@ from marvin.schemas._marvin import _MarvinModel
 
 class McpServerCreate(_MarvinModel):
     name: str
-    slug: str | None = None                 # generated from name when omitted
-    transport: str = "http"                 # "http" | "sse" (stdio not supported)
+    slug: str | None = None  # generated from name when omitted
+    transport: str = "http"  # "http" | "sse" (stdio not supported)
     url: str
-    secret_ref: str | None = None           # slug of a WorkspaceSecret (Bearer token)
+    secret_ref: str | None = None  # slug of a WorkspaceSecret (Bearer token)
     enabled: bool = False
     allowed_tools: list[str] | None = None  # DENY by default — only listed tools are callable
 
@@ -45,6 +45,7 @@ class McpServerRead(_MarvinModel):
 
 class McpServerToolInfo(_MarvinModel):
     """A tool advertised by a server's tools/list (shown in the UI to build the allowlist)."""
+
     name: str
     description: str
     input_schema: dict = {}

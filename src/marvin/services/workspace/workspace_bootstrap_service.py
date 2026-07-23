@@ -306,8 +306,9 @@ class WorkspaceBootstrapService:
         )
 
         # 4. Add all SUPER_ADMIN users as ADMIN (for convenience)
-        from marvin.db.models.users.users import Users
         from sqlalchemy import select
+
+        from marvin.db.models.users.users import Users
 
         stmt = select(Users).where(Users.platform_role == PlatformRole.SUPER_ADMIN)
         super_admins = repos.session.execute(stmt).scalars().all()

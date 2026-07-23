@@ -303,9 +303,7 @@ class WorkspaceEmailSender(ABCEmailSender, BaseService):
         from_email = profile["from_email"] or self.settings.SMTP_FROM_EMAIL
         from_name = profile["from_name"] or self.settings.SMTP_FROM_NAME or "Marvin"
         if not from_email:
-            self.logger.error(
-                f"Active SMTP profile '{profile['name']}' has no From address and no global SMTP_FROM_EMAIL fallback."
-            )
+            self.logger.error(f"Active SMTP profile '{profile['name']}' has no From address and no global SMTP_FROM_EMAIL fallback.")
             return False
 
         password = None

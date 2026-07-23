@@ -23,16 +23,16 @@ from marvin.services import BaseService  # Base service class for common functio
 
 # Event listener implementations
 from marvin.services.event_bus_service.event_bus_listener import (
-    IndexingReactionListener,
-    AutomationReactionListener,
-    SmartCollectionReactionListener,
     AppriseEventListener,
     AuditLogListener,
+    AutomationReactionListener,
     ConsoleEventListener,
     EmailEventListener,
     EventListenerBase,
+    IndexingReactionListener,
     IntegrationEventListener,
     ScheduledTaskListener,
+    SmartCollectionReactionListener,
     WebhookEventListener,
 )
 
@@ -250,7 +250,13 @@ class EventBusService(BaseService):
         )
 
         event_name = event_type.name if hasattr(event_type, "name") else str(event_type)
-        is_internal = event_name in ("webhook_task", "scheduled_task_triggered", "scheduled_task_started", "scheduled_task_completed", "scheduled_task_failed")
+        is_internal = event_name in (
+            "webhook_task",
+            "scheduled_task_triggered",
+            "scheduled_task_started",
+            "scheduled_task_completed",
+            "scheduled_task_failed",
+        )
 
         if self.bg_tasks:
             if not is_internal:

@@ -28,6 +28,7 @@ class AISettingsController(BaseUserController):
 
     def _allow_workspace_credentials(self) -> bool:
         from marvin.core.config import get_app_settings
+
         return bool(getattr(get_app_settings(), "AI_ALLOW_WORKSPACE_CREDENTIALS", True))
 
     @router.get("/sources", summary="List invocation sources (for the policy editor)")
@@ -64,9 +65,8 @@ class AISettingsController(BaseUserController):
         warnings = []
         if data.credential_mode == "workspace" and data.secret_ref:
             from marvin.db.models.groups.secrets import WorkspaceSecret
-            exists = self.session.query(WorkspaceSecret).filter_by(
-                group_id=self.group_id, slug=data.secret_ref
-            ).first()
+
+            exists = self.session.query(WorkspaceSecret).filter_by(group_id=self.group_id, slug=data.secret_ref).first()
             if not exists:
                 warnings.append(f"Secret slug '{data.secret_ref}' not found in this workspace.")
 

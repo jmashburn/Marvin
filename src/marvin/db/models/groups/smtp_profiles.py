@@ -24,9 +24,7 @@ class WorkspaceSMTPProfileModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "workspace_smtp_profiles"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = relationship("Groups", back_populates="smtp_profiles", single_parent=True)
 
     name: Mapped[str] = mapped_column(String, nullable=False)

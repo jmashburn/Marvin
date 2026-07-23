@@ -13,8 +13,8 @@ from pydantic import UUID4
 from marvin.core.config import get_app_dirs, get_app_settings
 from marvin.core.root_logger import get_logger
 
-from .database import _get_fernet
 from ..base import SecretBackend
+from .database import _get_fernet
 
 logger = get_logger(__name__)
 

@@ -51,8 +51,8 @@ class AdminEmailController(BaseAdminController):
     @property
     def repo(self):
         """Repository for system email templates (group_id = NULL)."""
-        from marvin.repos.repository_generic import RepositoryGeneric
         from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.repos.repository_generic import RepositoryGeneric
         from marvin.schemas.group.email_template import EmailTemplateRead
 
         return RepositoryGeneric(self.repos.session, "id", EmailTemplateModel, EmailTemplateRead)
@@ -127,11 +127,7 @@ class AdminEmailController(BaseAdminController):
 
         # System templates only: group_id IS NULL. (The generic repo's get_all() returns every
         # template, so workspace/custom ones would otherwise show up mislabelled as "System".)
-        templates = (
-            self.repos.session.query(EmailTemplateModel)
-            .filter(EmailTemplateModel.group_id.is_(None))
-            .all()
-        )
+        templates = self.repos.session.query(EmailTemplateModel).filter(EmailTemplateModel.group_id.is_(None)).all()
         return [EmailTemplateSummary.model_validate(t) for t in templates]
 
     @router.get("/templates/{template_id}", response_model=EmailTemplateRead, summary="Get System Email Template")
@@ -306,4 +302,4 @@ class AdminEmailController(BaseAdminController):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error sending test email: {str(e)}",
-            )
+            ) from e

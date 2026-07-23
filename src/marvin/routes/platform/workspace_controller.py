@@ -1,7 +1,7 @@
 """Platform workspace import/export/backup endpoints."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -20,7 +20,7 @@ def _backup_meta(path: Path) -> dict:
     return {
         "filename": path.name,
         "size": stat.st_size,
-        "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+        "created_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(timespec="seconds"),
     }
 
 

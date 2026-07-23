@@ -50,22 +50,24 @@ class AIOperationExecuteRequest(_MarvinModel):
 
 class AIReindexRequest(_MarvinModel):
     """Reindex embeddings for a single entity, or the whole workspace when scope='workspace'."""
-    entity_type: str | None = None   # entry | resource
+
+    entity_type: str | None = None  # entry | resource
     entity_id: UUID4 | None = None
-    scope: str | None = None         # "workspace" → reindex all entries + resources
+    scope: str | None = None  # "workspace" → reindex all entries + resources
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AIComposeEntryRequest(_MarvinModel):
     """Compose a draft entry of `entry_type` from a short brief (+ optional image assets)."""
-    entry_type: str                          # entry type slug or id
-    brief: str                               # what the entry should be about
+
+    entry_type: str  # entry type slug or id
+    brief: str  # what the entry should be about
     # image assets to see (vision) + attach. Order matters: first → hero, and only the first 4 are
     # sent to the model as vision input, so callers should list the most important images first.
     asset_ids: list[UUID4] | None = None
     model_override: str | None = None
-    source: str = "editor"                   # invocation surface; gated by workspace policy
+    source: str = "editor"  # invocation surface; gated by workspace policy
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,17 +79,19 @@ class AIReviseEntryRequest(_MarvinModel):
     already exists (e.g. "determine the tags and attach any relevant resources", "tighten the
     summary") rather than authoring a new draft.
     """
-    entry: str                               # the entry to revise, by slug or id
-    instruction: str                         # what to determine / change
+
+    entry: str  # the entry to revise, by slug or id
+    instruction: str  # what to determine / change
     model_override: str | None = None
-    source: str = "editor"                   # invocation surface; gated by workspace policy
+    source: str = "editor"  # invocation surface; gated by workspace policy
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AIAgentTurn(_MarvinModel):
     """One prior turn of the conversation, replayed to give the agent short-term memory."""
-    role: str                                # "user" | "assistant" (anything else is dropped)
+
+    role: str  # "user" | "assistant" (anything else is dropped)
     content: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -95,9 +99,10 @@ class AIAgentTurn(_MarvinModel):
 
 class AIAgentRequest(_MarvinModel):
     """Run the Marvin agent — an iterative tool-calling loop over Marvin's own capabilities."""
-    message: str                             # the user's request / question
-    entity_type: str | None = None           # optional grounding: what the caller is looking at
-    entity_id: str | None = None             # UUID or slug — resolved server-side
+
+    message: str  # the user's request / question
+    entity_type: str | None = None  # optional grounding: what the caller is looking at
+    entity_id: str | None = None  # UUID or slug — resolved server-side
     # Prior turns, oldest first, EXCLUDING the current message. The client is stateless as far as
     # the model is concerned — it replays what it has. Bounded server-side (turn count + chars) so
     # a long transcript can't blow the context window or the token budget.
@@ -110,8 +115,8 @@ class AIAgentRequest(_MarvinModel):
     # "auto" | "professional" | "playful"
     register: str | None = None
     model_override: str | None = None
-    max_steps: int | None = None             # tool-dispatch budget (server clamps)
-    source: str = "agent"                    # invocation surface; gated by workspace policy
+    max_steps: int | None = None  # tool-dispatch budget (server clamps)
+    source: str = "agent"  # invocation surface; gated by workspace policy
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -122,7 +127,8 @@ class AIToolInvokeRequest(_MarvinModel):
     This is the one endpoint MarvinMCP routes every projected registry tool through: the tool's
     handler receives `args` verbatim and returns its JSON result.
     """
-    args: dict = {}                          # tool args matching the tool's input schema
-    source: str = "mcp"                      # invocation surface; gated by workspace policy
+
+    args: dict = {}  # tool args matching the tool's input schema
+    source: str = "mcp"  # invocation surface; gated by workspace policy
 
     model_config = ConfigDict(from_attributes=True)

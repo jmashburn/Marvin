@@ -19,14 +19,6 @@ if TYPE_CHECKING:
 
 # Import all necessary DB models
 from marvin.db.models.events import EventNotifierOptionsModel
-from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
-from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
-from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
-from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
-from marvin.db.models.groups.integration_event_subscriptions import IntegrationEventSubscriptionModel
-from marvin.db.models.groups.integrations import IntegrationModel
-from marvin.db.models.groups.secrets import WorkspaceSecret
-from marvin.db.models.groups.variables import WorkspaceVariable
 from marvin.db.models.groups import (
     GroupEventNotifierModel,
     # GroupEventNotifierOptionsModel, # This seems unused directly here, group_event_notifier uses it
@@ -37,24 +29,32 @@ from marvin.db.models.groups import (
     ReportEntryModel,
     ReportModel,
 )
+from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
+from marvin.db.models.groups.integration_event_subscriptions import IntegrationEventSubscriptionModel
+from marvin.db.models.groups.integrations import IntegrationModel
+from marvin.db.models.groups.notification_execution_logs import NotificationExecutionLogModel
+from marvin.db.models.groups.secrets import WorkspaceSecret
+from marvin.db.models.groups.variables import WorkspaceVariable
+from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
 from marvin.db.models.users import LongLiveToken, Users
 from marvin.db.models.users.password_reset import PasswordResetModel
 
 # Import all necessary Pydantic schemas for repository typing
 from marvin.schemas.event.event import EventNotifierOptionsRead
+from marvin.schemas.group import GroupRead
 from marvin.schemas.group.ai_settings import WorkspaceAISettingsRead
 from marvin.schemas.group.email_event_subscription import EmailEventSubscriptionRead
-from marvin.schemas.group import GroupRead
 from marvin.schemas.group.event import (
     GroupEventNotifierRead,
     NotificationExecutionLogRead,
     # GroupEventNotifierOptionsRead, # Also seems unused directly
 )
+from marvin.schemas.group.integration import IntegrationEventSubscriptionRead, IntegrationRead
 from marvin.schemas.group.invite_token import InviteTokenRead
 from marvin.schemas.group.preferences import GroupPreferencesRead
 from marvin.schemas.group.report import ReportEntryRead, ReportRead
 from marvin.schemas.group.secret import WorkspaceSecretRead
-from marvin.schemas.group.integration import IntegrationEventSubscriptionRead, IntegrationRead
 from marvin.schemas.group.variable import WorkspaceVariableRead
 from marvin.schemas.group.webhook import WebhookExecutionLogRead, WebhookRead
 from marvin.schemas.user import LongLiveTokenRead, PrivateUser
@@ -186,9 +186,7 @@ class AllRepositories:
     @cached_property
     def workspace_ai_settings(self) -> GroupRepositoryGeneric[WorkspaceAISettingsRead, WorkspaceAISettingsModel]:
         """Provides access to workspace AI workflow policy settings."""
-        return GroupRepositoryGeneric(
-            self.session, PK_GROUP_ID, WorkspaceAISettingsModel, WorkspaceAISettingsRead, group_id=self.group_id
-        )
+        return GroupRepositoryGeneric(self.session, PK_GROUP_ID, WorkspaceAISettingsModel, WorkspaceAISettingsRead, group_id=self.group_id)
 
     @cached_property
     def group_preferences(self) -> GroupRepositoryGeneric[GroupPreferencesRead, GroupPreferencesModel]:
@@ -272,9 +270,7 @@ class AllRepositories:
     @cached_property
     def email_event_subscriptions(self) -> GroupRepositoryGeneric[EmailEventSubscriptionRead, EmailEventSubscriptionModel]:
         """Provides access to email event subscription records scoped by group."""
-        return GroupRepositoryGeneric(
-            self.session, PK_ID, EmailEventSubscriptionModel, EmailEventSubscriptionRead, group_id=self.group_id
-        )
+        return GroupRepositoryGeneric(self.session, PK_ID, EmailEventSubscriptionModel, EmailEventSubscriptionRead, group_id=self.group_id)
 
     def workspace_variables(self) -> GroupRepositoryGeneric[WorkspaceVariableRead, WorkspaceVariable]:
         """Provides access to workspace-scoped plain-text variables."""

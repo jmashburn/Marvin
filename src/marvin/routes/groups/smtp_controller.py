@@ -71,23 +71,29 @@ class SMTPProfilesController(BaseUserController):
 
     def _deactivate_others(self, keep_id: UUID4 | None) -> None:
         """Ensure at most one active profile — clear is_active on every other row."""
-        rows = self.session.execute(
-            select(WorkspaceSMTPProfileModel).where(
-                WorkspaceSMTPProfileModel.group_id == self.group_id,
-                WorkspaceSMTPProfileModel.is_active.is_(True),
+        rows = (
+            self.session.execute(
+                select(WorkspaceSMTPProfileModel).where(
+                    WorkspaceSMTPProfileModel.group_id == self.group_id,
+                    WorkspaceSMTPProfileModel.is_active.is_(True),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for row in rows:
             if row.id != keep_id:
                 row.is_active = False
 
     @router.get("", response_model=list[SMTPProfileRead], summary="List Workspace SMTP Profiles")
     def list_profiles(self) -> list[SMTPProfileRead]:
-        rows = self.session.execute(
-            select(WorkspaceSMTPProfileModel)
-            .where(WorkspaceSMTPProfileModel.group_id == self.group_id)
-            .order_by(WorkspaceSMTPProfileModel.name)
-        ).scalars().all()
+        rows = (
+            self.session.execute(
+                select(WorkspaceSMTPProfileModel).where(WorkspaceSMTPProfileModel.group_id == self.group_id).order_by(WorkspaceSMTPProfileModel.name)
+            )
+            .scalars()
+            .all()
+        )
         return [_to_read(r) for r in rows]
 
     @router.post("", response_model=SMTPProfileRead, status_code=status.HTTP_201_CREATED, summary="Create SMTP Profile")
@@ -187,8 +193,7 @@ class SMTPProfilesController(BaseUserController):
         workspace_name = getattr(self.group, "name", "") or ""
         fallback = (
             f"Notification from {workspace_name}" if workspace_name else "Test notification",
-            f"<p>This is a test email sent through the <strong>{profile.name}</strong> "
-            f"SMTP profile. If you received it, the profile works.</p>",
+            f"<p>This is a test email sent through the <strong>{profile.name}</strong> SMTP profile. If you received it, the profile works.</p>",
         )
         try:
             email_service = EmailService(group_id=str(self.group_id))

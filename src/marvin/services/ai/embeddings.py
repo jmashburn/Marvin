@@ -29,6 +29,7 @@ _EMBEDDING_SETTING_KEYS: dict[str, str] = {
 def default_embedding_model(provider_type: str) -> str | None:
     """Resolve the embedding model — AppSettings override first, then the built-in default."""
     from marvin.core.config import get_app_settings
+
     key = _EMBEDDING_SETTING_KEYS.get(provider_type)
     if key:
         configured = getattr(get_app_settings(), key, None)
@@ -48,7 +49,7 @@ def chunk_text(text: str, max_chars: int = 1500, overlap: int = 150) -> list[str
     start = 0
     step = max(1, max_chars - overlap)
     while start < len(text):
-        chunks.append(text[start:start + max_chars])
+        chunks.append(text[start : start + max_chars])
         start += step
     return chunks
 
@@ -74,30 +75,28 @@ def index_entity(
     )
     if not chunks:
         # No content — clear any stale embeddings for this entity+model.
-        session.query(AIEmbeddingModel).filter_by(
-            group_id=group_id, entity_type=entity_type, entity_id=entity_id, model_id=model
-        ).delete()
+        session.query(AIEmbeddingModel).filter_by(group_id=group_id, entity_type=entity_type, entity_id=entity_id, model_id=model).delete()
         session.commit()
         return 0
 
     vectors = provider.embed(chunks, model)
     dims = len(vectors[0]) if vectors else 0
 
-    session.query(AIEmbeddingModel).filter_by(
-        group_id=group_id, entity_type=entity_type, entity_id=entity_id, model_id=model
-    ).delete()
+    session.query(AIEmbeddingModel).filter_by(group_id=group_id, entity_type=entity_type, entity_id=entity_id, model_id=model).delete()
     for i, (chunk, vec) in enumerate(zip(chunks, vectors, strict=False)):
-        session.add(AIEmbeddingModel(
-            session=session,
-            group_id=group_id,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            chunk_index=i,
-            chunk_text=chunk,
-            embedding=list(vec),
-            model_id=model,
-            dimensions=dims,
-        ))
+        session.add(
+            AIEmbeddingModel(
+                session=session,
+                group_id=group_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                chunk_index=i,
+                chunk_text=chunk,
+                embedding=list(vec),
+                model_id=model,
+                dimensions=dims,
+            )
+        )
     session.commit()
     return len(chunks)
 

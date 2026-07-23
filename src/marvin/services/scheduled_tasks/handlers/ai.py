@@ -68,6 +68,7 @@ class ReindexEmbeddingsHandler(ScheduledTaskHandler):
 
     def _emit(self, event_bus: EventBusService, group, model: str, entities: int, chunks: int) -> None:
         from marvin.services.event_bus_service.event_types import EventAIEmbeddingsData, EventTypes
+
         try:
             event_bus.dispatch(
                 integration_id="ai_scheduled",

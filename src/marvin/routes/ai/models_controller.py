@@ -47,11 +47,7 @@ class AIModelsController(BaseUserController):
         from marvin.core.config import get_app_settings
         from marvin.db.models.groups.ai_providers import AIProviderModel
 
-        row = (
-            self.session.query(AIProviderModel)
-            .filter_by(group_id=self.group_id, provider_type="ollama")
-            .first()
-        )
+        row = self.session.query(AIProviderModel).filter_by(group_id=self.group_id, provider_type="ollama").first()
         if row and getattr(row, "base_url", None):
             return row.base_url
         return getattr(get_app_settings(), "OLLAMA_BASE_URL", None) or DEFAULT_OLLAMA_BASE_URL
@@ -72,7 +68,7 @@ class AIModelsController(BaseUserController):
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Couldn't reach Ollama at {self._ollama_base_url()} — is it running? ({e})",
-            )
+            ) from e
         return InstalledModels(provider_type="ollama", supports_pull=True, models=models)
 
     @router.post("/models/pull", response_model=ModelPullStatus, status_code=status.HTTP_202_ACCEPTED, summary="Pull an Ollama model")

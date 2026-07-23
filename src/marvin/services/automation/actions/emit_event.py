@@ -39,8 +39,7 @@ def run_emit_event(session, group_id, action, context, *, user_id=None, authoriz
         raise AutomationActionError("emit_event needs a valid entry id (entity_id)") from e
 
     if dry_run:
-        return {"dry_run": True, "kind": "emit_event", "event": ev_name,
-                "entity_id": str(entry_id), "reaction_depth": depth}
+        return {"dry_run": True, "kind": "emit_event", "event": ev_name, "entity_id": str(entry_id), "reaction_depth": depth}
 
     doc = EventEntryData(
         operation=EventOperation.update,

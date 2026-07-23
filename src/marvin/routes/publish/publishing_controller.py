@@ -9,12 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from marvin.core.config import get_app_settings
-from marvin.services.storage.provider_factory import get_storage_provider
 from marvin.core.dependencies import get_publishing_context
 from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
 from marvin.db.models.platform import (
-    APIClients,
     Assets,
     Collections,
     Entries,
@@ -24,7 +22,6 @@ from marvin.db.models.platform import (
     Resources,
 )
 from marvin.repos.all_repositories import get_repositories
-from marvin.schemas.group import GroupRead
 from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.publishing import (
     EntryTypeCapabilities,
@@ -50,6 +47,7 @@ from marvin.schemas.publishing import (
     WorkspaceInfo,
     WorkspaceSiteInfo,
 )
+from marvin.services.storage.provider_factory import get_storage_provider
 
 settings = get_app_settings()
 
@@ -377,7 +375,7 @@ async def list_published_entries(
     perms.require_any_permission([Permissions.READ_PUBLISHED_ENTRIES, Permissions.READ_ALL_ENTRIES], "published entries")
 
     # Get repositories scoped to this workspace
-    repos = get_repositories(session, group_id=group.id)
+    get_repositories(session, group_id=group.id)
 
     # Build query for published entries with eager loading to prevent N+1 queries
     query = (
@@ -458,8 +456,9 @@ async def list_published_entries(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid date format for updated_since: {updated_since}. Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS with optional Z or timezone offset)",
-            )
+                detail=f"Invalid date format for updated_since: {updated_since}. "
+                "Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS with optional Z or timezone offset)",
+            ) from None
 
     # Get total count
     total = query.count()
@@ -663,7 +662,7 @@ async def list_published_collections(
     )
 
     # Create a map of collection_id -> entry_count for O(1) lookup
-    entry_count_map = {collection_id: count for collection_id, count in entry_counts_query}
+    entry_count_map = dict(entry_counts_query)
 
     result = []
     for collection in collections:
@@ -830,7 +829,9 @@ async def list_published_assets(
     data = []
     for asset in assets:
         # Get published entry slugs that use this asset
-        entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS and not _is_suggested(ea)]
+        entry_slugs = [
+            ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS and not _is_suggested(ea)
+        ]
 
         data.append(
             PublishedAssetRead(
@@ -907,7 +908,9 @@ async def get_published_asset(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
     # Get published entry slugs that use this asset
-    entry_slugs = [ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS and not _is_suggested(ea)]
+    entry_slugs = [
+        ea.entry.slug for ea in asset.entry_assets if ea.entry and ea.entry.status == settings.PUBLISHING_DEFAULT_STATUS and not _is_suggested(ea)
+    ]
 
     return PublishedAssetRead(
         slug=asset.slug,

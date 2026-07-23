@@ -20,9 +20,7 @@ class AIExecutionModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "ai_executions"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = orm.relationship("Groups", back_populates="ai_executions")
 
     operation_slug: Mapped[str] = mapped_column(sa.String, nullable=False, index=True)
@@ -36,7 +34,7 @@ class AIExecutionModel(SqlAlchemyBase, BaseMixins):
     # api | action | scheduler | mcp | renderer
     trigger_type: Mapped[str] = mapped_column(sa.String, nullable=False, default="api")
 
-    entity_type: Mapped[str | None] = mapped_column(sa.String, nullable=True)   # entry | asset | resource | ...
+    entity_type: Mapped[str | None] = mapped_column(sa.String, nullable=True)  # entry | asset | resource | ...
     entity_id: Mapped[GUID | None] = mapped_column(GUID, nullable=True, index=True)
 
     # Stored only when workspace logging_config allows

@@ -25,7 +25,7 @@ class AnthropicProvider(AIProvider):
         try:
             import anthropic
         except ImportError:
-            raise ImportError("Anthropic SDK not installed. Run: uv sync --extra anthropic (or pip install 'marvin[anthropic]')")
+            raise ImportError("Anthropic SDK not installed. Run: uv sync --extra anthropic (or pip install 'marvin[anthropic]')") from None
         return anthropic.Anthropic(api_key=self._api_key)
 
     def _render_content(self, content):
@@ -87,7 +87,7 @@ class AnthropicProvider(AIProvider):
         opts = options or CompletionOptions()
         system, chat = self._split_messages(messages)
         client = self._client()
-        kwargs = dict(model=model, messages=chat, max_tokens=opts.max_tokens or 4096, temperature=opts.temperature)
+        kwargs = {"model": model, "messages": chat, "max_tokens": opts.max_tokens or 4096, "temperature": opts.temperature}
         if system:
             kwargs["system"] = system
         resp = client.messages.create(**kwargs)
@@ -114,14 +114,14 @@ class AnthropicProvider(AIProvider):
         client = self._client()
         api_tools = [{"name": t.name, "description": t.description, "input_schema": t.input_schema} for t in tools]
         choice_map = {"auto": {"type": "auto"}, "required": {"type": "any"}, "none": {"type": "none"}}
-        kwargs = dict(
-            model=model,
-            messages=chat,
-            max_tokens=opts.max_tokens or 4096,
-            temperature=opts.temperature,
-            tools=api_tools,
-            tool_choice=choice_map.get(tool_choice, {"type": "auto"}),
-        )
+        kwargs = {
+            "model": model,
+            "messages": chat,
+            "max_tokens": opts.max_tokens or 4096,
+            "temperature": opts.temperature,
+            "tools": api_tools,
+            "tool_choice": choice_map.get(tool_choice, {"type": "auto"}),
+        }
         if system:
             kwargs["system"] = system
         resp = client.messages.create(**kwargs)
@@ -147,11 +147,18 @@ class AnthropicProvider(AIProvider):
 
     def complete_structured(self, messages: list[Message], model: str, output_schema: dict, options: CompletionOptions | None = None) -> dict:
         import json
+
         opts = options or CompletionOptions()
         system, chat = self._split_messages(messages)
         client = self._client()
         tool = {"name": "structured_output", "description": "Return structured output", "input_schema": output_schema}
-        kwargs = dict(model=model, messages=chat, max_tokens=opts.max_tokens or 4096, tools=[tool], tool_choice={"type": "tool", "name": "structured_output"})
+        kwargs = {
+            "model": model,
+            "messages": chat,
+            "max_tokens": opts.max_tokens or 4096,
+            "tools": [tool],
+            "tool_choice": {"type": "tool", "name": "structured_output"},
+        }
         if system:
             kwargs["system"] = system
         resp = client.messages.create(**kwargs)
@@ -165,7 +172,13 @@ class AnthropicProvider(AIProvider):
         system, chat = self._split_messages(messages)
         client = self._client()
         tool = {"name": "structured_output", "description": "Return structured output", "input_schema": output_schema}
-        kwargs = dict(model=model, messages=chat, max_tokens=opts.max_tokens or 4096, tools=[tool], tool_choice={"type": "tool", "name": "structured_output"})
+        kwargs = {
+            "model": model,
+            "messages": chat,
+            "max_tokens": opts.max_tokens or 4096,
+            "tools": [tool],
+            "tool_choice": {"type": "tool", "name": "structured_output"},
+        }
         if system:
             kwargs["system"] = system
         resp = client.messages.create(**kwargs)

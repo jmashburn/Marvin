@@ -34,7 +34,7 @@ class AppStatistics(_MarvinModel):
 
     # AI usage, aggregated across every account/workspace.
     total_ai_operations: int = 0  # Total AI executions run platform-wide.
-    total_ai_tokens: int = 0       # Total AI tokens consumed platform-wide.
+    total_ai_tokens: int = 0  # Total AI tokens consumed platform-wide.
     total_ai_cost_usd: float = 0.0  # Total estimated AI cost (USD) platform-wide.
 
 

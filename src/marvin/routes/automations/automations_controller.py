@@ -79,12 +79,7 @@ class AutomationsController(BaseUserController):
     @router.get("", response_model=list[AutomationRead], summary="List Automations")
     def list_automations(self) -> list[AutomationRead]:
         _require_admin(self.user, self.group_id)
-        rows = (
-            self.session.query(WorkspaceAutomationModel)
-            .filter_by(group_id=self.group_id)
-            .order_by(WorkspaceAutomationModel.name)
-            .all()
-        )
+        rows = self.session.query(WorkspaceAutomationModel).filter_by(group_id=self.group_id).order_by(WorkspaceAutomationModel.name).all()
         return [AutomationRead.model_validate(r) for r in rows]
 
     @router.get("/options", response_model=AutomationOptions, summary="Automation builder options")
@@ -140,19 +135,14 @@ class AutomationsController(BaseUserController):
         # Other automations, for chained / on-error triggers to target.
         targets = [
             AutomationTargetOption(id=a.id, slug=a.slug, name=a.name)
-            for a in self.session.query(WorkspaceAutomationModel)
-            .filter_by(group_id=self.group_id)
-            .order_by(WorkspaceAutomationModel.name)
-            .all()
+            for a in self.session.query(WorkspaceAutomationModel).filter_by(group_id=self.group_id).order_by(WorkspaceAutomationModel.name).all()
         ]
 
         # The workspace's incoming (ingress) webhooks, offered to the `incoming_webhook` trigger.
         from marvin.db.models.groups.incoming_webhooks import WorkspaceIncomingWebhookModel
 
         incoming_webhooks = [
-            AutomationIncomingWebhookOption(
-                id=w.id, slug=w.slug, name=w.name, enabled=bool(w.enabled), has_token=bool(w.token)
-            )
+            AutomationIncomingWebhookOption(id=w.id, slug=w.slug, name=w.name, enabled=bool(w.enabled), has_token=bool(w.token))
             for w in self.session.query(WorkspaceIncomingWebhookModel)
             .filter_by(group_id=self.group_id)
             .order_by(WorkspaceIncomingWebhookModel.name)
@@ -162,10 +152,7 @@ class AutomationsController(BaseUserController):
         from marvin.schemas.group.automation_definition import definition_json_schema
         from marvin.services.automation.validation import condition_field_catalog
 
-        condition_fields = {
-            ttype: [AutomationConditionField(**f) for f in fields]
-            for ttype, fields in condition_field_catalog().items()
-        }
+        condition_fields = {ttype: [AutomationConditionField(**f) for f in fields] for ttype, fields in condition_field_catalog().items()}
 
         return AutomationOptions(
             trigger_types=["event", "manual", "schedule", "chained", "on_error", "incoming_webhook", "mcp"],
@@ -281,11 +268,15 @@ class AutomationsController(BaseUserController):
 
         try:
             res = run_automation_now(
-                self.session, self.group_id, row, user_id=self.user.id, dry_run=dry_run,
+                self.session,
+                self.group_id,
+                row,
+                user_id=self.user.id,
+                dry_run=dry_run,
                 recorder=None if dry_run else ExecutionRecorder(self.session, self.group_id),
             )
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
         return {"status": "dry_run" if dry_run else "ran", **res}
 
     @router.post("", response_model=AutomationRead, status_code=status.HTTP_201_CREATED, summary="Create Automation")
@@ -298,9 +289,7 @@ class AutomationsController(BaseUserController):
 
         payload = data.model_dump()
         payload["slug"] = slug
-        row = WorkspaceAutomationModel(
-            session=self.session, group_id=self.group_id, created_by=self.user.id, **payload
-        )
+        row = WorkspaceAutomationModel(session=self.session, group_id=self.group_id, created_by=self.user.id, **payload)
         self.session.add(row)
         self.session.commit()
         self.session.refresh(row)
@@ -340,11 +329,7 @@ class AutomationsController(BaseUserController):
     def _find_schedule_task(self, automation_id):
         from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
 
-        return (
-            self.session.query(ScheduledTaskModel)
-            .filter_by(group_id=self.group_id, slug=self._schedule_slug(automation_id))
-            .first()
-        )
+        return self.session.query(ScheduledTaskModel).filter_by(group_id=self.group_id, slug=self._schedule_slug(automation_id)).first()
 
     def _sync_schedule(self, automation) -> None:
         """Keep the backing `run_automation` scheduled task in sync with the automation's trigger.

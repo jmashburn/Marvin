@@ -2,14 +2,13 @@
 
 from functools import cached_property
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import UUID4
 
-from marvin.schemas.platform import EntryCreate, EntryRead, EntryUpdate
-from marvin.schemas.response.pagination import PaginationQuery
 from marvin.repos.platform import EntriesRepository
 from marvin.routes._base import BaseAdminController, controller
 from marvin.routes._base.mixins import HttpRepo
+from marvin.schemas.platform import EntryCreate, EntryRead, EntryUpdate
 
 router = APIRouter(prefix="/entries")
 
@@ -28,9 +27,7 @@ class AdminEntriesRoutes(BaseAdminController):
     @property
     def mixins(self) -> HttpRepo[EntryCreate, EntryRead, EntryUpdate]:
         """Mixin for CRUD operations."""
-        return HttpRepo[EntryCreate, EntryRead, EntryUpdate](
-            self.repo, self.logger, self.registered_exceptions
-        )
+        return HttpRepo[EntryCreate, EntryRead, EntryUpdate](self.repo, self.logger, self.registered_exceptions)
 
     @router.get("", response_model=list[EntryRead], summary="List Entries")
     def get_all(self) -> list[EntryRead]:

@@ -39,12 +39,22 @@ def _service(ctx: ToolContext):
         "tags + relevant resources/assets and REUSES them (no duplicates). Lands as an inbox draft "
         "for review. To change an existing entry, use revise_entry instead of recreating it."
     ),
-    input_schema={"type": "object", "properties": {
-        "entry_type": {"type": "string", "description": "entry type slug or id"},
-        "brief": {"type": "string", "description": "what the entry should be about"},
-        "asset_ids": {"type": "array", "items": {"type": "string"}, "description": "optional existing asset ids to attach. ORDER MATTERS: the first becomes the hero, and only the first 4 are sent to the model as vision input — put the most important images first."},
-    }, "required": ["entry_type", "brief"]},
-    min_role=ROLE_AUTHOR, read_only=False, sources=_COMPOSE_SOURCES,
+    input_schema={
+        "type": "object",
+        "properties": {
+            "entry_type": {"type": "string", "description": "entry type slug or id"},
+            "brief": {"type": "string", "description": "what the entry should be about"},
+            "asset_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "optional existing asset ids to attach. ORDER MATTERS: the first becomes the hero, and only the first 4 are sent to the model as vision input — put the most important images first.",  # noqa: E501
+            },
+        },
+        "required": ["entry_type", "brief"],
+    },
+    min_role=ROLE_AUTHOR,
+    read_only=False,
+    sources=_COMPOSE_SOURCES,
 )
 def compose_entry(ctx: ToolContext, args: dict) -> str:
     from marvin.db.models.platform.entry_types import EntryTypes
@@ -69,8 +79,7 @@ def compose_entry(ctx: ToolContext, args: dict) -> str:
 
     asset_ids = args.get("asset_ids") or []
     aa = svc.recipe_asset_attachments(asset_ids, et) if asset_ids else None
-    result = svc.compose(entry_type=et, brief=str(args.get("brief") or ""), asset_ids=asset_ids,
-                         asset_attachments=aa, source="agent")
+    result = svc.compose(entry_type=et, brief=str(args.get("brief") or ""), asset_ids=asset_ids, asset_attachments=aa, source="agent")
     return json.dumps(result)
 
 
@@ -81,11 +90,16 @@ def compose_entry(ctx: ToolContext, args: dict) -> str:
         "the tags and attach any relevant resources', or 'tighten the summary'. Reuses existing "
         "tags/resources. Identify the entry by slug or id."
     ),
-    input_schema={"type": "object", "properties": {
-        "entry": {"type": "string", "description": "the entry by slug or id"},
-        "instruction": {"type": "string", "description": "what to determine / change"},
-    }, "required": ["entry", "instruction"]},
-    min_role=ROLE_AUTHOR, read_only=False,
+    input_schema={
+        "type": "object",
+        "properties": {
+            "entry": {"type": "string", "description": "the entry by slug or id"},
+            "instruction": {"type": "string", "description": "what to determine / change"},
+        },
+        "required": ["entry", "instruction"],
+    },
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def revise_entry(ctx: ToolContext, args: dict) -> str:
     from marvin.db.models.platform.entries import Entries

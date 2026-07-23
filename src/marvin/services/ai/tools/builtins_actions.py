@@ -50,9 +50,10 @@ def _link_schema(ref_key: str, ref_desc: str, *, role: bool = False) -> dict:
 # ── Resources ─────────────────────────────────────────────────────────────────
 @register_tool(
     name="attach_resource",
-    description="Attach a reusable resource (material, technique, supplier, …) to an entry. Idempotent. Identify the entry by slug/id and the resource by slug/name/id.",
+    description="Attach a reusable resource (material, technique, supplier, …) to an entry. Idempotent. Identify the entry by slug/id and the resource by slug/name/id.",  # noqa: E501
     input_schema=_link_schema("resource", "the resource by slug, name, or id", role=True),
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def attach_resource(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="attach_resource", ref_key="resource", role=True)
@@ -62,7 +63,8 @@ def attach_resource(ctx: ToolContext, args: dict) -> str:
     name="detach_resource",
     description="Detach a resource from an entry. Idempotent.",
     input_schema=_link_schema("resource", "the resource by slug, name, or id"),
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def detach_resource(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="detach_resource", ref_key="resource")
@@ -75,22 +77,37 @@ def detach_resource(ctx: ToolContext, args: dict) -> str:
 # (entries sync reactively; assets/resources have no reactive listener, so we resync here — the same
 # thing the HTTP tags endpoint does — otherwise a freshly-tagged asset never joins its collection).
 _BULK_CAP = 1000
-_TAG_SCHEMA = {"type": "object", "properties": {
-    "entity_type": {"type": "string", "enum": ["entry", "asset", "resource"], "description": "what to tag (default 'entry')"},
-    "entity": {"type": "string", "description": "a single entry/asset/resource by slug or id"},
-    "entities": {"type": "array", "items": {"type": "string"}, "description": "several targets by slug or id (bulk)"},
-    "filter": {"type": "object", "description": "select targets in bulk instead of naming them (dimensions mirror smart-collection rules)", "properties": {
-        "entry_types": {"type": "array", "items": {"type": "string"}, "description": "entry type slugs — entries only"},
-        "statuses": {"type": "array", "items": {"type": "string"}, "description": "entry statuses (e.g. ['published']) — entries only"},
-        "asset_types": {"type": "array", "items": {"type": "string"}, "description": "coarse bucket e.g. ['image','svg'] — assets only"},
-        "mime_types": {"type": "array", "items": {"type": "string"}, "description": "exact MIME e.g. ['image/svg+xml'] — assets only, finer than asset_types"},
-        "resource_types": {"type": "array", "items": {"type": "string"}, "description": "resource types — resources only"},
-        "tags": {"type": "array", "items": {"type": "string"}, "description": "select targets already carrying ANY of these tags (slug/name) — all types"},
-        "query": {"type": "string", "description": "title/name/filename substring (all types)"},
-    }},
-    "tag": {"type": "string", "description": "a tag name or slug"},
-    "tags": {"type": "array", "items": {"type": "string"}, "description": "several tags (each applied to every target)"},
-}}
+_TAG_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "entity_type": {"type": "string", "enum": ["entry", "asset", "resource"], "description": "what to tag (default 'entry')"},
+        "entity": {"type": "string", "description": "a single entry/asset/resource by slug or id"},
+        "entities": {"type": "array", "items": {"type": "string"}, "description": "several targets by slug or id (bulk)"},
+        "filter": {
+            "type": "object",
+            "description": "select targets in bulk instead of naming them (dimensions mirror smart-collection rules)",
+            "properties": {
+                "entry_types": {"type": "array", "items": {"type": "string"}, "description": "entry type slugs — entries only"},
+                "statuses": {"type": "array", "items": {"type": "string"}, "description": "entry statuses (e.g. ['published']) — entries only"},
+                "asset_types": {"type": "array", "items": {"type": "string"}, "description": "coarse bucket e.g. ['image','svg'] — assets only"},
+                "mime_types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "exact MIME e.g. ['image/svg+xml'] — assets only, finer than asset_types",
+                },
+                "resource_types": {"type": "array", "items": {"type": "string"}, "description": "resource types — resources only"},
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "select targets already carrying ANY of these tags (slug/name) — all types",
+                },
+                "query": {"type": "string", "description": "title/name/filename substring (all types)"},
+            },
+        },
+        "tag": {"type": "string", "description": "a tag name or slug"},
+        "tags": {"type": "array", "items": {"type": "string"}, "description": "several tags (each applied to every target)"},
+    },
+}
 
 
 def _narrow_by_tags(session, group_id, q, Model, Junction, fk: str, filt: dict):
@@ -101,8 +118,7 @@ def _narrow_by_tags(session, group_id, q, Model, Junction, fk: str, filt: dict):
         return q, True
     from marvin.db.models.platform.tags import Tags
 
-    tag_ids = [r[0] for r in session.query(Tags.id).filter(
-        Tags.group_id == group_id, Tags.slug.in_(refs) | Tags.name.in_(refs)).all()]
+    tag_ids = [r[0] for r in session.query(Tags.id).filter(Tags.group_id == group_id, Tags.slug.in_(refs) | Tags.name.in_(refs)).all()]
     if not tag_ids:
         return q, False
     sub = session.query(getattr(Junction, fk)).filter(Junction.tag_id.in_(tag_ids))
@@ -124,6 +140,7 @@ def _resolve_targets(ctx: ToolContext, entity_type: str, args: dict) -> tuple[li
         from marvin.db.models.platform.entries import Entries
         from marvin.db.models.platform.entry_tags import EntryTags
         from marvin.db.models.platform.entry_types import EntryTypes
+
         q = s.query(Entries.id).filter(Entries.group_id == gid)
         if filt.get("entry_types"):
             q = q.join(EntryTypes, Entries.entry_type_id == EntryTypes.id).filter(EntryTypes.slug.in_(list(filt["entry_types"])))
@@ -137,6 +154,7 @@ def _resolve_targets(ctx: ToolContext, entity_type: str, args: dict) -> tuple[li
     if entity_type == "asset":
         from marvin.db.models.platform.asset_tags import AssetTags
         from marvin.db.models.platform.assets import Assets
+
         q = s.query(Assets.id).filter(Assets.group_id == gid)
         if filt.get("asset_types"):
             q = q.filter(Assets.asset_type.in_(list(filt["asset_types"])))
@@ -150,6 +168,7 @@ def _resolve_targets(ctx: ToolContext, entity_type: str, args: dict) -> tuple[li
     if entity_type == "resource":
         from marvin.db.models.platform.resource_tags import ResourceTags
         from marvin.db.models.platform.resources import Resources
+
         q = s.query(Resources.id).filter(Resources.group_id == gid)
         if filt.get("resource_types"):
             q = q.filter(Resources.resource_type.in_(list(filt["resource_types"])))
@@ -213,8 +232,12 @@ def _tag_link(ctx: ToolContext, args: dict, *, attach: bool) -> str:
     resynced = _resync_collections(ctx, entity_type, touched)
     verb = "attached" if attach else "detached"
     out = {
-        "entity_type": entity_type, "tags": tags,
-        "targets": len(ids), verb: changed, "unchanged": unchanged, "not_found": not_found,
+        "entity_type": entity_type,
+        "tags": tags,
+        "targets": len(ids),
+        verb: changed,
+        "unchanged": unchanged,
+        "not_found": not_found,
         "collections_resynced": resynced,
     }
     # Preserve the simple single-target shape when exactly one entity + one tag was given.
@@ -235,7 +258,8 @@ def _tag_link(ctx: ToolContext, args: dict, *, attach: bool) -> str:
         "can re-tag everything already carrying a tag); apply one `tag` or many `tags`. One call tags the set."
     ),
     input_schema=_TAG_SCHEMA,
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def attach_tag(ctx: ToolContext, args: dict) -> str:
     return _tag_link(ctx, args, attach=True)
@@ -248,7 +272,8 @@ def attach_tag(ctx: ToolContext, args: dict) -> str:
         "vocabulary). SINGLE or BULK: `entity`, `entities`, or `filter`; one `tag` or many `tags`."
     ),
     input_schema=_TAG_SCHEMA,
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def detach_tag(ctx: ToolContext, args: dict) -> str:
     return _tag_link(ctx, args, attach=False)
@@ -259,7 +284,8 @@ def detach_tag(ctx: ToolContext, args: dict) -> str:
     name="add_to_collection",
     description="Add an entry to a collection. Idempotent. Identify the entry by slug/id and the collection by slug/name/id.",
     input_schema=_link_schema("collection", "the collection by slug, name, or id"),
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def add_to_collection(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="add_to_collection", ref_key="collection")
@@ -269,7 +295,8 @@ def add_to_collection(ctx: ToolContext, args: dict) -> str:
     name="remove_from_collection",
     description="Remove an entry from a collection. Idempotent.",
     input_schema=_link_schema("collection", "the collection by slug, name, or id"),
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def remove_from_collection(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="remove_from_collection", ref_key="collection")
@@ -278,9 +305,10 @@ def remove_from_collection(ctx: ToolContext, args: dict) -> str:
 # ── Assets ────────────────────────────────────────────────────────────────────
 @register_tool(
     name="attach_asset",
-    description="Attach an existing asset (image/file) to an entry, optionally with a role (e.g. 'hero'). Idempotent. To bring in a NEW image from a URL or bytes, use import_asset first.",
+    description="Attach an existing asset (image/file) to an entry, optionally with a role (e.g. 'hero'). Idempotent. To bring in a NEW image from a URL or bytes, use import_asset first.",  # noqa: E501
     input_schema=_link_schema("asset", "the asset by slug or id", role=True),
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def attach_asset(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="attach_asset", ref_key="asset", role=True)
@@ -290,7 +318,8 @@ def attach_asset(ctx: ToolContext, args: dict) -> str:
     name="detach_asset",
     description="Detach an asset from an entry. Idempotent (the asset itself is not deleted).",
     input_schema=_link_schema("asset", "the asset by slug or id"),
-    min_role=ROLE_AUTHOR, read_only=False,
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def detach_asset(ctx: ToolContext, args: dict) -> str:
     return _entry_link(ctx, args, method="detach_asset", ref_key="asset")
@@ -298,7 +327,7 @@ def detach_asset(ctx: ToolContext, args: dict) -> str:
 
 # ── Asset ingestion (bring a new image in) ────────────────────────────────────
 _MAX_IMPORT_BYTES = 20 * 1024 * 1024  # 20 MB
-_MAX_IMPORT_BATCH = 24                 # ceiling on images ingested in one call
+_MAX_IMPORT_BATCH = 24  # ceiling on images ingested in one call
 
 
 def _public_url_error(url: str) -> str | None:
@@ -417,24 +446,37 @@ def _ingest_one_image(ctx: ToolContext, spec: dict):
         "entry with all the photos its recipe calls for in a single call. Returns the new asset id(s) "
         "+ urls. Use attach_asset instead when the asset already exists."
     ),
-    input_schema={"type": "object", "properties": {
-        "url": {"type": "string", "description": "single import: an http(s) URL of the image to fetch"},
-        "data": {"type": "string", "description": "single import: base64-encoded image bytes (alternative to url)"},
-        "filename": {"type": "string", "description": "filename for base64 data (e.g. 'photo.jpg')"},
-        "name": {"type": "string", "description": "display name (defaults to the filename)"},
-        "alt_text": {"type": "string", "description": "accessibility alt text"},
-        "images": {
-            "type": "array",
-            "description": "bulk import: several images at once. When attach_to is set they fill the entry's recipe roles in order (first → hero).",
-            "items": {"type": "object", "properties": {
-                "url": {"type": "string"}, "data": {"type": "string"},
-                "filename": {"type": "string"}, "name": {"type": "string"}, "alt_text": {"type": "string"},
-            }},
+    input_schema={
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "description": "single import: an http(s) URL of the image to fetch"},
+            "data": {"type": "string", "description": "single import: base64-encoded image bytes (alternative to url)"},
+            "filename": {"type": "string", "description": "filename for base64 data (e.g. 'photo.jpg')"},
+            "name": {"type": "string", "description": "display name (defaults to the filename)"},
+            "alt_text": {"type": "string", "description": "accessibility alt text"},
+            "images": {
+                "type": "array",
+                "description": "bulk import: several images at once. When attach_to is set they fill the entry's recipe roles in order (first → hero).",  # noqa: E501
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string"},
+                        "data": {"type": "string"},
+                        "filename": {"type": "string"},
+                        "name": {"type": "string"},
+                        "alt_text": {"type": "string"},
+                    },
+                },
+            },
+            "attach_to": {"type": "string", "description": "optional entry (slug/id) to attach the new asset(s) to"},
+            "role": {
+                "type": "string",
+                "description": "single import only: override the attachment role (e.g. 'hero'); ignored for bulk, which uses recipe roles by position",  # noqa: E501
+            },
         },
-        "attach_to": {"type": "string", "description": "optional entry (slug/id) to attach the new asset(s) to"},
-        "role": {"type": "string", "description": "single import only: override the attachment role (e.g. 'hero'); ignored for bulk, which uses recipe roles by position"},
-    }},
-    min_role=ROLE_AUTHOR, read_only=False,
+    },
+    min_role=ROLE_AUTHOR,
+    read_only=False,
 )
 def import_asset(ctx: ToolContext, args: dict) -> str:
     if getattr(ctx.user, "id", None) is None:
@@ -451,17 +493,24 @@ def import_asset(ctx: ToolContext, args: dict) -> str:
         return json.dumps({"error": f"too many images ({len(specs)}; max {_MAX_IMPORT_BATCH} per call)"})
 
     # 1) Ingest each image, preserving order.
-    results: list[dict] = []   # per-image record (asset fields, or an error)
-    assets: list = []          # successfully created assets, in order
+    results: list[dict] = []  # per-image record (asset fields, or an error)
+    assets: list = []  # successfully created assets, in order
     for i, spec in enumerate(specs):
         asset, err = _ingest_one_image(ctx, spec if isinstance(spec, dict) else {})
         if err:
             results.append({"index": i, "error": err})
             continue
         assets.append(asset)
-        results.append({"index": i, "asset_id": str(asset.id), "slug": asset.slug, "name": asset.name,
-                        "url": getattr(asset, "public_url", None) or getattr(asset, "url", None),
-                        "assetType": getattr(asset, "asset_type", None)})
+        results.append(
+            {
+                "index": i,
+                "asset_id": str(asset.id),
+                "slug": asset.slug,
+                "name": asset.name,
+                "url": getattr(asset, "public_url", None) or getattr(asset, "url", None),
+                "assetType": getattr(asset, "asset_type", None),
+            }
+        )
 
     if not assets:  # nothing imported — surface the (first) reason as a top-level error
         return json.dumps({"error": results[0]["error"] if results else "no images provided"})
@@ -473,10 +522,10 @@ def import_asset(ctx: ToolContext, args: dict) -> str:
         roles = _recipe_roles_for_entry(ctx, entry_id)
         svc = _service(ctx)
         for j, asset in enumerate(assets):
-            if single and args.get("role"):          # back-compat: explicit single-image role wins
+            if single and args.get("role"):  # back-compat: explicit single-image role wins
                 role = args["role"]
             elif roles:
-                role = roles[j] if j < len(roles) else roles[-1]   # overflow reuses the last role
+                role = roles[j] if j < len(roles) else roles[-1]  # overflow reuses the last role
             else:
                 role = None
             status_ = svc.attach_asset(entry_id, asset.id, role=role)
@@ -484,9 +533,15 @@ def import_asset(ctx: ToolContext, args: dict) -> str:
 
     # 3) Response. Keep the single-import top-level keys for back-compat; always include the batch arrays.
     first = results[0] if not results[0].get("error") else next(r for r in results if not r.get("error"))
-    out = {"asset_id": first["asset_id"], "slug": first["slug"], "name": first["name"],
-           "url": first["url"], "assetType": first["assetType"],
-           "imported": len(assets), "assets": results}
+    out = {
+        "asset_id": first["asset_id"],
+        "slug": first["slug"],
+        "name": first["name"],
+        "url": first["url"],
+        "assetType": first["assetType"],
+        "imported": len(assets),
+        "assets": results,
+    }
     if args.get("attach_to"):
         out["attached_to"] = str(args["attach_to"])
         out["attached"] = attached

@@ -29,7 +29,7 @@ Two deliberate departures from the rest of Marvin's API models:
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -86,10 +86,7 @@ TRIGGER_MODELS: dict[str, type[_DefnBase]] = {
 }
 
 Trigger = Annotated[
-    Union[
-        EventTrigger, ManualTrigger, ScheduleTrigger, ChainedTrigger,
-        OnErrorTrigger, IncomingWebhookTrigger, McpTrigger,
-    ],
+    EventTrigger | ManualTrigger | ScheduleTrigger | ChainedTrigger | OnErrorTrigger | IncomingWebhookTrigger | McpTrigger,
     Field(discriminator="type"),
 ]
 
@@ -97,13 +94,13 @@ Trigger = Annotated[
 # ── Actions (discriminated on `kind`) — one model per registered executor ──────
 class OperationAction(_DefnBase):
     kind: Literal["operation"]
-    op: str                                   # AI operation slug
+    op: str  # AI operation slug
     input: dict[str, Any] = Field(default_factory=dict)
     entity_type: str = "entry"
-    entity_id: str | None = None              # defaults to $event.entry_id at run time
-    entity_slug: str | None = None            # preferred for webhook payloads; resolved at run time
+    entity_id: str | None = None  # defaults to $event.entry_id at run time
+    entity_slug: str | None = None  # preferred for webhook payloads; resolved at run time
     write_back: bool = False
-    id: str | None = None                     # addressable as $steps.<id>.output.*
+    id: str | None = None  # addressable as $steps.<id>.output.*
 
 
 class EntryAction(_DefnBase):
@@ -111,31 +108,31 @@ class EntryAction(_DefnBase):
     op: Literal["publish", "unpublish", "archive", "restore", "add_to_collection", "remove_from_collection"]
     entity_id: str | None = None
     entity_slug: str | None = None
-    collection_id: str | None = None    # for add_to_collection / remove_from_collection…
+    collection_id: str | None = None  # for add_to_collection / remove_from_collection…
     collection_slug: str | None = None  # …preferred: a collection slug/name (may be a $event.* template)
     id: str | None = None
 
 
 class EmitEventAction(_DefnBase):
     kind: Literal["emit_event"]
-    event: str                                # internal event name to re-emit
+    event: str  # internal event name to re-emit
     entity_id: str | None = None
     id: str | None = None
 
 
 class HandlerAction(_DefnBase):
     kind: Literal["handler"]
-    task: str                                 # allowlisted scheduled-task handler
+    task: str  # allowlisted scheduled-task handler
     config: dict[str, Any] = Field(default_factory=dict)
     id: str | None = None
 
 
 class WebhookAction(_DefnBase):
     kind: Literal["webhook"]
-    webhook_id: str | None = None             # a configured workspace webhook…
-    url: str | None = None                    # …or (advanced) a raw url
+    webhook_id: str | None = None  # a configured workspace webhook…
+    url: str | None = None  # …or (advanced) a raw url
     body: dict[str, Any] = Field(default_factory=dict)
-    secret_ref: str | None = None             # optional Bearer secret ref
+    secret_ref: str | None = None  # optional Bearer secret ref
     id: str | None = None
 
 
@@ -148,7 +145,7 @@ ACTION_MODELS: dict[str, type[_DefnBase]] = {
 }
 
 Action = Annotated[
-    Union[OperationAction, EntryAction, EmitEventAction, HandlerAction, WebhookAction],
+    OperationAction | EntryAction | EmitEventAction | HandlerAction | WebhookAction,
     Field(discriminator="kind"),
 ]
 
@@ -176,7 +173,7 @@ class AutomationDefinition(_DefnBase):
     trigger: Trigger | None = None
     target: Target | None = None
     # A top-level list is an implicit AND; a single group dict is also accepted (JSON-mode advanced).
-    conditions: Union[list[Condition], Condition, None] = None
+    conditions: list[Condition] | Condition | None = None
     actions: list[Action] = Field(default_factory=list)
 
     @model_validator(mode="before")

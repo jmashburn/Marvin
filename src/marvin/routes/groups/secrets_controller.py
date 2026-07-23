@@ -27,6 +27,7 @@ def _store_encrypted(secret: WorkspaceSecret, value: str) -> None:
     """Update the encrypted_value on the model if using the database backend."""
     if get_app_settings().SECRET_BACKEND == "database":
         from marvin.services.secrets.backends.database import _get_fernet
+
         secret.encrypted_value = _get_fernet().encrypt(value.encode()).decode()
     else:
         secret.encrypted_value = "_backend_managed_"

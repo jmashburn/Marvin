@@ -25,10 +25,7 @@ def _get_fernet():
     try:
         from cryptography.fernet import Fernet
     except ImportError:
-        raise RuntimeError(
-            "The 'cryptography' package is required for the database secret backend. "
-            "Install it: pip install cryptography"
-        )
+        raise RuntimeError("The 'cryptography' package is required for the database secret backend. Install it: pip install cryptography") from None
     settings = get_app_settings()
     raw = settings.SECRET.encode() if isinstance(settings.SECRET, str) else settings.SECRET
     # Derive a 32-byte key via SHA-256, then base64url-encode for Fernet
@@ -40,8 +37,9 @@ class DatabaseSecretBackend(SecretBackend):
     """Fernet-encrypted secrets stored in the workspace_secrets DB table."""
 
     def get(self, slug: str, group_id: UUID4 | None = None) -> str | None:
+        from sqlalchemy import and_, select
+
         from marvin.db.models.groups.secrets import WorkspaceSecret
-        from sqlalchemy import select, and_
 
         with session_context() as session:
             stmt = select(WorkspaceSecret).where(
@@ -60,8 +58,9 @@ class DatabaseSecretBackend(SecretBackend):
                 return None
 
     def set(self, slug: str, value: str, group_id: UUID4 | None = None) -> None:
+        from sqlalchemy import and_, select
+
         from marvin.db.models.groups.secrets import WorkspaceSecret
-        from sqlalchemy import select, and_
 
         encrypted = _get_fernet().encrypt(value.encode()).decode()
 
@@ -87,8 +86,9 @@ class DatabaseSecretBackend(SecretBackend):
             session.commit()
 
     def delete(self, slug: str, group_id: UUID4 | None = None) -> None:
+        from sqlalchemy import and_, select
+
         from marvin.db.models.groups.secrets import WorkspaceSecret
-        from sqlalchemy import select, and_
 
         with session_context() as session:
             stmt = select(WorkspaceSecret).where(
@@ -103,11 +103,10 @@ class DatabaseSecretBackend(SecretBackend):
                 session.commit()
 
     def list_slugs(self, group_id: UUID4 | None = None) -> list[str]:
-        from marvin.db.models.groups.secrets import WorkspaceSecret
         from sqlalchemy import select
 
+        from marvin.db.models.groups.secrets import WorkspaceSecret
+
         with session_context() as session:
-            stmt = select(WorkspaceSecret.slug).where(
-                WorkspaceSecret.group_id == group_id
-            )
+            stmt = select(WorkspaceSecret.slug).where(WorkspaceSecret.group_id == group_id)
             return list(session.execute(stmt).scalars().all())

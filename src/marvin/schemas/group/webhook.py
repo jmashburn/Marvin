@@ -42,9 +42,11 @@ class WebhookCreate(_MarvinModel):
     def validate_webhook_url(cls, v: Any) -> Any:
         """Block SSRF targets in production. Localhost/private IPs allowed when PRODUCTION=False."""
         from marvin.core.config import get_app_settings
+
         if get_app_settings().PRODUCTION:
             import ipaddress
             from urllib.parse import urlparse
+
             url_str = str(v)
             parsed = urlparse(url_str)
             hostname = parsed.hostname or ""

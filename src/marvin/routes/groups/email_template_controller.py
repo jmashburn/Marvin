@@ -1,7 +1,6 @@
 """Email template management controller for workspace-scoped email templates."""
 
 from functools import cached_property
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4, BaseModel, EmailStr
@@ -40,8 +39,8 @@ class EmailTemplateController(BaseUserController):
         """Repository for email templates."""
         if not self.user:
             raise Exception("No user logged in")
-        from marvin.repos.repository_generic import RepositoryGeneric
         from marvin.db.models.groups.email_templates import EmailTemplateModel
+        from marvin.repos.repository_generic import RepositoryGeneric
         from marvin.schemas.group.email_template import EmailTemplateRead
 
         return RepositoryGeneric(
@@ -66,8 +65,9 @@ class EmailTemplateController(BaseUserController):
         """
         self._check_workspace_access(group_id)
 
-        from marvin.db.models.groups.email_templates import EmailTemplateModel
         from sqlalchemy import or_
+
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
 
         all_templates = (
             self.repos.session.query(EmailTemplateModel)
@@ -91,10 +91,9 @@ class EmailTemplateController(BaseUserController):
         """
         self._check_workspace_access(group_id)
 
-        from marvin.db.models.groups.email_templates import EmailTemplateModel
         from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
+        from marvin.db.models.groups.email_templates import EmailTemplateModel
         from marvin.services.email.system_email_events import SYSTEM_TEMPLATE_EVENT_MAP
-        from sqlalchemy import and_
 
         session = self.repos.session
         result = []
@@ -144,22 +143,18 @@ class EmailTemplateController(BaseUserController):
                 except ValueError:
                     return str(raw)
 
-            result.append({
-                "template_type": template_type,
-                "event_type": mapping["event_type"],
-                "recipient_type": mapping["recipient_type"],
-                "recipient_field": mapping.get("recipient_field"),
-                "system_template": (
-                    {"id": _fmt(system_tmpl.id), "name": system_tmpl.name}
-                    if system_tmpl else None
-                ),
-                "workspace_template": (
-                    {"id": _fmt(workspace_tmpl.id), "name": workspace_tmpl.name}
-                    if workspace_tmpl else None
-                ),
-                "subscription_id": _fmt(subscription.id) if subscription else None,
-                "has_workspace_override": subscription is not None,
-            })
+            result.append(
+                {
+                    "template_type": template_type,
+                    "event_type": mapping["event_type"],
+                    "recipient_type": mapping["recipient_type"],
+                    "recipient_field": mapping.get("recipient_field"),
+                    "system_template": ({"id": _fmt(system_tmpl.id), "name": system_tmpl.name} if system_tmpl else None),
+                    "workspace_template": ({"id": _fmt(workspace_tmpl.id), "name": workspace_tmpl.name} if workspace_tmpl else None),
+                    "subscription_id": _fmt(subscription.id) if subscription else None,
+                    "has_workspace_override": subscription is not None,
+                }
+            )
 
         return result
 
@@ -231,10 +226,10 @@ class EmailTemplateController(BaseUserController):
         self.repos.session.refresh(template)
 
         # Auto-connect only if no workspace template of this type is already connected
-        from marvin.services.email.system_email_events import SYSTEM_TEMPLATE_EVENT_MAP
+
         from marvin.db.models.groups.email_event_subscriptions import EmailEventSubscriptionModel
         from marvin.db.models.groups.email_templates import EmailTemplateModel as _ETM
-        from sqlalchemy import and_
+        from marvin.services.email.system_email_events import SYSTEM_TEMPLATE_EVENT_MAP
 
         sys_mapping = SYSTEM_TEMPLATE_EVENT_MAP.get(template.template_type)
         if sys_mapping:
@@ -434,7 +429,7 @@ class EmailTemplateController(BaseUserController):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error sending test email: {str(e)}",
-            )
+            ) from e
 
     def _check_workspace_access(self, group_id: UUID4) -> bool:
         """Check if user has access to workspace."""

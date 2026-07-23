@@ -1,6 +1,6 @@
 """Form repositories."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import UUID4
@@ -62,7 +62,7 @@ class FormsRepository(GroupRepositoryGeneric[FormRead, Forms]):
             .where(Forms.id == form_id)
             .values(
                 submissions_count=Forms.submissions_count + 1,
-                last_submission_at=datetime.now(timezone.utc),
+                last_submission_at=datetime.now(UTC),
             )
         )
         self.session.execute(stmt)

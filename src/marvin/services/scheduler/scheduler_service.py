@@ -150,7 +150,8 @@ async def run_daily() -> None:  # Made async to align with await in schedule_dai
     current_time_utc = datetime.now(UTC)
     next_run_time = current_time_utc + timedelta(minutes=MINUTES_DAY)
     logger.info(
-        f"Running daily callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        f"Running daily callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. "
+        f"Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
     )
     for registered_func in SchedulerRegistry._daily:
         _scheduled_task_wrapper(registered_func)
@@ -169,7 +170,8 @@ async def run_hourly() -> None:  # Made async as repeat_every can handle it
     current_time_utc = datetime.now(UTC)
     next_run_time = current_time_utc + timedelta(minutes=MINUTES_HOUR)
     logger.info(
-        f"Running hourly callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        f"Running hourly callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. "
+        f"Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
     )
     for registered_func in SchedulerRegistry._hourly:
         _scheduled_task_wrapper(registered_func)
@@ -188,7 +190,8 @@ async def run_minutely() -> None:  # Made async
     current_time_utc = datetime.now(UTC)
     next_run_time = current_time_utc + timedelta(minutes=MINUTES)
     logger.info(
-        f" {MINUTES} mins) callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        f" {MINUTES} mins) callbacks at {current_time_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}. "
+        f"Next run approx: {next_run_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
     )
     for registered_func in SchedulerRegistry._minutely:
         _scheduled_task_wrapper(registered_func)

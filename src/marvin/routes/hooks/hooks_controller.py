@@ -46,11 +46,7 @@ async def receive_hook(
 ) -> dict:
     secret = _resolve_token(token, authorization)
 
-    webhook = (
-        session.query(WorkspaceIncomingWebhookModel).filter_by(token=secret).first()
-        if secret
-        else None
-    )
+    webhook = session.query(WorkspaceIncomingWebhookModel).filter_by(token=secret).first() if secret else None
     if not webhook:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook token.")
     if not webhook.enabled:

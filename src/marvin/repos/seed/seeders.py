@@ -126,7 +126,8 @@ class NotifierOptionSeeder(AbstractSeeder):
             try:
                 self.repos.event_notifier_options.create(notifier_option_schema)
                 self.logger.debug(
-                    f"Successfully seeded notifier option: {notifier_option_schema.namespace}.{notifier_option_schema.slug or notifier_option_schema.name}"
+                    f"Successfully seeded notifier option: {notifier_option_schema.namespace}."
+                    f"{notifier_option_schema.slug or notifier_option_schema.name}"
                 )
                 count_seeded += 1
             except Exception as e:  # Catch database errors or other issues

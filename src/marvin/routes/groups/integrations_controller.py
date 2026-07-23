@@ -133,9 +133,7 @@ class IntegrationsController(BaseUserController):
     @router.get("/subscriptions", response_model=list[IntegrationEventSubscriptionRead])
     def list_subscriptions(self, event_type: str | None = None):
         """Integration actions wired to events. Filter by ?event_type= for one event's connections."""
-        q = self.session.query(IntegrationEventSubscriptionModel).filter(
-            IntegrationEventSubscriptionModel.group_id == self.group_id
-        )
+        q = self.session.query(IntegrationEventSubscriptionModel).filter(IntegrationEventSubscriptionModel.group_id == self.group_id)
         if event_type:
             q = q.filter(IntegrationEventSubscriptionModel.event_type == event_type)
         return [self._sub_to_read(r) for r in q.all()]
@@ -193,12 +191,7 @@ class IntegrationsController(BaseUserController):
     @router.get("", response_model=list[IntegrationRead])
     def list_integrations(self):
         """List this workspace's configured integrations."""
-        rows = (
-            self.session.query(IntegrationModel)
-            .filter(IntegrationModel.group_id == self.group_id)
-            .order_by(IntegrationModel.name)
-            .all()
-        )
+        rows = self.session.query(IntegrationModel).filter(IntegrationModel.group_id == self.group_id).order_by(IntegrationModel.name).all()
         return [_to_read(r) for r in rows]
 
     @router.post("", response_model=IntegrationRead, status_code=status.HTTP_201_CREATED)
@@ -213,9 +206,7 @@ class IntegrationsController(BaseUserController):
         if not slug:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Could not derive a slug from the name.")
 
-        existing = self.session.query(IntegrationModel).filter(
-            IntegrationModel.group_id == self.group_id, IntegrationModel.slug == slug
-        ).first()
+        existing = self.session.query(IntegrationModel).filter(IntegrationModel.group_id == self.group_id, IntegrationModel.slug == slug).first()
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Integration slug '{slug}' already exists.")
 

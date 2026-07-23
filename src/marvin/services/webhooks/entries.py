@@ -23,11 +23,7 @@ class EntriesWebhook(BaseWebhook):
         since_naive = since.replace(tzinfo=None) if since.tzinfo else since
 
         def _count(*where):
-            return self.session.execute(
-                select(func.count()).select_from(Entries).where(
-                    Entries.group_id == self._group_id, *where
-                )
-            ).scalar() or 0
+            return self.session.execute(select(func.count()).select_from(Entries).where(Entries.group_id == self._group_id, *where)).scalar() or 0
 
         return {
             "total_entries": _count(),

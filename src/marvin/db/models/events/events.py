@@ -7,9 +7,8 @@ for different types of event notifications within the application.
 
 from typing import TYPE_CHECKING
 
-from pydantic import ConfigDict  # Imported though not explicitly used, implies Pydantic integration
-from slugify import slugify
 from humps import decamelize
+from pydantic import ConfigDict  # Imported though not explicitly used, implies Pydantic integration
 from sqlalchemy import Boolean, String, orm
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column

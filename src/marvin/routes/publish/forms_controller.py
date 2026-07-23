@@ -1,6 +1,6 @@
 """Publishing API forms controller."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from marvin.core.dependencies import get_publishing_context
 from marvin.core.permissions import Permissions
 from marvin.db.db_setup import generate_session
-from marvin.db.models.platform.forms import Forms
 from marvin.db.models.platform.form_submissions import FormSubmissions
+from marvin.db.models.platform.forms import Forms
 from marvin.schemas.platform.forms import FormSchemaDefinition
 from marvin.schemas.publishing import FormSubmissionResponse, PublishedFormRead
 from marvin.services.content_validator import ContentValidationError, ContentValidator
@@ -151,12 +151,12 @@ async def submit_form(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Validation failed: {e.message}",
-            )
+            ) from e
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid submission data: {str(e)}",
-            )
+            ) from e
 
     # Create submission (if persistence enabled)
     submission_id = None
@@ -172,7 +172,7 @@ async def submit_form(
             },
             ip_address=ip_address,
             user_agent=request.headers.get("user-agent"),
-            submitted_at=datetime.now(timezone.utc),
+            submitted_at=datetime.now(UTC),
         )
         session.add(submission)
         session.commit()
@@ -180,7 +180,7 @@ async def submit_form(
 
         # Update form stats
         form.submissions_count += 1
-        form.last_submission_at = datetime.now(timezone.utc)
+        form.last_submission_at = datetime.now(UTC)
         session.commit()
 
     # Return response

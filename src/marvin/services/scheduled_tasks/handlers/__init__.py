@@ -6,7 +6,6 @@ maps task_type strings to handler classes for dynamic dispatch.
 """
 
 from abc import ABC, abstractmethod
-from typing import Type
 
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
 from marvin.services.event_bus_service.event_bus_service import EventBusService
@@ -53,10 +52,10 @@ class TaskHandlerRegistry:
     or explicit register() calls.
     """
 
-    _handlers: dict[str, Type[ScheduledTaskHandler]] = {}
+    _handlers: dict[str, type[ScheduledTaskHandler]] = {}
 
     @classmethod
-    def register(cls, task_type: str, handler: Type[ScheduledTaskHandler]) -> None:
+    def register(cls, task_type: str, handler: type[ScheduledTaskHandler]) -> None:
         """
         Register a handler for a task type.
 
@@ -93,10 +92,7 @@ class TaskHandlerRegistry:
     @classmethod
     def list_registered_types(cls, include_admin: bool = True) -> list[str]:
         """Get list of all registered task types."""
-        return [
-            k for k, h in cls._handlers.items()
-            if include_admin or not h().admin_only
-        ]
+        return [k for k, h in cls._handlers.items() if include_admin or not h().admin_only]
 
     @classmethod
     def get_task_type_info(cls) -> list[dict]:

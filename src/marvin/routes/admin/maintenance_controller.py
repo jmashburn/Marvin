@@ -12,6 +12,7 @@ import shutil  # For directory removal (rmtree)
 from pathlib import Path  # For path manipulation
 
 from fastapi import APIRouter, HTTPException, status  # Added status for HTTPException
+from pydantic import BaseModel  # For stats response model
 from sqlalchemy import text  # For SQL statement wrapping
 
 # Marvin specific imports
@@ -20,7 +21,6 @@ from marvin.routes._base import BaseAdminController, controller  # Base admin co
 from marvin.schemas.admin import MaintenanceSummary  # Pydantic schema for maintenance summary
 from marvin.schemas.admin.maintenance import MaintenanceStorageDetails  # Schema for storage details
 from marvin.schemas.response import ErrorResponse, SuccessResponse  # Standardized response schemas
-from pydantic import BaseModel  # For stats response model
 
 # APIRouter for admin maintenance section, prefixed with /maintenance
 # All routes here will be under /admin/maintenance.
@@ -164,8 +164,8 @@ class AdminMaintenanceController(BaseAdminController):
             SuccessResponse: A Pydantic model indicating the success of the operation.
         """
         from marvin.db.db_setup import session_context
-        from marvin.db.models.users.users import LongLiveToken
         from marvin.db.models.platform.api_clients import APIClients
+        from marvin.db.models.users.users import LongLiveToken
 
         try:
             with session_context() as session:
@@ -253,7 +253,7 @@ class AdminMaintenanceController(BaseAdminController):
         """
         try:
             # Clear temp directory
-            temp_result = self.clean_temp()
+            self.clean_temp()
 
             # Could add more cache clearing here in the future
             # For example: Redis cache, file caches, etc.
@@ -279,11 +279,11 @@ class AdminMaintenanceController(BaseAdminController):
             SystemStats: A Pydantic model containing system statistics and storage info.
         """
         from marvin.db.db_setup import session_context
-        from marvin.db.models.users.users import Users, LongLiveToken
         from marvin.db.models.groups.groups import Groups
-        from marvin.db.models.platform.entries import Entries
-        from marvin.db.models.platform.assets import Assets
         from marvin.db.models.groups.webhooks import GroupWebhooksModel
+        from marvin.db.models.platform.assets import Assets
+        from marvin.db.models.platform.entries import Entries
+        from marvin.db.models.users.users import LongLiveToken, Users
 
         # Count records using SQLAlchemy
         with session_context() as session:

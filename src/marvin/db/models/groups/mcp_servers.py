@@ -25,9 +25,7 @@ class WorkspaceMcpServerModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "workspace_mcp_servers"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = orm.relationship("Groups", back_populates="mcp_servers")
 
     name: Mapped[str] = mapped_column(sa.String, nullable=False)
@@ -40,9 +38,7 @@ class WorkspaceMcpServerModel(SqlAlchemyBase, BaseMixins):
     enabled: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False)
     # DENY-by-default allowlist of tool names the agent may call from this server (null/empty = none)
     allowed_tools: Mapped[list | None] = mapped_column(sa.JSON, nullable=True)
-    created_by: Mapped[GUID | None] = mapped_column(
-        GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug", name="uq_mcp_servers_group_slug"),)
 

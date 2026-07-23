@@ -35,15 +35,15 @@ class GenerateSummaryOperation(AIOperation):
         title = ctx.entry.get("title", "") if ctx.entry else ""
         focus_clause = f" Focus on: {focus}." if focus else ""
         return [
-            Message(role="system", content=(
-                f"You are a content assistant for {ctx.workspace_name or 'this workspace'}. "
-                f"Locale: {ctx.site_locale}."
-            )),
-            Message(role="user", content=(
-                f"Summarise the following content in no more than {max_words} words.{focus_clause}\n\n"
-                f"Title: {title}\n\nContent:\n{content}\n\n"
-                f"Return JSON: {{\"summary\": \"...\", \"word_count\": <int>}}"
-            )),
+            Message(role="system", content=(f"You are a content assistant for {ctx.workspace_name or 'this workspace'}. Locale: {ctx.site_locale}.")),
+            Message(
+                role="user",
+                content=(
+                    f"Summarise the following content in no more than {max_words} words.{focus_clause}\n\n"
+                    f"Title: {title}\n\nContent:\n{content}\n\n"
+                    f'Return JSON: {{"summary": "...", "word_count": <int>}}'
+                ),
+            ),
         ]
 
 
@@ -81,11 +81,14 @@ class GenerateTagsOperation(AIOperation):
         existing_clause = f"Existing tags (do not repeat): {', '.join(existing)}." if existing else ""
         return [
             Message(role="system", content=f"You are a tagging assistant for {ctx.workspace_name or 'this workspace'}."),
-            Message(role="user", content=(
-                f"Suggest up to {max_tags} relevant tags for this content. {existing_clause}\n\n"
-                f"Title: {title}\nContent:\n{content}\n\n"
-                f"Return JSON: {{\"tags\": [\"tag1\", \"tag2\"]}}"
-            )),
+            Message(
+                role="user",
+                content=(
+                    f"Suggest up to {max_tags} relevant tags for this content. {existing_clause}\n\n"
+                    f"Title: {title}\nContent:\n{content}\n\n"
+                    f'Return JSON: {{"tags": ["tag1", "tag2"]}}'
+                ),
+            ),
         ]
 
 
@@ -131,15 +134,18 @@ class ImproveWritingOperation(AIOperation):
         if not content:
             content = ctx.entry.get("content", "") if ctx.entry else ""
         return [
-            Message(role="system", content=(
-                f"You are a writing assistant for {ctx.workspace_name or 'this workspace'}. "
-                f"Tone: {tone}. Locale: {ctx.site_locale}."
-            )),
-            Message(role="user", content=(
-                f"Improve the following content for clarity, grammar, and style. "
-                f"Preserve meaning and structure.\n\nContent:\n{content}\n\n"
-                f"Return JSON: {{\"improved\": \"...\", \"changes\": [\"description of change\"]}}"
-            )),
+            Message(
+                role="system",
+                content=(f"You are a writing assistant for {ctx.workspace_name or 'this workspace'}. Tone: {tone}. Locale: {ctx.site_locale}."),
+            ),
+            Message(
+                role="user",
+                content=(
+                    f"Improve the following content for clarity, grammar, and style. "
+                    f"Preserve meaning and structure.\n\nContent:\n{content}\n\n"
+                    f'Return JSON: {{"improved": "...", "changes": ["description of change"]}}'
+                ),
+            ),
         ]
 
 
@@ -174,15 +180,14 @@ class GenerateAltTextOperation(AIOperation):
         instruction = (
             f"Write alt text for the image '{filename}'. {context_clause} "
             f"Alt text should be under 125 characters and describe what is shown.\n\n"
-            f"Return JSON: {{\"alt_text\": \"...\", \"description\": \"longer description\"}}"
+            f'Return JSON: {{"alt_text": "...", "description": "longer description"}}'
         )
         image_data = asset.get("image_data")
-        user_content = (
-            [instruction, ImagePart(data=image_data, mime_type=asset.get("mime_type") or "image/png")]
-            if image_data else instruction
-        )
+        user_content = [instruction, ImagePart(data=image_data, mime_type=asset.get("mime_type") or "image/png")] if image_data else instruction
         return [
-            Message(role="system", content="You are an accessibility assistant. Write concise, descriptive alt text based on what you see in the image."),
+            Message(
+                role="system", content="You are an accessibility assistant. Write concise, descriptive alt text based on what you see in the image."
+            ),
             Message(role="user", content=user_content),
         ]
 
@@ -222,14 +227,15 @@ class ClassifyFormSubmissionOperation(AIOperation):
         submission = ctx.form_submission or {}
         data = submission.get("data", {})
         return [
-            Message(role="system", content=(
-                f"You are a form submission classifier for {ctx.workspace_name or 'this workspace'}."
-            )),
-            Message(role="user", content=(
-                f"Classify this form submission.\n\nSubmission data:\n{data}\n\n"
-                f"Available categories: {', '.join(categories)}.\n\n"
-                f"Return JSON matching the output schema."
-            )),
+            Message(role="system", content=(f"You are a form submission classifier for {ctx.workspace_name or 'this workspace'}.")),
+            Message(
+                role="user",
+                content=(
+                    f"Classify this form submission.\n\nSubmission data:\n{data}\n\n"
+                    f"Available categories: {', '.join(categories)}.\n\n"
+                    f"Return JSON matching the output schema."
+                ),
+            ),
         ]
 
 
@@ -258,13 +264,10 @@ class DescribeImageOperation(AIOperation):
         instruction = (
             f"Describe the image '{filename}' in detail. List the main objects you see and the "
             f"dominant colours.\n\n"
-            f"Return JSON: {{\"description\": \"...\", \"detected_objects\": [\"...\"], \"colors\": [\"...\"]}}"
+            f'Return JSON: {{"description": "...", "detected_objects": ["..."], "colors": ["..."]}}'
         )
         image_data = asset.get("image_data")
-        user_content = (
-            [instruction, ImagePart(data=image_data, mime_type=asset.get("mime_type") or "image/png")]
-            if image_data else instruction
-        )
+        user_content = [instruction, ImagePart(data=image_data, mime_type=asset.get("mime_type") or "image/png")] if image_data else instruction
         return [
             Message(role="system", content="You are a vision assistant. Describe images accurately based on what you see."),
             Message(role="user", content=user_content),
@@ -296,14 +299,15 @@ class EnrichResourceMetadataOperation(AIOperation):
         url = resource.get("url", "")
         existing = resource.get("description", "")
         return [
-            Message(role="system", content=(
-                f"You are a metadata assistant for {ctx.workspace_name or 'this workspace'}."
-            )),
-            Message(role="user", content=(
-                f"Enrich metadata for this resource.\n\n"
-                f"Name: {name}\nType: {rtype}\nURL: {url}\nExisting description: {existing or '(none)'}\n\n"
-                f"Return JSON: {{\"description\": \"...\", \"tags\": [\"...\"], \"category\": \"...\"}}"
-            )),
+            Message(role="system", content=(f"You are a metadata assistant for {ctx.workspace_name or 'this workspace'}.")),
+            Message(
+                role="user",
+                content=(
+                    f"Enrich metadata for this resource.\n\n"
+                    f"Name: {name}\nType: {rtype}\nURL: {url}\nExisting description: {existing or '(none)'}\n\n"
+                    f'Return JSON: {{"description": "...", "tags": ["..."], "category": "..."}}'
+                ),
+            ),
         ]
 
 
@@ -332,18 +336,20 @@ class AnswerWorkspaceQuestionOperation(AIOperation):
     def build_prompt(self, input: dict, ctx: OperationContext) -> list[Message]:
         question = input.get("question", "")
         chunks = ctx.retrieved or []
-        context_block = "\n\n".join(
-            f"[{i + 1}] ({c['entity_type']} {c['entity_id']}): {c['text']}"
-            for i, c in enumerate(chunks)
-        ) or "(no relevant workspace content found)"
+        context_block = (
+            "\n\n".join(f"[{i + 1}] ({c['entity_type']} {c['entity_id']}): {c['text']}" for i, c in enumerate(chunks))
+            or "(no relevant workspace content found)"
+        )
         return [
-            Message(role="system", content=(
-                f"You are a knowledge assistant for {ctx.workspace_name or 'this workspace'}. "
-                f"Answer the question using ONLY the provided context. Cite sources by their [n] "
-                f"index. If the context does not contain the answer, say you don't know."
-            )),
-            Message(role="user", content=(
-                f"Question: {question}\n\nContext:\n{context_block}\n\n"
-                f"Return JSON: {{\"answer\": \"...\", \"sources\": [\"[1]\"]}}"
-            )),
+            Message(
+                role="system",
+                content=(
+                    f"You are a knowledge assistant for {ctx.workspace_name or 'this workspace'}. "
+                    f"Answer the question using ONLY the provided context. Cite sources by their [n] "
+                    f"index. If the context does not contain the answer, say you don't know."
+                ),
+            ),
+            Message(
+                role="user", content=(f'Question: {question}\n\nContext:\n{context_block}\n\nReturn JSON: {{"answer": "...", "sources": ["[1]"]}}')
+            ),
         ]

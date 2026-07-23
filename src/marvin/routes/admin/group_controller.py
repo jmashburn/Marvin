@@ -137,8 +137,9 @@ class AdminGroupManagementRoutes(BaseAdminController):
         group = GroupService.create_group(self.repos, data)
 
         # Get the underlying model instance for bootstrap
-        from marvin.db.models.groups import Groups
         from sqlalchemy import select
+
+        from marvin.db.models.groups import Groups
 
         group_model = self.repos.session.execute(select(Groups).where(Groups.id == group.id)).scalar_one()
 
@@ -247,7 +248,7 @@ class AdminGroupManagementRoutes(BaseAdminController):
         result = self.repo.schema.model_validate(group_model_instance)
 
         # Dispatch workspace_updated event
-        from marvin.services.event_bus_service.event_types import EventWorkspaceData, EventOperation, EventTypes
+        from marvin.services.event_bus_service.event_types import EventOperation, EventTypes, EventWorkspaceData
 
         self.event_bus.dispatch(
             integration_id="workspace_management_admin",
@@ -315,8 +316,9 @@ class AdminGroupManagementRoutes(BaseAdminController):
                 )
 
             # Check for entries
+            from sqlalchemy import func, select
+
             from marvin.db.models.entries import Entries
-            from sqlalchemy import select, func
 
             entry_count = self.repos.session.execute(select(func.count(Entries.id)).where(Entries.group_id == item_id)).scalar()
             if entry_count and entry_count > 0:

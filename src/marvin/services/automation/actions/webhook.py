@@ -61,16 +61,24 @@ def run_webhook(session, group_id, action, context, *, user_id=None, authorizer_
     if dry_run:
         # Preview the request WITHOUT sending it. Never resolve the secret value into the preview —
         # just note whether an auth header would be attached.
-        return {"dry_run": True, "kind": "webhook", "method": method, "url": url,
-                "body": None if method == "GET" else body, "webhook_id": webhook_id,
-                "authorized": bool(action.get("secret_ref"))}
+        return {
+            "dry_run": True,
+            "kind": "webhook",
+            "method": method,
+            "url": url,
+            "body": None if method == "GET" else body,
+            "webhook_id": webhook_id,
+            "authorized": bool(action.get("secret_ref")),
+        }
 
     headers.update(_bearer(action.get("secret_ref"), group_id))
     try:
         resp = httpx.request(
-            method, url,
+            method,
+            url,
             json=None if method == "GET" else body,
-            headers=headers, timeout=DEFAULT_TIMEOUT,
+            headers=headers,
+            timeout=DEFAULT_TIMEOUT,
         )
     except Exception as e:
         raise AutomationActionError(f"webhook request failed: {e}") from e

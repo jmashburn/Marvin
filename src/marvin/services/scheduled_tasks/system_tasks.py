@@ -37,10 +37,7 @@ SYSTEM_SCHEDULED_TASKS: list[SystemTaskDefinition] = [
         slug="prune_event_logs",
         name="Prune Event Logs",
         task_type="prune_event_logs",
-        description=(
-            "Delete audit-trail events older than the retention window "
-            "(EVENT_LOG_RETENTION_DAYS). Admin-only; runs daily."
-        ),
+        description=("Delete audit-trail events older than the retention window (EVENT_LOG_RETENTION_DAYS). Admin-only; runs daily."),
         schedule_type="interval",
         schedule_config={"interval_seconds": _DAILY_SECONDS},
     ),
@@ -60,8 +57,7 @@ SYSTEM_SCHEDULED_TASKS: list[SystemTaskDefinition] = [
         name="Resync Smart Collections",
         task_type="resync_smart_collections",
         description=(
-            "Reconcile smart-collection membership from rules across all workspaces (safety net "
-            "for the live reaction). Admin-only; runs daily."
+            "Reconcile smart-collection membership from rules across all workspaces (safety net for the live reaction). Admin-only; runs daily."
         ),
         schedule_type="interval",
         schedule_config={"interval_seconds": _DAILY_SECONDS},

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelPricing:
-    input_per_1m: float   # USD per 1M prompt tokens
+    input_per_1m: float  # USD per 1M prompt tokens
     output_per_1m: float  # USD per 1M completion tokens
 
 

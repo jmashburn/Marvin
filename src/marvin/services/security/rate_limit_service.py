@@ -1,6 +1,6 @@
 """Rate limiting service for form submissions."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pydantic import UUID4
 from sqlalchemy.orm import Session
@@ -34,7 +34,7 @@ class RateLimitService:
         window_minutes = rate_config.get("windowMinutes", 60)
 
         # Calculate window start
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         window_start = now - timedelta(minutes=window_minutes)
 
         # Get or create rate limit record
@@ -76,6 +76,6 @@ class RateLimitService:
         Args:
             days: Number of days to keep records
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         self.session.query(FormRateLimits).filter(FormRateLimits.window_start < cutoff).delete()
         self.session.commit()

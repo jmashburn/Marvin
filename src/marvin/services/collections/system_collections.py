@@ -18,16 +18,32 @@ logger = get_logger(__name__)
 
 # Ordered before user collections via negative sort_order. `statuses` becomes the smart rule.
 WORKFLOW_COLLECTIONS: list[dict] = [
-    {"slug": "inbox", "name": "Inbox", "icon": "📥",
-     "description": "New, unprocessed entries.", "sort_order": -40, "statuses": ["inbox"]},
-    {"slug": "drafts", "name": "Drafts", "icon": "✏️",
-     "description": "Entries being written.", "sort_order": -30, "statuses": ["draft"]},
-    {"slug": "needs-review", "name": "Needs Review", "icon": "👀",
-     "description": "Entries awaiting review.", "sort_order": -20, "statuses": ["needs_review"]},
-    {"slug": "approved", "name": "Approved", "icon": "✅",
-     "description": "Approved and ready to publish.", "sort_order": -10, "statuses": ["approved"]},
-    {"slug": "archive", "name": "Archive", "icon": "🗄️",
-     "description": "Archived entries, retired from the active pipeline.", "sort_order": -5, "statuses": ["archived"]},
+    {"slug": "inbox", "name": "Inbox", "icon": "📥", "description": "New, unprocessed entries.", "sort_order": -40, "statuses": ["inbox"]},
+    {"slug": "drafts", "name": "Drafts", "icon": "✏️", "description": "Entries being written.", "sort_order": -30, "statuses": ["draft"]},
+    {
+        "slug": "needs-review",
+        "name": "Needs Review",
+        "icon": "👀",
+        "description": "Entries awaiting review.",
+        "sort_order": -20,
+        "statuses": ["needs_review"],
+    },
+    {
+        "slug": "approved",
+        "name": "Approved",
+        "icon": "✅",
+        "description": "Approved and ready to publish.",
+        "sort_order": -10,
+        "statuses": ["approved"],
+    },
+    {
+        "slug": "archive",
+        "name": "Archive",
+        "icon": "🗄️",
+        "description": "Archived entries, retired from the active pipeline.",
+        "sort_order": -5,
+        "statuses": ["archived"],
+    },
 ]
 
 
@@ -41,10 +57,7 @@ def seed_system_workflow_collections(session, group_id) -> int:
     from marvin.db.models.platform.collections import Collections
     from marvin.services.collections.smart_collections import sync_collection
 
-    existing_slugs = {
-        row[0]
-        for row in session.query(Collections.slug).filter(Collections.group_id == group_id).all()
-    }
+    existing_slugs = {row[0] for row in session.query(Collections.slug).filter(Collections.group_id == group_id).all()}
 
     created = 0
     for defn in WORKFLOW_COLLECTIONS:

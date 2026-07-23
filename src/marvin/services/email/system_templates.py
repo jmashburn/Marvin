@@ -86,9 +86,7 @@ SYSTEM_TEMPLATES: list[SystemTemplateDefinition] = [
 ]
 
 # Quick lookup by type
-TEMPLATE_BY_TYPE: dict[str, SystemTemplateDefinition] = {
-    t.template_type: t for t in SYSTEM_TEMPLATES
-}
+TEMPLATE_BY_TYPE: dict[str, SystemTemplateDefinition] = {t.template_type: t for t in SYSTEM_TEMPLATES}
 
 
 def get_required_vars(template_type: str) -> list[str]:
@@ -117,8 +115,9 @@ def seed_system_templates(session) -> int:
     Create system templates (group_id=NULL) if they don't already exist.
     Idempotent — skips existing template types. Returns count of created templates.
     """
-    from marvin.db.models.groups.email_templates import EmailTemplateModel
     from sqlalchemy import select
+
+    from marvin.db.models.groups.email_templates import EmailTemplateModel
 
     created = 0
     for defn in SYSTEM_TEMPLATES:

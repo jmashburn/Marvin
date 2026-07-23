@@ -55,12 +55,7 @@ class McpServersController(BaseUserController):
     @router.get("", response_model=list[McpServerRead], summary="List MCP Servers")
     def list_servers(self) -> list[McpServerRead]:
         _require_admin(self.user, self.group_id)
-        rows = (
-            self.session.query(WorkspaceMcpServerModel)
-            .filter_by(group_id=self.group_id)
-            .order_by(WorkspaceMcpServerModel.name)
-            .all()
-        )
+        rows = self.session.query(WorkspaceMcpServerModel).filter_by(group_id=self.group_id).order_by(WorkspaceMcpServerModel.name).all()
         return [McpServerRead.model_validate(r) for r in rows]
 
     @router.post("", response_model=McpServerRead, status_code=status.HTTP_201_CREATED, summary="Register MCP Server")
@@ -77,9 +72,7 @@ class McpServersController(BaseUserController):
 
         payload = data.model_dump()
         payload["slug"] = slug
-        row = WorkspaceMcpServerModel(
-            session=self.session, group_id=self.group_id, created_by=self.user.id, **payload
-        )
+        row = WorkspaceMcpServerModel(session=self.session, group_id=self.group_id, created_by=self.user.id, **payload)
         self.session.add(row)
         self.session.commit()
         self.session.refresh(row)
@@ -124,10 +117,7 @@ class McpServersController(BaseUserController):
             return McpServerTestResult(
                 success=True,
                 message=f"Connected — {len(tools)} tool(s) available.",
-                tools=[
-                    McpServerToolInfo(name=t.name, description=t.description, input_schema=t.input_schema)
-                    for t in tools
-                ],
+                tools=[McpServerToolInfo(name=t.name, description=t.description, input_schema=t.input_schema) for t in tools],
             )
         except Exception as e:
             return McpServerTestResult(success=False, message=str(e), tools=[])

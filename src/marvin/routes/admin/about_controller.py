@@ -143,10 +143,7 @@ class AdminAboutController(BaseAdminController):
         role_list = [{"role": SUPER, "level": 6, "platform": True}]
         role_list += [{"role": r.value, "level": WORKSPACE_ROLE_HIERARCHY.get(r, 0), "platform": False} for r in roles]
 
-        capabilities = [
-            {"key": key, "label": label, "roles": [SUPER, *(r.value for r in roles if fn(r))]}
-            for key, label, fn in caps
-        ]
+        capabilities = [{"key": key, "label": label, "roles": [SUPER, *(r.value for r in roles if fn(r))]} for key, label, fn in caps]
         # Platform-only capability — SUPER_ADMIN alone.
         capabilities.append({"key": "platform_admin", "label": "Platform administration (/admin)", "roles": [SUPER]})
 

@@ -12,8 +12,8 @@ Each type declares:
   - an optional per-type gate (e.g. entries: only re-embed a live, already-indexed entry on update).
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from marvin.db.models.platform import Assets, Entries, Resources
 from marvin.services.ai.embeddings import _asset_text, _entry_text, _resource_text
@@ -71,13 +71,13 @@ def delete_descriptor_for(event_type) -> Indexable | None:
 
 # ── Per-type gates ────────────────────────────────────────────────────────────
 
+
 def _asset_content_ok(asset) -> bool:
     """An asset earns a place in the semantic index only if it carries descriptive text — a
     description or alt text. A bare icon/logo (name + tags only, e.g. an SVG "Envelope\\nTags:
     site asset") embeds to near-nothing but its tag, hijacking tag-adjacent searches; skip it.
     Its tags remain discoverable via list_tags and structured tag filters, not RAG."""
-    return bool((getattr(asset, "description", None) or "").strip()
-                or (getattr(asset, "alt_text", None) or "").strip())
+    return bool((getattr(asset, "description", None) or "").strip() or (getattr(asset, "alt_text", None) or "").strip())
 
 
 def _entry_should_index(entry, event_type, has_index: bool) -> bool:
@@ -91,24 +91,40 @@ def _entry_should_index(entry, event_type, has_index: bool) -> bool:
 
 # ── Default registrations ─────────────────────────────────────────────────────
 
+
 def _register_defaults() -> None:
-    register_indexable(Indexable(
-        entity_type="entry", model=Entries, text=_entry_text, id_field="entry_id",
-        index_on=(EventTypes.entry_published, EventTypes.entry_updated),
-        delete_on=(EventTypes.entry_deleted,),
-        should_index=_entry_should_index,
-    ))
-    register_indexable(Indexable(
-        entity_type="resource", model=Resources, text=_resource_text, id_field="resource_id",
-        index_on=(EventTypes.resource_created, EventTypes.resource_updated),
-        delete_on=(EventTypes.resource_deleted,),
-    ))
-    register_indexable(Indexable(
-        entity_type="asset", model=Assets, text=_asset_text, id_field="asset_id",
-        index_on=(EventTypes.asset_uploaded, EventTypes.asset_updated),
-        delete_on=(EventTypes.asset_deleted,),
-        content_ok=_asset_content_ok,  # skip content-thin icons/logos (name+tags only)
-    ))
+    register_indexable(
+        Indexable(
+            entity_type="entry",
+            model=Entries,
+            text=_entry_text,
+            id_field="entry_id",
+            index_on=(EventTypes.entry_published, EventTypes.entry_updated),
+            delete_on=(EventTypes.entry_deleted,),
+            should_index=_entry_should_index,
+        )
+    )
+    register_indexable(
+        Indexable(
+            entity_type="resource",
+            model=Resources,
+            text=_resource_text,
+            id_field="resource_id",
+            index_on=(EventTypes.resource_created, EventTypes.resource_updated),
+            delete_on=(EventTypes.resource_deleted,),
+        )
+    )
+    register_indexable(
+        Indexable(
+            entity_type="asset",
+            model=Assets,
+            text=_asset_text,
+            id_field="asset_id",
+            index_on=(EventTypes.asset_uploaded, EventTypes.asset_updated),
+            delete_on=(EventTypes.asset_deleted,),
+            content_ok=_asset_content_ok,  # skip content-thin icons/logos (name+tags only)
+        )
+    )
 
 
 _register_defaults()

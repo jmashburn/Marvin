@@ -38,9 +38,7 @@ class WorkspaceAutomationModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "workspace_automations"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = orm.relationship("Groups", back_populates="automations")
 
     name: Mapped[str] = mapped_column(sa.String, nullable=False)
@@ -48,9 +46,7 @@ class WorkspaceAutomationModel(SqlAlchemyBase, BaseMixins):
     enabled: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False)
     # The full rule: {trigger, conditions, actions}. Validated by the engine, not the DB.
     definition: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
-    created_by: Mapped[GUID | None] = mapped_column(
-        GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    created_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug", name="uq_automations_group_slug"),)
 

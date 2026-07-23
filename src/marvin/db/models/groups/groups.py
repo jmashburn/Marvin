@@ -27,12 +27,12 @@ if TYPE_CHECKING:
     from .ai_providers import AIProviderModel
     from .ai_settings import WorkspaceAISettingsModel
     from .automations import WorkspaceAutomationModel
+    from .events import GroupEventNotifierModel
     from .incoming_webhooks import WorkspaceIncomingWebhookModel
     from .integration_event_subscriptions import IntegrationEventSubscriptionModel
     from .integrations import IntegrationModel
-    from .mcp_servers import WorkspaceMcpServerModel
-    from .events import GroupEventNotifierModel
     from .invite_tokens import GroupInviteToken
+    from .mcp_servers import WorkspaceMcpServerModel
     from .reports import ReportModel
     from .secrets import WorkspaceSecret
     from .smtp_profiles import WorkspaceSMTPProfileModel
@@ -109,17 +109,13 @@ class Groups(SqlAlchemyBase, BaseMixins):
         "GroupWebhooksModel", **_common_relationship_args, doc="Webhooks configured for this group."
     )
     # Relationship to WorkspaceSecret (one-to-many)
-    secrets: Mapped[list["WorkspaceSecret"]] = orm.relationship(
-        "WorkspaceSecret", **_common_relationship_args, doc="Workspace secrets."
-    )
+    secrets: Mapped[list["WorkspaceSecret"]] = orm.relationship("WorkspaceSecret", **_common_relationship_args, doc="Workspace secrets.")
 
     smtp_profiles: Mapped[list["WorkspaceSMTPProfileModel"]] = orm.relationship(
         "WorkspaceSMTPProfileModel", **_common_relationship_args, doc="Named SMTP profiles for this workspace."
     )
     # Relationship to WorkspaceVariable (one-to-many)
-    variables: Mapped[list["WorkspaceVariable"]] = orm.relationship(
-        "WorkspaceVariable", **_common_relationship_args, doc="Workspace variables."
-    )
+    variables: Mapped[list["WorkspaceVariable"]] = orm.relationship("WorkspaceVariable", **_common_relationship_args, doc="Workspace variables.")
 
     integrations: Mapped[list["IntegrationModel"]] = orm.relationship(
         "IntegrationModel", **_common_relationship_args, doc="External service integrations for this workspace."

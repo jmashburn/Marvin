@@ -196,11 +196,7 @@ def _read_snapshots(kind: str, group_id: UUID4) -> list[_Snapshot]:
 
     snaps: list[_Snapshot] = []
     with session_context() as session:
-        rows = (
-            session.query(IntegrationModel)
-            .filter(IntegrationModel.group_id == group_id, IntegrationModel.enabled.is_(True))
-            .all()
-        )
+        rows = session.query(IntegrationModel).filter(IntegrationModel.group_id == group_id, IntegrationModel.enabled.is_(True)).all()
         for row in rows:
             try:
                 provider = get_provider(row.provider)  # skip uninstalled providers

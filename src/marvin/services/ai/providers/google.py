@@ -21,13 +21,14 @@ class GoogleProvider(AIProvider):
         try:
             import google.generativeai as genai
         except ImportError:
-            raise ImportError("Google Generative AI SDK not installed. Run: uv sync --extra google (or pip install 'marvin[google]')")
+            raise ImportError("Google Generative AI SDK not installed. Run: uv sync --extra google (or pip install 'marvin[google]')") from None
         genai.configure(api_key=self._api_key)
         return genai
 
     def _to_parts(self, messages: list[Message]) -> list:
         """Flatten messages into Gemini content parts (text strings + inline image blobs)."""
         import base64
+
         parts: list = []
         for msg in messages:
             if isinstance(msg.content, str):
@@ -56,6 +57,7 @@ class GoogleProvider(AIProvider):
 
     def complete_structured(self, messages: list[Message], model: str, output_schema: dict, options: CompletionOptions | None = None) -> dict:
         import json
+
         opts = options or CompletionOptions()
         genai = self._client()
         m = genai.GenerativeModel(model)

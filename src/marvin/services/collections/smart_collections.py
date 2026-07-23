@@ -75,6 +75,7 @@ def matches_rules(item, rules: dict | None, target_type: str = "entry") -> bool:
     if tags:
         # Compare on slugs so a rule matches whether it stored "Chore Coat" or "chore-coat".
         from slugify import slugify
+
         want = {slugify(str(t)) for t in tags}
         have = set(getattr(item, "tag_names", None) or [])
         dimensions.append(bool(want & have))
@@ -128,11 +129,7 @@ def sync_item(session, group_id, item, target_type: str = "entry") -> int:
         if getattr(collection, "target_type", "entry") != target_type:
             continue
         desired = matches_rules(item, collection.smart_rules, target_type)
-        existing = (
-            session.query(junction)
-            .filter(getattr(junction, fk) == item.id, junction.collection_id == collection.id)
-            .first()
-        )
+        existing = session.query(junction).filter(getattr(junction, fk) == item.id, junction.collection_id == collection.id).first()
         if desired and existing is None:
             session.add(junction(**{fk: item.id, "collection_id": collection.id, "sort_order": 0}))
             changed += 1
@@ -162,10 +159,7 @@ def sync_collection(session, group_id, collection) -> int:
     rules = collection.smart_rules or {}
     items = session.query(model).filter_by(group_id=group_id).all()
     desired = {i.id for i in items if matches_rules(i, rules, target_type)}
-    current = {
-        getattr(row, fk)
-        for row in session.query(junction).filter_by(collection_id=collection.id).all()
-    }
+    current = {getattr(row, fk) for row in session.query(junction).filter_by(collection_id=collection.id).all()}
 
     to_add = desired - current
     to_remove = current - desired

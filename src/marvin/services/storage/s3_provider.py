@@ -107,7 +107,7 @@ class S3StorageProvider(BaseStorageProvider):
             return BytesIO(response["Body"].read())
         except ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchKey":
-                raise FileNotFoundError(f"File not found: {storage_key}")
+                raise FileNotFoundError(f"File not found: {storage_key}") from e
             raise
 
     def delete(self, storage_key: str) -> bool:
@@ -153,5 +153,5 @@ class S3StorageProvider(BaseStorageProvider):
             )
         except ClientError as e:
             if e.response["Error"]["Code"] == "404":
-                raise FileNotFoundError(f"File not found: {storage_key}")
+                raise FileNotFoundError(f"File not found: {storage_key}") from e
             raise

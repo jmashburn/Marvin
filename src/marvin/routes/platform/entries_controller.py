@@ -19,7 +19,8 @@ class EntriesController(BaseUserController):
     def _entries(self) -> EntryService:
         """The entry domain service, wired with this request's actor + event bus."""
         return EntryService(
-            self.session, self.group_id,
+            self.session,
+            self.group_id,
             event_bus=self.event_bus,
             actor_id=self.user.id if self.user else None,
         )

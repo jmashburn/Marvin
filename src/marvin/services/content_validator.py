@@ -10,9 +10,6 @@ It ensures that:
 import re
 from datetime import datetime
 from typing import Any
-from uuid import UUID
-
-from pydantic import ValidationError
 
 from marvin.schemas.platform.entry_type_schema import (
     AssetFieldSchema,
@@ -103,7 +100,7 @@ class ContentValidator(BaseService):
                 raise ContentValidationError(
                     field_key,
                     f"Invalid regex pattern in schema: {e}",
-                )
+                ) from e
 
     def validate_content(
         self,
@@ -157,7 +154,7 @@ class ContentValidator(BaseService):
         field_key = field_schema.key
 
         # Dispatch to type-specific validator
-        if isinstance(field_schema, (TextFieldSchema, TextareaFieldSchema)):
+        if isinstance(field_schema, TextFieldSchema | TextareaFieldSchema):
             self._validate_text_field(field_schema, value)
         elif isinstance(field_schema, MarkdownFieldSchema):
             self._validate_markdown_field(field_schema, value)
@@ -173,9 +170,9 @@ class ContentValidator(BaseService):
             self._validate_datetime_field(field_schema, value)
         elif isinstance(field_schema, JsonFieldSchema):
             self._validate_json_field(field_schema, value)
-        elif isinstance(field_schema, (AssetFieldSchema, ResourceFieldSchema)):
+        elif isinstance(field_schema, AssetFieldSchema | ResourceFieldSchema):
             self._validate_reference_field(field_schema, value, is_list=False)
-        elif isinstance(field_schema, (AssetListFieldSchema, ResourceListFieldSchema)):
+        elif isinstance(field_schema, AssetListFieldSchema | ResourceListFieldSchema):
             self._validate_reference_field(field_schema, value, is_list=True)
         else:
             # Unknown field type - should not happen with discriminated union
@@ -212,7 +209,7 @@ class ContentValidator(BaseService):
 
     def _validate_number_field(self, field_schema: NumberFieldSchema, value: Any) -> None:
         """Validate number field."""
-        if not isinstance(value, (int, float)):
+        if not isinstance(value, int | float):
             raise ContentValidationError(
                 field_schema.key,
                 f"Expected number, got {type(value).__name__}",
@@ -292,7 +289,7 @@ class ContentValidator(BaseService):
                 raise ContentValidationError(
                     field_schema.key,
                     f"Invalid date format. Expected ISO 8601 (YYYY-MM-DD): {e}",
-                )
+                ) from e
 
         raise ContentValidationError(
             field_schema.key,
@@ -316,7 +313,7 @@ class ContentValidator(BaseService):
                 raise ContentValidationError(
                     field_schema.key,
                     f"Invalid datetime format. Expected ISO 8601: {e}",
-                )
+                ) from e
 
         raise ContentValidationError(
             field_schema.key,
@@ -418,12 +415,12 @@ class ContentValidator(BaseService):
                 raise ContentValidationError(field_key, "Invalid email address")
 
         elif field_def.type == "number":
-            if not isinstance(value, (int, float)):
+            if not isinstance(value, int | float):
                 # Try to convert string to number
                 try:
                     value = float(value)
                 except (ValueError, TypeError):
-                    raise ContentValidationError(field_key, "Expected number")
+                    raise ContentValidationError(field_key, "Expected number") from None
 
             if field_def.validation:
                 if "min" in field_def.validation and value < field_def.validation["min"]:

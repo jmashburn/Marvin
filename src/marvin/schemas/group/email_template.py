@@ -1,6 +1,7 @@
 """Pydantic schemas for email templates."""
 
 from datetime import datetime
+
 from pydantic import UUID4, Field
 
 from marvin.schemas._marvin import _MarvinModel

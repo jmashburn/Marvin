@@ -8,11 +8,11 @@ It includes:
 """
 
 import enum
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, ForeignKey, String, orm
 import sqlalchemy as sa
+from sqlalchemy import Boolean, ForeignKey, String, orm
 from sqlalchemy.orm import Mapped, Session, mapped_column  # Added Session for __init__
 from sqlalchemy.types import Enum as SqlAlchemyEnum  # Explicit import for sqlalchemy Enum type
 

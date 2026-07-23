@@ -15,7 +15,7 @@ from marvin.schemas._marvin import _MarvinModel
 
 class IncomingWebhookCreate(_MarvinModel):
     name: str
-    slug: str | None = None          # generated from name when omitted
+    slug: str | None = None  # generated from name when omitted
     description: str | None = None
     enabled: bool = False
 
@@ -37,7 +37,7 @@ class IncomingWebhookRead(_MarvinModel):
     slug: str
     description: str | None = None
     enabled: bool
-    token: str | None = None         # the secret; ADMIN-only surface. Null = no token minted yet.
+    token: str | None = None  # the secret; ADMIN-only surface. Null = no token minted yet.
     received_count: int = 0
     last_received_at: datetime | None = None
 

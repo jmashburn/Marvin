@@ -65,13 +65,13 @@ class OllamaProvider(AIProvider):
                 content = m.content if isinstance(m.content, str) else str(m.content)
                 out.append({"role": "tool", "content": content})
             elif m.role == "assistant" and m.tool_calls:
-                out.append({
-                    "role": "assistant",
-                    "content": m.content if isinstance(m.content, str) else "",
-                    "tool_calls": [
-                        {"function": {"name": tc.name, "arguments": tc.arguments}} for tc in m.tool_calls
-                    ],
-                })
+                out.append(
+                    {
+                        "role": "assistant",
+                        "content": m.content if isinstance(m.content, str) else "",
+                        "tool_calls": [{"function": {"name": tc.name, "arguments": tc.arguments}} for tc in m.tool_calls],
+                    }
+                )
             else:
                 out.extend(self._to_api_messages([m]))
         return out
@@ -127,10 +127,7 @@ class OllamaProvider(AIProvider):
         # Ollama's native API has no tool_choice; the model decides. `tool_choice` is accepted for
         # interface parity and ignored.
         opts = options or CompletionOptions()
-        api_tools = [
-            {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.input_schema}}
-            for t in tools
-        ]
+        api_tools = [{"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.input_schema}} for t in tools]
         data = self._chat(model, self._to_api_tool_messages(messages), opts, tools=api_tools)
         msg = data.get("message", {})
 
@@ -216,9 +213,7 @@ class OllamaProvider(AIProvider):
         ending with `{"status": "success"}`. A `{"error": "..."}` line means the pull failed
         (e.g. no such model in the registry) — we raise so the caller marks the job failed.
         """
-        with httpx.stream(
-            "POST", f"{self._base_url}/api/pull", json={"model": name, "stream": True}, timeout=None
-        ) as resp:
+        with httpx.stream("POST", f"{self._base_url}/api/pull", json={"model": name, "stream": True}, timeout=None) as resp:
             resp.raise_for_status()
             for line in resp.iter_lines():
                 if not line:

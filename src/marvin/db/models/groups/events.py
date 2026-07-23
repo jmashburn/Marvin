@@ -149,9 +149,7 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
                 .all()
             )
             for global_opt in globally_enabled:
-                self.options.append(
-                    GroupEventNotifierOptionsModel(session=session, namespace=global_opt.namespace, slug=global_opt.slug)
-                )
+                self.options.append(GroupEventNotifierOptionsModel(session=session, namespace=global_opt.namespace, slug=global_opt.slug))
         else:
             # Explicit list provided — use exactly those (empty list = no subscriptions)
             for option_str in options:
@@ -161,13 +159,9 @@ class GroupEventNotifierModel(SqlAlchemyBase, BaseMixins):
                     raise ValueError(f"Invalid option format: '{option_str}'. Expected 'namespace.slug'.") from None
 
                 global_opt = (
-                    session.execute(select(GlobalEventNotifierOptionsModel).filter_by(namespace=namespace, slug=slug))
-                    .scalars()
-                    .one_or_none()
+                    session.execute(select(GlobalEventNotifierOptionsModel).filter_by(namespace=namespace, slug=slug)).scalars().one_or_none()
                 )
                 if global_opt is None:
                     raise ValueError(f"Notification option '{option_str}' does not exist.") from None
 
-                self.options.append(
-                    GroupEventNotifierOptionsModel(session=session, namespace=namespace, slug=slug)
-                )
+                self.options.append(GroupEventNotifierOptionsModel(session=session, namespace=namespace, slug=slug))

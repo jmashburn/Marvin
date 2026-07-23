@@ -56,12 +56,7 @@ class IncomingWebhooksController(BaseUserController):
     @router.get("", response_model=list[IncomingWebhookRead], summary="List Incoming Webhooks")
     def list_webhooks(self) -> list[IncomingWebhookRead]:
         _require_admin(self.user, self.group_id)
-        rows = (
-            self.session.query(WorkspaceIncomingWebhookModel)
-            .filter_by(group_id=self.group_id)
-            .order_by(WorkspaceIncomingWebhookModel.name)
-            .all()
-        )
+        rows = self.session.query(WorkspaceIncomingWebhookModel).filter_by(group_id=self.group_id).order_by(WorkspaceIncomingWebhookModel.name).all()
         return [IncomingWebhookRead.model_validate(r) for r in rows]
 
     @router.post("", response_model=IncomingWebhookRead, status_code=status.HTTP_201_CREATED, summary="Create Incoming Webhook")

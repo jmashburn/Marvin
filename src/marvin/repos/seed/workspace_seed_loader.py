@@ -47,7 +47,7 @@ class WorkspaceSeedLoader:
         """
         self.logger.info(f"Loading workspace seed from: {seed_file}")
 
-        with open(seed_file, "r") as f:
+        with open(seed_file) as f:
             data = json.load(f)
 
         return self._load_data(data, zip_file=None, overwrite=overwrite, target_group_id=target_group_id)
@@ -77,7 +77,9 @@ class WorkspaceSeedLoader:
 
             return self._load_data(data, zip_file=zf, overwrite=overwrite, target_group_id=target_group_id)
 
-    def _load_data(self, data: dict[str, Any], zip_file: zipfile.ZipFile | None = None, overwrite: bool = False, target_group_id: str | None = None) -> dict[str, int]:
+    def _load_data(  # noqa: C901 — orchestrates the full seed load; splitting would spread tightly-coupled steps
+        self, data: dict[str, Any], zip_file: zipfile.ZipFile | None = None, overwrite: bool = False, target_group_id: str | None = None
+    ) -> dict[str, int]:
         """Load workspace data from a parsed dict, optionally extracting asset binaries from a zip.
 
         Args:
@@ -229,7 +231,7 @@ class WorkspaceSeedLoader:
         Returns:
             Count of assets imported
         """
-        from datetime import datetime
+        from datetime import UTC, datetime
 
         from marvin.services.assets.asset_storage_service import AssetStorageService
         from marvin.services.storage.provider_factory import get_storage_provider
@@ -268,7 +270,7 @@ class WorkspaceSeedLoader:
                     new_storage_key = storage_service.generate_storage_key(
                         workspace_slug=workspace_slug,
                         filename=asset.get("originalFilename") or f"{slug}.{asset.get('extension', 'bin')}",
-                        upload_date=datetime.now(),
+                        upload_date=datetime.now(UTC),
                     )
 
                     storage_provider.put(new_storage_key, binary_data, asset.get("mimeType", "application/octet-stream"))
@@ -708,9 +710,7 @@ class WorkspaceSeedLoader:
                 continue
             try:
                 exists = (
-                    self.repos.session.query(junction_cls)
-                    .filter(getattr(junction_cls, fk_field) == entity_id, junction_cls.tag_id == tag.id)
-                    .first()
+                    self.repos.session.query(junction_cls).filter(getattr(junction_cls, fk_field) == entity_id, junction_cls.tag_id == tag.id).first()
                 )
                 if exists is None:
                     self.repos.session.add(junction_cls(**{fk_field: entity_id, "tag_id": tag.id}))
@@ -804,7 +804,6 @@ class WorkspaceSeedLoader:
         from marvin.core.config import get_app_settings
         from marvin.core.security import url_safe_token
         from marvin.schemas.group.invite_token import InviteTokenSave
-        from marvin.schemas.mapper import cast
         from marvin.services.email.email_service import EmailService
 
         settings = get_app_settings()
@@ -849,7 +848,7 @@ class WorkspaceSeedLoader:
                 self.logger.info(f"✓ Owner invitation email sent to {owner_email}")
             else:
                 self.logger.warning(f"✗ Failed to send owner invitation email to {owner_email}")
-                self.logger.warning(f"Please share the registration link manually (see above)")
+                self.logger.warning("Please share the registration link manually (see above)")
         except Exception as e:
             self.logger.error(f"✗ Error sending owner invitation email: {e}")
-            self.logger.warning(f"Please share the registration link manually (see above)")
+            self.logger.warning("Please share the registration link manually (see above)")

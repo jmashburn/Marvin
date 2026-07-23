@@ -11,7 +11,7 @@ single-process dev/self-host case; see the note before productionising.
 
 import threading
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 
 _LOCK = threading.Lock()
 _JOBS: dict[str, "PullJob"] = {}
@@ -22,10 +22,10 @@ _MAX_JOBS = 50  # keep the most recent handful; prune oldest beyond this
 class PullJob:
     id: str
     name: str
-    status: str = "pulling"        # pulling | success | error
-    detail: str = ""               # latest Ollama status line, e.g. "pulling manifest"
-    completed: int = 0             # bytes downloaded so far (current layer)
-    total: int = 0                 # bytes expected (current layer)
+    status: str = "pulling"  # pulling | success | error
+    detail: str = ""  # latest Ollama status line, e.g. "pulling manifest"
+    completed: int = 0  # bytes downloaded so far (current layer)
+    total: int = 0  # bytes expected (current layer)
     error: str | None = None
     done: bool = False
 
@@ -52,6 +52,7 @@ def start_pull(provider, name: str) -> PullJob:
                 job.detail = update.get("status", job.detail)
                 job.completed = int(update.get("completed", job.completed) or 0)
                 job.total = int(update.get("total", job.total) or 0)
+
         try:
             provider.pull_model(name, on_progress=on_progress)
             with _LOCK:

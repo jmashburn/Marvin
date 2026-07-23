@@ -17,8 +17,7 @@ from marvin.schemas.platform.scheduled_tasks import (
     ScheduledTaskRead,
     ScheduledTaskUpdate,
 )
-from marvin.services.event_bus_service.event_types import EventTypes
-from marvin.services.event_bus_service.event_types import EventScheduledTaskData
+from marvin.services.event_bus_service.event_types import EventScheduledTaskData, EventTypes
 
 router = APIRouter(prefix="/scheduled-tasks", tags=["Platform: Scheduled Tasks"])
 
@@ -39,7 +38,7 @@ class ScheduledTasksController(BaseUserController):
 
         if detailed:
             return [t for t in TaskHandlerRegistry.get_task_type_info() if not t.get("admin_only")]
-        return [t for t in TaskHandlerRegistry.list_registered_types(include_admin=False)]
+        return list(TaskHandlerRegistry.list_registered_types(include_admin=False))
 
     @router.get("", response_model=list[ScheduledTaskRead])
     def list_tasks(self):
@@ -49,7 +48,6 @@ class ScheduledTasksController(BaseUserController):
     @router.post("", response_model=ScheduledTaskRead, status_code=status.HTTP_201_CREATED)
     def create_task(self, data: ScheduledTaskCreate):
         """Create a new scheduled task."""
-        from datetime import datetime
 
         # Create the task
         task = self.repos.scheduled_tasks.create(data)
@@ -105,7 +103,7 @@ class ScheduledTasksController(BaseUserController):
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Scheduled task '{id_or_slug}' not found",
-                )
+                ) from None
             task = self.repos.scheduled_tasks.update(task.id, data)
 
         # Emit event
@@ -141,7 +139,7 @@ class ScheduledTasksController(BaseUserController):
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Scheduled task '{id_or_slug}' not found",
-                )
+                ) from None
             self.repos.scheduled_tasks.delete(task.id)
 
         # Emit event

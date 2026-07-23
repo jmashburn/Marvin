@@ -14,9 +14,9 @@ from marvin.schemas._marvin import _MarvinModel
 
 class AutomationCreate(_MarvinModel):
     name: str
-    slug: str | None = None          # generated from name when omitted
+    slug: str | None = None  # generated from name when omitted
     enabled: bool = False
-    definition: dict = {}            # {trigger, conditions, actions} — validated by the engine
+    definition: dict = {}  # {trigger, conditions, actions} — validated by the engine
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -43,17 +43,19 @@ class AutomationRead(_MarvinModel):
 
 class AutomationActionOption(_MarvinModel):
     """One operation the builder can offer as an `operation` action."""
+
     op: str
     name: str
     description: str
     entity_types: list[str] = []
-    writes_back: bool = False        # whether this op has a write-back map (offer the toggle)
+    writes_back: bool = False  # whether this op has a write-back map (offer the toggle)
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AutomationWebhookOption(_MarvinModel):
     """One of the workspace's configured webhooks, offered to the `webhook` action."""
+
     id: UUID4
     name: str
     url: str
@@ -64,6 +66,7 @@ class AutomationWebhookOption(_MarvinModel):
 
 class AutomationTargetOption(_MarvinModel):
     """Another automation in the workspace — a chained/on-error trigger may target it."""
+
     id: UUID4
     slug: str
     name: str
@@ -73,18 +76,20 @@ class AutomationTargetOption(_MarvinModel):
 
 class AutomationIncomingWebhookOption(_MarvinModel):
     """One of the workspace's incoming webhooks — an `incoming_webhook` trigger targets it by slug."""
+
     id: UUID4
     slug: str
     name: str
     enabled: bool = False
-    has_token: bool = False          # whether a token has been minted (the endpoint is live)
+    has_token: bool = False  # whether a token has been minted (the endpoint is live)
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AutomationConditionField(_MarvinModel):
     """A field a condition can reference, suggested per trigger context (guided builder)."""
-    field: str                           # dotted path, e.g. "entry.entry_type" or "event.payload."
+
+    field: str  # dotted path, e.g. "entry.entry_type" or "event.payload."
     label: str
     description: str = ""
 
@@ -93,16 +98,17 @@ class AutomationConditionField(_MarvinModel):
 
 class AutomationOptions(_MarvinModel):
     """The builder's vocabulary — so the UI doesn't hardcode triggers/ops/operators."""
-    trigger_types: list[str] = []        # event | manual (schedule/webhook/chat/mcp/… as they land)
-    triggers: list[str] = []             # event names, for trigger_type="event" (flat, all groups)
+
+    trigger_types: list[str] = []  # event | manual (schedule/webhook/chat/mcp/… as they land)
+    triggers: list[str] = []  # event names, for trigger_type="event" (flat, all groups)
     trigger_groups: dict[str, list[str]] = {}  # same event names grouped (Entries/Assets/…) for the picker
-    condition_ops: list[str] = []        # eq | neq | contains | exists
+    condition_ops: list[str] = []  # eq | neq | contains | exists
     # Suggested condition fields per trigger type — so the builder offers the right fields and can't
     # silently pair an entry.* condition with a trigger that has no entry.
     condition_fields: dict[str, list[AutomationConditionField]] = {}
-    action_kinds: list[str] = []         # operation / emit_event / handler / webhook
+    action_kinds: list[str] = []  # operation / emit_event / handler / webhook
     operations: list[AutomationActionOption] = []
-    webhooks: list[AutomationWebhookOption] = []   # the workspace's configured (outgoing) webhooks
+    webhooks: list[AutomationWebhookOption] = []  # the workspace's configured (outgoing) webhooks
     automations: list[AutomationTargetOption] = []  # other automations (chained/on-error targets)
     incoming_webhooks: list[AutomationIncomingWebhookOption] = []  # ingress webhooks (incoming_webhook trigger)
     # JSON Schema of the definition (trigger/action/condition/target discriminated unions) — the one
@@ -114,10 +120,11 @@ class AutomationOptions(_MarvinModel):
 
 class AutomationValidationIssue(_MarvinModel):
     """One advisory coherence issue in a definition (not a hard error)."""
-    level: str                           # "warning" | "error"
+
+    level: str  # "warning" | "error"
     message: str
-    where: str                           # "trigger" | "condition" | "action"
-    index: int | None = None             # position within conditions/actions, when applicable
+    where: str  # "trigger" | "condition" | "action"
+    index: int | None = None  # position within conditions/actions, when applicable
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -136,6 +143,7 @@ class AutomationValidateResult(_MarvinModel):
 
 class AutomationPreviewMatch(_MarvinModel):
     """One entity a `target` selector resolved to (dry-run preview)."""
+
     id: str
     entry_type: str | None = None
     status: str | None = None
@@ -147,17 +155,18 @@ class AutomationPreviewMatch(_MarvinModel):
 
 class AutomationPreviewRequest(_MarvinModel):
     definition: dict = {}
-    payload: dict = {}                   # simulates $event.payload for the query/conditions
+    payload: dict = {}  # simulates $event.payload for the query/conditions
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AutomationPreviewResult(_MarvinModel):
     """Dry-run of a `target` selector — which entities it resolves to, before running anything."""
-    has_target: bool = False             # false when the definition has no target selector
+
+    has_target: bool = False  # false when the definition has no target selector
     entity: str = "entry"
-    total: int = 0                       # entities matching the query (the FROM count, pre-cap)
-    capped: bool = False                 # total exceeded the run cap (only the first N would run)
+    total: int = 0  # entities matching the query (the FROM count, pre-cap)
+    capped: bool = False  # total exceeded the run cap (only the first N would run)
     matches: list[AutomationPreviewMatch] = []  # capped set that also passes conditions (the WHERE)
     error: str | None = None
 
@@ -166,6 +175,7 @@ class AutomationPreviewResult(_MarvinModel):
 
 class AutomationActionExecutionRead(_MarvinModel):
     """One recorded step within a run — which target, which action, and how it went."""
+
     id: UUID4
     target_index: int = 0
     target_entity_type: str | None = None
@@ -183,6 +193,7 @@ class AutomationActionExecutionRead(_MarvinModel):
 
 class AutomationExecutionRead(_MarvinModel):
     """One recorded run of an automation (compact — for the history list)."""
+
     id: UUID4
     automation_id: UUID4 | None = None
     automation_slug: str
@@ -206,6 +217,7 @@ class AutomationExecutionRead(_MarvinModel):
 
 class AutomationExecutionDetail(AutomationExecutionRead):
     """A run plus its per-step records and the definition it ran against."""
+
     definition_snapshot: dict | None = None
     actions: list[AutomationActionExecutionRead] = []
 

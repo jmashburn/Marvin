@@ -137,9 +137,7 @@ def default_user_init(db: AllRepositories) -> None:
 
             # Create the development user
             dev_user = db.users.create(user_data)
-            logger.info(
-                f"Development user created: {dev_user.email} / {settings.DEFAULT_PASSWORD} " f"(platform_role={dev_user.platform_role.value})"
-            )
+            logger.info(f"Development user created: {dev_user.email} / {settings.DEFAULT_PASSWORD} (platform_role={dev_user.platform_role.value})")
 
             # Create workspace membership for the dev user
             dev_membership = WorkspaceMembers(

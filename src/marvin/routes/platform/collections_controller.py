@@ -87,11 +87,7 @@ class CollectionsController(BaseUserController):
         from marvin.db.models.platform import Collections
 
         ids = [item.id for item in data.collections]
-        rows = (
-            self.session.query(Collections)
-            .filter(Collections.group_id == self.group_id, Collections.id.in_(ids))
-            .all()
-        )
+        rows = self.session.query(Collections).filter(Collections.group_id == self.group_id, Collections.id.in_(ids)).all()
         by_id = {row.id: row for row in rows}
         for item in data.collections:
             row = by_id.get(item.id)

@@ -46,9 +46,9 @@ class RecentEvent(_MarvinModel):
 
 
 class AttentionCounts(_MarvinModel):
-    drafts: int = 0            # entries awaiting review (inbox / draft)
-    ai_suggestions: int = 0    # entities with a pending AI write-back (suggestion_json)
-    failures: int = 0          # failed executions in the last 7 days (tasks/webhooks/notifications/AI)
+    drafts: int = 0  # entries awaiting review (inbox / draft)
+    ai_suggestions: int = 0  # entities with a pending AI write-back (suggestion_json)
+    failures: int = 0  # failed executions in the last 7 days (tasks/webhooks/notifications/AI)
 
 
 class DashboardData(_MarvinModel):
@@ -70,12 +70,7 @@ def _event_message(e) -> str:
 def _count(session, model, group_id: UUID4) -> int:
     """Return a group-scoped row count, defaulting to 0 on any error."""
     try:
-        return (
-            session.execute(
-                select(func.count(model.id)).where(model.group_id == group_id)
-            ).scalar()
-            or 0
-        )
+        return session.execute(select(func.count(model.id)).where(model.group_id == group_id)).scalar() or 0
     except Exception:
         return 0
 
@@ -134,19 +129,17 @@ class StatsController(BaseUserController):
         recent: list[RecentEvent] = []
         try:
             rows = (
-                session.execute(
-                    select(EventLogModel)
-                    .where(EventLogModel.workspace_id == gid)
-                    .order_by(EventLogModel.occurred_at.desc())
-                    .limit(8)
-                )
+                session.execute(select(EventLogModel).where(EventLogModel.workspace_id == gid).order_by(EventLogModel.occurred_at.desc()).limit(8))
                 .scalars()
                 .all()
             )
             recent = [
                 RecentEvent(
-                    event_type=e.event_type, message=_event_message(e), entity_type=e.entity_type,
-                    entity_id=str(e.entity_id) if e.entity_id else None, occurred_at=e.occurred_at,
+                    event_type=e.event_type,
+                    message=_event_message(e),
+                    entity_type=e.entity_type,
+                    entity_id=str(e.entity_id) if e.entity_id else None,
+                    occurred_at=e.occurred_at,
                 )
                 for e in rows
             ]
@@ -161,10 +154,7 @@ class StatsController(BaseUserController):
 
         drafts = _c(select(func.count(Entries.id)).where(Entries.group_id == gid, Entries.status.in_(["inbox", "draft"])))
 
-        suggestions = sum(
-            _c(select(func.count(m.id)).where(m.group_id == gid, m.suggestion_json.isnot(None)))
-            for m in (Entries, Assets, Resources)
-        )
+        suggestions = sum(_c(select(func.count(m.id)).where(m.group_id == gid, m.suggestion_json.isnot(None))) for m in (Entries, Assets, Resources))
 
         since = datetime.now(UTC) - timedelta(days=7)
         failures = sum(

@@ -28,9 +28,7 @@ class IntegrationModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "integrations"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = relationship("Groups", back_populates="integrations", single_parent=True)
 
     provider: Mapped[str] = mapped_column(String, nullable=False, index=True)

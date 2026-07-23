@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends  # Core FastAPI components
 from marvin.routes._base import MarvinCrudRoute  # Custom route class for CRUD-like routes
 from marvin.routes._base.base_controllers import BaseUserController  # Base controller for user-authenticated routes
 from marvin.routes._base.controller import controller  # Decorator for class-based views
+from marvin.schemas._marvin import _MarvinModel
 from marvin.schemas.event.event import (  # Pydantic schemas for event notifier options
     EventNotifierOptionsPagination,
     EventNotifierOptionsSummary,
@@ -22,12 +23,10 @@ from marvin.schemas.event.event import (  # Pydantic schemas for event notifier 
 from marvin.schemas.response.pagination import PaginationQuery  # For handling pagination parameters
 
 # Event bus service and types for dispatching events
-from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import (
     EventTypes,
     EventUserSignupData,  # This specific data type seems misused for a generic GET all options.
 )
-from marvin.schemas._marvin import _MarvinModel
 
 
 class EventTypeOption(_MarvinModel):
@@ -35,6 +34,7 @@ class EventTypeOption(_MarvinModel):
 
     value: str
     label: str
+
 
 # APIRouter for event notifier options, using MarvinCrudRoute for consistent header handling.
 # All routes here will be under /event.
@@ -136,21 +136,16 @@ class EventsNotifierOptionsController(BaseUserController):
             if not entry.enabled:
                 continue  # internal/disabled events aren't offered for subscription
             cat = entry.category if entry.category in by_category else "Other"
-            by_category[cat].append({
-                "value": entry.event_type,
-                "label": entry.name,
-                "description": entry.description,
-                "category": entry.category,
-                "enabled": entry.enabled,
-                "variables": [
-                    {"slug": v.slug, "description": v.description, "example": v.example, "type": v.type}
-                    for v in entry.variables
-                ],
-                "payloadExample": get_payload_example(entry.event_type),
-            })
+            by_category[cat].append(
+                {
+                    "value": entry.event_type,
+                    "label": entry.name,
+                    "description": entry.description,
+                    "category": entry.category,
+                    "enabled": entry.enabled,
+                    "variables": [{"slug": v.slug, "description": v.description, "example": v.example, "type": v.type} for v in entry.variables],
+                    "payloadExample": get_payload_example(entry.event_type),
+                }
+            )
 
-        return [
-            entry
-            for cat in CATEGORIES
-            for entry in by_category.get(cat, [])
-        ]
+        return [entry for cat in CATEGORIES for entry in by_category.get(cat, [])]

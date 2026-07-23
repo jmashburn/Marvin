@@ -11,7 +11,6 @@ from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
 from marvin.db.models.platform.entries import Entries
 from marvin.db.models.platform.scheduled_tasks import ScheduledTaskModel
-from marvin.repos.repository_factory import AllRepositories
 from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import EventTypes
 
@@ -52,7 +51,9 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
             scope_label = str(workspace_id) if workspace_id else "all workspaces"
             logger.info(
                 "Found %d entries to publish in %s (dry_run=%s)",
-                count, scope_label, dry_run,
+                count,
+                scope_label,
+                dry_run,
             )
 
             published_titles = []
@@ -72,7 +73,9 @@ class PublishScheduledEntriesHandler(ScheduledTaskHandler):
                 else:
                     logger.info(
                         "Would publish: %s (id=%s, publish_at=%s)",
-                        entry.title, entry.id, entry.publish_at,
+                        entry.title,
+                        entry.id,
+                        entry.publish_at,
                     )
                 published_titles.append(entry.title)
 
@@ -121,7 +124,9 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
             count = len(expired_entries)
             logger.info(
                 "Found %d expired entries in workspace %s (dry_run=%s)",
-                count, workspace_id, dry_run,
+                count,
+                workspace_id,
+                dry_run,
             )
 
             expired_titles = []
@@ -140,7 +145,9 @@ class UnpublishExpiredEntriesHandler(ScheduledTaskHandler):
                 else:
                     logger.info(
                         "Would unpublish: %s (id=%s, expire_at=%s)",
-                        entry.title, entry.id, entry.expire_at,
+                        entry.title,
+                        entry.id,
+                        entry.expire_at,
                     )
                 expired_titles.append(entry.title)
 

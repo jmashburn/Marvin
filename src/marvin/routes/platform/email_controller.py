@@ -19,7 +19,6 @@ class TemplateTestRequest(BaseModel):
 
 @controller(router)
 class PlatformEmailController(BaseUserController):
-
     @router.post("/test", response_model=EmailSuccess)
     def send_test_email(
         self,
@@ -33,6 +32,7 @@ class PlatformEmailController(BaseUserController):
         try:
             if data.subject or data.message:
                 from marvin.services.secrets.resolver import resolve
+
                 subject = resolve(data.subject or "Test Email", self.group_id, allow_secrets=False)
                 message = resolve(data.message or "This is a test email.", self.group_id, allow_secrets=False)
                 template = EmailTemplate(
@@ -55,8 +55,9 @@ class PlatformEmailController(BaseUserController):
     @router.get("/template-vars")
     def list_template_vars(self, template_type: str | None = None) -> dict:
         """Return available per-send variables and required vars for a template type."""
-        from marvin.services.email.template_variables import get_vars_for_type, TEMPLATE_VARS
         from marvin.services.email.system_templates import get_required_vars
+        from marvin.services.email.template_variables import TEMPLATE_VARS, get_vars_for_type
+
         return {
             "context_vars": get_vars_for_type(template_type),
             "required_vars": get_required_vars(template_type or ""),
@@ -66,10 +67,11 @@ class PlatformEmailController(BaseUserController):
     @router.get("/templates/{template_id}")
     def get_template(self, template_id: UUID4):
         """Get a template by ID — workspace template or system template."""
+        from sqlalchemy import or_, select
+
         from marvin.db.db_setup import session_context
         from marvin.db.models.groups.email_templates import EmailTemplateModel
         from marvin.schemas.group.email_template import EmailTemplateRead
-        from sqlalchemy import select, or_
 
         with session_context() as session:
             template = session.execute(
@@ -94,7 +96,9 @@ class PlatformEmailController(BaseUserController):
 
         with session_context() as session:
             template = session.execute(
-                __import__('sqlalchemy', fromlist=['select']).select(EmailTemplateModel).where(
+                __import__("sqlalchemy", fromlist=["select"])
+                .select(EmailTemplateModel)
+                .where(
                     EmailTemplateModel.id == template_id,
                     EmailTemplateModel.group_id == self.group_id,
                 )
@@ -102,11 +106,11 @@ class PlatformEmailController(BaseUserController):
             if not template:
                 raise HTTPException(status_code=404, detail="Template not found or not editable.")
 
-            allowed = {'name', 'description', 'subject', 'body_markdown', 'custom_html', 'enabled', 'template_type'}
+            allowed = {"name", "description", "subject", "body_markdown", "custom_html", "enabled", "template_type"}
             for key, val in data.items():
                 if key in allowed:
                     # Treat empty string same as None so callers can clear fields
-                    setattr(template, key, None if val == '' else val)
+                    setattr(template, key, None if val == "" else val)
             session.commit()
             session.refresh(template)
             return EmailTemplateRead.model_validate(template)
@@ -114,12 +118,14 @@ class PlatformEmailController(BaseUserController):
     @router.post("/templates/{template_id}/test")
     def send_template_test_email(self, template_id: UUID4, data: TemplateTestRequest) -> dict:
         """Send a test email using a specific workspace template with its subject and body."""
+        from sqlalchemy import and_, select
+
         from marvin.db.db_setup import session_context
         from marvin.db.models.groups.email_templates import EmailTemplateModel
-        from sqlalchemy import select, and_
 
         with session_context() as session:
             from sqlalchemy import or_
+
             template = session.execute(
                 select(EmailTemplateModel).where(
                     and_(
@@ -175,10 +181,14 @@ class PlatformEmailController(BaseUserController):
                     email_service = EmailService(group_id=str(self.group_id))
                     from marvin.services.email.email_service import EmailTemplate
                     from marvin.services.secrets.resolver import resolve
+
                     group_id = template.group_id
+
                     def _r(text):
                         return resolve(text or "", group_id, allow_secrets=False, context=test_variables)
+
                     from jinja2 import Template as JinjaTemplate
+
                     tpl = EmailTemplate(
                         subject=JinjaTemplate(_r(template.subject)).render(**test_variables),
                         header_text=JinjaTemplate(_r(template.header_text)).render(**test_variables),
@@ -191,12 +201,12 @@ class PlatformEmailController(BaseUserController):
                     email_service.send_email(data.recipient_email, tpl)
                 except Exception as inner:
                     self.logger.error(f"Template test fallback send failed: {inner}")
-                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(inner))
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(inner)) from inner
             except HTTPException:
                 raise
             except Exception as e:
                 self.logger.error(f"Template test email failed: {e}")
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
         result = {"message": f"Test email sent to {data.recipient_email}"}
         if warning:

@@ -10,15 +10,15 @@ Create Date: 2026-07-16 00:00:02.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "f6a7b8c9d0eb"
-down_revision: Union[str, None] = "e5f6a7b8c9da"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "e5f6a7b8c9da"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -31,8 +31,11 @@ def upgrade() -> None:
         # bridge handles the cross-enum change). Postgres can ALTER COLUMN directly.
         new_enum.create(bind, checkfirst=True)
         op.alter_column(
-            "webhook_urls", "webhook_type",
-            existing_type=old_enum, type_=new_enum, existing_nullable=True,
+            "webhook_urls",
+            "webhook_type",
+            existing_type=old_enum,
+            type_=new_enum,
+            existing_nullable=True,
             postgresql_using="webhook_type::text::webhookmode",
         )
         op.alter_column("webhook_urls", "scheduled_time", existing_type=sa.DateTime(timezone=True), nullable=True)
@@ -40,7 +43,10 @@ def upgrade() -> None:
         # SQLite cannot ALTER COLUMN outside batch mode — both changes must ride the table rebuild.
         with op.batch_alter_table("webhook_urls") as batch_op:
             batch_op.alter_column(
-                "webhook_type", existing_type=old_enum, type_=new_enum, existing_nullable=True,
+                "webhook_type",
+                existing_type=old_enum,
+                type_=new_enum,
+                existing_nullable=True,
             )
             batch_op.alter_column("scheduled_time", existing_type=sa.DateTime(timezone=True), nullable=True)
 

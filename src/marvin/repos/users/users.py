@@ -63,7 +63,9 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
             all_users = self.session.query(self.model).all()
             self.logger.error(f"User {user_uuid} not found. Available users: {[str(u.id) for u in all_users]}")
 
-            from fastapi import HTTPException, status as http_status
+            from fastapi import HTTPException
+            from fastapi import status as http_status
+
             from marvin.schemas.response import ErrorResponse
 
             raise HTTPException(
@@ -128,7 +130,8 @@ class RepositoryUsers(GroupRepositoryGeneric[PrivateUser, UsersModel]):
         entry = self.session.query(self.model).filter_by(id=user_uuid).first()
 
         if not entry:
-            from fastapi import HTTPException, status as http_status
+            from fastapi import HTTPException
+            from fastapi import status as http_status
 
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,

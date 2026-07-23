@@ -5,9 +5,7 @@ These handlers perform routine maintenance operations like cleaning up temp file
 pruning old data, and verifying system integrity.
 """
 
-from datetime import UTC, datetime, timedelta, timezone
-from pathlib import Path
-from uuid import UUID
+from datetime import UTC, datetime, timedelta
 
 from marvin.core.root_logger import get_logger
 from marvin.db.db_setup import session_context
@@ -23,9 +21,9 @@ logger = get_logger(__name__)
 def _fmt_bytes(n: int) -> str:
     if n < 1024:
         return f"{n} B"
-    if n < 1024 ** 2:
+    if n < 1024**2:
         return f"{n / 1024:.1f} KB"
-    return f"{n / 1024 ** 2:.1f} MB"
+    return f"{n / 1024**2:.1f} MB"
 
 
 class CleanupTempFilesHandler(ScheduledTaskHandler):
@@ -68,6 +66,7 @@ class CleanupTempFilesHandler(ScheduledTaskHandler):
         dry_run = config.get("dry_run", False)
 
         from marvin.core.config import get_app_dirs
+
         temp_dir = get_app_dirs().TEMP_DIR
 
         if not temp_dir.exists():
@@ -84,7 +83,7 @@ class CleanupTempFilesHandler(ScheduledTaskHandler):
                 continue
 
             mtime = file_path.stat().st_mtime
-            file_mtime = datetime.fromtimestamp(mtime, tz=timezone.utc)
+            file_mtime = datetime.fromtimestamp(mtime, tz=UTC)
             if file_mtime < cutoff:
                 file_size = file_path.stat().st_size
                 if dry_run:
@@ -224,10 +223,7 @@ class RemoveOrphanedAssetsHandler(ScheduledTaskHandler):
                 label = "found (auto_delete=false, not removed)"
 
         scope = "this workspace" if task.group_id else "all workspaces"
-        summary = (
-            f"{count} orphaned asset{'s' if count != 1 else ''} {label} "
-            f"(older than {age_days} days, scope: {scope})"
-        )
+        summary = f"{count} orphaned asset{'s' if count != 1 else ''} {label} (older than {age_days} days, scope: {scope})"
         logger.info("Orphaned asset scan: %s", summary)
         return summary
 
@@ -251,8 +247,7 @@ class PruneEventLogsHandler(ScheduledTaskHandler):
         "properties": {
             "retention_days": {
                 "type": "integer",
-                "description": "Delete events older than this many days (<=0 disables). "
-                "Defaults to the EVENT_LOG_RETENTION_DAYS setting.",
+                "description": "Delete events older than this many days (<=0 disables). Defaults to the EVENT_LOG_RETENTION_DAYS setting.",
             },
         },
     }
@@ -312,9 +307,7 @@ class PruneAIExecutionsHandler(ScheduledTaskHandler):
         from marvin.db.models.groups.ai_executions import AIExecutionModel
         from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
 
-        default_days = task.task_config.get(
-            "retention_days", getattr(get_app_settings(), "AI_EXECUTION_RETENTION_DAYS", 90)
-        )
+        default_days = task.task_config.get("retention_days", getattr(get_app_settings(), "AI_EXECUTION_RETENTION_DAYS", 90))
         now = datetime.now(UTC)
 
         def _delete_older(session, days: int, group_ids=None, exclude_group_ids=None) -> int:

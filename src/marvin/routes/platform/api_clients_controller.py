@@ -1,7 +1,6 @@
 """API client routes."""
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import UUID4
 from sqlalchemy.orm import Session
 
 from marvin.db.db_setup import generate_session
@@ -303,7 +302,7 @@ class APIClientsController(BaseUserController):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API client not found.")
 
         # Get the workspace for this API client
-        from marvin.db.models.groups import Groups, GroupPreferencesModel
+        from marvin.db.models.groups import GroupPreferencesModel, Groups
 
         group = session.query(Groups).filter(Groups.id == api_client.group_id).first()
         if not group:

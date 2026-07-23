@@ -37,9 +37,6 @@ from marvin.db.models.users.users import (
 from marvin.db.models.users.users import (
     LongLiveToken as LongLiveTokenSQLModel,
 )
-from marvin.db.models.users.workspace_members import (
-    WorkspaceMembers as WorkspaceMembersSQLModel,
-)
 from marvin.schemas._marvin import _MarvinModel  # Base Pydantic model for Marvin schemas
 from marvin.schemas.response.pagination import PaginationBase  # Base for pagination responses
 

@@ -23,6 +23,7 @@ DEFAULT_MAX_STEPS = 6
 class AgentTool:
     """A capability the agent may call. `run` takes the decoded arguments and returns a string
     result (typically JSON) that is fed back to the model verbatim."""
+
     name: str
     description: str
     input_schema: dict
@@ -32,6 +33,7 @@ class AgentTool:
 @dataclass
 class AgentStep:
     """One tool invocation in the trace, for the response and audit."""
+
     tool: str
     arguments: dict
     result: str

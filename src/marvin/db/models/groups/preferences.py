@@ -55,33 +55,17 @@ class GroupPreferencesModel(SqlAlchemyBase, BaseMixins):
 
     # Site/Workspace Configuration
     # These fields define the public identity of the workspace when accessed through the publishing API
-    site_title: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, doc="The public title of the site/workspace."
-    )
-    site_tagline: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, doc="A short tagline or slogan for the site."
-    )
-    site_description: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, doc="A description of the site/workspace."
-    )
-    site_canonical_url: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, doc="The canonical URL where this site is published."
-    )
-    site_logo: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, doc="Path or URL to the site logo."
-    )
-    site_favicon: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, doc="Path or URL to the site favicon."
-    )
-    site_locale: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, default="en-US", doc="The locale for the site (e.g., en-US, en-GB)."
-    )
+    site_title: Mapped[str | None] = mapped_column(sa.String, nullable=True, doc="The public title of the site/workspace.")
+    site_tagline: Mapped[str | None] = mapped_column(sa.String, nullable=True, doc="A short tagline or slogan for the site.")
+    site_description: Mapped[str | None] = mapped_column(sa.String, nullable=True, doc="A description of the site/workspace.")
+    site_canonical_url: Mapped[str | None] = mapped_column(sa.String, nullable=True, doc="The canonical URL where this site is published.")
+    site_logo: Mapped[str | None] = mapped_column(sa.String, nullable=True, doc="Path or URL to the site logo.")
+    site_favicon: Mapped[str | None] = mapped_column(sa.String, nullable=True, doc="Path or URL to the site favicon.")
+    site_locale: Mapped[str | None] = mapped_column(sa.String, nullable=True, default="en-US", doc="The locale for the site (e.g., en-US, en-GB).")
     site_timezone: Mapped[str | None] = mapped_column(
         sa.String, nullable=True, default="America/New_York", doc="The timezone for the site (e.g., America/New_York)."
     )
-    site_contact_email: Mapped[str | None] = mapped_column(
-        sa.String, nullable=True, doc="Primary contact email for the site."
-    )
+    site_contact_email: Mapped[str | None] = mapped_column(sa.String, nullable=True, doc="Primary contact email for the site.")
     site_social_json: Mapped[dict | None] = mapped_column(
         sa.JSON, nullable=True, doc="Social media links and handles (e.g., {instagram: 'url', facebook: 'url'})."
     )

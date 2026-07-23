@@ -4,8 +4,8 @@ from pydantic import UUID4, ConfigDict
 
 from marvin.schemas._marvin import _MarvinModel
 
-
 # ── Models ─────────────────────────────────────────────────────────────────
+
 
 class AIModelCreate(_MarvinModel):
     name: str
@@ -42,6 +42,7 @@ class AIModelRead(AIModelCreate):
 
 
 # ── Providers ───────────────────────────────────────────────────────────────
+
 
 class AIProviderCreate(_MarvinModel):
     name: str
@@ -87,6 +88,7 @@ class AIProviderTestResult(_MarvinModel):
 
 class InstalledModels(_MarvinModel):
     """The models actually present in the workspace's active provider (e.g. Ollama's /api/tags)."""
+
     provider_type: str
     supports_pull: bool = False
     models: list[str] = []
@@ -95,17 +97,18 @@ class InstalledModels(_MarvinModel):
 
 
 class ModelPullRequest(_MarvinModel):
-    name: str                        # e.g. "qwen3-coder" or "nomic-embed-text"
+    name: str  # e.g. "qwen3-coder" or "nomic-embed-text"
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ModelPullStatus(_MarvinModel):
     """Progress of a background model pull. Poll until `done`."""
+
     id: str
     name: str
-    status: str                      # pulling | success | error
-    detail: str = ""                 # latest provider status line
+    status: str  # pulling | success | error
+    detail: str = ""  # latest provider status line
     completed: int = 0
     total: int = 0
     percent: int = 0

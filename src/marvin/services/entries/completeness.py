@@ -24,8 +24,8 @@ _EMPTY: tuple = (None, "", [], {})
 
 @dataclass
 class CompletenessIssue:
-    kind: str        # "field" | "asset" | "resource" | "tag"
-    key: str         # field key / asset role / resource type / "*"
+    kind: str  # "field" | "asset" | "resource" | "tag"
+    key: str  # field key / asset role / resource type / "*"
     message: str
     blocking: bool
 
@@ -89,9 +89,7 @@ def evaluate_completeness(
     report = CompletenessReport()
 
     def add(kind: str, key: str, message: str, blocking: bool) -> None:
-        (report.blocking if blocking else report.warnings).append(
-            CompletenessIssue(kind=kind, key=key, message=message, blocking=blocking)
-        )
+        (report.blocking if blocking else report.warnings).append(CompletenessIssue(kind=kind, key=key, message=message, blocking=blocking))
 
     # Title is the entry's identity — always required.
     if not (title or "").strip():
@@ -120,7 +118,7 @@ def evaluate_completeness(
         if total < overall_min:
             add("asset", "*", f"Needs at least {overall_min} image(s); has {total}.", True)
 
-        for role in (recipe.assets.roles or []):
+        for role in recipe.assets.roles or []:
             role_min = getattr(role, "min", 0) or 0
             need = role_min if role_min else (1 if getattr(role, "required", False) else 0)
             if need <= 0:
@@ -134,7 +132,7 @@ def evaluate_completeness(
         counts = {}
         for t in resource_types:
             counts[t] = counts.get(t, 0) + 1
-        for ex in (recipe.resources.extract or []):
+        for ex in recipe.resources.extract or []:
             ex_min = getattr(ex, "min", 0) or 0
             need = ex_min if ex_min else (1 if getattr(ex, "required", False) else 0)
             if need <= 0:

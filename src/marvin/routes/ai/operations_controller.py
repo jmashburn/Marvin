@@ -26,22 +26,23 @@ router = APIRouter(prefix="/ai", route_class=MarvinCrudRoute)
 
 @controller(router)
 class AIOperationsController(BaseUserController):
-
     # ── Operations catalogue ───────────────────────────────────────────
 
     @router.get("/operations", summary="List AI Operations")
     def list_operations(self) -> list[dict]:
         """Return all registered system operations and their schemas."""
         from marvin.services.ai.operations import list_operations
+
         return [op.info() for op in list_operations()]
 
     @router.get("/operations/{slug}", summary="Get AI Operation")
     def get_operation(self, slug: str) -> dict:
         from marvin.services.ai.operations import get_operation
+
         try:
             return get_operation(slug).info()
         except KeyError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Operation '{slug}' not found.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Operation '{slug}' not found.") from None
 
     # ── Tools catalogue + generic execution (projected to MarvinMCP) ───
 
@@ -53,6 +54,7 @@ class AIOperationsController(BaseUserController):
         listed only when it declares the `mcp` source and the caller meets its min_role.
         """
         from marvin.services.ai.tools import list_tools as _list_tools
+
         role = self._user_role()
         return [t.info() for t in _list_tools() if "mcp" in t.sources and role >= t.min_role]
 
@@ -76,13 +78,15 @@ class AIOperationsController(BaseUserController):
                 # description is "[Server Name] <desc>"; recover the label for grouping.
                 desc = t.description or ""
                 if desc.startswith("[") and "]" in desc:
-                    server = desc[1:desc.index("]")]
-            catalog.append({
-                "name": t.name,
-                "description": t.description,
-                "source": "external" if external else "builtin",
-                "server": server,
-            })
+                    server = desc[1 : desc.index("]")]
+            catalog.append(
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "source": "external" if external else "builtin",
+                    "server": server,
+                }
+            )
         return catalog
 
     @router.post("/tools/{name}/invoke", summary="Invoke an AI Tool")
@@ -102,7 +106,7 @@ class AIOperationsController(BaseUserController):
         try:
             spec = get_tool(name)
         except KeyError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Tool '{name}' not found.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Tool '{name}' not found.") from None
 
         if self._user_role() < spec.min_role:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role for this tool.")
@@ -148,7 +152,7 @@ class AIOperationsController(BaseUserController):
         try:
             operation = get_operation(slug)
         except KeyError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Operation '{slug}' not found.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Operation '{slug}' not found.") from None
 
         # Permission check
         if not self.user.admin:
@@ -170,9 +174,9 @@ class AIOperationsController(BaseUserController):
         try:
             provider = get_workspace_ai_provider(self.session, self.group_id)
         except AIDisabledError as e:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}") from e
 
         # Determine model
         model = body.model_override or self._default_model()
@@ -187,6 +191,7 @@ class AIOperationsController(BaseUserController):
 
         # Build context via ContextBuilder
         from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
+
         builder = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables()
         if body.entity_type == "entry" and entity_id:
             builder.with_entry(entity_id).with_assets(entity_id).with_resources(entity_id)
@@ -204,6 +209,7 @@ class AIOperationsController(BaseUserController):
             from marvin.core.config import get_app_settings
             from marvin.services.ai.embeddings import default_embedding_model
             from marvin.services.ai.embeddings_registry import indexable_types
+
             emb_model = default_embedding_model(provider.provider_type)
             query = body.input.get("question") or body.input.get("query") or ""
             if emb_model:
@@ -245,6 +251,7 @@ class AIOperationsController(BaseUserController):
             # execute_operation returns (parsed_dict, CompletionResult with token counts)
             from marvin.core.config import get_app_settings
             from marvin.services.ai.base import CompletionOptions
+
             _app = get_app_settings()
             opts = CompletionOptions(
                 temperature=getattr(_app, "AI_DEFAULT_TEMPERATURE", 0.7),
@@ -258,6 +265,7 @@ class AIOperationsController(BaseUserController):
                 parsed = {**(parsed or {}), "retrieved_sources": self._resolve_retrieved_sources(ctx.retrieved)}
 
             from marvin.services.ai.pricing import estimate_cost
+
             elapsed_ms = int((time.monotonic() - start) * 1000)
             execution.status = "completed"
             execution.completed_at = datetime.now(UTC)
@@ -267,8 +275,10 @@ class AIOperationsController(BaseUserController):
             execution.completion_tokens = completion.completion_tokens
             execution.total_tokens = completion.total_tokens
             execution.estimated_cost_usd = estimate_cost(
-                provider.provider_type, model,
-                completion.prompt_tokens, completion.completion_tokens,
+                provider.provider_type,
+                model,
+                completion.prompt_tokens,
+                completion.completion_tokens,
             )
             self.session.commit()
 
@@ -289,7 +299,7 @@ class AIOperationsController(BaseUserController):
             self.session.commit()
             self._emit_ai_event(execution, "failed", str(e))
             self._maybe_emit_quota(execution, str(e))
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI call failed: {e}")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"AI call failed: {e}") from e
 
         self.session.refresh(execution)
         self._emit_ai_event(execution, "completed", None)
@@ -359,7 +369,7 @@ class AIOperationsController(BaseUserController):
         try:
             provider = get_workspace_ai_provider(self.session, self.group_id)
         except AIDisabledError as e:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
         if not getattr(provider, "supports_embeddings", False):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -456,16 +466,27 @@ class AIOperationsController(BaseUserController):
         assistant_name, persona_prompt = self._persona()
         log_inputs, log_outputs = self._logging_policy()
         service = AuthoringService(
-            self.session, self.group_id, self.user, provider, model,
-            event_bus=self.event_bus, logger=self.logger,
+            self.session,
+            self.group_id,
+            self.user,
+            provider,
+            model,
+            event_bus=self.event_bus,
+            logger=self.logger,
         )
         try:
             result = service.compose(
-                entry_type=entry_type, brief=body.brief, asset_ids=body.asset_ids or [],
-                asset_attachments=asset_attachments, source=body.source,
-                assistant_name=assistant_name, persona_prompt=persona_prompt,
+                entry_type=entry_type,
+                brief=body.brief,
+                asset_ids=body.asset_ids or [],
+                asset_attachments=asset_attachments,
+                source=body.source,
+                assistant_name=assistant_name,
+                persona_prompt=persona_prompt,
                 register=body.register or self._default_register(),
-                log_inputs=log_inputs, log_outputs=log_outputs, max_tokens=self._max_output_tokens(),
+                log_inputs=log_inputs,
+                log_outputs=log_outputs,
+                max_tokens=self._max_output_tokens(),
             )
         except HTTPException as he:
             if service.last_execution is not None:
@@ -475,7 +496,7 @@ class AIOperationsController(BaseUserController):
             if service.last_execution is not None:
                 self._emit_ai_event(service.last_execution, "failed", str(e))
                 self._maybe_emit_quota(service.last_execution, str(e))
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Compose failed: {e}")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Compose failed: {e}") from e
 
         # The controller owns the ai_operation event surface + budget notifications.
         execution = service.last_execution
@@ -514,11 +535,7 @@ class AIOperationsController(BaseUserController):
         self._check_invocation_source(body.source, ("editor", "mcp", "agent", "api"))
 
         # Resolve the entry (workspace-scoped) by slug then id.
-        entry = (
-            self.session.query(Entries)
-            .filter(Entries.slug == body.entry, Entries.group_id == self.group_id)
-            .first()
-        )
+        entry = self.session.query(Entries).filter(Entries.slug == body.entry, Entries.group_id == self.group_id).first()
         if not entry:
             try:
                 e = self.session.get(Entries, uuid.UUID(str(body.entry)))
@@ -544,14 +561,23 @@ class AIOperationsController(BaseUserController):
 
         log_inputs, log_outputs = self._logging_policy()
         service = AuthoringService(
-            self.session, self.group_id, self.user, provider, model,
-            event_bus=self.event_bus, logger=self.logger,
+            self.session,
+            self.group_id,
+            self.user,
+            provider,
+            model,
+            event_bus=self.event_bus,
+            logger=self.logger,
         )
         try:
             result = service.revise(
-                entry=entry, instruction=body.instruction, source=body.source,
+                entry=entry,
+                instruction=body.instruction,
+                source=body.source,
                 register=self._default_register(),
-                log_inputs=log_inputs, log_outputs=log_outputs, max_tokens=self._max_output_tokens(),
+                log_inputs=log_inputs,
+                log_outputs=log_outputs,
+                max_tokens=self._max_output_tokens(),
             )
         except HTTPException as he:
             if service.last_execution is not None:
@@ -561,7 +587,7 @@ class AIOperationsController(BaseUserController):
             if service.last_execution is not None:
                 self._emit_ai_event(service.last_execution, "failed", str(e))
                 self._maybe_emit_quota(service.last_execution, str(e))
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Revise failed: {e}")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Revise failed: {e}") from e
 
         execution = service.last_execution
         self.session.refresh(execution)
@@ -613,15 +639,17 @@ class AIOperationsController(BaseUserController):
         """No-AI fallback: create a blank draft of the type so /compose still works when AI is off."""
         brief = (body.brief or "").strip()
         first_line = brief.splitlines()[0].strip() if brief else ""
-        title = (first_line[:120] or f"New {entry_type.name}")
-        entry = self.repos.entries.create({
-            "title": title,
-            "entry_type_id": entry_type.id,
-            "status": "inbox",
-            "data_json": self._skeleton_data(schema_def, brief),
-            "asset_attachments": asset_attachments or None,
-            "created_by": self.user.id,
-        })
+        title = first_line[:120] or f"New {entry_type.name}"
+        entry = self.repos.entries.create(
+            {
+                "title": title,
+                "entry_type_id": entry_type.id,
+                "status": "inbox",
+                "data_json": self._skeleton_data(schema_def, brief),
+                "asset_attachments": asset_attachments or None,
+                "created_by": self.user.id,
+            }
+        )
         self.session.commit()
         self._emit_entry_created(entry, entry_type)
         return {
@@ -673,9 +701,9 @@ class AIOperationsController(BaseUserController):
         try:
             provider = get_workspace_ai_provider(self.session, self.group_id)
         except AIDisabledError as e:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}") from e
 
         model = body.model_override or self._default_model()
         if not model:
@@ -732,10 +760,16 @@ class AIOperationsController(BaseUserController):
 
         log_inputs, log_outputs = self._logging_policy()
         execution = AIExecutionModel(
-            session=self.session, group_id=self.group_id, operation_slug="agent",
-            provider_type=provider.provider_type, model_id=model, status="running",
-            triggered_by=self.user.id, trigger_type=body.source,
-            entity_type=body.entity_type, entity_id=entity_id,
+            session=self.session,
+            group_id=self.group_id,
+            operation_slug="agent",
+            provider_type=provider.provider_type,
+            model_id=model,
+            status="running",
+            triggered_by=self.user.id,
+            trigger_type=body.source,
+            entity_type=body.entity_type,
+            entity_id=entity_id,
             input_json={"message": body.message} if log_inputs else None,
         )
         execution.started_at = datetime.now(UTC)
@@ -755,7 +789,7 @@ class AIOperationsController(BaseUserController):
             self._fail_execution(execution, str(e), start)
             self._emit_ai_event(execution, "failed", str(e))
             self._maybe_emit_quota(execution, str(e))
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Agent failed: {e}")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Agent failed: {e}") from e
 
         execution.status = "completed"
         execution.completed_at = datetime.now(UTC)
@@ -764,11 +798,15 @@ class AIOperationsController(BaseUserController):
         execution.completion_tokens = result.completion_tokens
         execution.total_tokens = result.total_tokens
         execution.estimated_cost_usd = estimate_cost(
-            provider.provider_type, model, result.prompt_tokens, result.completion_tokens,
+            provider.provider_type,
+            model,
+            result.prompt_tokens,
+            result.completion_tokens,
         )
         execution.output_json = (
             {"answer": result.answer, "steps": [{"tool": s.tool, "arguments": s.arguments} for s in result.steps]}
-            if log_outputs else {"steps": len(result.steps)}
+            if log_outputs
+            else {"steps": len(result.steps)}
         )
         self.session.commit()
         self.session.refresh(execution)
@@ -809,9 +847,9 @@ class AIOperationsController(BaseUserController):
         try:
             provider = get_workspace_ai_provider(self.session, self.group_id)
         except AIDisabledError as e:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI provider error: {e}") from e
 
         model = body.model_override or self._default_model()
         if not model:
@@ -831,9 +869,14 @@ class AIOperationsController(BaseUserController):
 
         log_inputs, log_outputs = self._logging_policy()
         execution = AIExecutionModel(
-            session=self.session, group_id=self.group_id, operation_slug="chat",
-            provider_type=provider.provider_type, model_id=model, status="running",
-            triggered_by=self.user.id, trigger_type=body.source,
+            session=self.session,
+            group_id=self.group_id,
+            operation_slug="chat",
+            provider_type=provider.provider_type,
+            model_id=model,
+            status="running",
+            triggered_by=self.user.id,
+            trigger_type=body.source,
             input_json={"message": body.message} if log_inputs else None,
         )
         execution.started_at = datetime.now(UTC)
@@ -849,7 +892,7 @@ class AIOperationsController(BaseUserController):
             result = provider.complete(messages, model, opts)
         except Exception as e:
             self._fail_execution(execution, str(e), start)
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Chat failed: {e}")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Chat failed: {e}") from e
 
         execution.status = "completed"
         execution.completed_at = datetime.now(UTC)
@@ -858,7 +901,10 @@ class AIOperationsController(BaseUserController):
         execution.completion_tokens = result.completion_tokens
         execution.total_tokens = result.total_tokens
         execution.estimated_cost_usd = estimate_cost(
-            provider.provider_type, model, result.prompt_tokens, result.completion_tokens,
+            provider.provider_type,
+            model,
+            result.prompt_tokens,
+            result.completion_tokens,
         )
         execution.output_json = {"reply": result.content} if log_outputs else None
         self.session.commit()
@@ -877,15 +923,14 @@ class AIOperationsController(BaseUserController):
         if not getattr(provider, "supports_tool_calls", False):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(f"The '{provider.provider_type}' provider does not support tool calling. The agent "
-                        "needs a tool-capable provider (OpenAI, Azure, Anthropic, or Ollama)."),
+                detail=(
+                    f"The '{provider.provider_type}' provider does not support tool calling. The agent "
+                    "needs a tool-capable provider (OpenAI, Azure, Anthropic, or Ollama)."
+                ),
             )
         from marvin.db.models.groups.ai_providers import AIModelModel
-        row = (
-            self.session.query(AIModelModel)
-            .filter(AIModelModel.group_id == self.group_id, AIModelModel.model_id == model)
-            .first()
-        )
+
+        row = self.session.query(AIModelModel).filter(AIModelModel.group_id == self.group_id, AIModelModel.model_id == model).first()
         if row is not None and not row.supports_tools:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -939,32 +984,45 @@ class AIOperationsController(BaseUserController):
         def _make_op_run(op_slug: str):
             def run(args: dict) -> str:
                 try:
-                    res = self.execute_operation(op_slug, AIOperationExecuteRequest(
-                        entity_type=(args.get("entity_type") or "entry"),
-                        entity_id=args.get("entity_id"),
-                        input=args.get("input") or {},
-                        source="agent",
-                    ))
+                    res = self.execute_operation(
+                        op_slug,
+                        AIOperationExecuteRequest(
+                            entity_type=(args.get("entity_type") or "entry"),
+                            entity_id=args.get("entity_id"),
+                            input=args.get("input") or {},
+                            source="agent",
+                        ),
+                    )
                 except HTTPException as e:
                     return json.dumps({"error": e.detail})
                 except Exception as e:  # noqa: BLE001 — surface to the model, never raise into the loop
                     return json.dumps({"error": str(e)})
                 return json.dumps({"status": res.status, "output": res.output_json, "error": res.error_message})
+
             return run
 
         for op in list_operations():
             if "agent" not in op.invocation_sources or role < op.min_role:
                 continue
-            tools.append(AgentTool(
-                name=op.slug.replace("-", "_"),
-                description=f"AI operation — {op.description} (LLM generation with curated prompt + write-back; slug '{op.slug}').",
-                input_schema={"type": "object", "properties": {
-                    "entity_id": {"type": "string", "description": "id or slug of the entry/asset/resource to run on (omit for ops that don't target one, e.g. answer-workspace-question)"},
-                    "entity_type": {"type": "string", "description": "entry | asset | resource (default entry)"},
-                    "input": op.input_schema or {"type": "object", "properties": {}},
-                }},
-                run=_make_op_run(op.slug),
-            ))
+            tools.append(
+                AgentTool(
+                    name=op.slug.replace("-", "_"),
+                    description=f"AI operation — {op.description} (LLM generation with curated prompt + write-back; slug '{op.slug}').",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "entity_id": {
+                                "type": "string",
+                                "description": "id or slug of the entry/asset/resource to run on "
+                                "(omit for ops that don't target one, e.g. answer-workspace-question)",
+                            },
+                            "entity_type": {"type": "string", "description": "entry | asset | resource (default entry)"},
+                            "input": op.input_schema or {"type": "object", "properties": {}},
+                        },
+                    },
+                    run=_make_op_run(op.slug),
+                )
+            )
 
         # Growth plane: allowlisted tools from the workspace's enabled external MCP servers.
         tools.extend(self._external_mcp_tools())
@@ -989,11 +1047,7 @@ class AIOperationsController(BaseUserController):
         from marvin.services.ai import mcp_client
         from marvin.services.ai.agent import AgentTool
 
-        servers = (
-            self.session.query(WorkspaceMcpServerModel)
-            .filter_by(group_id=self.group_id, enabled=True)
-            .all()
-        )
+        servers = self.session.query(WorkspaceMcpServerModel).filter_by(group_id=self.group_id, enabled=True).all()
         tools: list = []
         for server in servers:
             allow = set(server.allowed_tools or [])
@@ -1047,6 +1101,7 @@ class AIOperationsController(BaseUserController):
 
         Thin wrapper over the shared helper (also used by the search_content tool handler)."""
         from marvin.services.ai.entity_resolve import resolve_retrieved_sources
+
         return resolve_retrieved_sources(self.session, retrieved)
 
     def _reindex_targets(self, body: AIReindexRequest) -> list[tuple[str, object, str]]:
@@ -1080,7 +1135,7 @@ class AIOperationsController(BaseUserController):
     def _approval_mode(self) -> str:
         """Workspace approval_mode: suggest-only | allow-draft-update | allow-automatic-update."""
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
-        return (settings.approval_mode if settings and settings.approval_mode else "suggest-only")
+        return settings.approval_mode if settings and settings.approval_mode else "suggest-only"
 
     def _persona(self) -> tuple[str, str]:
         """(assistant_name, persona_prompt) from the workspace AI settings.
@@ -1104,7 +1159,7 @@ class AIOperationsController(BaseUserController):
     def _default_register(self) -> str:
         """The workspace's default tone register, or 'auto' when unset."""
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
-        return (settings.default_register if settings and settings.default_register else "auto")
+        return settings.default_register if settings and settings.default_register else "auto"
 
     def _register_clause(self, register: str | None, persona_prompt: str) -> str:
         """The voice/tone section of a system prompt for the requested register.
@@ -1161,7 +1216,7 @@ class AIOperationsController(BaseUserController):
 
         out: list = []
         budget = self._HISTORY_MAX_CHARS
-        for turn in reversed(turns[-self._HISTORY_MAX_TURNS:]):  # newest first while spending budget
+        for turn in reversed(turns[-self._HISTORY_MAX_TURNS :]):  # newest first while spending budget
             role = (getattr(turn, "role", "") or "").lower()
             if role not in ("user", "assistant"):
                 continue
@@ -1188,7 +1243,7 @@ class AIOperationsController(BaseUserController):
         text = " ".join(str(text).split())  # collapse whitespace so the block stays compact
         return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
-    def _agent_context_block(self, entity_type: str | None, entity_id) -> str | None:
+    def _agent_context_block(self, entity_type: str | None, entity_id) -> str | None:  # noqa: C901 — sequential entity-type dispatch; complexity is inherent, not accidental
         """Pre-assemble what the user is looking at, for the agent's system prompt.
 
         Without this the agent learns only the entity's UUID and must spend a tool call to
@@ -1229,10 +1284,10 @@ class AIOperationsController(BaseUserController):
             e = ctx.entry
             lines.append(f'The user is looking at the entry "{e.get("title") or "Untitled"}" (id: {entity_id}).')
             for label, key in (("Type", "entry_type"), ("Status", "status")):
-                if (val := (e.get(key) or "").strip()):
+                if val := (e.get(key) or "").strip():
                     lines.append(f"- {label}: {val}")
             for label, key in (("Summary", "summary"), ("Description", "description")):
-                if (val := (e.get(key) or "").strip()):
+                if val := (e.get(key) or "").strip():
                     lines.append(f"- {label}: {self._ctx_truncate(val, self._CTX_TEXT_CHARS)}")
             content = (e.get("content") or "").strip()
             if content and content not in ("{}", "None"):
@@ -1255,7 +1310,7 @@ class AIOperationsController(BaseUserController):
             lines.append(f'The user is looking at the resource "{r.get("name") or "Untitled"}" (id: {entity_id}).')
             if r.get("type"):
                 lines.append(f"- Type: {r['type']}")
-            if (desc := (r.get("description") or "").strip()):
+            if desc := (r.get("description") or "").strip():
                 lines.append(f"- Description: {self._ctx_truncate(desc, self._CTX_TEXT_CHARS)}")
             if r.get("url"):
                 lines.append(f"- URL: {r['url']}")
@@ -1294,6 +1349,7 @@ class AIOperationsController(BaseUserController):
             return None
 
         from marvin.db.models.platform import Assets, Entries, Resources
+
         repo, model = {
             "entry": (self.repos.entries, Entries),
             "asset": (self.repos.assets, Assets),
@@ -1327,6 +1383,7 @@ class AIOperationsController(BaseUserController):
     def _emit_entry_updated(self, entry) -> None:
         """Dispatch entry_updated after an AI write-back so reactions fire (re-embed, smart collections)."""
         from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
+
         try:
             self.event_bus.dispatch(
                 integration_id="ai_operations",
@@ -1354,11 +1411,13 @@ class AIOperationsController(BaseUserController):
 
         Thin wrapper over the shared helper (also used by the get_entry tool handler)."""
         from marvin.services.ai.entity_resolve import resolve_entity_id
+
         return resolve_entity_id(self.session, self.group_id, entity_type, entity_id)
 
     def _user_role(self) -> int:
         """The calling user's numeric workspace role for this group (platform admins → OWNER)."""
         from marvin.services.ai.operations.base import ROLE_OWNER
+
         if self.user.admin:
             return ROLE_OWNER
         for m in self.user.workspace_memberships:
@@ -1417,6 +1476,7 @@ class AIOperationsController(BaseUserController):
 
     def _check_budget(self) -> None:
         from sqlalchemy import func
+
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         if not settings or not settings.budget_config:
             return
@@ -1425,21 +1485,31 @@ class AIOperationsController(BaseUserController):
         max_per_day = budget.get("max_requests_per_day")
         if max_per_day:
             today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-            count = self.session.query(func.count(AIExecutionModel.id)).filter(
-                AIExecutionModel.group_id == self.group_id,
-                AIExecutionModel.created_at >= today_start,
-            ).scalar() or 0
+            count = (
+                self.session.query(func.count(AIExecutionModel.id))
+                .filter(
+                    AIExecutionModel.group_id == self.group_id,
+                    AIExecutionModel.created_at >= today_start,
+                )
+                .scalar()
+                or 0
+            )
             if count >= max_per_day:
                 raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Daily request limit ({max_per_day}) reached.")
 
         max_cost = budget.get("max_cost_per_month_usd")
         if max_cost:
             month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            spent = self.session.query(func.sum(AIExecutionModel.estimated_cost_usd)).filter(
-                AIExecutionModel.group_id == self.group_id,
-                AIExecutionModel.created_at >= month_start,
-                AIExecutionModel.status == "completed",
-            ).scalar() or 0.0
+            spent = (
+                self.session.query(func.sum(AIExecutionModel.estimated_cost_usd))
+                .filter(
+                    AIExecutionModel.group_id == self.group_id,
+                    AIExecutionModel.created_at >= month_start,
+                    AIExecutionModel.status == "completed",
+                )
+                .scalar()
+                or 0.0
+            )
             if spent >= max_cost:
                 raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Monthly cost limit (${max_cost:.2f}) reached.")
 
@@ -1454,11 +1524,8 @@ class AIOperationsController(BaseUserController):
         if not getattr(operation, "requires_vision", False):
             return
         from marvin.db.models.groups.ai_providers import AIModelModel
-        row = (
-            self.session.query(AIModelModel)
-            .filter_by(group_id=self.group_id, model_id=model)
-            .first()
-        )
+
+        row = self.session.query(AIModelModel).filter_by(group_id=self.group_id, model_id=model).first()
         if row and not row.supports_vision:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1471,6 +1538,7 @@ class AIOperationsController(BaseUserController):
             return settings.model
         # Workspace mode: default model from the default provider's models.
         from marvin.db.models.groups.ai_providers import AIModelModel, AIProviderModel
+
         provider = self.session.query(AIProviderModel).filter_by(group_id=self.group_id, is_default=True, enabled=True).first()
         if provider:
             model = self.session.query(AIModelModel).filter_by(provider_id=provider.id, is_default=True, enabled=True).first()
@@ -1480,6 +1548,7 @@ class AIOperationsController(BaseUserController):
         # so platform credentials work with env vars alone — no per-workspace model needed.
         if settings and settings.credential_mode == "platform":
             from marvin.core.config import get_app_settings
+
             app = get_app_settings()
             provider_type = settings.provider or getattr(app, "AI_DEFAULT_PROVIDER", "openai")
             return getattr(app, f"{provider_type.upper()}_MODEL", None)
@@ -1495,6 +1564,7 @@ class AIOperationsController(BaseUserController):
         routing (e.g. a composed draft landing in a "Drafts" smart collection). Best-effort.
         """
         from marvin.services.event_bus_service.event_types import EventEntryData, EventOperation, EventTypes
+
         try:
             self.event_bus.dispatch(
                 integration_id="entry_management",
@@ -1520,6 +1590,7 @@ class AIOperationsController(BaseUserController):
     def _emit_ai_event(self, execution, status: str, error_message: str | None) -> None:
         """Dispatch ai_operation_executed / ai_operation_failed to the event bus."""
         from marvin.services.event_bus_service.event_types import EventAIOperationData, EventTypes
+
         try:
             self.event_bus.dispatch(
                 integration_id="ai_operations",
@@ -1550,6 +1621,7 @@ class AIOperationsController(BaseUserController):
     def _emit_reindex_event(self, model: str, entities: int, chunks: int) -> None:
         """Dispatch ai_embeddings_reindexed to the event bus."""
         from marvin.services.event_bus_service.event_types import EventAIEmbeddingsData, EventTypes
+
         try:
             self.event_bus.dispatch(
                 integration_id="ai_operations",
@@ -1571,29 +1643,43 @@ class AIOperationsController(BaseUserController):
     def _emit_budget_thresholds(self, execution) -> None:
         """Emit budget threshold/exceeded events on the call that crosses the line (once)."""
         from sqlalchemy import func
+
         settings = self.session.query(WorkspaceAISettingsModel).filter_by(group_id=self.group_id).first()
         budget = (settings.budget_config if settings else None) or {}
         max_cost = budget.get("max_cost_per_month_usd")
         if not max_cost:
             return
         month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        spent = self.session.query(func.sum(AIExecutionModel.estimated_cost_usd)).filter(
-            AIExecutionModel.group_id == self.group_id,
-            AIExecutionModel.created_at >= month_start,
-            AIExecutionModel.status == "completed",
-        ).scalar() or 0.0
+        spent = (
+            self.session.query(func.sum(AIExecutionModel.estimated_cost_usd))
+            .filter(
+                AIExecutionModel.group_id == self.group_id,
+                AIExecutionModel.created_at >= month_start,
+                AIExecutionModel.status == "completed",
+            )
+            .scalar()
+            or 0.0
+        )
         prev = spent - (execution.estimated_cost_usd or 0.0)
         from marvin.core.config import get_app_settings
         from marvin.services.event_bus_service.event_types import EventTypes
+
         warn_frac = getattr(get_app_settings(), "AI_BUDGET_WARNING_PERCENT", 80.0) / 100.0
         if prev < max_cost <= spent:
             self._emit_budget_event(
-                EventTypes.ai_budget_exceeded, "monthly_cost", spent, max_cost, 100.0,
+                EventTypes.ai_budget_exceeded,
+                "monthly_cost",
+                spent,
+                max_cost,
+                100.0,
                 f"Monthly AI cost limit of ${max_cost:.2f} reached (spent ${spent:.2f})",
             )
         elif warn_frac > 0 and prev < warn_frac * max_cost <= spent:
             self._emit_budget_event(
-                EventTypes.ai_budget_threshold_reached, "monthly_cost", spent, max_cost,
+                EventTypes.ai_budget_threshold_reached,
+                "monthly_cost",
+                spent,
+                max_cost,
                 round(spent / max_cost * 100, 1),
                 f"AI spend reached {round(spent / max_cost * 100)}% of the ${max_cost:.2f} monthly limit",
             )
@@ -1603,14 +1689,23 @@ class AIOperationsController(BaseUserController):
         low = error.lower()
         if "insufficient_quota" in low or "quota" in low or "insufficient" in low or "429" in low:
             from marvin.services.event_bus_service.event_types import EventTypes
+
             self._emit_budget_event(
-                EventTypes.ai_provider_quota_exceeded, "provider_quota", None, None, None,
-                error[:300], provider_type=execution.provider_type, operation_slug=execution.operation_slug,
+                EventTypes.ai_provider_quota_exceeded,
+                "provider_quota",
+                None,
+                None,
+                None,
+                error[:300],
+                provider_type=execution.provider_type,
+                operation_slug=execution.operation_slug,
             )
 
-    def _emit_budget_event(self, event_type, reason: str, current, limit, percent, detail: str,
-                           provider_type: str | None = None, operation_slug: str | None = None) -> None:
+    def _emit_budget_event(
+        self, event_type, reason: str, current, limit, percent, detail: str, provider_type: str | None = None, operation_slug: str | None = None
+    ) -> None:
         from marvin.services.event_bus_service.event_types import EventAIBudgetData
+
         try:
             self.event_bus.dispatch(
                 integration_id="ai_operations",
@@ -1632,4 +1727,3 @@ class AIOperationsController(BaseUserController):
             )
         except Exception as e:
             self.logger.error(f"Failed to dispatch AI budget event: {e}", exc_info=True)
-

@@ -14,10 +14,11 @@ Revises: e01c3719b3e6
 Create Date: 2026-07-20 12:48:54.282850
 
 """
+
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from slugify import slugify
@@ -26,43 +27,43 @@ import marvin.db.migration_types
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '8f943c27be3b'
-down_revision: Union[str, None] = 'e01c3719b3e6'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "8f943c27be3b"
+down_revision: str | None = "e01c3719b3e6"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 GUID = marvin.db.migration_types.GUID
 
 
 def upgrade() -> None:
     op.create_table(
-        'tags',
-        sa.Column('id', GUID(), nullable=False),
-        sa.Column('group_id', GUID(), nullable=False),
-        sa.Column('name', sa.String(), nullable=False),
-        sa.Column('slug', sa.String(), nullable=False),
-        sa.Column('color', sa.String(), nullable=True),
-        sa.Column('created_at', marvin.db.migration_types.NaiveDateTime(), nullable=True),
-        sa.Column('update_at', marvin.db.migration_types.NaiveDateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('group_id', 'slug'),
+        "tags",
+        sa.Column("id", GUID(), nullable=False),
+        sa.Column("group_id", GUID(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("slug", sa.String(), nullable=False),
+        sa.Column("color", sa.String(), nullable=True),
+        sa.Column("created_at", marvin.db.migration_types.NaiveDateTime(), nullable=True),
+        sa.Column("update_at", marvin.db.migration_types.NaiveDateTime(), nullable=True),
+        sa.ForeignKeyConstraint(["group_id"], ["groups.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("group_id", "slug"),
     )
-    op.create_index('ix_tags_group_id', 'tags', ['group_id'])
+    op.create_index("ix_tags_group_id", "tags", ["group_id"])
     op.create_table(
-        'entry_tags',
-        sa.Column('id', GUID(), nullable=False),
-        sa.Column('entry_id', GUID(), nullable=False),
-        sa.Column('tag_id', GUID(), nullable=False),
-        sa.Column('created_at', marvin.db.migration_types.NaiveDateTime(), nullable=True),
-        sa.Column('update_at', marvin.db.migration_types.NaiveDateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['entry_id'], ['entries.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['tag_id'], ['tags.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('entry_id', 'tag_id'),
+        "entry_tags",
+        sa.Column("id", GUID(), nullable=False),
+        sa.Column("entry_id", GUID(), nullable=False),
+        sa.Column("tag_id", GUID(), nullable=False),
+        sa.Column("created_at", marvin.db.migration_types.NaiveDateTime(), nullable=True),
+        sa.Column("update_at", marvin.db.migration_types.NaiveDateTime(), nullable=True),
+        sa.ForeignKeyConstraint(["entry_id"], ["entries.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tag_id"], ["tags.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("entry_id", "tag_id"),
     )
-    op.create_index('ix_entry_tags_entry_id', 'entry_tags', ['entry_id'])
-    op.create_index('ix_entry_tags_tag_id', 'entry_tags', ['tag_id'])
+    op.create_index("ix_entry_tags_entry_id", "entry_tags", ["entry_id"])
+    op.create_index("ix_entry_tags_tag_id", "entry_tags", ["tag_id"])
 
     _promote_metadata_tags()
 
@@ -72,26 +73,34 @@ def _promote_metadata_tags() -> None:
     bind = op.get_bind()
     # Ad-hoc table handles for typed binding (GUID adapts per backend).
     entries_t = sa.table(
-        "entries", sa.column("id", GUID()), sa.column("group_id", GUID()),
+        "entries",
+        sa.column("id", GUID()),
+        sa.column("group_id", GUID()),
         sa.column("metadata_json", sa.JSON()),
     )
     tags_t = sa.table(
-        "tags", sa.column("id", GUID()), sa.column("group_id", GUID()),
-        sa.column("name", sa.String()), sa.column("slug", sa.String()),
+        "tags",
+        sa.column("id", GUID()),
+        sa.column("group_id", GUID()),
+        sa.column("name", sa.String()),
+        sa.column("slug", sa.String()),
         sa.column("created_at", marvin.db.migration_types.NaiveDateTime()),
     )
     entry_tags_t = sa.table(
-        "entry_tags", sa.column("id", GUID()), sa.column("entry_id", GUID()),
-        sa.column("tag_id", GUID()), sa.column("created_at", marvin.db.migration_types.NaiveDateTime()),
+        "entry_tags",
+        sa.column("id", GUID()),
+        sa.column("entry_id", GUID()),
+        sa.column("tag_id", GUID()),
+        sa.column("created_at", marvin.db.migration_types.NaiveDateTime()),
     )
 
     now = datetime.now(UTC)
     # (group_id, slug) -> tag_id, so the vocabulary is shared and deduped across entries.
     vocab: dict[tuple, uuid.UUID] = {}
 
-    rows = bind.execute(sa.select(
-        entries_t.c.id, entries_t.c.group_id, entries_t.c.metadata_json
-    ).where(entries_t.c.metadata_json.is_not(None))).fetchall()
+    rows = bind.execute(
+        sa.select(entries_t.c.id, entries_t.c.group_id, entries_t.c.metadata_json).where(entries_t.c.metadata_json.is_not(None))
+    ).fetchall()
 
     for entry_id, group_id, metadata in rows:
         meta = json.loads(metadata) if isinstance(metadata, str) else metadata
@@ -114,12 +123,23 @@ def _promote_metadata_tags() -> None:
             if tag_id is None:
                 tag_id = uuid.uuid4()
                 vocab[key] = tag_id
-                bind.execute(tags_t.insert().values(
-                    id=tag_id, group_id=group_id, name=name, slug=slug, created_at=now,
-                ))
-            bind.execute(entry_tags_t.insert().values(
-                id=uuid.uuid4(), entry_id=entry_id, tag_id=tag_id, created_at=now,
-            ))
+                bind.execute(
+                    tags_t.insert().values(
+                        id=tag_id,
+                        group_id=group_id,
+                        name=name,
+                        slug=slug,
+                        created_at=now,
+                    )
+                )
+            bind.execute(
+                entry_tags_t.insert().values(
+                    id=uuid.uuid4(),
+                    entry_id=entry_id,
+                    tag_id=tag_id,
+                    created_at=now,
+                )
+            )
 
         # Strip the now-redundant key; keep the rest of metadata_json.
         meta.pop("tags", None)
@@ -127,8 +147,8 @@ def _promote_metadata_tags() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index('ix_entry_tags_tag_id', table_name='entry_tags')
-    op.drop_index('ix_entry_tags_entry_id', table_name='entry_tags')
-    op.drop_table('entry_tags')
-    op.drop_index('ix_tags_group_id', table_name='tags')
-    op.drop_table('tags')
+    op.drop_index("ix_entry_tags_tag_id", table_name="entry_tags")
+    op.drop_index("ix_entry_tags_entry_id", table_name="entry_tags")
+    op.drop_table("entry_tags")
+    op.drop_index("ix_tags_group_id", table_name="tags")
+    op.drop_table("tags")

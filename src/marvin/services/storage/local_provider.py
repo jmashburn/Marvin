@@ -1,8 +1,6 @@
 """Local filesystem storage provider."""
 
 import hashlib
-import shutil
-from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO
 

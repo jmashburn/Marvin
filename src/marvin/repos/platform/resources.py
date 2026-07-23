@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 
-from marvin.db.models.platform import ResourceTags, Resources, Tags
+from marvin.db.models.platform import Resources, ResourceTags, Tags
 from marvin.repos.platform._suggestions import SuggestionWritebackMixin
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import ResourceRead
@@ -90,7 +90,7 @@ class ResourcesRepository(SuggestionWritebackMixin, GroupRepositoryGeneric):
 
     def _apply_tag_names(self, resource: Resources, names: Any) -> None:
         """Find-or-create each tag name (group-scoped, by slug) and link it, unioned with existing."""
-        if not isinstance(names, (list, tuple)):
+        if not isinstance(names, list | tuple):
             return
         from slugify import slugify
 

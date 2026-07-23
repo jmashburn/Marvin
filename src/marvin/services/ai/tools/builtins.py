@@ -39,6 +39,7 @@ def _asset_public_url(asset) -> str | None:
     if getattr(asset, "storage_key", None):
         try:
             from marvin.services.storage.provider_factory import get_storage_provider
+
             return get_storage_provider().get_public_url(asset.storage_key)
         except Exception:
             pass
@@ -95,6 +96,7 @@ def _serialize_resource(r, link=None) -> dict:
 # List tools return minimal previews (identity + what a UI needs to show/link); callers reach for
 # the get_* tool when they want the full record. Keeps list payloads out of the agent's context.
 
+
 def _asset_ref(a) -> dict:
     """Lean asset ref: just enough to render a thumbnail and identify it."""
     return {"id": str(a.id), "assetType": a.asset_type, "url": _asset_public_url(a), "altText": a.alt_text}
@@ -119,6 +121,7 @@ def _resolve_collection(ctx: ToolContext, ident: str):
         return col
     try:
         import uuid as _uuid
+
         col = ctx.session.get(Collections, _uuid.UUID(ident))
     except (ValueError, TypeError):
         return None
@@ -127,7 +130,7 @@ def _resolve_collection(ctx: ToolContext, ident: str):
 
 @register_tool(
     name="search_content",
-    description="Semantic search over workspace content (entries, resources, and assets). Returns the most relevant snippets with their entity ids/titles, and (for entry hits) lean image refs so results can show thumbnails. The index gives relevance + ids; call get_entry for the full record. Use this to ground answers.",
+    description="Semantic search over workspace content (entries, resources, and assets). Returns the most relevant snippets with their entity ids/titles, and (for entry hits) lean image refs so results can show thumbnails. The index gives relevance + ids; call get_entry for the full record. Use this to ground answers.",  # noqa: E501
     input_schema={"type": "object", "properties": {"query": {"type": "string", "description": "what to search for"}}, "required": ["query"]},
 )
 def search_content(ctx: ToolContext, args: dict) -> str:
@@ -142,6 +145,7 @@ def search_content(ctx: ToolContext, args: dict) -> str:
     from marvin.services.ai.context import ContextBuilder
     from marvin.services.ai.embeddings import default_embedding_model
     from marvin.services.ai.embeddings_registry import indexable_types
+
     emb_model = default_embedding_model(ctx.provider.provider_type)
     if not emb_model:
         return json.dumps({"error": "semantic search unavailable (no embedding model configured)"})
@@ -157,13 +161,15 @@ def search_content(ctx: ToolContext, args: dict) -> str:
     for i, chunk in enumerate(retrieved):
         src = sources[i] if i < len(sources) else {}
         text = chunk.get("text") or chunk.get("content") or ""
-        results.append({
-            "title": src.get("title"),
-            "entityType": src.get("entity_type"),
-            "entityId": src.get("entity_id"),
-            "snippet": text[:400],
-            "score": src.get("score"),
-        })
+        results.append(
+            {
+                "title": src.get("title"),
+                "entityType": src.get("entity_type"),
+                "entityId": src.get("entity_id"),
+                "snippet": text[:400],
+                "score": src.get("score"),
+            }
+        )
     # The index only knows relevance + ids. Hydrate lean image refs for entry hits from the DB
     # (source of truth) so search results can show thumbnails too — fresh even as the index lags.
     entry_uuids = []
@@ -190,16 +196,24 @@ def search_content(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="find_entries",
-    description="Find entries with filters: entry_type (slug), status, a title substring (query), has_images (entries with an image asset), has_assets (any attachment), or has_resources (a linked resource). Returns `count` (the true total match) plus a sample of entries. Each row is a LIGHTWEIGHT preview carrying its image-ready asset refs (with a real `url` for thumbnails) and lightweight resource refs; call get_entry for the full entry (descriptions, metadata, roles). Use `count` to answer 'how many'.",
-    input_schema={"type": "object", "properties": {
-        "entry_type": {"type": "string"}, "status": {"type": "string"},
-        "query": {"type": "string"},
-        "tags": {"type": "array", "items": {"type": "string"}, "description": "only entries carrying ANY of these tags (slug or name) — exhaustive, not ranked"},
-        "has_images": {"type": "boolean", "description": "only entries that have an image asset"},
-        "has_assets": {"type": "boolean", "description": "only entries that have any attached asset"},
-        "has_resources": {"type": "boolean", "description": "only entries that have a linked resource"},
-        "limit": {"type": "integer"},
-    }},
+    description="Find entries with filters: entry_type (slug), status, a title substring (query), has_images (entries with an image asset), has_assets (any attachment), or has_resources (a linked resource). Returns `count` (the true total match) plus a sample of entries. Each row is a LIGHTWEIGHT preview carrying its image-ready asset refs (with a real `url` for thumbnails) and lightweight resource refs; call get_entry for the full entry (descriptions, metadata, roles). Use `count` to answer 'how many'.",  # noqa: E501
+    input_schema={
+        "type": "object",
+        "properties": {
+            "entry_type": {"type": "string"},
+            "status": {"type": "string"},
+            "query": {"type": "string"},
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "only entries carrying ANY of these tags (slug or name) — exhaustive, not ranked",
+            },
+            "has_images": {"type": "boolean", "description": "only entries that have an image asset"},
+            "has_assets": {"type": "boolean", "description": "only entries that have any attached asset"},
+            "has_resources": {"type": "boolean", "description": "only entries that have a linked resource"},
+            "limit": {"type": "integer"},
+        },
+    },
 )
 def find_entries(ctx: ToolContext, args: dict) -> str:
     from .builtins_actions import _narrow_by_tags
@@ -240,10 +254,7 @@ def find_entries(ctx: ToolContext, args: dict) -> str:
     tags_by_entry: dict = {}
     if entry_ids:
         for eid, slug in (
-            ctx.session.query(EntryTags.entry_id, Tags.slug)
-            .join(Tags, Tags.id == EntryTags.tag_id)
-            .filter(EntryTags.entry_id.in_(entry_ids))
-            .all()
+            ctx.session.query(EntryTags.entry_id, Tags.slug).join(Tags, Tags.id == EntryTags.tag_id).filter(EntryTags.entry_id.in_(entry_ids)).all()
         ):
             tags_by_entry.setdefault(eid, []).append(slug)
         for eid, a in (
@@ -281,7 +292,7 @@ def find_entries(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="get_entry",
-    description="Get one entry COMPLETE by id or slug: all fields (data, summary, description, timestamps) plus fully-hydrated attachments — assets (each with a real displayable `url`, assetType, altText, dimensions, and attachment role/position), linked resources (with their `url` + role), collection membership, and tag slugs. Use the asset `url` to reference/show an image; never invent an image URL.",
+    description="Get one entry COMPLETE by id or slug: all fields (data, summary, description, timestamps) plus fully-hydrated attachments — assets (each with a real displayable `url`, assetType, altText, dimensions, and attachment role/position), linked resources (with their `url` + role), collection membership, and tag slugs. Use the asset `url` to reference/show an image; never invent an image URL.",  # noqa: E501
     input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string"}}, "required": ["id_or_slug"]},
 )
 def get_entry(ctx: ToolContext, args: dict) -> str:
@@ -293,6 +304,7 @@ def get_entry(ctx: ToolContext, args: dict) -> str:
     # input otherwise. A non-UUID here means "no such slug" — don't feed it to session.get (which
     # would raise on UUID coercion); report not-found.
     import uuid as _uuid
+
     entry = ctx.session.get(Entries, eid) if isinstance(eid, _uuid.UUID) else None
     if not entry or entry.group_id != ctx.group_id:
         return json.dumps({"error": f"entry '{ident}' not found"})
@@ -319,65 +331,74 @@ def get_entry(ctx: ToolContext, args: dict) -> str:
         .filter(EntryCollections.entry_id == entry.id)
         .all()
     )
-    return json.dumps({
-        "id": str(entry.id),
-        "title": entry.title,
-        "slug": entry.slug,
-        "status": entry.status,
-        "summary": entry.summary,
-        "description": entry.description,
-        "entryType": entry.entry_type.slug if entry.entry_type else None,
-        "data": entry.data_json,
-        "metadataJson": entry.metadata_json,
-        "publishedAt": entry.published_at.isoformat() if entry.published_at else None,
-        "createdAt": entry.created_at.isoformat() if getattr(entry, "created_at", None) else None,
-        "updatedAt": entry.update_at.isoformat() if getattr(entry, "update_at", None) else None,
-        "createdBy": str(entry.created_by) if entry.created_by else None,
-        "assets": [_serialize_asset(a, link) for link, a in asset_links],
-        "resources": [_serialize_resource(r, link) for link, r in resource_links],
-        "collections": [{"slug": c.slug, "name": c.name} for c in collections],
-        "tags": list(entry.tag_names),
-    })
+    return json.dumps(
+        {
+            "id": str(entry.id),
+            "title": entry.title,
+            "slug": entry.slug,
+            "status": entry.status,
+            "summary": entry.summary,
+            "description": entry.description,
+            "entryType": entry.entry_type.slug if entry.entry_type else None,
+            "data": entry.data_json,
+            "metadataJson": entry.metadata_json,
+            "publishedAt": entry.published_at.isoformat() if entry.published_at else None,
+            "createdAt": entry.created_at.isoformat() if getattr(entry, "created_at", None) else None,
+            "updatedAt": entry.update_at.isoformat() if getattr(entry, "update_at", None) else None,
+            "createdBy": str(entry.created_by) if entry.created_by else None,
+            "assets": [_serialize_asset(a, link) for link, a in asset_links],
+            "resources": [_serialize_resource(r, link) for link, r in resource_links],
+            "collections": [{"slug": c.slug, "name": c.name} for c in collections],
+            "tags": list(entry.tag_names),
+        }
+    )
 
 
 @register_tool(
     name="get_collection",
-    description="Get one collection in full by name, slug, or id: its description, smart/system/public flags, icon/color, entryCount, and smart-collection rules. Use for questions about a specific collection.",
-    input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string", "description": "collection name, slug, or id"}}, "required": ["id_or_slug"]},
+    description="Get one collection in full by name, slug, or id: its description, smart/system/public flags, icon/color, entryCount, and smart-collection rules. Use for questions about a specific collection.",  # noqa: E501
+    input_schema={
+        "type": "object",
+        "properties": {"id_or_slug": {"type": "string", "description": "collection name, slug, or id"}},
+        "required": ["id_or_slug"],
+    },
 )
 def get_collection(ctx: ToolContext, args: dict) -> str:
     ident = str(args.get("id_or_slug") or args.get("collection") or args.get("slug") or "").strip()
     col = _resolve_collection(ctx, ident)
     if not col:
         return json.dumps({"error": f"collection '{ident}' not found — pass its name, slug, or id"})
-    count = (
-        ctx.session.query(func.count(EntryCollections.entry_id))
-        .filter(EntryCollections.collection_id == col.id)
-        .scalar()
-    ) or 0
-    return json.dumps({
-        "id": str(col.id),
-        "name": col.name,
-        "slug": col.slug,
-        "description": col.description,
-        "isSmart": col.is_smart,
-        "isSystem": col.is_system,
-        "isPublic": col.is_public,
-        "icon": col.icon,
-        "color": col.color,
-        "entryCount": count,
-        "smartRules": col.smart_rules,
-        "metadataJson": col.metadata_json,
-    })
+    count = (ctx.session.query(func.count(EntryCollections.entry_id)).filter(EntryCollections.collection_id == col.id).scalar()) or 0
+    return json.dumps(
+        {
+            "id": str(col.id),
+            "name": col.name,
+            "slug": col.slug,
+            "description": col.description,
+            "isSmart": col.is_smart,
+            "isSystem": col.is_system,
+            "isPublic": col.is_public,
+            "icon": col.icon,
+            "color": col.color,
+            "entryCount": count,
+            "smartRules": col.smart_rules,
+            "metadataJson": col.metadata_json,
+        }
+    )
 
 
 @register_tool(
     name="get_resource",
-    description="Get one reusable resource in full by slug or id: its name, resourceType, description, url, externalId, and metadataJson. Use for questions about a specific resource (material, tool, supplier, …).",
-    input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string", "description": "resource slug or id"}}, "required": ["id_or_slug"]},
+    description="Get one reusable resource in full by slug or id: its name, resourceType, description, url, externalId, and metadataJson. Use for questions about a specific resource (material, tool, supplier, …).",  # noqa: E501
+    input_schema={
+        "type": "object",
+        "properties": {"id_or_slug": {"type": "string", "description": "resource slug or id"}},
+        "required": ["id_or_slug"],
+    },
 )
 def get_resource(ctx: ToolContext, args: dict) -> str:
     import uuid as _uuid
+
     ident = str(args.get("id_or_slug") or args.get("id") or args.get("slug") or "").strip()
     if not ident:
         return json.dumps({"error": "id_or_slug is required"})
@@ -390,11 +411,16 @@ def get_resource(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="get_entry_type",
-    description="Get one entry type by slug or id, including its full field schema (schema) and authoring recipe (recipe). The field schema is what compose fills — fetch this before composing an entry of that type.",
-    input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string", "description": "entry type slug or id"}}, "required": ["id_or_slug"]},
+    description="Get one entry type by slug or id, including its full field schema (schema) and authoring recipe (recipe). The field schema is what compose fills — fetch this before composing an entry of that type.",  # noqa: E501
+    input_schema={
+        "type": "object",
+        "properties": {"id_or_slug": {"type": "string", "description": "entry type slug or id"}},
+        "required": ["id_or_slug"],
+    },
 )
 def get_entry_type(ctx: ToolContext, args: dict) -> str:
     import uuid as _uuid
+
     ident = str(args.get("id_or_slug") or args.get("id") or args.get("slug") or "").strip()
     if not ident:
         return json.dumps({"error": "id_or_slug is required"})
@@ -415,24 +441,26 @@ def get_entry_type(ctx: ToolContext, args: dict) -> str:
     if not et:
         return json.dumps({"error": f"entry type '{ident}' not found"})
     fields = [f.get("key") for f in (et.schema_json or {}).get("fields", []) if isinstance(f, dict)]
-    return json.dumps({
-        "id": str(et.id),
-        "name": et.name,
-        "slug": et.slug,
-        "description": et.description,
-        "isSystem": et.is_system,
-        "isRendered": et.is_rendered,
-        "icon": et.icon,
-        "color": et.color,
-        "fields": fields,
-        "schema": et.schema_json,
-        "recipe": et.recipe_json,
-    })
+    return json.dumps(
+        {
+            "id": str(et.id),
+            "name": et.name,
+            "slug": et.slug,
+            "description": et.description,
+            "isSystem": et.is_system,
+            "isRendered": et.is_rendered,
+            "icon": et.icon,
+            "color": et.color,
+            "fields": fields,
+            "schema": et.schema_json,
+            "recipe": et.recipe_json,
+        }
+    )
 
 
 @register_tool(
     name="list_collections",
-    description="List the workspace's collections with their entryCount (name, slug, smart/system flags). Use for questions about collections, how content is organized, or how many entries a collection holds.",
+    description="List the workspace's collections with their entryCount (name, slug, smart/system flags). Use for questions about collections, how content is organized, or how many entries a collection holds.",  # noqa: E501
     input_schema={"type": "object", "properties": {}},
 )
 def list_collections(ctx: ToolContext, _args: dict) -> str:
@@ -460,8 +488,12 @@ def list_collections(ctx: ToolContext, _args: dict) -> str:
 
 @register_tool(
     name="get_collection_entries",
-    description="List the entries in one collection by name or slug (e.g. 'inbox', 'drafts'). Returns each entry and the total count. Use this for 'what/how many is in <collection>' — collections like Inbox/Drafts are how entries are organized, not entry statuses.",
-    input_schema={"type": "object", "properties": {"collection": {"type": "string", "description": "collection name or slug"}}, "required": ["collection"]},
+    description="List the entries in one collection by name or slug (e.g. 'inbox', 'drafts'). Returns each entry and the total count. Use this for 'what/how many is in <collection>' — collections like Inbox/Drafts are how entries are organized, not entry statuses.",  # noqa: E501
+    input_schema={
+        "type": "object",
+        "properties": {"collection": {"type": "string", "description": "collection name or slug"}},
+        "required": ["collection"],
+    },
 )
 def get_collection_entries(ctx: ToolContext, args: dict) -> str:
     col = _resolve_collection(ctx, str(args.get("collection") or args.get("id_or_slug") or args.get("slug") or ""))
@@ -488,7 +520,7 @@ def get_collection_entries(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="list_tags",
-    description="List the workspace's tags — the one shared vocabulary across entries, assets, and resources — with usage on each surface (name, slug, entryCount, assetCount, resourceCount). THIS is the tool for 'what tags exist / are available'; do not use search_content for that.",
+    description="List the workspace's tags — the one shared vocabulary across entries, assets, and resources — with usage on each surface (name, slug, entryCount, assetCount, resourceCount). THIS is the tool for 'what tags exist / are available'; do not use search_content for that.",  # noqa: E501
     input_schema={"type": "object", "properties": {}},
 )
 def list_tags(ctx: ToolContext, _args: dict) -> str:
@@ -506,21 +538,35 @@ def list_tags(ctx: ToolContext, _args: dict) -> str:
 
     rows = ctx.session.query(Tags).filter(Tags.group_id == ctx.group_id).all()
     ec, ac, rc = _counts(EntryTags, "entry_id"), _counts(AssetTags, "asset_id"), _counts(ResourceTags, "resource_id")
-    out = [{
-        "id": str(t.id), "name": t.name, "slug": t.slug,
-        "entryCount": ec.get(t.id, 0), "assetCount": ac.get(t.id, 0), "resourceCount": rc.get(t.id, 0),
-    } for t in rows]
+    out = [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "slug": t.slug,
+            "entryCount": ec.get(t.id, 0),
+            "assetCount": ac.get(t.id, 0),
+            "resourceCount": rc.get(t.id, 0),
+        }
+        for t in rows
+    ]
     return json.dumps({"tags": out, "count": len(out)})
 
 
 @register_tool(
     name="list_resources",
-    description="List the workspace's reusable resources (materials, tools, suppliers, …), optionally filtered by resource_type and/or tags. Returns `count` (true total) plus a sample. Use for questions about resources, or 'all resources with tag X'.",
-    input_schema={"type": "object", "properties": {
-        "resource_type": {"type": "string"},
-        "tags": {"type": "array", "items": {"type": "string"}, "description": "only resources carrying ANY of these tags (slug or name) — exhaustive, not ranked"},
-        "limit": {"type": "integer"},
-    }},
+    description="List the workspace's reusable resources (materials, tools, suppliers, …), optionally filtered by resource_type and/or tags. Returns `count` (true total) plus a sample. Use for questions about resources, or 'all resources with tag X'.",  # noqa: E501
+    input_schema={
+        "type": "object",
+        "properties": {
+            "resource_type": {"type": "string"},
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "only resources carrying ANY of these tags (slug or name) — exhaustive, not ranked",
+            },
+            "limit": {"type": "integer"},
+        },
+    },
 )
 def list_resources(ctx: ToolContext, args: dict) -> str:
     from marvin.db.models.platform.resource_tags import ResourceTags
@@ -547,11 +593,7 @@ def list_resources(ctx: ToolContext, args: dict) -> str:
     input_schema={"type": "object", "properties": {}},
 )
 def list_entry_types(ctx: ToolContext, _args: dict) -> str:
-    rows = (
-        ctx.session.query(EntryTypes)
-        .filter((EntryTypes.group_id == ctx.group_id) | (EntryTypes.group_id.is_(None)))
-        .all()
-    )
+    rows = ctx.session.query(EntryTypes).filter((EntryTypes.group_id == ctx.group_id) | (EntryTypes.group_id.is_(None))).all()
     out = []
     for t in rows:
         fields = [f.get("key") for f in (t.schema_json or {}).get("fields", []) if isinstance(f, dict)]
@@ -561,13 +603,20 @@ def list_entry_types(ctx: ToolContext, _args: dict) -> str:
 
 @register_tool(
     name="list_assets",
-    description="List the workspace's assets (images, files), optionally filtered by asset_type (e.g. 'image'), a filename substring (query), and/or tags. Returns `count` (true total) plus a lightweight sample — each with a real displayable `url` for thumbnails; call get_asset for the full record. Use tags for 'all assets with tag X' — exhaustive, not a ranked search.",
-    input_schema={"type": "object", "properties": {
-        "asset_type": {"type": "string", "description": "e.g. 'image', 'document'"},
-        "query": {"type": "string", "description": "filename/name substring"},
-        "tags": {"type": "array", "items": {"type": "string"}, "description": "only assets carrying ANY of these tags (slug or name) — exhaustive, not ranked"},
-        "limit": {"type": "integer"},
-    }},
+    description="List the workspace's assets (images, files), optionally filtered by asset_type (e.g. 'image'), a filename substring (query), and/or tags. Returns `count` (true total) plus a lightweight sample — each with a real displayable `url` for thumbnails; call get_asset for the full record. Use tags for 'all assets with tag X' — exhaustive, not a ranked search.",  # noqa: E501
+    input_schema={
+        "type": "object",
+        "properties": {
+            "asset_type": {"type": "string", "description": "e.g. 'image', 'document'"},
+            "query": {"type": "string", "description": "filename/name substring"},
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "only assets carrying ANY of these tags (slug or name) — exhaustive, not ranked",
+            },
+            "limit": {"type": "integer"},
+        },
+    },
 )
 def list_assets(ctx: ToolContext, args: dict) -> str:
     from marvin.db.models.platform.asset_tags import AssetTags
@@ -593,11 +642,12 @@ def list_assets(ctx: ToolContext, args: dict) -> str:
 
 @register_tool(
     name="get_asset",
-    description="Get one asset COMPLETE by slug or id: filename, type, mime, dimensions, file size, a real displayable `url`, alt text, description, and metadata. Use the `url` to show/reference the image; never invent one.",
+    description="Get one asset COMPLETE by slug or id: filename, type, mime, dimensions, file size, a real displayable `url`, alt text, description, and metadata. Use the `url` to show/reference the image; never invent one.",  # noqa: E501
     input_schema={"type": "object", "properties": {"id_or_slug": {"type": "string", "description": "asset slug or id"}}, "required": ["id_or_slug"]},
 )
 def get_asset(ctx: ToolContext, args: dict) -> str:
     import uuid as _uuid
+
     ident = str(args.get("id_or_slug") or args.get("id") or args.get("slug") or "").strip()
     if not ident:
         return json.dumps({"error": "id_or_slug is required"})
@@ -605,27 +655,29 @@ def get_asset(ctx: ToolContext, args: dict) -> str:
     a = ctx.session.get(Assets, aid) if isinstance(aid, _uuid.UUID) else None
     if not a or a.group_id != ctx.group_id:
         return json.dumps({"error": f"asset '{ident}' not found"})
-    return json.dumps({
-        "id": str(a.id),
-        "slug": a.slug,
-        "name": a.name,
-        "filename": a.original_filename or a.filename,
-        "extension": a.extension,
-        "assetType": a.asset_type,
-        "mimeType": a.mime_type,
-        "fileSize": a.file_size,
-        "width": a.width,
-        "height": a.height,
-        "orientation": a.orientation,
-        "url": _asset_public_url(a),
-        "altText": a.alt_text,
-        "description": a.description,
-        "metadataJson": a.metadata_json,
-        "storageProvider": a.storage_provider,
-        "createdAt": a.created_at.isoformat() if getattr(a, "created_at", None) else None,
-        "updatedAt": a.update_at.isoformat() if getattr(a, "update_at", None) else None,
-        "uploadedBy": str(a.uploaded_by) if a.uploaded_by else None,
-    })
+    return json.dumps(
+        {
+            "id": str(a.id),
+            "slug": a.slug,
+            "name": a.name,
+            "filename": a.original_filename or a.filename,
+            "extension": a.extension,
+            "assetType": a.asset_type,
+            "mimeType": a.mime_type,
+            "fileSize": a.file_size,
+            "width": a.width,
+            "height": a.height,
+            "orientation": a.orientation,
+            "url": _asset_public_url(a),
+            "altText": a.alt_text,
+            "description": a.description,
+            "metadataJson": a.metadata_json,
+            "storageProvider": a.storage_provider,
+            "createdAt": a.created_at.isoformat() if getattr(a, "created_at", None) else None,
+            "updatedAt": a.update_at.isoformat() if getattr(a, "update_at", None) else None,
+            "uploadedBy": str(a.uploaded_by) if a.uploaded_by else None,
+        }
+    )
 
 
 @register_tool(
@@ -640,7 +692,7 @@ def get_asset(ctx: ToolContext, args: dict) -> str:
         "properties": {"workflow": {"type": "string", "description": "workflow slug, name, or id"}},
         "required": ["workflow"],
     },
-    min_role=ROLE_AUTHOR,   # running a workflow can create/modify content
+    min_role=ROLE_AUTHOR,  # running a workflow can create/modify content
     read_only=False,
 )
 def run_workflow(ctx: ToolContext, args: dict) -> str:

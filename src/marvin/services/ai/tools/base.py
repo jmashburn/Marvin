@@ -22,6 +22,7 @@ class ToolContext:
     Assembled by the caller (the controller for the agent + the invoke endpoint) so handlers
     stay free of controller/request coupling.
     """
+
     session: object
     group_id: object
     user: object = None
@@ -36,6 +37,7 @@ ToolHandler = Callable[[ToolContext, dict], str]
 @dataclass
 class ToolSpec:
     """A named, gated, direct-handler capability."""
+
     name: str
     description: str
     handler: ToolHandler
@@ -70,6 +72,7 @@ def register_tool(
     read_only: bool = True,
 ):
     """Decorator: register the decorated ``handler(ctx, args) -> str`` as a :class:`ToolSpec`."""
+
     def deco(handler: ToolHandler) -> ToolHandler:
         TOOL_REGISTRY[name] = ToolSpec(
             name=name,
@@ -81,6 +84,7 @@ def register_tool(
             read_only=read_only,
         )
         return handler
+
     return deco
 
 

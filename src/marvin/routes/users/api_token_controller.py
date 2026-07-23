@@ -21,12 +21,11 @@ from marvin.routes._base import BaseUserController, controller
 from marvin.routes._base.routers import UserAPIRouter
 from marvin.schemas.user import (
     LongLiveTokenCreate,
-    LongLiveTokenUpdate,
     LongLiveTokenRead,
+    LongLiveTokenUpdate,
     LongLiveTokenWithToken,
     TokenResponseDelete,
 )
-
 
 router = UserAPIRouter(prefix="/self/api-tokens", tags=["User: Self Service"])
 
@@ -106,18 +105,12 @@ class UserApiTokensController(BaseUserController):
         token = self.repos.api_tokens.get_one(token_id)
 
         if not token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="API token not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API token not found.")
 
         # Verify ownership
         if token.user_id != self.user.id:
             self.logger.warning(f"User {self.user.id} attempted to access token {token_id} owned by {token.user_id}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not authorized to access this token."
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to access this token.")
 
         return token
 
@@ -139,7 +132,7 @@ class UserApiTokensController(BaseUserController):
             HTTPException: 404 if not found, 403 if not owned by user
         """
         # Verify token exists and belongs to user
-        token = self.get_token(token_id)  # Reuses ownership check
+        self.get_token(token_id)  # Reuses ownership check
 
         # Update token
         updated = self.repos.api_tokens.update(token_id, data)
@@ -163,7 +156,7 @@ class UserApiTokensController(BaseUserController):
             HTTPException: 404 if not found, 403 if not owned by user
         """
         # Verify token exists and belongs to user
-        token = self.get_token(token_id)  # Reuses ownership check
+        self.get_token(token_id)  # Reuses ownership check
 
         # Delete token
         deleted = self.repos.api_tokens.delete(token_id)

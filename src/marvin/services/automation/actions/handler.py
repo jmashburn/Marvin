@@ -17,14 +17,16 @@ from .base import AutomationActionError, register_action
 
 # Handlers a workspace automation may run. Content/publishing/index only — never maintenance,
 # pruning, or run_automation (which would let an automation re-run automations directly).
-AUTOMATION_ALLOWED_HANDLERS: frozenset[str] = frozenset({
-    "request_site_rebuild",
-    "publish_scheduled_entries",
-    "unpublish_expired_entries",
-    "ai_reindex_embeddings",
-    "resync_smart_collections",
-    "media_enrich",
-})
+AUTOMATION_ALLOWED_HANDLERS: frozenset[str] = frozenset(
+    {
+        "request_site_rebuild",
+        "publish_scheduled_entries",
+        "unpublish_expired_entries",
+        "ai_reindex_embeddings",
+        "resync_smart_collections",
+        "media_enrich",
+    }
+)
 
 
 @register_action("handler")

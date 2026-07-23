@@ -79,19 +79,31 @@ class CollectingRecorder:
     def start(self, *args, **kwargs):
         return "dry"  # non-None so action() records against it
 
-    def action(self, exec_id, *, target_index: int, target_ref: dict | None, action_index: int,
-               action: dict, status: str, output=None, error: str | None = None,
-               duration_ms: int | None = None) -> None:
-        self.plan.append({
-            "target_index": target_index,
-            "target": target_ref,
-            "action_index": action_index,
-            "kind": action.get("kind"),
-            "label": _action_label(action),
-            "status": status,           # "success" = would run; "failed" = a gate/resolve error
-            "resolved": output,         # the executor's dry-run preview (or None on a gate failure)
-            "error": error,
-        })
+    def action(
+        self,
+        exec_id,
+        *,
+        target_index: int,
+        target_ref: dict | None,
+        action_index: int,
+        action: dict,
+        status: str,
+        output=None,
+        error: str | None = None,
+        duration_ms: int | None = None,
+    ) -> None:
+        self.plan.append(
+            {
+                "target_index": target_index,
+                "target": target_ref,
+                "action_index": action_index,
+                "kind": action.get("kind"),
+                "label": _action_label(action),
+                "status": status,  # "success" = would run; "failed" = a gate/resolve error
+                "resolved": output,  # the executor's dry-run preview (or None on a gate failure)
+                "error": error,
+            }
+        )
 
     def finish(self, *args, **kwargs) -> None:
         pass
@@ -104,8 +116,7 @@ class ExecutionRecorder:
         self.session = session
         self.group_id = group_id
 
-    def start(self, automation, trigger_type: str, *, targets_matched: int, capped: bool,
-              user_id=None, correlation_id: str | None = None):
+    def start(self, automation, trigger_type: str, *, targets_matched: int, capped: bool, user_id=None, correlation_id: str | None = None):
         from marvin.db.models.groups.automation_executions import AutomationExecutionModel
 
         try:
@@ -130,9 +141,19 @@ class ExecutionRecorder:
             self.session.rollback()
             return None
 
-    def action(self, exec_id, *, target_index: int, target_ref: dict | None, action_index: int,
-               action: dict, status: str, output=None, error: str | None = None,
-               duration_ms: int | None = None) -> None:
+    def action(
+        self,
+        exec_id,
+        *,
+        target_index: int,
+        target_ref: dict | None,
+        action_index: int,
+        action: dict,
+        status: str,
+        output=None,
+        error: str | None = None,
+        duration_ms: int | None = None,
+    ) -> None:
         if exec_id is None:
             return
         from marvin.db.models.groups.automation_executions import AutomationActionExecutionModel
@@ -159,8 +180,7 @@ class ExecutionRecorder:
         except Exception:
             self.session.rollback()
 
-    def finish(self, exec_id, *, status: str, error: str | None = None,
-               targets_run: int = 0, steps_ok: int = 0, steps_failed: int = 0) -> None:
+    def finish(self, exec_id, *, status: str, error: str | None = None, targets_run: int = 0, steps_ok: int = 0, steps_failed: int = 0) -> None:
         if exec_id is None:
             return
         from marvin.db.models.groups.automation_executions import AutomationExecutionModel

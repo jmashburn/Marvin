@@ -30,12 +30,11 @@ from marvin.core.exceptions import MissingClaimException, UserLockedOut  # Custo
 from marvin.core.security.providers.openid_provider import OpenIDProvider  # OIDC auth provider
 from marvin.core.security.security import get_auth_provider  # General auth provider factory
 from marvin.db.db_setup import generate_session  # DB session generator
+from marvin.routes._base.base_controllers import BasePublicController, BaseUserController
 from marvin.routes._base.controller import controller
-from marvin.routes._base.base_controllers import BaseUserController, BasePublicController
 from marvin.routes._base.routers import UserAPIRouter  # Base router for authenticated user endpoints
 from marvin.schemas.user import PrivateUser  # Pydantic schema for user data
 from marvin.schemas.user.auth import CredentialsRequestForm  # Schema for form-based login
-from marvin.services.event_bus_service.event_bus_service import EventBusService
 from marvin.services.event_bus_service.event_types import (
     EventTokenRefreshData,  # Data for token refresh event
     EventTypes,  # Enum for event types

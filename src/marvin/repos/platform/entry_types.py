@@ -10,7 +10,7 @@ from marvin.core.root_logger import get_logger
 from marvin.db.models.platform import Entries, EntryTypes
 from marvin.repos.repository_generic import GroupRepositoryGeneric
 from marvin.schemas.platform import EntryTypeRead
-from marvin.schemas.platform.entry_type_rendering import CapabilitiesDefinition, KNOWN_CORE_RENDERERS, RenderingDefinition
+from marvin.schemas.platform.entry_type_rendering import KNOWN_CORE_RENDERERS, CapabilitiesDefinition, RenderingDefinition
 from marvin.schemas.platform.entry_type_schema import EntryTypeSchemaDefinition
 
 logger = get_logger(__name__)
@@ -182,7 +182,7 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid rendering definition: {e}",
-            )
+            ) from e
 
     def _validate_capabilities_json(self, capabilities_json: dict | None) -> None:
         if capabilities_json is None:
@@ -193,19 +193,20 @@ class EntryTypesRepository(GroupRepositoryGeneric[EntryTypeRead, EntryTypes]):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid capabilities definition: {e}",
-            )
+            ) from e
 
     def _validate_recipe_json(self, recipe_json: dict | None) -> None:
         if recipe_json is None:
             return
         from marvin.schemas.platform.entry_type_recipe import EntryTypeRecipe
+
         try:
             EntryTypeRecipe.model_validate(recipe_json)
         except ValidationError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid recipe definition: {e}",
-            )
+            ) from e
 
     def _check_renderer_warnings(self, data_dict: dict) -> list[str]:
         if not data_dict.get("is_rendered"):

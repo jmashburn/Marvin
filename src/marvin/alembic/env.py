@@ -2,9 +2,9 @@
 from typing import Any
 
 import sqlalchemy as sa
+from alembic import context
 from sqlalchemy import pool
 
-from alembic import context
 from marvin.core.config import get_app_settings
 from marvin.db.models import SqlAlchemyBase
 

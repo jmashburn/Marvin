@@ -8,7 +8,7 @@ and for sending email invitations containing these tokens.
 
 from typing import Annotated  # For type hinting with FastAPI Header
 
-from fastapi import APIRouter, Header, Depends, HTTPException, status  # Core FastAPI components
+from fastapi import APIRouter, Depends, Header, HTTPException, status  # Core FastAPI components
 
 # Marvin core, schemas, services, and base controller
 from marvin.core.security import url_safe_token  # For generating secure tokens
@@ -17,9 +17,8 @@ from marvin.schemas.group.invite_token import (  # Pydantic schemas for invite t
     EmailInitationResponse,
     EmailInvitation,
     InviteTokenCreate,
-    InviteTokenRead,
-    InviteTokenSave,
     InviteTokenPagination,  # For paginated responses
+    InviteTokenSave,
     InviteTokenSummary,
     # InviteTokenUpdate, # InviteTokenUpdate was imported but not used
 )
@@ -227,7 +226,7 @@ class GroupInvitationsController(BaseUserController):
                 inviter_name=self.user.full_name or self.user.username or "",
                 uses_left=token.uses_left,
             ),
-            message=f"Invitation token revoked",
+            message="Invitation token revoked",
         )
 
         # Delete the token

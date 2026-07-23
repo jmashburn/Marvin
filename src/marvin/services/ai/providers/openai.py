@@ -27,7 +27,7 @@ class OpenAIProvider(AIProvider):
         try:
             from openai import OpenAI
         except ImportError:
-            raise ImportError("OpenAI SDK not installed. Run: uv sync --extra openai (or pip install 'marvin[openai]')")
+            raise ImportError("OpenAI SDK not installed. Run: uv sync --extra openai (or pip install 'marvin[openai]')") from None
         return OpenAI(api_key=self._api_key, base_url=self._base_url)
 
     def _render_content(self, content):
@@ -56,18 +56,20 @@ class OpenAIProvider(AIProvider):
                 content = m.content if isinstance(m.content, str) else str(m.content)
                 out.append({"role": "tool", "tool_call_id": m.tool_call_id, "content": content})
             elif m.role == "assistant" and m.tool_calls:
-                out.append({
-                    "role": "assistant",
-                    "content": m.content if (isinstance(m.content, str) and m.content) else None,
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
-                        }
-                        for tc in m.tool_calls
-                    ],
-                })
+                out.append(
+                    {
+                        "role": "assistant",
+                        "content": m.content if (isinstance(m.content, str) and m.content) else None,
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
+                            }
+                            for tc in m.tool_calls
+                        ],
+                    }
+                )
             else:
                 out.append({"role": m.role, "content": self._render_content(m.content)})
         return out
@@ -104,10 +106,7 @@ class OpenAIProvider(AIProvider):
 
         opts = options or CompletionOptions()
         client = self._client()
-        api_tools = [
-            {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.input_schema}}
-            for t in tools
-        ]
+        api_tools = [{"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.input_schema}} for t in tools]
         choice_map = {"auto": "auto", "required": "required", "none": "none"}
         resp = client.chat.completions.create(
             model=model,
@@ -138,6 +137,7 @@ class OpenAIProvider(AIProvider):
 
     def complete_structured(self, messages: list[Message], model: str, output_schema: dict, options: CompletionOptions | None = None) -> dict:
         import json
+
         opts = options or CompletionOptions()
         client = self._client()
         resp = client.chat.completions.create(
@@ -156,6 +156,7 @@ class OpenAIProvider(AIProvider):
 
     def execute_operation(self, messages, model, output_schema, options=None):
         import json
+
         opts = options or CompletionOptions()
         client = self._client()
         resp = client.chat.completions.create(

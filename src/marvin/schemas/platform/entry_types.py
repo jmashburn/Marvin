@@ -3,8 +3,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import AliasChoices, ConfigDict, Field, StringConstraints, UUID4, field_validator
-from pydantic_core.core_schema import ValidationInfo
+from pydantic import UUID4, AliasChoices, ConfigDict, Field, StringConstraints, field_validator
 
 from marvin.core.root_logger import get_logger
 from marvin.schemas._marvin import _MarvinModel

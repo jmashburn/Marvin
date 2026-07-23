@@ -27,9 +27,8 @@ def _get_client():
         import bitwarden_sdk as bw
     except ImportError:
         raise RuntimeError(
-            "The 'bitwarden-sdk' package is required for the Bitwarden secret backend. "
-            "Install it: pip install bitwarden-sdk"
-        )
+            "The 'bitwarden-sdk' package is required for the Bitwarden secret backend. Install it: pip install bitwarden-sdk"
+        ) from None
     settings = get_app_settings()
     if not settings.BITWARDEN_ACCESS_TOKEN:
         raise RuntimeError("BITWARDEN_ACCESS_TOKEN must be set for the bitwarden backend.")
@@ -60,7 +59,7 @@ class BitwardenSecretBackend(SecretBackend):
         try:
             client = _get_client()
             secrets = client.secrets().list(settings.BITWARDEN_PROJECT_ID)
-            for secret in (secrets.data.data if secrets.data else []):
+            for secret in secrets.data.data if secrets.data else []:
                 if secret.key == key:
                     detail = client.secrets().get(secret.id)
                     return detail.data.value if detail.data else None
@@ -75,7 +74,7 @@ class BitwardenSecretBackend(SecretBackend):
         # Check if it exists first
         secrets = client.secrets().list(settings.BITWARDEN_PROJECT_ID)
         existing_id = None
-        for secret in (secrets.data.data if secrets.data else []):
+        for secret in secrets.data.data if secrets.data else []:
             if secret.key == key:
                 existing_id = secret.id
                 break
@@ -101,10 +100,7 @@ class BitwardenSecretBackend(SecretBackend):
         key = _key(slug, group_id)
         client = _get_client()
         secrets = client.secrets().list(settings.BITWARDEN_PROJECT_ID)
-        ids_to_delete = [
-            s.id for s in (secrets.data.data if secrets.data else [])
-            if s.key == key
-        ]
+        ids_to_delete = [s.id for s in (secrets.data.data if secrets.data else []) if s.key == key]
         if ids_to_delete:
             client.secrets().delete(ids_to_delete)
 
@@ -114,10 +110,6 @@ class BitwardenSecretBackend(SecretBackend):
         try:
             client = _get_client()
             secrets = client.secrets().list(settings.BITWARDEN_PROJECT_ID)
-            return [
-                s.key[len(prefix):]
-                for s in (secrets.data.data if secrets.data else [])
-                if s.key.startswith(prefix)
-            ]
+            return [s.key[len(prefix) :] for s in (secrets.data.data if secrets.data else []) if s.key.startswith(prefix)]
         except Exception:
             return []

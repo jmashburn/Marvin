@@ -35,9 +35,7 @@ class AutomationExecutionModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "automation_executions"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    group_id: Mapped[GUID] = mapped_column(
-        GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     group: Mapped[Optional["Groups"]] = orm.relationship("Groups")
 
     # Keep the run even if the automation is later deleted (SET NULL); slug preserves the label.
@@ -64,9 +62,7 @@ class AutomationExecutionModel(SqlAlchemyBase, BaseMixins):
     error: Mapped[str | None] = mapped_column(sa.String, nullable=True)
     definition_snapshot: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     correlation_id: Mapped[str | None] = mapped_column(sa.String, nullable=True, index=True)
-    triggered_by: Mapped[GUID | None] = mapped_column(
-        GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
+    triggered_by: Mapped[GUID | None] = mapped_column(GUID, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     actions: Mapped[list["AutomationActionExecutionModel"]] = orm.relationship(
         "AutomationActionExecutionModel",
@@ -86,12 +82,8 @@ class AutomationActionExecutionModel(SqlAlchemyBase, BaseMixins):
     __tablename__ = "automation_action_executions"
 
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
-    execution_id: Mapped[GUID] = mapped_column(
-        GUID, sa.ForeignKey("automation_executions.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    execution: Mapped["AutomationExecutionModel"] = orm.relationship(
-        "AutomationExecutionModel", back_populates="actions"
-    )
+    execution_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("automation_executions.id", ondelete="CASCADE"), nullable=False, index=True)
+    execution: Mapped["AutomationExecutionModel"] = orm.relationship("AutomationExecutionModel", back_populates="actions")
     group_id: Mapped[GUID] = mapped_column(GUID, nullable=False, index=True)
 
     target_index: Mapped[int] = mapped_column(sa.Integer, default=0, nullable=False)

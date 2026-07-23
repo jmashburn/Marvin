@@ -13,6 +13,7 @@ class ImagePart:
     A multimodal Message carries content = list mixing str (text) and ImagePart;
     each provider translates ImagePart into its own SDK format.
     """
+
     data: str
     mime_type: str
 
@@ -24,6 +25,7 @@ class ToolDefinition:
     `input_schema` is a JSON schema describing the tool's arguments. Each provider translates
     this into its own tool/function format in complete_with_tools().
     """
+
     name: str
     description: str
     input_schema: dict
@@ -36,6 +38,7 @@ class ToolCall:
     `id` correlates the call with its result (echoed back on the role="tool" Message);
     `arguments` is the decoded argument object.
     """
+
     id: str
     name: str
     arguments: dict

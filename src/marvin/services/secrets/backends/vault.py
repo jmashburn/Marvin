@@ -24,10 +24,7 @@ def _get_client():
     try:
         import hvac
     except ImportError:
-        raise RuntimeError(
-            "The 'hvac' package is required for the Vault secret backend. "
-            "Install it: pip install hvac"
-        )
+        raise RuntimeError("The 'hvac' package is required for the Vault secret backend. Install it: pip install hvac") from None
     settings = get_app_settings()
     if not settings.VAULT_ADDR or not settings.VAULT_TOKEN:
         raise RuntimeError("VAULT_ADDR and VAULT_TOKEN must be set for the vault backend.")

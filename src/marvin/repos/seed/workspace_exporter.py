@@ -75,7 +75,7 @@ class WorkspaceExporter:
             Path to the created zip file
         """
         import secrets
-        from datetime import date
+        from datetime import UTC, datetime
 
         from marvin.services.storage.provider_factory import get_storage_provider
 
@@ -86,10 +86,11 @@ class WorkspaceExporter:
 
         if temp_dir is None:
             import tempfile
+
             temp_dir = Path(tempfile.gettempdir())
 
         token = secrets.token_hex(8)
-        basename = f"{workspace_slug}-backup-{date.today().isoformat()}-{token}"
+        basename = f"{workspace_slug}-backup-{datetime.now(UTC).date().isoformat()}-{token}"
         zip_path = temp_dir / f"{basename}.zip"
         storage_provider = get_storage_provider()
 
@@ -213,10 +214,7 @@ class WorkspaceExporter:
         restore can recreate the vocabulary and relink entries without losing display names/colors.
         """
         tags = self.repos.tags.get_all(limit=None, order_by="slug")
-        return [
-            {"name": tag.name, "slug": tag.slug, "color": tag.color}
-            for tag in tags
-        ]
+        return [{"name": tag.name, "slug": tag.slug, "color": tag.color} for tag in tags]
 
     def _export_entry_types(self, include_system: bool) -> list[dict[str, Any]]:
         """Export entry types.

@@ -5,17 +5,17 @@ Revises: 80a3155b863a
 Create Date: 2026-07-18 17:39:00.466395
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
-import marvin.db.migration_types
 
 # revision identifiers, used by Alembic.
-revision: str = 'a112d0c60cb7'
-down_revision: Union[str, None] = '80a3155b863a'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "a112d0c60cb7"
+down_revision: str | None = "80a3155b863a"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -94,9 +94,7 @@ class EmailService(BaseService):
         self.default_template: Path = self.templates_dir / "default.html"  # Path to the default email template
 
         if Path(self.templates_dir / self.settings.EMAIL_TEMPLATE).is_file():
-            self.default_template: Path = (
-                self.templates_dir / self.settings.EMAIL_TEMPLATE
-            )  # Path to the default email template per settings
+            self.default_template: Path = self.templates_dir / self.settings.EMAIL_TEMPLATE  # Path to the default email template per settings
 
         if Path(self.directories.TEMPLATE_DIR / self.settings.EMAIL_TEMPLATE).is_file():
             self.templates_dir = self.directories.TEMPLATE_DIR
@@ -318,8 +316,8 @@ class EmailService(BaseService):
 
         # Headings (must run before paragraph splitting, line-by-line)
         text = re.sub(r"^### (.+)$", r"<h3>\1</h3>", text, flags=re.MULTILINE)
-        text = re.sub(r"^## (.+)$",  r"<h2>\1</h2>", text, flags=re.MULTILINE)
-        text = re.sub(r"^# (.+)$",   r"<h1>\1</h1>", text, flags=re.MULTILINE)
+        text = re.sub(r"^## (.+)$", r"<h2>\1</h2>", text, flags=re.MULTILINE)
+        text = re.sub(r"^# (.+)$", r"<h1>\1</h1>", text, flags=re.MULTILINE)
 
         # Bold and italic
         text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
@@ -406,6 +404,7 @@ class EmailService(BaseService):
                 raise ValueError(f"Template is missing required variables: {', '.join('{{' + v + '}}' for v in missing)}")
 
         from jinja2 import Template
+
         from marvin.services.secrets.resolver import resolve
 
         group_id = getattr(db_template, "group_id", None)
@@ -421,8 +420,10 @@ class EmailService(BaseService):
 
         # Shared button_link derivation
         button_link = (
-            variables.get("invitation_url") or variables.get("reset_url")
-            or variables.get("login_url") or variables.get("action_url")
+            variables.get("invitation_url")
+            or variables.get("reset_url")
+            or variables.get("login_url")
+            or variables.get("action_url")
             or variables.get("button_link", "")
         )
 

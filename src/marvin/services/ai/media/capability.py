@@ -24,7 +24,7 @@ owns all asset I/O and passes base64 bytes in ``inputs``; those handlers return 
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from marvin.services.ai.media import transforms
 
@@ -114,7 +114,7 @@ class LocalPixelHandler:
             else:
                 out = transforms.color_grade(data, str(arg))
         elif op == "crop":
-            if isinstance(arg, (list, tuple)) and len(arg) == 4:
+            if isinstance(arg, list | tuple) and len(arg) == 4:
                 out = transforms.crop_to_box(data, tuple(arg))
             elif arg:
                 aspect = transforms._parse_aspect(str(arg))
@@ -137,8 +137,15 @@ class VisionModelHandler:
     """
 
     def __init__(
-        self, kind: str, *, session, group_id, provider, model,
-        priority: int = 0, cost_hint: float = 0.5,
+        self,
+        kind: str,
+        *,
+        session,
+        group_id,
+        provider,
+        model,
+        priority: int = 0,
+        cost_hint: float = 0.5,
     ) -> None:
         self.kind = kind
         self.session = session
@@ -160,12 +167,7 @@ class VisionModelHandler:
         from marvin.services.ai.context import ContextBuilder, resolve_prompt_messages
 
         try:
-            ctx = (
-                ContextBuilder(self.session, self.group_id)
-                .with_site_settings().with_variables()
-                .with_asset(asset_id).with_asset_images()
-                .build()
-            )
+            ctx = ContextBuilder(self.session, self.group_id).with_site_settings().with_variables().with_asset(asset_id).with_asset_images().build()
             if not (ctx.assets and ctx.assets[0].get("image_data")):
                 return {}  # unreadable / not actually an image
 
@@ -188,10 +190,13 @@ class VisionModelHandler:
                 )
                 messages = [
                     Message(role="system", content="You are a vision assistant that locates the main subject of an image."),
-                    Message(role="user", content=[
-                        instruction,
-                        ImagePart(data=asset["image_data"], mime_type=asset.get("mime_type") or "image/png"),
-                    ]),
+                    Message(
+                        role="user",
+                        content=[
+                            instruction,
+                            ImagePart(data=asset["image_data"], mime_type=asset.get("mime_type") or "image/png"),
+                        ],
+                    ),
                 ]
                 opts = CompletionOptions(temperature=0.0, max_tokens=200)
                 parsed, _ = self.provider.execute_operation(messages, self.model, _DETECT_SUBJECT_SCHEMA, opts)
@@ -204,7 +209,7 @@ class VisionModelHandler:
 
 def _normalize_box(box) -> list[float] | None:
     """Coerce a model's box output into a clamped normalized [x, y, w, h] (0..1), or None."""
-    if not isinstance(box, (list, tuple)) or len(box) != 4:
+    if not isinstance(box, list | tuple) or len(box) != 4:
         return None
     try:
         x, y, w, h = (float(v) for v in box)
@@ -236,7 +241,12 @@ def _integrations_providing(kind: str, group_id) -> list[CapabilityHandler]:
 
 
 def resolve_capability(
-    kind: str, *, session, group_id, provider=None, model=None,
+    kind: str,
+    *,
+    session,
+    group_id,
+    provider=None,
+    model=None,
 ) -> CapabilityHandler | None:
     """Return the best available handler for ``kind`` (or ``None``), by fixed precedence:
 
@@ -252,7 +262,11 @@ def resolve_capability(
     if kind in _VISION_IN_KINDS:
         if provider is not None and getattr(provider, "supports_vision", False) and model:
             return VisionModelHandler(
-                kind, session=session, group_id=group_id, provider=provider, model=model,
+                kind,
+                session=session,
+                group_id=group_id,
+                provider=provider,
+                model=model,
             )
         return None
 

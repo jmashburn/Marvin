@@ -89,10 +89,7 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
     @router.get("/types", summary="List available webhook types with descriptions")
     def get_types(self) -> list[dict]:
         """Return webhook modes and their descriptions (source of truth is event_types.py)."""
-        return [
-            {"value": mode.value, "description": WEBHOOK_MODE_DESCRIPTIONS.get(mode.value, "")}
-            for mode in WebhookMode
-        ]
+        return [{"value": mode.value, "description": WEBHOOK_MODE_DESCRIPTIONS.get(mode.value, "")} for mode in WebhookMode]
 
     @router.get("", response_model=WebhookPagination, summary="List Webhooks for Group")
     def get_all(self, q: PaginationQuery = Depends(PaginationQuery)) -> WebhookPagination:
@@ -216,8 +213,10 @@ class WebhookReadController(BaseUserController):  # Consider renaming to Webhook
     @router.get("/{item_id}/logs", response_model=list[WebhookExecutionLogRead], summary="Get Execution Logs for a Webhook")
     def get_webhook_logs(self, item_id: UUID4, limit: int = 50) -> list[WebhookExecutionLogRead]:
         """Get execution history for a specific webhook."""
-        from sqlalchemy import select, desc
+        from sqlalchemy import desc, select
+
         from marvin.db.models.groups.webhook_execution_logs import WebhookExecutionLogModel
+
         stmt = (
             select(WebhookExecutionLogModel)
             .where(WebhookExecutionLogModel.webhook_id == item_id)

@@ -5,13 +5,14 @@ This model creates an audit trail of all events that occur within workspaces,
 enabling event history queries, entity timelines, and user activity tracking.
 """
 
-import sqlalchemy as sa
 from datetime import datetime
 
+import sqlalchemy as sa
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from marvin.db.models import BaseMixins, SqlAlchemyBase
+
 from .._model_utils.guid import GUID
 
 

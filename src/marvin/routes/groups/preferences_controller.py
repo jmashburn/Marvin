@@ -172,7 +172,7 @@ class GroupPreferencesController(BaseUserController):
         result = GroupPreferencesRead.model_validate(preferences_model)
 
         # Dispatch workspace_settings_changed event
-        from marvin.services.event_bus_service.event_types import EventWorkspaceSettingsData, EventOperation, EventTypes
+        from marvin.services.event_bus_service.event_types import EventOperation, EventTypes, EventWorkspaceSettingsData
 
         self.event_bus.dispatch(
             integration_id="workspace_preferences",

@@ -5,22 +5,22 @@ Revises: 619ee8a76d4f
 Create Date: 2026-07-16 20:11:35.858989
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
-import marvin.db.migration_types
 
 # revision identifiers, used by Alembic.
-revision: str = '278ea16934c3'
-down_revision: Union[str, None] = '619ee8a76d4f'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "278ea16934c3"
+down_revision: str | None = "619ee8a76d4f"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     # Add body_markdown column
-    op.add_column('email_templates', sa.Column('body_markdown', sa.Text(), nullable=True))
+    op.add_column("email_templates", sa.Column("body_markdown", sa.Text(), nullable=True))
 
     # Migrate existing content: concatenate structured fields into body_markdown.
     # Use two literal newline chars in the SQL string (portable) rather than char(10) — that's a
@@ -36,19 +36,19 @@ def upgrade() -> None:
     )
 
     # Drop the structured content columns
-    with op.batch_alter_table('email_templates') as batch_op:
-        batch_op.drop_column('header_text')
-        batch_op.drop_column('message_top')
-        batch_op.drop_column('message_bottom')
-        batch_op.drop_column('button_text')
+    with op.batch_alter_table("email_templates") as batch_op:
+        batch_op.drop_column("header_text")
+        batch_op.drop_column("message_top")
+        batch_op.drop_column("message_bottom")
+        batch_op.drop_column("button_text")
 
 
 def downgrade() -> None:
-    with op.batch_alter_table('email_templates') as batch_op:
-        batch_op.add_column(sa.Column('button_text', sa.String(), nullable=True))
-        batch_op.add_column(sa.Column('message_bottom', sa.Text(), nullable=True))
-        batch_op.add_column(sa.Column('message_top', sa.Text(), nullable=True))
-        batch_op.add_column(sa.Column('header_text', sa.String(), nullable=True))
+    with op.batch_alter_table("email_templates") as batch_op:
+        batch_op.add_column(sa.Column("button_text", sa.String(), nullable=True))
+        batch_op.add_column(sa.Column("message_bottom", sa.Text(), nullable=True))
+        batch_op.add_column(sa.Column("message_top", sa.Text(), nullable=True))
+        batch_op.add_column(sa.Column("header_text", sa.String(), nullable=True))
 
     # Restore message_top from body_markdown on downgrade
     op.execute("""
@@ -57,5 +57,5 @@ def downgrade() -> None:
         WHERE body_markdown IS NOT NULL
     """)
 
-    with op.batch_alter_table('email_templates') as batch_op:
-        batch_op.drop_column('body_markdown')
+    with op.batch_alter_table("email_templates") as batch_op:
+        batch_op.drop_column("body_markdown")

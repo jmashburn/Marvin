@@ -133,6 +133,7 @@ class PasswordResetService(BaseService):
         if group_id is None:
             # No group context — fall back to direct email send
             from marvin.services.email.email_service import EmailService
+
             try:
                 success = EmailService(locale=accept_language).send_forgot_password(email, reset_url)
                 if success:
@@ -148,8 +149,8 @@ class PasswordResetService(BaseService):
         try:
             from marvin.services.event_bus_service.event_bus_service import EventBusService
             from marvin.services.event_bus_service.event_types import (
-                EventPasswordResetData,
                 EventOperation,
+                EventPasswordResetData,
                 EventTypes,
             )
 
