@@ -8,6 +8,7 @@ from pydantic import UUID4
 
 from marvin.db.models.groups.ai_executions import AIExecutionModel
 from marvin.db.models.groups.ai_settings import WorkspaceAISettingsModel
+from marvin.db.models.users.roles import WORKSPACE_ROLE_HIERARCHY
 from marvin.routes._base import MarvinCrudRoute
 from marvin.routes._base.base_controllers import BaseUserController
 from marvin.routes._base.controller import controller
@@ -159,7 +160,7 @@ class AIOperationsController(BaseUserController):
             role = 0
             for m in self.user.workspace_memberships:
                 if m.group_id == self.group_id:
-                    role = m.workspace_role.value
+                    role = WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0)
                     break
             if role < operation.min_role:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role for this operation.")
@@ -338,7 +339,7 @@ class AIOperationsController(BaseUserController):
     def delete_execution(self, execution_id: UUID4) -> None:
         if not self.user.admin:
             for m in self.user.workspace_memberships:
-                if m.group_id == self.group_id and m.workspace_role.value >= 4:
+                if m.group_id == self.group_id and WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0) >= 4:
                     break
             else:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ADMIN or OWNER role required.")
@@ -361,7 +362,7 @@ class AIOperationsController(BaseUserController):
             role = 0
             for m in self.user.workspace_memberships:
                 if m.group_id == self.group_id:
-                    role = m.workspace_role.value
+                    role = WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0)
                     break
             if role < ROLE_EDITOR:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="EDITOR role or higher required.")
@@ -415,7 +416,7 @@ class AIOperationsController(BaseUserController):
             role = 0
             for m in self.user.workspace_memberships:
                 if m.group_id == self.group_id:
-                    role = m.workspace_role.value
+                    role = WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0)
                     break
             if role < ROLE_AUTHOR:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
@@ -526,7 +527,7 @@ class AIOperationsController(BaseUserController):
             role = 0
             for m in self.user.workspace_memberships:
                 if m.group_id == self.group_id:
-                    role = m.workspace_role.value
+                    role = WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0)
                     break
             if role < ROLE_AUTHOR:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
@@ -690,7 +691,7 @@ class AIOperationsController(BaseUserController):
             role = 0
             for m in self.user.workspace_memberships:
                 if m.group_id == self.group_id:
-                    role = m.workspace_role.value
+                    role = WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0)
                     break
             if role < ROLE_AUTHOR:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="AUTHOR role or higher required.")
@@ -1422,7 +1423,7 @@ class AIOperationsController(BaseUserController):
             return ROLE_OWNER
         for m in self.user.workspace_memberships:
             if m.group_id == self.group_id:
-                return m.workspace_role.value
+                return WORKSPACE_ROLE_HIERARCHY.get(m.workspace_role, 0)
         return 0
 
     def _check_invocation_source(self, source: str, operation_sources) -> None:
