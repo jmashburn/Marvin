@@ -121,13 +121,13 @@ jobs:
           kubectl get pods -n marvin-test
           kubectl get services -n marvin-test
 
-      # The service publishes 8080 (API) and 4321 (frontend) — there has never been a port 80, so
+      # The service publishes 8080 (API) and 4322 (frontend) — there has never been a port 80, so
       # the old `8080:80` forward could not connect and the `|| echo` swallowed the failure.
       - name: Test health and frontend endpoints
         run: |
           set -euo pipefail
 
-          kubectl port-forward -n marvin-test svc/marvin 8080:8080 4321:4321 &
+          kubectl port-forward -n marvin-test svc/marvin 8080:8080 4322:4322 &
           trap 'kill %1 2>/dev/null || true' EXIT
           sleep 5
 
@@ -136,7 +136,7 @@ jobs:
           echo "--- readiness ---"
           curl -fsS http://localhost:8080/readyz
           echo "--- frontend (login renders without auth) ---"
-          curl -fsS -o /dev/null http://localhost:4321/login
+          curl -fsS -o /dev/null http://localhost:4322/login
           echo "✅ API and frontend both serving"
 
       - name: Check logs on failure

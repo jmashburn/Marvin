@@ -58,8 +58,8 @@ To get the route URL:
       (Should NOT show plaintext JWTs)
 
    5. Reach the web UI (served by the same pod on a second port):
-      oc port-forward svc/{{ include "marvin.fullname" . }} 4321:{{ .Values.service.frontendPort }}
-      open http://localhost:4321
+      oc port-forward svc/{{ include "marvin.fullname" . }} 4322:{{ .Values.service.frontendPort }}
+      open http://localhost:4322
 
 {{- if .Values.persistence.enabled }}
 

@@ -130,10 +130,15 @@ COPY --from=frontend-builder --chown=app:app /frontend/dist /app/frontend/dist
 COPY --from=frontend-builder --chown=app:app /frontend/node_modules /app/frontend/node_modules
 
 ENV API_PORT=8080
-ENV FRONTEND_PORT=4321
+# FRONTEND_PORT is deliberately not pinned here. start.sh resolves it from AppSettings, which
+# derives it from FRONTEND_URL, so setting either one in the environment or .env moves the port the
+# frontend actually binds to. A baked-in ENV would win over both and is how the advertised port
+# (4322) and the served port (4321) drifted apart. Deployments that need a fixed containerPort —
+# the Helm chart, which has to match its Service — still set FRONTEND_PORT explicitly.
 
-# API and frontend, respectively.
-EXPOSE ${API_PORT} ${FRONTEND_PORT}
+# API and frontend, respectively. EXPOSE is documentation only; the frontend value is the default
+# that FRONTEND_URL resolves to.
+EXPOSE ${API_PORT} 4322
 
 ARG COMMIT
 ENV GIT_COMMIT_HASH=${COMMIT}

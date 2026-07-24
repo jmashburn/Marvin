@@ -15,10 +15,11 @@ from collections import OrderedDict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, NamedTuple
+from urllib.parse import urlparse
 
 from dateutil.tz import tzlocal
 from dotenv import dotenv_values
-from pydantic import PlainSerializer, field_validator
+from pydantic import PlainSerializer, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .db_providers import AbstractDBProvider, db_provider_factory
@@ -124,6 +125,16 @@ class AppSettings(BaseSettings):
 
     FRONTEND_URL: str = "http://localhost:4322"
     """URL of the frontend app. Used for OIDC callback redirects in dev. In production same-origin deployments, set to BASE_URL."""
+
+    FRONTEND_PORT: int | None = None
+    """
+    Port the frontend server binds to on startup.
+
+    Left unset it is derived from FRONTEND_URL, so that URL is the single knob: change the port
+    there and the server actually listens on it. Set this explicitly only when the bind port has
+    to differ from the advertised one — behind a proxy that terminates on 443 and forwards to a
+    high port, for example, where FRONTEND_URL names the public address rather than the socket.
+    """
 
     API_DOCS: bool = True
 
@@ -369,6 +380,30 @@ class AppSettings(BaseSettings):
             return v[:-1]
 
         return v
+
+    @model_validator(mode="after")
+    def derive_frontend_port(self) -> "AppSettings":
+        """Fill FRONTEND_PORT from FRONTEND_URL when it was not set explicitly.
+
+        FRONTEND_URL advertised a port that nothing bound to, so changing it moved the OIDC
+        redirect target while the server kept listening where it always had. Deriving the bind
+        port from it makes the one setting mean what it says.
+        """
+        if self.FRONTEND_PORT is not None:
+            return self
+
+        parsed = urlparse(self.FRONTEND_URL)
+        if parsed.port is not None:
+            self.FRONTEND_PORT = parsed.port
+        elif parsed.scheme == "https":
+            self.FRONTEND_PORT = 443
+        elif parsed.scheme == "http":
+            self.FRONTEND_PORT = 80
+        else:
+            # Unparseable or scheme-less: keep the historical dev default rather than guess.
+            self.FRONTEND_PORT = 4322
+
+        return self
 
     @property
     def DOCS_URL(self) -> str | None:

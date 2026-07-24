@@ -96,7 +96,7 @@ service:
   type: ClusterIP
   port: 8080
   # The frontend is a second port on the same pod, exposed alongside the API
-  frontendPort: 4321
+  frontendPort: 4322
   # Both ports resolve to the container's named ports, so they track config.apiPort /
   # config.frontendPort automatically and can't drift out of sync with them.
   annotations: {}
@@ -140,8 +140,10 @@ config:
   apiPort: 8080
   apiHost: "0.0.0.0"
 
-  # Server-rendered frontend (Astro SSR) — the image runs it alongside the API
-  frontendPort: 4321
+  # Server-rendered frontend (Astro SSR) — the image runs it alongside the API.
+  # Pinned rather than derived from FRONTEND_URL: the containerPort has to be a fixed number for
+  # the Service to target it. Keep in step with the FRONTEND_URL the deployment advertises.
+  frontendPort: 4322
 
   # Scheduler configuration
   schedulerInterval: 300  # 5 minutes in seconds
