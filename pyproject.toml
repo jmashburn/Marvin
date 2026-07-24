@@ -187,7 +187,10 @@ version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/marvin/__init__.py:__version__"]
 branch = "main"
 build_command = "pip install -e ."
-commit_message = "chore(release): {version} [skip ci]\n\n{changelog}"
+# Only {version} is substituted here — semantic-release formats this with version= alone, so any
+# other placeholder (e.g. {changelog}) raises KeyError and fails the release at commit time, after
+# the version bump and build have already succeeded. The changelog lives in CHANGELOG.md.
+commit_message = "chore(release): {version} [skip ci]"
 tag_format = "v{version}"
 upload_to_pypi = false
 upload_to_vcs_release = true
