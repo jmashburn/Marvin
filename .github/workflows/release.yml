@@ -153,7 +153,11 @@ jobs:
       - name: Verify the published image is the production target
         run: |
           set -euo pipefail
-          IMG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.version }}"
+          # GHCR image paths must be lowercase. IMAGE_NAME is github.repository, which keeps the
+          # org's casing (InnerOpen), while metadata-action lowercased it before pushing — so
+          # rebuild the name lowercase to match the tag that was actually published.
+          image_name=$(printf '%s' "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          IMG="${{ env.REGISTRY }}/${image_name}:${{ needs.release.outputs.version }}"
           echo "Inspecting $IMG"
           docker pull "$IMG"
           entrypoint=$(docker inspect --format '{{json .Config.Entrypoint}}' "$IMG")
