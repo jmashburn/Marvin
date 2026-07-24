@@ -6,6 +6,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.5 (2026-07-24)
+
+### Bug Fixes
+
+- **ci**: Authenticate the CLI e2e run and probe a health endpoint that exists
+  ([`07f4c80`](https://github.com/InnerOpen/marvin/commit/07f4c80e605345168b0adc22951cee96bebc2c16))
+
+- **ci**: Rewrite the CLI e2e suite against the CLI's real command surface
+  ([`3d13e03`](https://github.com/InnerOpen/marvin/commit/3d13e0308bba9cee5a837dec20b5a074fc12136d))
+
+
 ## v1.0.0-rc.4 (2026-07-24)
 
 ### Bug Fixes
