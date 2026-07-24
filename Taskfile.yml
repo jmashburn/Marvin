@@ -165,7 +165,10 @@ tasks:
       # environment takes precedence over a task's env.
       DB_ENGINE: sqlite
     cmds:
-      - uv run pytest
+      # --cov is what records the data; a bare `pytest` leaves the reporters below with nothing to
+      # read. `--cov-report=` silences pytest-cov's own terminal report so the explicit reporters
+      # that follow are the only output.
+      - uv run pytest --cov=src/marvin --cov-report=
       - uv run coverage report -m
       - uv run coverage lcov
       - uv run coverage html
