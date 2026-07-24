@@ -1,4 +1,5 @@
 import contextlib
+import os
 from collections.abc import Generator
 
 from pytest import MonkeyPatch, fixture
@@ -6,6 +7,16 @@ from pytest import MonkeyPatch, fixture
 mp = MonkeyPatch()
 mp.setenv("PRODUCTION", "False")  # Set to False for testing (enables debug handlers)
 mp.setenv("TESTING", "True")
+
+# The suite defaults to SQLite, matching the app's own default, so a checkout whose .env points at a
+# real Postgres dev database doesn't become the target of a schema-dropping test run. This must run
+# before marvin.core.config is imported, since that calls dotenv.load_dotenv() to fold .env into the
+# environment. Only an already-exported DB_ENGINE wins, keeping `DB_ENGINE=postgres` available as an
+# opt-in (CI uses it against POSTGRES_DB=marvin_test) — see the guard in _create_test_schema, which
+# requires the target to be a test database. This covers a direct `pytest`; the Taskfile applies the
+# same default to `task py:test`, which needs its own because its `dotenv:` exports .env for us.
+if "DB_ENGINE" not in os.environ:
+    mp.setenv("DB_ENGINE", "sqlite")
 from pathlib import Path
 
 from fastapi.testclient import TestClient
