@@ -101,6 +101,16 @@ jobs:
         run: |
           alembic upgrade head
 
+      # The backend seeds its default admin on first startup. Without a known password it
+      # auto-generates a random one we can't recover, so pin a throwaway credential for this
+      # run only — it exists just long enough to mint the CLI's token in the next step.
+      - name: Generate throwaway admin credentials
+        run: |
+          PW="$(openssl rand -hex 32)"
+          echo "::add-mask::$PW"
+          echo "DEFAULT_EMAIL=ci-admin@marvin.test" >> "$GITHUB_ENV"
+          echo "DEFAULT_PASSWORD=$PW" >> "$GITHUB_ENV"
+
       - name: Start Marvin backend
         working-directory: marvin
         run: |
@@ -109,13 +119,34 @@ jobs:
 
           # Wait for server to start
           for i in {1..30}; do
-            if curl -f http://localhost:8080/health 2>/dev/null || curl -f http://localhost:8080/healthz 2>/dev/null; then
+            # /health and /healthz do not exist — the real endpoint is /api/app/health. Probing
+            # the wrong paths meant this loop never succeeded and simply burned 60s, letting the
+            # suite run against a backend that might not be up yet.
+            if curl -fsS http://localhost:8080/api/app/health >/dev/null 2>&1; then
               echo "✅ Marvin backend started"
               break
             fi
             echo "Waiting for Marvin backend... ($i/30)"
             sleep 2
           done
+
+      # Unauthenticated, the CLI only registers the auth commands — `marvin workspace …` doesn't
+      # exist yet, so the suite fails with "unknown command 'create'". The CLI reads
+      # MARVIN_USER_TOKEN, so mint one and hand it over; the password is not needed again.
+      - name: Mint CLI access token
+        run: |
+          TOKEN=$(curl -sS -X POST "$MARVIN_API_URL/api/auth/token" \
+            --data-urlencode "username=$DEFAULT_EMAIL" \
+            --data-urlencode "password=$DEFAULT_PASSWORD" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Could not obtain an access token — backend log follows"
+            cat /tmp/marvin.log
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "MARVIN_USER_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "✅ CLI authenticated"
 
       - name: Install CLI dependencies
         working-directory: marvin-cli
