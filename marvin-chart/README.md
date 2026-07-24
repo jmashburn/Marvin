@@ -159,6 +159,68 @@ To watch a migration:
 kubectl logs -f deployment/marvin -n <namespace>
 ```
 
+## Integration Plugins
+
+Marvin core ships no integration providers. It discovers them through the `marvin.integrations`
+entry-point group, read from installed distribution metadata when the process starts. Three
+consequences worth knowing before you pick an approach:
+
+- A provider has to be a real installed distribution. A loose `.py` file on a volume registers
+  nothing, because there is no `dist-info` to read an entry point from.
+- Whether the integrations API surface exists at all is decided at import. With no provider
+  installed, the `marvin_integration_sdk` package is absent and those routes are never registered.
+- Adding or removing a plugin therefore requires a pod restart. Nothing is hot-loaded.
+
+### Recommended: a derived image
+
+Pin the plugin set into an image and let the tag describe it. Dependency conflicts surface as a
+build failure rather than an import error in a running pod, and the deployment stays immutable.
+
+```dockerfile
+FROM ghcr.io/inneropen/marvin:1.0.0-rc.10
+RUN /app/.venv/bin/pip install marvin-integration-slack
+```
+
+```yaml
+image:
+  repository: ghcr.io/your-org/marvin-with-slack
+  tag: "1.0.0-rc.10"
+```
+
+### Without rebuilding: an init container plus PYTHONPATH
+
+If you need to add a provider against a stock image, install it into a shared volume and put that
+volume on `PYTHONPATH`. Entry points are discovered from any `sys.path` entry, so this is enough for
+the loader to find the plugin.
+
+```yaml
+initContainers:
+  - name: install-plugins
+    image: python:3.12-slim
+    command: ["sh", "-c", "pip install --target /plugins marvin-integration-slack"]
+    volumeMounts:
+      - name: plugins
+        mountPath: /plugins
+
+extraVolumes:
+  - name: plugins
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: plugins
+    mountPath: /plugins
+
+extraEnv:
+  - name: PYTHONPATH
+    value: /plugins
+```
+
+Two things to watch. `pip install --target` resolves nothing against the venv already in the image,
+so the plugin's transitive dependencies have to land in `/plugins` too. And `PYTHONPATH` is searched
+before site-packages, so anything vendored there shadows the image's own copy — pin versions
+deliberately. An `emptyDir` also means the install re-runs on every pod start, which needs egress to
+your package index; swap in a PVC if you would rather do it once.
+
 ## Upgrading
 
 ### Standard Upgrade
