@@ -6,6 +6,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.15 (2026-07-24)
+
+### Bug Fixes
+
+- GET /api/admin/groups returned 500 for any workspace containing a user with no username.
+  ([`c0fd3a3`](https://github.com/InnerOpen/marvin/commit/c0fd3a31de5d318c83a3f2f0e2f0f9a9afe196ed))
+
+- **config**: Make the frontend actually bind to the port FRONTEND_URL advertises
+  ([`4b4e520`](https://github.com/InnerOpen/marvin/commit/4b4e5201837dbff18929a93df4401c465f406752))
+
+### Features
+
+- **frontend**: Add the platform Create User page
+  ([`c0fd3a3`](https://github.com/InnerOpen/marvin/commit/c0fd3a31de5d318c83a3f2f0e2f0f9a9afe196ed))
+
+
 ## v1.0.0-rc.14 (2026-07-24)
 
 ### Bug Fixes
