@@ -41,6 +41,10 @@ docs
 tasks
 marvin-chart
 
-# The image serves no frontend; these are build-time only.
-frontend
+# node_modules are reinstalled cleanly inside the build stages — never send them as context.
 node_modules
+**/node_modules
+# Rebuilt in-image; keep any local build output/caches out of the context.
+**/dist
+**/.astro
+**/.output
