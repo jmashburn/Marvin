@@ -15,10 +15,8 @@ def main():
     else:
         proto = "http"
 
-    # Public, unauthenticated liveness endpoint that returns 200 {"status": "OK"}. The old
-    # target (/api/app/about) requires auth and answers 401, so this check never passed — which
-    # is why the Dockerfile HEALTHCHECK was left disabled.
-    url = f"{proto}://127.0.0.1:{port}/api/app/health"
+    # Root-level liveness probe (standard /healthz): public, unauthenticated, returns 200.
+    url = f"{proto}://127.0.0.1:{port}/healthz"
 
     # TLS certificate is likely not issued for 127.0.0.1 so don't verify
     r = requests.get(url, verify=False)

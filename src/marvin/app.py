@@ -252,6 +252,12 @@ def include_api_routers() -> None:  # Renamed from api_routers for clarity
     are aggregated under `main_api_router` (imported from `marvin.routes`).
     """
     app.include_router(main_api_router)  # Include all routes defined in marvin.routes
+
+    # Root-level health probes (/healthz, /livez, /health, /readyz) — mounted outside the /api
+    # prefix so infra doesn't need to know where the API lives.
+    from marvin.routes.health_root import router as health_router
+
+    app.include_router(health_router)
     logger.info("API routers included.")
 
 

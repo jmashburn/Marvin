@@ -142,8 +142,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 ENV HOST=0.0.0.0
 
-# Liveness probe: hits the public /api/app/health endpoint. start-period covers first-boot
-# migrations + seeding so the container isn't marked unhealthy while it's legitimately starting.
+# Liveness probe: the healthcheck script hits the public root /healthz endpoint. start-period
+# covers first-boot migrations + seeding so the container isn't marked unhealthy while starting.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
     CMD python -m marvin.scripts.healthcheck || exit 1
 

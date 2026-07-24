@@ -124,10 +124,8 @@ jobs:
           kubectl port-forward -n marvin-test svc/marvin 8080:80 &
           sleep 5
 
-          # Test health endpoint
-          curl -f http://localhost:8080/health || \
+          # Test health endpoint (root-level liveness probe)
           curl -f http://localhost:8080/healthz || \
-          curl -f http://localhost:8080/ || \
           echo "⚠️ Health check endpoint not accessible"
 
       - name: Check logs on failure

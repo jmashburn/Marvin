@@ -49,7 +49,7 @@ services:
         condition: service_healthy
         # Only enforced when the postgres profile is active; ignored for the SQLite default.
         required: false
-    # Liveness comes from the image's built-in HEALTHCHECK (/api/app/health).
+    # Liveness comes from the image's built-in HEALTHCHECK (root /healthz).
 
   # Optional Postgres backend. Only started with `--profile postgres`; the SQLite default needs
   # nothing here.

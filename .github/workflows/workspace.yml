@@ -118,9 +118,7 @@ jobs:
 
           # Wait for backend to be ready
           for i in {1..60}; do
-            if curl -f http://localhost:8080/health 2>/dev/null || \
-               curl -f http://localhost:8080/healthz 2>/dev/null || \
-               curl -f http://localhost:8080/ 2>/dev/null; then
+            if curl -f http://localhost:8080/healthz 2>/dev/null; then
               echo "✅ Marvin backend started"
               break
             fi
