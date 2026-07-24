@@ -30,7 +30,7 @@ class WorkspaceSecret(SqlAlchemyBase, BaseMixins):
     name: Mapped[str] = mapped_column(String, nullable=False)
     """Human-readable label."""
 
-    slug: Mapped[str] = mapped_column(String, nullable=False)
+    slug: Mapped[str] = mapped_column(String, nullable=False, index=True)
     """URL-safe identifier used in {{SLUG}} references. Uppercase by convention."""
 
     description: Mapped[str | None] = mapped_column(String, nullable=True)

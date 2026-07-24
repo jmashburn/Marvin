@@ -27,7 +27,7 @@ class Forms(SqlAlchemyBase, BaseMixins):
     id: Mapped[GUID] = mapped_column(GUID, primary_key=True, default=GUID.generate)
     group_id: Mapped[GUID] = mapped_column(GUID, sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    slug: Mapped[str] = mapped_column(sa.String, nullable=False)
+    slug: Mapped[str] = mapped_column(sa.String, nullable=False, index=True)
     name: Mapped[str] = mapped_column(sa.String, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.String, nullable=True)
 

@@ -32,7 +32,7 @@ class WorkspaceVariable(SqlAlchemyBase, BaseMixins):
     name: Mapped[str] = mapped_column(String, nullable=False)
     """Human-readable label."""
 
-    slug: Mapped[str] = mapped_column(String, nullable=False)
+    slug: Mapped[str] = mapped_column(String, nullable=False, index=True)
     """Uppercase slug used in {{SLUG}} references."""
 
     description: Mapped[str | None] = mapped_column(String, nullable=True)

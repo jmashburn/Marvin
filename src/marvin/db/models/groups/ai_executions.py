@@ -52,6 +52,9 @@ class AIExecutionModel(SqlAlchemyBase, BaseMixins):
     started_at: Mapped[sa.DateTime | None] = mapped_column(sa.DateTime, nullable=True)
     completed_at: Mapped[sa.DateTime | None] = mapped_column(sa.DateTime, nullable=True)
 
+    # Spend/usage is almost always read as "this workspace, most recent first".
+    __table_args__ = (sa.Index("ix_ai_executions_group_created", "group_id", "created_at"),)
+
     @auto_init()
     def __init__(self, session: Session, **kwargs) -> None:
         pass
