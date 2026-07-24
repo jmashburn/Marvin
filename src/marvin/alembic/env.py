@@ -63,13 +63,13 @@ config.set_main_option("sqlalchemy.url", settings.DB_URL.replace("%", "%%"))
 PLUGIN_PREFIX = "alembic_"
 
 
-def include_object(object: Any, name: str, type_: str, reflected: bool, compare_to: Any) -> bool:
+def include_object(object: Any, name: str | None, type_: str, reflected: bool, compare_to: Any | None) -> bool:
     """Return True if the object should be included in the migration."""
     # Don't include objects that are not in the model
     # or that are not in the plugin prefix
     if type_ == "table":
         # Don't drop tables that are unknown in the model... unless these are really tables dropped from the plugin.
-        return name in target_metadata.tables or name.startswith(PLUGIN_PREFIX)
+        return name in target_metadata.tables or bool(name and name.startswith(PLUGIN_PREFIX))
     elif type_ == "column":
         # Don't include columns that are not in the model
         return name in target_metadata.tables[object.table.name].c

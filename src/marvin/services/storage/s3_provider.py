@@ -2,7 +2,7 @@
 
 import hashlib
 from io import BytesIO
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 try:
     import boto3
@@ -78,7 +78,7 @@ class S3StorageProvider(BaseStorageProvider):
         checksum = hashlib.sha256(file_content).hexdigest()
 
         # Prepare metadata
-        extra_args = {
+        extra_args: dict[str, Any] = {
             "ContentType": content_type,
         }
         if metadata:

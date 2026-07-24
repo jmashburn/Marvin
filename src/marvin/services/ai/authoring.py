@@ -205,6 +205,7 @@ class AuthoringService:
             if recipe_max is not None:
                 extra_assets = extra_assets[: max(0, recipe_max - len(asset_ids))]
             auto_asset_slugs = [slug for _, slug in extra_assets]
+            final_attachments: list[dict] | None
             if extra_assets:
                 combined_ids = list(asset_ids) + [aid for aid, _ in extra_assets]
                 final_attachments = self.recipe_asset_attachments(combined_ids, entry_type)

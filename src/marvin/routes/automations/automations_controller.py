@@ -6,6 +6,7 @@ action kinds, and the operations available as actions — so the UI is backend-d
 """
 
 import re
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import UUID4
@@ -196,7 +197,7 @@ class AutomationsController(BaseUserController):
         if not target:
             return AutomationPreviewResult(has_target=False)
 
-        context = {"event": {"event_type": "preview", "payload": data.payload or {}}, "previous": {}, "depth": 0}
+        context: dict[str, Any] = {"event": {"event_type": "preview", "payload": data.payload or {}}, "previous": {}, "depth": 0}
         try:
             entities, total = resolve_target_entities(self.session, self.group_id, target, context)
         except Exception as e:

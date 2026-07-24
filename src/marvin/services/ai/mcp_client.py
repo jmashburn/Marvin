@@ -94,8 +94,8 @@ def _describe(exc: BaseException) -> str:
     with the status code (a 401 usually means the server wants auth / OAuth we don't do yet).
     """
     seen = 0
-    while getattr(exc, "exceptions", None) and seen < 10:  # unwrap ExceptionGroup chains
-        exc = exc.exceptions[0]
+    while (nested := getattr(exc, "exceptions", None)) and seen < 10:  # unwrap ExceptionGroup chains
+        exc = nested[0]
         seen += 1
     status = getattr(getattr(exc, "response", None), "status_code", None)
     msg = str(exc).strip() or type(exc).__name__

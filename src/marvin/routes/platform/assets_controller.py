@@ -194,7 +194,11 @@ class AssetsController(BaseUserController):
 
         # For local storage, serve file directly
         if asset.storage_provider == "local":
+            from marvin.services.storage.local_provider import LocalStorageProvider
+
             storage_provider = get_storage_provider()
+            if not isinstance(storage_provider, LocalStorageProvider):
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Storage backend is not local.")
             file_path = Path(storage_provider.root) / asset.storage_key
 
             if not file_path.exists():
