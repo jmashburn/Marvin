@@ -233,9 +233,9 @@ jobs:
           marvin platform collections delete "$COLLECTION_ID" --yes --workspace "$WS_SLUG" >/dev/null
           echo "✅ Collection deleted"
 
-          # NOTE: no "delete workspace" step. `DELETE /api/admin/groups/{id}?force=true` is broken —
-          # force only skips the safety checks, it does not cascade, so the delete then fails on a
-          # foreign-key constraint. The throwaway workspace is left behind (harmless on a CI database).
+          echo "📝 Test: Delete workspace"
+          marvin admin groups delete "$WS_ID" --yes --force >/dev/null
+          echo "✅ Workspace deleted"
 
           echo "=== All CLI integration tests passed ==="
 
