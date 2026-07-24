@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.9 (2026-07-24)
+
+### Features
+
+- **health**: Add root /healthz, /livez, /health, /readyz probes
+  ([`9251b51`](https://github.com/InnerOpen/marvin/commit/9251b51adc75e900d7029991966312232b135f00))
+
+
 ## v1.0.0-rc.8 (2026-07-24)
 
 ### Features
