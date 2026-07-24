@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.17 (2026-07-24)
+
+### Features
+
+- **frontend**: Resolve the backend URL at runtime, not build time
+  ([`9af4254`](https://github.com/InnerOpen/marvin/commit/9af42548a97625ea726606ad8afb252b7816429c))
+
+
 ## v1.0.0-rc.16 (2026-07-24)
 
 ### Bug Fixes
