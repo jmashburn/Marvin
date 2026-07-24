@@ -17,6 +17,7 @@ from marvin.schemas.group.group import GroupAdminUpdate  # Schema for updating g
 from marvin.schemas.mapper import mapper  # Utility for mapping data between objects
 from marvin.schemas.response.pagination import PaginationQuery  # For handling pagination parameters
 from marvin.schemas.response.responses import ErrorResponse  # Standardized error response
+from marvin.services.group.group_purge import purge_group_dependents  # Clears non-cascading workspace rows
 from marvin.services.group.group_service import GroupService  # Service layer for group operations
 
 # Base controller and mixin for CRUD helpers
@@ -331,6 +332,11 @@ class AdminGroupManagementRoutes(BaseAdminController):
             document_data=None,
             message=f"Workspace '{group_to_delete.name}' deleted by {self.user.username}",
         )
+
+        # `force` previously only skipped the checks above; the delete then hit a foreign key from
+        # the workspace-scoped tables that don't cascade on their own, so it could never succeed.
+        # Clear those first. Users are untouched — the primary-group check above still guards them.
+        purge_group_dependents(self.repos.session, item_id)
 
         # Proceed with deletion
         self.mixins.delete_one(item_id)
