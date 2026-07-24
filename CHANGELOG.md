@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.7 (2026-07-24)
+
+### Bug Fixes
+
+- **alembic**: Drop the enum types on downgrade so the schema is reversible
+  ([`b524990`](https://github.com/InnerOpen/marvin/commit/b524990bd63e33375b03279324e50a2a2767617d))
+
+
 ## v1.0.0-rc.6 (2026-07-24)
 
 ### Bug Fixes
