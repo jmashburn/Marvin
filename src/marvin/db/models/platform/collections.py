@@ -51,15 +51,24 @@ class Collections(SqlAlchemyBase, BaseMixins):
         back_populates="collections",
         doc="Entries in this collection",
     )
+    # Read-only convenience views. Membership rows are always written through the
+    # association models (CollectionAssets / CollectionResources) — see
+    # services/collections/smart_collections.sync_item — never by mutating these
+    # collections. Marking them viewonly tells SQLAlchemy they never participate in a
+    # flush, which resolves the overlapping-FK-write warning at its source rather than
+    # silencing it with `overlaps=` (which would leave two relationships both able to
+    # write collection_assets.asset_id / collection_resources.resource_id).
     assets: Mapped[list["Assets"]] = orm.relationship(
         "Assets",
         secondary="collection_assets",
-        doc="Assets in this (asset-target smart) collection",
+        viewonly=True,
+        doc="Assets in this (asset-target smart) collection (read-only view)",
     )
     resources: Mapped[list["Resources"]] = orm.relationship(
         "Resources",
         secondary="collection_resources",
-        doc="Resources in this (resource-target smart) collection",
+        viewonly=True,
+        doc="Resources in this (resource-target smart) collection (read-only view)",
     )
 
     __table_args__ = (sa.UniqueConstraint("group_id", "slug"),)
