@@ -183,6 +183,13 @@ class AppSettings(BaseSettings):
     DATA_DIR: Path | None = None
     """Root directory for application data (database, assets, seeds, etc.)"""
 
+    SEED_ON_STARTUP: bool = False
+    """Import workspace bundles from {DATA_DIR}/seeds on startup even in production.
+
+    Off by default: outside production the seed directory is always imported, but a production
+    instance ignores it so a stray bundle in the data volume can't silently import a workspace.
+    Load bundles there through the admin backup/import endpoints, or set this to opt back in."""
+
     @property
     def logger(self) -> logging.Logger:
         """

@@ -97,9 +97,15 @@ def init_db(session: orm.Session) -> None:
     system_seeder_service = SeederService(instance_repos)  # Use instance_repos (no group_id) for system types
     system_seeder_service.seed_system_entry_types("system_entry_types")
 
-    # Seed workspace-specific data from seeds directory if it exists
+    # Seed workspace-specific data from seeds directory if it exists.
+    #
+    # This imports *anything* matching workspace-*.json/zip in {DATA_DIR}/seeds, on every startup.
+    # That is a dev/bootstrap convenience and must not fire implicitly on a production instance —
+    # a stray bundle in the data volume would silently import a whole workspace. Production loads
+    # bundles explicitly through the admin backup/import endpoints instead. Set SEED_ON_STARTUP=true
+    # to opt back in (e.g. to provision a demo instance from a bundle).
     data_dir = settings.DATA_DIR
-    if data_dir:
+    if data_dir and (not settings.PRODUCTION or settings.SEED_ON_STARTUP):
         seed_dir = Path(data_dir) / "seeds"
         if seed_dir.exists():
             logger.info(f"Seeding workspace data from: {seed_dir}")

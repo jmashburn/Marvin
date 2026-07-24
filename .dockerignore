@@ -27,3 +27,20 @@ venv
 */data/db
 */marvin/test
 */marvin/.temp
+
+# Dev-only data. src/dev/data/seeds holds demo workspace bundles (workspace-*.json/zip)
+# that init_db imports on startup — they must never ship in a production image.
+src/dev
+src/tests
+tests
+
+# Not used at runtime. NB: the healthcheck is marvin.scripts.healthcheck (src/marvin/scripts),
+# which is unaffected by excluding the repo-root scripts/ directory.
+scripts
+docs
+tasks
+marvin-chart
+
+# The image serves no frontend; these are build-time only.
+frontend
+node_modules
