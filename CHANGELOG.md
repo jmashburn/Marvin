@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.10 (2026-07-24)
+
+### Bug Fixes
+
+- **helm**: Point chart probes at the new root health endpoints
+  ([`04251e5`](https://github.com/InnerOpen/marvin/commit/04251e56e41d92ef4f99a045286bb14de981233e))
+
+
 ## v1.0.0-rc.9 (2026-07-24)
 
 ### Features
