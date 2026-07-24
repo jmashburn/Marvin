@@ -46,10 +46,10 @@ To get the route URL:
 
    2. Verify health endpoint:
 {{- if .Values.route.enabled }}
-      curl -v https://$ROUTE/api/health
+      curl -v https://$ROUTE/healthz
 {{- else }}
       oc port-forward svc/{{ include "marvin.fullname" . }} 8080:{{ .Values.service.port }}
-      curl -v http://localhost:8080/api/health
+      curl -v http://localhost:8080/healthz
 {{- end }}
 
    3. Check scheduler state file:

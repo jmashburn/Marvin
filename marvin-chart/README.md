@@ -238,7 +238,7 @@ See `ROLLBACK_PROCEDURES.md` for detailed rollback instructions.
 ROUTE=$(oc get route marvin -o jsonpath='{.spec.host}')
 
 # Check health endpoint
-curl -v https://$ROUTE/api/health
+curl -v https://$ROUTE/healthz
 ```
 
 ### View Logs
