@@ -194,8 +194,7 @@ jobs:
 
           echo "📝 Test: Select workspace and read it back"
           marvin workspace use "$WS_SLUG" >/dev/null
-          # `workspace current` prints plain text regardless of output flags, so assert on the slug.
-          marvin workspace current | grep -q "$WS_SLUG"
+          marvin workspace current --json | json_of | jq -e --arg s "$WS_SLUG" '.slug == $s' >/dev/null
           echo "✅ Active workspace is $WS_SLUG"
 
           echo "📝 Test: Create collection"
