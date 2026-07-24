@@ -84,9 +84,9 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
     try {
       if (DEV_MODE && attempt === 0) {
         const context = typeof window === "undefined" ? "SSR" : "Client";
-        console.log(`[${context}] ➡️  ${init.method || "GET"} ${path}`);
+        console.debug(`[${context}] ➡️  ${init.method || "GET"} ${path}`);
         if (authToken) {
-          console.log(`[${context}]    Auth: ${authToken.substring(0, 20)}...`);
+          console.debug(`[${context}]    Auth: ${authToken.substring(0, 20)}...`);
         }
       }
 
@@ -97,7 +97,7 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
         const duration = Date.now() - startTime;
         const context = typeof window === "undefined" ? "SSR" : "Client";
         const statusEmoji = response.ok ? "✅" : "❌";
-        console.log(`[${context}] ${statusEmoji} ${init.method || "GET"} ${path} → ${response.status} (${duration}ms)`);
+        console.debug(`[${context}] ${statusEmoji} ${init.method || "GET"} ${path} → ${response.status} (${duration}ms)`);
       }
 
       // Handle 401 Unauthorized - redirect to login
