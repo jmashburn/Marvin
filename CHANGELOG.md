@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.8 (2026-07-24)
+
+### Features
+
+- **docker**: Build and serve the frontend alongside the API in one image
+  ([`5d3cec9`](https://github.com/InnerOpen/marvin/commit/5d3cec91a0f5585350edf8caa9b4d722e2070bfe))
+
+
 ## v1.0.0-rc.7 (2026-07-24)
 
 ### Bug Fixes
