@@ -6,6 +6,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.14 (2026-07-24)
+
+### Bug Fixes
+
+- **frontend**: Repair broken links on the workspace dashboard
+  ([`b98a56d`](https://github.com/InnerOpen/marvin/commit/b98a56dfcb984d869c449ba220e3aaa4b36a3fd5))
+
+### Continuous Integration
+
+- Pin actions to commit SHAs and move off the Node 20 runtime
+  ([`f60f3ed`](https://github.com/InnerOpen/marvin/commit/f60f3ed5a8164818b9ee14629f2f8287febe6804))
+
+
 ## v1.0.0-rc.13 (2026-07-24)
 
 ### Bug Fixes
