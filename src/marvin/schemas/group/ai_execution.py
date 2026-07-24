@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import UUID4, ConfigDict
+from pydantic import UUID4, ConfigDict, Field
 
 from marvin.schemas._marvin import _MarvinModel
 
@@ -113,7 +113,12 @@ class AIAgentRequest(_MarvinModel):
     # None (default) → fall back to the workspace's `default_register`, then "auto". An explicit
     # value here wins — e.g. the entry editor's "Review & suggest" sends "professional".
     # "auto" | "professional" | "playful"
-    register: str | None = None
+    #
+    # Named `tone_register` in Python, aliased back to `register` on the wire. A field
+    # literally named `register` shadows `ABCMeta.register` (Pydantic's metaclass derives
+    # from ABCMeta), which Pydantic warns about on every startup. The alias keeps the
+    # request/response payload byte-identical — clients still send/receive `register`.
+    tone_register: str | None = Field(default=None, alias="register")
     model_override: str | None = None
     max_steps: int | None = None  # tool-dispatch budget (server clamps)
     source: str = "agent"  # invocation surface; gated by workspace policy

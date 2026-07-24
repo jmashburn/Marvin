@@ -484,7 +484,7 @@ class AIOperationsController(BaseUserController):
                 source=body.source,
                 assistant_name=assistant_name,
                 persona_prompt=persona_prompt,
-                register=body.register or self._default_register(),
+                register=body.tone_register or self._default_register(),
                 log_inputs=log_inputs,
                 log_outputs=log_outputs,
                 max_tokens=self._max_output_tokens(),
