@@ -8,6 +8,10 @@ on:
     branches:
       - main
       - develop
+  # Manual trigger. Without this the workflow can only be exercised by landing a commit on a
+  # release branch, so a change to it cannot be validated before merge — and a push whose commit
+  # message carries the CI-skip marker leaves no way to run it at all.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
