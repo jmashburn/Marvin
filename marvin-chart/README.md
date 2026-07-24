@@ -6,7 +6,8 @@ Helm chart for deploying Marvin event bus application to Kubernetes/OpenShift.
 
 Marvin is an event bus application with webhook delivery, scheduling, and state persistence. This Helm chart provides:
 
-- Automated database migrations via Helm hooks
+- Automated database migrations on application startup
+- API and server-rendered web UI from a single image, exposed on separate ports
 - Multi-environment support (dev, staging, production)
 - OpenShift Route integration
 - Persistent storage for SQLite database
@@ -144,18 +145,18 @@ kubectl create secret generic marvin-secrets \
 
 ## Database Migrations
 
-Database migrations run automatically via Helm pre-upgrade hooks:
+The application runs `alembic upgrade head` itself during startup, before it begins serving. The
+chart does not schedule a separate migration Job — one less moving part, and it keeps the schema in
+lockstep with the image that owns it.
 
-1. User runs `helm upgrade`
-2. Migration job executes `alembic upgrade head`
-3. Job must complete successfully before deployment proceeds
-4. New pods start with updated schema
+Because migrations are part of startup, the readiness probe (`/readyz`) is what gates traffic: a pod
+stays out of the Service until its schema is current and the database answers. Give `--timeout`
+enough room on upgrades that introduce long migrations.
 
-To view migration logs:
+To watch a migration:
 
 ```bash
-MIGRATION_JOB=$(oc get jobs -l job-type=migration --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
-oc logs job/$MIGRATION_JOB
+kubectl logs -f deployment/marvin -n <namespace>
 ```
 
 ## Upgrading
@@ -194,7 +195,7 @@ For breaking migrations (like TIME → DATETIME conversion):
    oc cp $POD:/tmp/backup.tar.gz ./marvin-backup-$(date +%Y%m%d).tar.gz
    ```
 
-2. **Run upgrade** (migration happens automatically via hook)
+2. **Run upgrade** (migration happens automatically as the new pod starts)
 
 3. **Verify** migration success before traffic resumes
 
@@ -257,8 +258,10 @@ oc logs $POD | grep ERROR
 ### Verify Migration Status
 
 ```bash
-oc exec $POD -- bash -c 'cd /app/src/marvin && uv run alembic current'
+oc exec $POD -- alembic -c /app/.venv/lib/python3.12/site-packages/marvin/alembic.ini current
 ```
+
+Or simply read it off the startup log — the application logs its migration run before serving.
 
 ### Check Scheduler State
 
@@ -268,16 +271,17 @@ oc exec $POD -- cat /app/data/scheduler_state.json
 
 ## Troubleshooting
 
-### Migration Job Failed
+### Migration Failed
+
+Migrations run inside the application pod at startup, so a failure shows up as a pod that never
+becomes ready:
 
 ```bash
-# View migration job logs
-MIGRATION_JOB=$(oc get jobs -l job-type=migration --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
-oc logs job/$MIGRATION_JOB
+# The migration output is at the top of the startup log
+kubectl logs -n <namespace> deployment/marvin | head -50
 
-# Delete failed job and retry
-oc delete job $MIGRATION_JOB
-helm upgrade marvin ./marvin-chart [options]
+# If the pod already restarted, read the previous container's log
+kubectl logs -n <namespace> $POD --previous
 ```
 
 ### Pod CrashLoopBackOff

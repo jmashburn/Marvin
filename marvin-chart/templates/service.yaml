@@ -12,8 +12,12 @@ spec:
   type: {{ .Values.service.type }}
   ports:
   - port: {{ .Values.service.port }}
-    targetPort: {{ .Values.service.targetPort }}
+    targetPort: http
     protocol: TCP
     name: http
+  - port: {{ .Values.service.frontendPort }}
+    targetPort: frontend
+    protocol: TCP
+    name: frontend
   selector:
     {{- include "marvin.selectorLabels" . | nindent 4 }}

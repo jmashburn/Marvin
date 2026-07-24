@@ -20,7 +20,7 @@ spec:
     name: {{ include "marvin.fullname" . }}
     weight: 100
   port:
-    targetPort: http
+    targetPort: {{ .Values.route.targetPort | default "http" }}
   {{- if .Values.route.tls.enabled }}
   tls:
     termination: {{ .Values.route.tls.termination }}

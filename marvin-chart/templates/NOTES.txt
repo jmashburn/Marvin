@@ -36,9 +36,7 @@ To get the route URL:
    kubectl logs -f deployment/{{ include "marvin.fullname" . }}
 {{- end }}
 
-🔍 To verify the migration status:
-   POD=$(oc get pods -l app.kubernetes.io/name={{ include "marvin.name" . }} -o jsonpath='{.items[0].metadata.name}')
-   oc exec $POD -- bash -c 'cd /app/src/marvin && uv run alembic current'
+🔍 Database migrations run automatically on startup — watch for them in the pod log above.
 
 ✅ Post-deployment verification checklist:
    1. Check pod status:
@@ -59,9 +57,9 @@ To get the route URL:
       oc logs $POD | grep -i "token.*:" | head -20
       (Should NOT show plaintext JWTs)
 
-   5. Check migration job logs:
-      MIGRATION_JOB=$(oc get jobs -l job-type=migration --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
-      oc logs job/$MIGRATION_JOB
+   5. Reach the web UI (served by the same pod on a second port):
+      oc port-forward svc/{{ include "marvin.fullname" . }} 4321:{{ .Values.service.frontendPort }}
+      open http://localhost:4321
 
 {{- if .Values.persistence.enabled }}
 

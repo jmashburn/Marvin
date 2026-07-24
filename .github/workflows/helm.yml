@@ -46,13 +46,14 @@ jobs:
             --debug \
             --output-dir /tmp/marvin-templates
 
+      # `--api-versions route.openshift.io/v1` makes the OpenShift Route render: the template is
+      # capability-gated so it silently vanishes from a plain `helm template`, leaving it untested.
       - name: Template Helm chart (production values)
         run: |
           helm template marvin marvin-chart/ \
-            --values marvin-chart/values.yaml \
+            --values marvin-chart/values-production.yaml \
             --set image.tag=latest \
-            --set postgresql.enabled=true \
-            --set redis.enabled=true \
+            --api-versions route.openshift.io/v1 \
             --debug \
             --output-dir /tmp/marvin-templates-prod
 
@@ -81,9 +82,13 @@ jobs:
           cluster_name: marvin-test
           wait: 120s
 
+      # --target production is required: the last stage in the Dockerfile is `lambda`, which resets
+      # ENTRYPOINT and runs the Mangum handler, so an untargeted build produces an image that exits
+      # with `"marvin.app.handler": executable file not found`. docker.yml and the Taskfile already
+      # target production; this build was the odd one out.
       - name: Build Docker image for testing
         run: |
-          docker build -t marvin:test -f docker/Dockerfile .
+          docker build -t marvin:test -f docker/Dockerfile --target production .
 
       - name: Load image into Kind
         run: |
@@ -100,8 +105,6 @@ jobs:
             --set image.repository=marvin \
             --set image.tag=test \
             --set image.pullPolicy=Never \
-            --set postgresql.enabled=true \
-            --set redis.enabled=true \
             --wait \
             --timeout 5m \
             --debug
@@ -118,15 +121,23 @@ jobs:
           kubectl get pods -n marvin-test
           kubectl get services -n marvin-test
 
-      - name: Test health endpoint
+      # The service publishes 8080 (API) and 4321 (frontend) — there has never been a port 80, so
+      # the old `8080:80` forward could not connect and the `|| echo` swallowed the failure.
+      - name: Test health and frontend endpoints
         run: |
-          # Port forward to access the service
-          kubectl port-forward -n marvin-test svc/marvin 8080:80 &
+          set -euo pipefail
+
+          kubectl port-forward -n marvin-test svc/marvin 8080:8080 4321:4321 &
+          trap 'kill %1 2>/dev/null || true' EXIT
           sleep 5
 
-          # Test health endpoint (root-level liveness probe)
-          curl -f http://localhost:8080/healthz || \
-          echo "⚠️ Health check endpoint not accessible"
+          echo "--- liveness ---"
+          curl -fsS http://localhost:8080/healthz
+          echo "--- readiness ---"
+          curl -fsS http://localhost:8080/readyz
+          echo "--- frontend (login renders without auth) ---"
+          curl -fsS -o /dev/null http://localhost:4321/login
+          echo "✅ API and frontend both serving"
 
       - name: Check logs on failure
         if: failure()

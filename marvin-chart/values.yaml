@@ -95,7 +95,10 @@ affinity: {}
 service:
   type: ClusterIP
   port: 8080
-  targetPort: 8080
+  # The frontend is a second port on the same pod, exposed alongside the API
+  frontendPort: 4321
+  # Both ports resolve to the container's named ports, so they track config.apiPort /
+  # config.frontendPort automatically and can't drift out of sync with them.
   annotations: {}
 
 # OpenShift Route configuration
@@ -103,6 +106,8 @@ route:
   enabled: true
   host: ""  # Auto-generated if empty
   path: /
+  # Which service port the route sends traffic to: "http" (API) or "frontend" (web UI)
+  targetPort: http
   tls:
     enabled: true
     termination: edge
@@ -135,6 +140,9 @@ config:
   apiPort: 8080
   apiHost: "0.0.0.0"
 
+  # Server-rendered frontend (Astro SSR) — the image runs it alongside the API
+  frontendPort: 4321
+
   # Scheduler configuration
   schedulerInterval: 300  # 5 minutes in seconds
 
@@ -154,27 +162,20 @@ secrets:
   smtpFromEmail: "noreply@marvin.local"
 
   # Security
-  jwtSecret: "dev-jwt-secret-change-in-production"
+  # Deliberately empty: a default here is a published signing key, and `secrets: {}` in an
+  # overlay would not clear it (Helm coalesces maps, so unset keys keep the parent's value).
+  # Left empty, the chart reuses the key already in the cluster or generates a random one.
+  jwtSecret: ""
   apiKey: ""
 
   # External services (if any)
   # Add your secrets here
 
-# Migration job configuration
-migration:
-  enabled: true
-  # Number of retries before considering a Job as failed
-  backoffLimit: 3
-  # Time to keep completed job pods for debugging
-  ttlSecondsAfterFinished: 600
-  # Resources for migration job
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "512Mi"
-      cpu: "200m"
+# Pod disruption budget (only meaningful with replicaCount > 1)
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1  # mutually exclusive with minAvailable
 
 # Extra environment variables
 extraEnv: []

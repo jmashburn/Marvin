@@ -20,6 +20,9 @@ config:
 # Production route with real domain
 route:
   host: marvin.yourdomain.com
+  # Send public traffic to the web UI. The API stays reachable on the service's `http` port
+  # for the SDK/CLI and for the browser's own calls.
+  targetPort: frontend
   tls:
     enabled: true
     termination: edge
@@ -41,8 +44,10 @@ resources:
     memory: "1Gi"
     cpu: "1000m"
 
-# Production secrets MUST come from sealed-secrets or external vault
-# NEVER put real secrets in this file
+# Production secrets MUST come from sealed-secrets or external vault.
+# NEVER put real secrets in this file. Note that `secrets: {}` does not blank the defaults —
+# Helm coalesces maps, so a key omitted here keeps whatever values.yaml sets. Override each
+# key explicitly (or via --set / a sealed secret) rather than relying on an empty map.
 secrets: {}
 
 # Production-grade health checks

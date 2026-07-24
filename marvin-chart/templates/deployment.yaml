@@ -35,25 +35,24 @@ spec:
           {{- toYaml .Values.securityContext | nindent 12 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command:
-          - /bin/bash
-          - -c
-          - |
-            set -e
-            echo "Starting Marvin application..."
-            cd /app
-            exec marvin run
+        # No command override: the image entrypoint (docker/start.sh) supervises both the API and
+        # the server-rendered frontend. Overriding it here would start only one of them — and the
+        # previous override called `marvin run`, which is not a console script the image installs
+        # (it ships `marvin-server`), so the container exited immediately.
         ports:
         - name: http
           containerPort: {{ .Values.config.apiPort }}
           protocol: TCP
+        - name: frontend
+          containerPort: {{ .Values.config.frontendPort }}
+          protocol: TCP
         {{- if .Values.livenessProbe.enabled }}
         livenessProbe:
-          {{- toYaml .Values.livenessProbe | nindent 10 }}
+          {{- omit .Values.livenessProbe "enabled" | toYaml | nindent 10 }}
         {{- end }}
         {{- if .Values.readinessProbe.enabled }}
         readinessProbe:
-          {{- toYaml .Values.readinessProbe | nindent 10 }}
+          {{- omit .Values.readinessProbe "enabled" | toYaml | nindent 10 }}
         {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 12 }}
@@ -94,6 +93,11 @@ spec:
             configMapKeyRef:
               name: {{ include "marvin.fullname" . }}
               key: apiHost
+        - name: FRONTEND_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "marvin.fullname" . }}
+              key: frontendPort
         # Secrets from Secret
         - name: SMTP_HOST
           valueFrom:
