@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.19 (2026-07-24)
+
+### Bug Fixes
+
+- **ci**: Lowercase the image name in the release image guard
+  ([`284c2a4`](https://github.com/InnerOpen/marvin/commit/284c2a46b4163b743d69e65ea6448ccb3952718c))
+
+
 ## v1.0.0-rc.18 (2026-07-24)
 
 ### Bug Fixes
