@@ -85,15 +85,15 @@ function relTime(iso?: string | null): string {
       </nav>
 
       <div class="stats-grid">
-        <a href="/entries" class="stat-card">
+        <a href="/workspace/entries" class="stat-card">
           <div class="stat-value">{stats ? (stats.entries ?? 0) : '—'}</div>
           <div class="stat-label">Entries</div>
         </a>
-        <a href="/assets" class="stat-card">
+        <a href="/workspace/assets" class="stat-card">
           <div class="stat-value">{stats ? (stats.assets ?? 0) : '—'}</div>
           <div class="stat-label">Assets</div>
         </a>
-        <a href="/entries/collections" class="stat-card">
+        <a href="/workspace/collections" class="stat-card">
           <div class="stat-value">{stats ? (stats.collections ?? 0) : '—'}</div>
           <div class="stat-label">Collections</div>
         </a>
@@ -159,7 +159,7 @@ function relTime(iso?: string | null): string {
             <p class="empty">All clear — nothing waiting on you. 🎉</p>
           ) : (
             <ul class="attention-list">
-              <a href="/entries?status=draft" class="attention-item">
+              <a href="/workspace/entries?status=draft" class="attention-item">
                 <span class={`attention-count ${drafts ? 'warn' : ''}`}>{drafts}</span>
                 <span class="attention-label">Draft entries awaiting review</span>
               </a>
