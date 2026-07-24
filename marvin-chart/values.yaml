@@ -140,6 +140,12 @@ config:
   apiPort: 8080
   apiHost: "0.0.0.0"
 
+  # URL the user's browser uses to reach the backend API. The frontend injects it into each page
+  # at request time (resolved at runtime, not baked into the image), so set it to the address a
+  # browser can actually reach — e.g. https://marvin.example.com. Left empty, the browser falls
+  # back to http://localhost:8080, which only works for local single-host access.
+  publicApiUrl: ""
+
   # Server-rendered frontend (Astro SSR) — the image runs it alongside the API.
   # Pinned rather than derived from FRONTEND_URL: the containerPort has to be a fixed number for
   # the Service to target it. Keep in step with the FRONTEND_URL the deployment advertises.

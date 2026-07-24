@@ -16,11 +16,10 @@ FROM ${NODE_IMAGE}:${NODE_VARIENT} AS frontend-builder
 
 WORKDIR /frontend
 
-# Vite inlines import.meta.env.PUBLIC_* at build time, and the browser must reach the backend at
-# this URL. Leave empty to fall back to http://localhost:8080 (fine for local/single-host); set
-# --build-arg PUBLIC_MARVIN_API_URL=https://api.example.com for a real deployment.
-ARG PUBLIC_MARVIN_API_URL=""
-ENV PUBLIC_MARVIN_API_URL=${PUBLIC_MARVIN_API_URL}
+# No PUBLIC_MARVIN_API_URL build arg: the backend URL is resolved at runtime, not baked in. The
+# frontend reads it from the environment on the server and injects it into each page for the
+# browser (see frontend/src/lib/api/config.ts + RuntimeConfig.astro), so one image serves any
+# deployment. Set PUBLIC_MARVIN_API_URL / MARVIN_API_URL on the running container instead.
 
 # Install against the lockfile first so this layer caches on dependency changes only.
 COPY frontend/package.json frontend/package-lock.json ./

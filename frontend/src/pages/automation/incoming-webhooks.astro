@@ -1,7 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
-import { API_BASE_URL } from "@/lib/api/config";
+import { getBrowserApiBaseUrl } from "@/lib/api/config";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 import { createSdkClient } from "@/lib/sdk";
 
@@ -21,7 +21,9 @@ try {
 }
 
 const listJson = JSON.stringify(webhooks).replace(/</g, "\\u003c");
-const hookBase = `${API_BASE_URL}/api/hooks`;
+// Shown to the user to configure an external system that POSTs here, so it must be the publicly
+// reachable address rather than an internal cluster one.
+const hookBase = `${getBrowserApiBaseUrl()}/api/hooks`;
 ---
 
 <AppLayout title="Incoming Webhooks" eyebrow="Automation">

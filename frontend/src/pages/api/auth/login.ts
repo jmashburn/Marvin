@@ -3,7 +3,7 @@
  */
 
 import type { APIRoute } from "astro";
-import { API_BASE_URL } from "@/lib/api/config";
+import { getServerApiBaseUrl } from "@/lib/api/config";
 
 export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
   try {
@@ -20,9 +20,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect, url }) => {
       return redirect(loginError, 303);
     }
 
-    const backendUrl = `${API_BASE_URL}/api/auth/token`;
-    console.log("[auth/login] Attempting login to:", backendUrl);
-    console.log("[auth/login] API_BASE_URL:", API_BASE_URL);
+    const backendUrl = `${getServerApiBaseUrl()}/api/auth/token`;
 
     // Call backend /api/auth/token endpoint
     const response = await fetch(backendUrl, {

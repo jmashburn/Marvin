@@ -102,6 +102,14 @@ spec:
             configMapKeyRef:
               name: {{ include "marvin.fullname" . }}
               key: frontendPort
+        # Browser-facing API URL, injected into each page at request time. Empty by default; set
+        # config.publicApiUrl for any deployment a browser reaches over something other than
+        # localhost.
+        - name: PUBLIC_MARVIN_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "marvin.fullname" . }}
+              key: publicApiUrl
         # Secrets from Secret
         - name: SMTP_HOST
           valueFrom:

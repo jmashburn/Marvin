@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import Marvin from "@/components/Marvin.astro";
+import RuntimeConfig from "@/components/RuntimeConfig.astro";
 import ThemeSwitcher from "@/components/ThemeSwitcher.astro";
 import WorkspaceSwitcher from "@/components/WorkspaceSwitcher.astro";
 import { getAuthToken } from "@/lib/api/client";
@@ -113,6 +114,7 @@ function isActive(itemPath: string, currentPath: string): boolean {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Marvin platform admin frontend" />
     <title>{title} | Marvin</title>
+    <RuntimeConfig />
   </head>
   <body
     data-entity-type={entityType}

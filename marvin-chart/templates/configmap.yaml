@@ -12,6 +12,7 @@ data:
   dataDir: {{ .Values.config.dataDir | quote }}
   apiPort: {{ .Values.config.apiPort | quote }}
   apiHost: {{ .Values.config.apiHost | quote }}
+  publicApiUrl: {{ .Values.config.publicApiUrl | default "" | quote }}
   frontendPort: {{ .Values.config.frontendPort | quote }}
   schedulerInterval: {{ .Values.config.schedulerInterval | quote }}
   webhookRetryAttempts: {{ .Values.config.webhookRetryAttempts | quote }}

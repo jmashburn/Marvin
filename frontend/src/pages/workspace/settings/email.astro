@@ -2,6 +2,7 @@
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
+import { getBrowserApiBaseUrl } from "@/lib/api/config";
 import { listEmailTemplates } from "@/lib/api/emailTemplates";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
@@ -17,7 +18,7 @@ let allSubscriptions: any[] = [];
 try {
   workspace = await getCurrentWorkspace(authToken);
   const wsId = (workspace as any)?.id ?? (workspace as any)?.groupId;
-  const base = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
+  const base = getBrowserApiBaseUrl();
   const hdrs = authToken ? { Authorization: `Bearer ${authToken}` } : {};
   if (wsId) {
     [emailTemplates, eventConnections, allSubscriptions] = await Promise.all([
@@ -39,7 +40,7 @@ try {
 }
 
 const groupId = (workspace as any)?.id ?? (workspace as any)?.groupId;
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
+const apiUrl = getBrowserApiBaseUrl();
 
 // Build template_id → [event_type, ...] and (template_id|event_type) → subscription_id
 const eventsByTemplateId: Record<string, string[]> = {};

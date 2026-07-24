@@ -2,6 +2,7 @@
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getAuthToken } from "@/lib/api/client";
+import { getBrowserApiBaseUrl } from "@/lib/api/config";
 import { getCurrentWorkspace } from "@/lib/api/workspaces";
 
 const authToken = getAuthToken(Astro.cookies);
@@ -13,7 +14,7 @@ try {
   console.error("[email-smtp] Error loading workspace:", e);
 }
 
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
+const apiUrl = getBrowserApiBaseUrl();
 ---
 
 <AppLayout title="SMTP Configuration" eyebrow="Workspace">

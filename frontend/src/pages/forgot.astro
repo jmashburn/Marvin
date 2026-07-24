@@ -3,6 +3,7 @@ import "../styles/global.css";
 // Ensure this page is server-rendered (not prerendered)
 export const prerender = false;
 
+import RuntimeConfig from "@/components/RuntimeConfig.astro";
 import { forgotPassword } from "@/lib/api/auth";
 
 let success = false;
@@ -29,6 +30,7 @@ if (Astro.request.method === "POST") {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Forgot Password | Marvin</title>
+    <RuntimeConfig />
   </head>
   <body class="forgot-password-page">
     <div class="forgot-password-container">

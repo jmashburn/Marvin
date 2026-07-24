@@ -1,4 +1,4 @@
-import { getApiUrl, hasApiBackend, SITE_CLIENT_TOKEN } from "./config";
+import { getApiUrl, getSiteClientToken, hasApiBackend } from "./config";
 
 export class ApiRequestError extends Error {
   status: number;
@@ -61,11 +61,14 @@ export async function fetchApi<T>(path: string, init: RequestInit = {}, authToke
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
 
-  // Use authToken if provided (SSR context), otherwise check for SITE_CLIENT_TOKEN
+  // Use authToken if provided (SSR context), otherwise fall back to the site-client token.
+  // getSiteClientToken() reads process.env, so it only yields a token server-side — in the
+  // browser it is empty, which is correct: the site token is a server-only credential.
+  const siteClientToken = getSiteClientToken();
   if (authToken) {
     headers.set("Authorization", `Bearer ${authToken}`);
-  } else if (SITE_CLIENT_TOKEN && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${SITE_CLIENT_TOKEN}`);
+  } else if (siteClientToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${siteClientToken}`);
   }
 
   // Include credentials to send cookies with requests

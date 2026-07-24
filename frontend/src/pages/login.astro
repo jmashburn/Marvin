@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
-import { API_BASE_URL } from "@/lib/api/config";
+import RuntimeConfig from "@/components/RuntimeConfig.astro";
+import { getBrowserApiBaseUrl, getServerApiBaseUrl } from "@/lib/api/config";
 import { isAuthenticated } from "@/lib/auth";
 
 // Ensure this page is server-rendered (not prerendered)
@@ -22,7 +23,7 @@ let oidcAutoRedirect = false;
 let isDemo = false;
 
 try {
-  const res = await fetch(`${API_BASE_URL}/api/app/about/login-info`);
+  const res = await fetch(`${getServerApiBaseUrl()}/api/app/about/login-info`);
   if (res.ok) {
     const info = await res.json();
     oidcEnabled = info.oidc_enabled ?? false;
@@ -34,12 +35,14 @@ try {
   // Backend unreachable — fall through to password-only login
 }
 
+// The OAuth URL is followed by the user's browser (302 target / link href), so it must be the
+// publicly reachable address, not the internal one the SSR server uses to talk to the backend.
+const oauthUrl = `${getBrowserApiBaseUrl()}/api/auth/oauth`;
+
 // Auto-redirect to OIDC provider if configured (skip when returning from an error)
 if (oidcEnabled && oidcAutoRedirect && !error) {
-  return Astro.redirect(`${API_BASE_URL}/api/auth/oauth`);
+  return Astro.redirect(oauthUrl);
 }
-
-const oauthUrl = `${API_BASE_URL}/api/auth/oauth`;
 ---
 
 <!doctype html>
@@ -48,6 +51,7 @@ const oauthUrl = `${API_BASE_URL}/api/auth/oauth`;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login | Marvin</title>
+    <RuntimeConfig />
   </head>
   <body class="login-page">
     <div class="login-container">

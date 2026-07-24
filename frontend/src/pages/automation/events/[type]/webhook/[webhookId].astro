@@ -1,6 +1,7 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { fetchApi, getAuthToken } from "@/lib/api/client";
+import { getBrowserApiBaseUrl } from "@/lib/api/config";
 import { createSdkClient } from "@/lib/sdk";
 
 const authToken = getAuthToken(Astro.cookies);
@@ -12,7 +13,7 @@ let webhook: any = null;
 let isConnected = false;
 let error: string | null = null;
 
-const apiUrl = import.meta.env.PUBLIC_MARVIN_API_URL || "http://localhost:8080";
+const apiUrl = getBrowserApiBaseUrl();
 
 function buildExamplePayload(eventType: string, variables: any[]): object {
   const varExamples: Record<string, string> = {};

@@ -1,6 +1,6 @@
 import { PlatformClient } from "@inneropen/marvin-sdk/platform";
 import type { APIRoute } from "astro";
-import { API_BASE_URL } from "@/lib/api/config";
+import { getServerApiBaseUrl } from "@/lib/api/config";
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
@@ -18,7 +18,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     // Use SDK to create invitation
     const platformClient = new PlatformClient({
-      apiUrl: API_BASE_URL,
+      apiUrl: getServerApiBaseUrl(),
       userToken: authToken,
     });
 
