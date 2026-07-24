@@ -173,8 +173,9 @@ jobs:
           U="${GITHUB_RUN_ID:-$RANDOM}"
 
           # Commands print a human "✓ ..." line to stdout before the JSON body, so slice from the
-          # first bracket. Payloads go via --file: `--json` collides with the global --json output
-          # shortcut, and `--file -` (stdin) is not honoured by the platform commands.
+          # first bracket. Payloads go via --file, not the local `--json <payload>` option, which
+          # would collide with the global --json output shortcut used here; `--file -` (stdin) is
+          # not honoured by the platform commands either.
           json_of() { sed -n '/^[[{]/,$p'; }
 
           echo "📝 Test: Display help"
@@ -182,43 +183,43 @@ jobs:
 
           echo "📝 Test: Create workspace"
           echo "{\"name\":\"CI Test Workspace $U\"}" > "$TMP/ws.json"
-          WS=$(marvin admin groups create --file "$TMP/ws.json" --output json | json_of)
+          WS=$(marvin admin groups create --file "$TMP/ws.json" --json | json_of)
           WS_ID=$(echo "$WS" | jq -r '.id')
           WS_SLUG=$(echo "$WS" | jq -r '.slug')
           echo "✅ Workspace created: $WS_SLUG ($WS_ID)"
 
           echo "📝 Test: List workspaces"
-          marvin admin groups list --output json >/dev/null
+          marvin admin groups list --json >/dev/null
           echo "✅ Workspaces listed"
 
           echo "📝 Test: Select workspace and read it back"
           marvin workspace use "$WS_SLUG" >/dev/null
-          # `workspace current` prints plain text and ignores --output, so assert on the slug.
+          # `workspace current` prints plain text regardless of output flags, so assert on the slug.
           marvin workspace current | grep -q "$WS_SLUG"
           echo "✅ Active workspace is $WS_SLUG"
 
           echo "📝 Test: Create collection"
           echo "{\"name\":\"CI Collection $U\",\"targetType\":\"entry\",\"isPublic\":false,\"sortOrder\":0,\"isSmart\":false}" > "$TMP/col.json"
-          COLLECTION_ID=$(marvin platform collections create --file "$TMP/col.json" --workspace "$WS_SLUG" --output json | json_of | jq -r '.id')
+          COLLECTION_ID=$(marvin platform collections create --file "$TMP/col.json" --workspace "$WS_SLUG" --json | json_of | jq -r '.id')
           echo "✅ Collection created: $COLLECTION_ID"
 
           echo "📝 Test: Create entry type"
           echo "{\"name\":\"CI Entry Type $U\",\"slug\":\"ci-entry-type-$U\",\"schemaJson\":{\"fields\":[]}}" > "$TMP/et.json"
-          ENTRY_TYPE_ID=$(marvin platform entry-types create --file "$TMP/et.json" --workspace "$WS_SLUG" --output json | json_of | jq -r '.id')
+          ENTRY_TYPE_ID=$(marvin platform entry-types create --file "$TMP/et.json" --workspace "$WS_SLUG" --json | json_of | jq -r '.id')
           echo "✅ Entry type created: $ENTRY_TYPE_ID"
 
           echo "📝 Test: Create entry"
           echo "{\"title\":\"CI Entry\",\"slug\":\"ci-entry-$U\",\"entryTypeId\":\"$ENTRY_TYPE_ID\",\"status\":\"draft\"}" > "$TMP/entry.json"
-          ENTRY_ID=$(marvin platform entries create --file "$TMP/entry.json" --workspace "$WS_SLUG" --output json | json_of | jq -r '.id')
+          ENTRY_ID=$(marvin platform entries create --file "$TMP/entry.json" --workspace "$WS_SLUG" --json | json_of | jq -r '.id')
           echo "✅ Entry created: $ENTRY_ID"
 
           echo "📝 Test: Get entry"
-          marvin platform entries get "$ENTRY_ID" --workspace "$WS_SLUG" --output json | json_of | jq -e '.title == "CI Entry"' >/dev/null
+          marvin platform entries get "$ENTRY_ID" --workspace "$WS_SLUG" --json | json_of | jq -e '.title == "CI Entry"' >/dev/null
           echo "✅ Entry retrieved"
 
           echo "📝 Test: Update entry"
           echo '{"title":"CI Entry Updated"}' > "$TMP/update.json"
-          marvin platform entries update "$ENTRY_ID" --file "$TMP/update.json" --workspace "$WS_SLUG" --output json | json_of | jq -e '.title == "CI Entry Updated"' >/dev/null
+          marvin platform entries update "$ENTRY_ID" --file "$TMP/update.json" --workspace "$WS_SLUG" --json | json_of | jq -e '.title == "CI Entry Updated"' >/dev/null
           echo "✅ Entry updated"
 
           echo "📝 Test: Add entry to collection"
