@@ -132,6 +132,12 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile
+          # target: production is REQUIRED. Without it the build defaults to the last Dockerfile
+          # stage — `lambda` — which resets the entrypoint to the Mangum handler. That image
+          # crash-loops under a normal `docker run` / Helm deploy with
+          # `"marvin.app.handler": executable file not found`. The verify step below is the guard
+          # that keeps this from silently regressing.
+          target: production
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -139,6 +145,30 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             COMMIT=${{ github.sha }}
+
+      # Guard: pull the image we just published and prove it is the production app, not lambda.
+      # The distinguishing fact is the entrypoint — production runs /app/start.sh (API + frontend),
+      # lambda has ENTRYPOINT [] + CMD marvin.app.handler. This inspects the actual pushed artifact,
+      # so it fails the release whatever caused the wrong image (missing target, reordered stages).
+      - name: Verify the published image is the production target
+        run: |
+          set -euo pipefail
+          IMG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.version }}"
+          echo "Inspecting $IMG"
+          docker pull "$IMG"
+          entrypoint=$(docker inspect --format '{{json .Config.Entrypoint}}' "$IMG")
+          cmd=$(docker inspect --format '{{json .Config.Cmd}}' "$IMG")
+          echo "Entrypoint: $entrypoint"
+          echo "Cmd:        $cmd"
+          case "$entrypoint" in
+            *start.sh*)
+              echo "✅ production image (serves API + frontend)"
+              ;;
+            *)
+              echo "::error::Published release image is NOT the production target (entrypoint=$entrypoint, cmd=$cmd). The build likely lost 'target: production' and published the lambda stage."
+              exit 1
+              ;;
+          esac
 
   # Package and publish Helm chart if release was created
   helm-release:
