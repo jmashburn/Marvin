@@ -191,7 +191,14 @@ max-complexity = 24  # Default is 10.
 version_toml = ["pyproject.toml:project.version"]
 version_variables = ["src/marvin/__init__.py:__version__"]
 branch = "main"
-build_command = "pip install -e ."
+# `uv lock` re-stamps the project version into uv.lock after version_toml has rewritten
+# pyproject.toml. Without it the lock keeps whatever version it was written at and drifts further
+# every release — it sat at 1.0.0rc3 while pyproject.toml had reached 1.0.0rc10. semantic-release
+# runs this before staging, so the refreshed lock is picked up by `assets` below and rides along in
+# the release commit. It re-resolves nothing else: upgrades require an explicit --upgrade.
+build_command = "uv lock && pip install -e ."
+# Files to include in the release commit beyond the version locations themselves.
+assets = ["uv.lock"]
 # Only {version} is substituted here — semantic-release formats this with version= alone, so any
 # other placeholder (e.g. {changelog}) raises KeyError and fails the release at commit time, after
 # the version bump and build have already succeeded. The changelog lives in CHANGELOG.md.

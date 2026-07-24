@@ -48,10 +48,13 @@ jobs:
         with:
           python-version: '3.12'
 
+      # uv is needed by semantic-release's build_command, which runs `uv lock` so the refreshed
+      # lockfile is committed alongside the version bump (see [tool.semantic_release] in
+      # pyproject.toml). Without uv on PATH the build_command fails and no release is cut.
       - name: Install Python Semantic Release
         run: |
           python -m pip install --upgrade pip
-          pip install python-semantic-release
+          pip install python-semantic-release uv
 
       - name: Configure Git
         run: |
