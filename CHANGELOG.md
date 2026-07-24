@@ -6,6 +6,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.13 (2026-07-24)
+
+### Bug Fixes
+
+- **ci**: Gate release publishing on semantic-release's own output
+  ([`5099132`](https://github.com/InnerOpen/marvin/commit/50991321d04554f6837b3f676805b7393f64b325))
+
+### Continuous Integration
+
+- **release**: Keep uv.lock in sync with the version bump
+  ([`13e0147`](https://github.com/InnerOpen/marvin/commit/13e01472d1ae15c272acb1f74511f52e155d9890))
+
+
 ## v1.0.0-rc.12 (2026-07-24)
 
 ### Features
