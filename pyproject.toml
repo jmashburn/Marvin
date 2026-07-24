@@ -199,7 +199,11 @@ prerelease = false
 [tool.semantic_release.branches.develop]
 match = "develop"
 prerelease = true
-prerelease_token = "next"
+# Must be a PEP 440 pre-release marker — only "a", "b" and "rc" are legal. This yields
+# 1.0.0-rc.1, which normalizes to 1.0.0rc1. A token like "next" produces 1.0.0-next.1, which
+# hatchling rejects when semantic-release runs its build_command (`pip install -e .`) — failing
+# the release after the new version has already been written to pyproject.toml.
+prerelease_token = "rc"
 
 [tool.semantic_release.changelog]
 template_dir = "templates"
