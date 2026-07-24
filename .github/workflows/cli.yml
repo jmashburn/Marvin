@@ -191,9 +191,11 @@ jobs:
           marvin admin groups list --output json >/dev/null
           echo "✅ Workspaces listed"
 
-          echo "📝 Test: Get workspace"
-          marvin admin groups get "$WS_ID" --output json >/dev/null
-          echo "✅ Workspace retrieved"
+          echo "📝 Test: Select workspace and read it back"
+          marvin workspace use "$WS_SLUG" >/dev/null
+          # `workspace current` prints plain text and ignores --output, so assert on the slug.
+          marvin workspace current | grep -q "$WS_SLUG"
+          echo "✅ Active workspace is $WS_SLUG"
 
           echo "📝 Test: Create collection"
           echo "{\"name\":\"CI Collection $U\",\"targetType\":\"entry\",\"isPublic\":false,\"sortOrder\":0,\"isSmart\":false}" > "$TMP/col.json"
