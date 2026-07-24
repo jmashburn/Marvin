@@ -65,29 +65,25 @@ jobs:
         id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Run semantic-release to determine next version
-          semantic-release version --print > version_info.txt || true
+        # semantic-release populates $GITHUB_OUTPUT itself — released, version, tag, is_prerelease,
+        # link, previous_version, commit_sha, release_notes — so this step needs no detection logic
+        # of its own. It previously ran `version --print` and grepped a version out of the result,
+        # which reported a release on every push: with nothing to release, --print still writes the
+        # *current* version to stdout and explains itself on stderr ("No release will be made, X has
+        # already been released!"). Nothing published spuriously only because the real
+        # `semantic-release version` call ran afterwards and overwrote `released` with the correct
+        # value, last write winning. Reading semantic-release's own output removes that coincidence,
+        # and drops a redundant second invocation with it.
+        #
+        # Exits 0 when no release is due, so an ordinary commit does not fail the job.
+        run: semantic-release version
 
-          # Check if a new version was created. `--print` emits a bare version (e.g. 1.0.0-next.1)
-          # and nothing at all when no release is due — the "v" in tag_format applies to the git
-          # tag, not to this output, so the pattern must not require it. The `|| true` matters
-          # independently: GitHub runs this under `bash -e`, where a non-matching grep inside a
-          # command substitution aborts the whole step before anything below it runs.
-          NEW_VERSION=$(grep -oP '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?' version_info.txt || true)
-
-          if [ -n "$NEW_VERSION" ]; then
-            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-            echo "released=true" >> $GITHUB_OUTPUT
-            echo "📦 New version: $NEW_VERSION"
-          else
-            echo "released=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ No release needed"
-          fi
-
-          # Actually create the release
-          semantic-release version
-          semantic-release publish
+      # Attaches build artifacts to the GitHub release, so it is only meaningful once one exists.
+      - name: Publish release assets
+        if: steps.version.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: semantic-release publish
 
       - name: Upload version info
         if: steps.version.outputs.released == 'true'
