@@ -473,8 +473,15 @@ class UserSummary(_MarvinModel):
     """The unique identifier of the user."""
     group_id: UUID4
     """The unique identifier of the group the user belongs to."""
-    username: str
-    """The user's username."""
+    username: str | None = None  # Nullable to match UserSQLModel.username
+    """
+    The user's username.
+
+    Optional because the column is nullable: a user created without a username *and* without a
+    full name to derive one from keeps NULL here. Requiring a str made every response embedding
+    this schema — GroupRead carries `list[UserSummary]` — fail to serialize with a 500 as soon as
+    one such user existed in the group.
+    """
     email: str | None = None
     """The user's email address."""
     full_name: str | None = None  # Made optional to match UserSQLModel
