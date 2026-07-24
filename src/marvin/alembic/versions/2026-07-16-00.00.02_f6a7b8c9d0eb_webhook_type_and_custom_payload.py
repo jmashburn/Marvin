@@ -52,16 +52,39 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("webhook_urls") as batch_op:
-        batch_op.drop_column("custom_payload")
-        batch_op.alter_column(
+    bind = op.get_bind()
+    old_enum = sa.Enum("generic", "user", name="eventdocumenttype")
+    new_enum = sa.Enum("generic", "user", "entries", "event_driven", name="webhookmode")
+    if bind.dialect.name == "postgresql":
+        # Mirror of upgrade(): Postgres won't cast between two enum types on its own, so the
+        # reverse direction needs its own USING clause. Rows holding a value the old enum never
+        # had are folded back to 'generic' first — the cast would otherwise reject them.
+        op.drop_column("webhook_urls", "custom_payload")
+        op.execute("UPDATE webhook_urls SET webhook_type = 'generic' WHERE webhook_type IN ('entries', 'event_driven')")
+        old_enum.create(bind, checkfirst=True)
+        op.alter_column(
+            "webhook_urls",
             "webhook_type",
-            existing_type=sa.Enum("generic", "user", "entries", "event_driven", name="webhookmode"),
-            type_=sa.Enum("generic", "user", name="eventdocumenttype"),
+            existing_type=new_enum,
+            type_=old_enum,
             existing_nullable=True,
+            postgresql_using="webhook_type::text::eventdocumenttype",
         )
-        batch_op.alter_column(
-            "scheduled_time",
-            existing_type=sa.DateTime(timezone=True),
-            nullable=False,
-        )
+        op.alter_column("webhook_urls", "scheduled_time", existing_type=sa.DateTime(timezone=True), nullable=False)
+        # Nothing references the expanded type once the column is back on the old one; leaving it
+        # behind would strand a type the upgrade created.
+        new_enum.drop(bind, checkfirst=True)
+    else:
+        with op.batch_alter_table("webhook_urls") as batch_op:
+            batch_op.drop_column("custom_payload")
+            batch_op.alter_column(
+                "webhook_type",
+                existing_type=new_enum,
+                type_=old_enum,
+                existing_nullable=True,
+            )
+            batch_op.alter_column(
+                "scheduled_time",
+                existing_type=sa.DateTime(timezone=True),
+                nullable=False,
+            )
