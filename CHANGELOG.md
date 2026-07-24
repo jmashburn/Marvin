@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.12 (2026-07-24)
+
+### Features
+
+- **helm**: Support init containers for installing integration plugins
+  ([`82341ec`](https://github.com/InnerOpen/marvin/commit/82341ecdd6ecf9179a35607df7c2c6a9cd5066e3))
+
+
 ## v1.0.0-rc.11 (2026-07-24)
 
 ### Bug Fixes
