@@ -1602,3 +1602,17 @@ def downgrade() -> None:
 
     op.drop_table("events_notifier_options")
     # ### end Alembic commands ###
+
+    # create_table emits CREATE TYPE for each named enum, but drop_table does not drop it. Left
+    # behind, a re-upgrade fails with "type already exists" — so the schema is only reversible if
+    # the types go too. Dropping through the SQLAlchemy type keeps this backend-neutral: on
+    # PostgreSQL it issues DROP TYPE, and on backends without native enums it is a no-op.
+    bind = op.get_bind()
+    for enum in (
+        sa.Enum("GET", "POST", name="method"),
+        sa.Enum("MARVIN", "LDAP", "OIDC", name="authmethod"),
+        sa.Enum("NONE", "SUPER_ADMIN", name="platformrole"),
+        sa.Enum("OWNER", "ADMIN", "EDITOR", "AUTHOR", "VIEWER", name="workspacerole"),
+        sa.Enum("generic", "user", "entries", "event_driven", name="webhookmode"),
+    ):
+        enum.drop(bind, checkfirst=True)
