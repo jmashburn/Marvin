@@ -6,6 +6,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.18 (2026-07-24)
+
+### Bug Fixes
+
+- **ci**: Publish the production image on release, not lambda; guard against it
+  ([`ea1dd79`](https://github.com/InnerOpen/marvin/commit/ea1dd79eb49edfec8eb50a133d3279ff8fb02724))
+
+### Refactoring
+
+- **frontend**: Use console.debug for DEV_MODE request tracing
+  ([`66bc195`](https://github.com/InnerOpen/marvin/commit/66bc195d9a27f6236d5d92f16c3c7c7c0c34850f))
+
+
 ## v1.0.0-rc.17 (2026-07-24)
 
 ### Features
