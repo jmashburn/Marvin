@@ -6,6 +6,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.11 (2026-07-24)
+
+### Bug Fixes
+
+- **frontend**: Redirect instead of 500 on protected pages when logged out
+  ([`8f57aa4`](https://github.com/InnerOpen/marvin/commit/8f57aa44144f5d35b057014a668b3e95c165f3d6))
+
+- **helm**: Make the chart actually deploy the app
+  ([`281d527`](https://github.com/InnerOpen/marvin/commit/281d5278d6121dd91eae3f06734da60e7a2b2254))
+
+
 ## v1.0.0-rc.10 (2026-07-24)
 
 ### Bug Fixes
