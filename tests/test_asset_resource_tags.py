@@ -8,7 +8,7 @@ import uuid
 
 from pytest import fixture
 
-from marvin.db.models.platform import AssetTags, Assets, ResourceTags, Resources, Tags
+from marvin.db.models.platform import Assets, AssetTags, Resources, ResourceTags, Tags
 from marvin.repos.all_repositories import get_repositories
 from marvin.repos.seed.workspace_exporter import WorkspaceExporter
 from marvin.repos.seed.workspace_seed_loader import WorkspaceSeedLoader
@@ -35,22 +35,42 @@ def workspace(db_session):
     uid = uuid.uuid4()
     db_session.execute(
         sa.insert(Users.__table__).values(
-            id=uid, group_id=gid, full_name="Test User", username=f"u-{marker}",
-            email=f"u-{marker}@x.test", auth_method="MARVIN", is_superuser=False,
-            platform_role="NONE", admin=True,
+            id=uid,
+            group_id=gid,
+            full_name="Test User",
+            username=f"u-{marker}",
+            email=f"u-{marker}@x.test",
+            auth_method="MARVIN",
+            is_superuser=False,
+            platform_role="NONE",
+            admin=True,
         )
     )
     db_session.flush()
 
     asset = Assets(
-        session=db_session, group_id=gid, slug=f"asset-{marker}", name="Asset",
-        original_filename="a.jpg", filename="a.jpg", extension="jpg", file_size=1,
-        mime_type="image/jpeg", asset_type="image", checksum="x",
-        storage_provider="local", storage_key=f"key-{marker}", uploaded_by=uid,
+        session=db_session,
+        group_id=gid,
+        slug=f"asset-{marker}",
+        name="Asset",
+        original_filename="a.jpg",
+        filename="a.jpg",
+        extension="jpg",
+        file_size=1,
+        mime_type="image/jpeg",
+        asset_type="image",
+        checksum="x",
+        storage_provider="local",
+        storage_key=f"key-{marker}",
+        uploaded_by=uid,
     )
     resource = Resources(
-        session=db_session, group_id=gid, slug=f"res-{marker}", name="Resource",
-        resource_type="material", created_by=uid,
+        session=db_session,
+        group_id=gid,
+        slug=f"res-{marker}",
+        name="Resource",
+        resource_type="material",
+        created_by=uid,
     )
     db_session.add_all([asset, resource])
     db_session.commit()

@@ -27,8 +27,16 @@ def test_orphaned_row_reads_as_unavailable():
     from marvin.routes.groups.integrations_controller import _to_read
 
     row = SimpleNamespace(
-        id=uuid.uuid4(), provider="ghost_provider", name="Ghost", slug="ghost", enabled=True,
-        config=None, secret_ref=None, status="ok", last_checked_at=None, last_error=None,
+        id=uuid.uuid4(),
+        provider="ghost_provider",
+        name="Ghost",
+        slug="ghost",
+        enabled=True,
+        config=None,
+        secret_ref=None,
+        status="ok",
+        last_checked_at=None,
+        last_error=None,
     )
     read = _to_read(row)
     assert read.status == "unavailable"
@@ -110,8 +118,12 @@ def test_event_listener_runs_action_with_templated_args():
     try:
         listener = IntegrationEventListener(group_id=uuid.uuid4())
         sub = {
-            "name": "My Slack", "provider": "recorder", "config": {}, "secret_ref": None,
-            "action": "do", "args": {"text": "New: {{title}} ({{entity_type}})"},
+            "name": "My Slack",
+            "provider": "recorder",
+            "config": {},
+            "secret_ref": None,
+            "action": "do",
+            "args": {"text": "New: {{title}} ({{entity_type}})"},
         }
         listener.publish_to_subscribers(_Event(), [sub])
         assert calls == [("do", {"text": "New: Hello World (entry)"})]
@@ -153,9 +165,7 @@ def test_provider_action_advertises_capability_in_info():
     class _CapProvider(IntegrationProvider):
         slug = "capx"
         name = "CapX"
-        actions = (
-            ProviderAction(key="g", label="Generate", capability="image.generate", priority=3, cost_hint="paid", requires_approval=True),
-        )
+        actions = (ProviderAction(key="g", label="Generate", capability="image.generate", priority=3, cost_hint="paid", requires_approval=True),)
 
     action = _CapProvider().info()["actions"][0]
     assert action["capability"] == "image.generate"
@@ -184,9 +194,18 @@ def test_capability_handlers_sort_by_priority_and_invoke():
 
     def snap(priority: int, name: str) -> _Snapshot:
         return _Snapshot(
-            provider=provider, action_key="gen", capability="image.generate", priority=priority,
-            cost_hint=None, requires_approval=False, config={}, secret_ref=None,
-            integration_id=uuid.uuid4(), integration_name=name, group_id=uuid.uuid4(), model=None,
+            provider=provider,
+            action_key="gen",
+            capability="image.generate",
+            priority=priority,
+            cost_hint=None,
+            requires_approval=False,
+            config={},
+            secret_ref=None,
+            integration_id=uuid.uuid4(),
+            integration_name=name,
+            group_id=uuid.uuid4(),
+            model=None,
         )
 
     handlers = _build_handlers([snap(1, "low"), snap(9, "high"), snap(5, "mid")], uuid.uuid4(), lambda ref, gid: None)
@@ -213,8 +232,16 @@ def test_installed_provider_reads_normally():
     register_provider(_StubProvider)
     try:
         row = SimpleNamespace(
-            id=uuid.uuid4(), provider="stub_feed", name="My feed", slug="my_feed", enabled=True,
-            config={"feed_url": "https://x/feed"}, secret_ref=None, status="ok", last_checked_at=None, last_error=None,
+            id=uuid.uuid4(),
+            provider="stub_feed",
+            name="My feed",
+            slug="my_feed",
+            enabled=True,
+            config={"feed_url": "https://x/feed"},
+            secret_ref=None,
+            status="ok",
+            last_checked_at=None,
+            last_error=None,
         )
         read = _to_read(row)
         assert read.status == "ok"

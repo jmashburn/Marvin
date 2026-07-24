@@ -37,8 +37,13 @@ def _block(ctx: OperationContext, entity_type="entry", entity_id="e1"):
 
 def _entry_ctx(**over):
     entry = {
-        "id": "e1", "title": "Chore Coat", "summary": "A simple outer layer.",
-        "description": "", "status": "published", "content": "", "entry_type": "project",
+        "id": "e1",
+        "title": "Chore Coat",
+        "summary": "A simple outer layer.",
+        "description": "",
+        "status": "published",
+        "content": "",
+        "entry_type": "project",
     }
     entry.update(over.pop("entry", {}))
     return OperationContext(entry=entry, **over)
@@ -46,10 +51,11 @@ def _entry_ctx(**over):
 
 # ── What lands in the block ───────────────────────────────────────────────────
 
+
 def test_entry_block_includes_title_type_and_status():
     block = _block(_entry_ctx())
     assert 'entry "Chore Coat"' in block
-    assert "e1" in block                      # id retained so the agent can fetch more
+    assert "e1" in block  # id retained so the agent can fetch more
     assert "- Type: project" in block
     assert "- Status: published" in block
     assert "- Summary: A simple outer layer." in block
@@ -82,9 +88,16 @@ def test_asset_block():
 
 
 def test_resource_block():
-    ctx = OperationContext(resources=[{
-        "name": "Waxed Canvas", "type": "material", "description": "Water resistant.", "url": "http://x",
-    }])
+    ctx = OperationContext(
+        resources=[
+            {
+                "name": "Waxed Canvas",
+                "type": "material",
+                "description": "Water resistant.",
+                "url": "http://x",
+            }
+        ]
+    )
     block = _block(ctx, entity_type="resource", entity_id="r1")
     assert 'resource "Waxed Canvas"' in block
     assert "- Type: material" in block
@@ -92,6 +105,7 @@ def test_resource_block():
 
 
 # ── Bounding ──────────────────────────────────────────────────────────────────
+
 
 def test_long_summary_is_truncated():
     block = _block(_entry_ctx(entry={"summary": "x" * 5000}))
@@ -112,8 +126,8 @@ def test_attachment_lists_are_capped_and_report_the_remainder():
     ctx = _entry_ctx(assets=[{"name": f"a{i}.jpg", "mime_type": "image/jpeg"} for i in range(cap + 5)])
     block = _block(ctx)
     line = next(ln for ln in block.splitlines() if ln.startswith("- Attached assets"))
-    assert f"({cap + 5})" in line      # true total still reported
-    assert "(+5 more)" in line          # and the elision is explicit
+    assert f"({cap + 5})" in line  # true total still reported
+    assert "(+5 more)" in line  # and the elision is explicit
     assert "a0.jpg" in line and f"a{cap + 4}.jpg" not in line
 
 
@@ -123,6 +137,7 @@ def test_empty_json_content_is_omitted():
 
 
 # ── Degrade paths (caller falls back to the bare-id hint) ─────────────────────
+
 
 def test_unknown_entity_type_returns_none():
     assert _block(_entry_ctx(), entity_type="collection", entity_id="c1") is None
@@ -148,6 +163,7 @@ def test_builder_failure_degrades_to_none():
 
 # ── Workspace scoping (regression guard) ─────────────────────────────────────
 
+
 def test_with_entry_ignores_an_entry_from_another_workspace():
     session = MagicMock()
     session.get.return_value = MagicMock(group_id="other-workspace")
@@ -163,6 +179,7 @@ def test_with_entry_loads_an_entry_from_this_workspace():
 
 
 # ── Conversation history bounding ─────────────────────────────────────────────
+
 
 def _turn(role, content):
     return SimpleNamespace(role=role, content=content)
@@ -186,8 +203,8 @@ def test_history_keeps_the_newest_turns():
     turns = [_turn("user", f"m{i}") for i in range(30)]
     out = _history(turns)
     assert len(out) == AIOperationsController._HISTORY_MAX_TURNS
-    assert out[-1].content == "m29"          # newest retained
-    assert out[0].content != "m0"            # oldest dropped
+    assert out[-1].content == "m29"  # newest retained
+    assert out[0].content != "m0"  # oldest dropped
 
 
 def test_history_drops_non_conversational_roles():
@@ -197,7 +214,7 @@ def test_history_drops_non_conversational_roles():
 
 
 def test_history_drops_blank_turns():
-    assert _history([_turn("user", "   "), _turn("assistant", "ok")]) [0].content == "ok"
+    assert _history([_turn("user", "   "), _turn("assistant", "ok")])[0].content == "ok"
 
 
 def test_history_truncates_an_overlong_turn():
@@ -274,6 +291,7 @@ def test_professional_still_instructs_even_without_a_persona():
 
 # ── Register resolution precedence (per-call > workspace default > "auto") ────
 
+
 def _ctrl_with_default(default_register):
     ctrl = _ctrl()
     settings = MagicMock(default_register=default_register)
@@ -288,5 +306,6 @@ def test_default_register_reads_workspace_value():
 def test_default_register_falls_back_to_auto_when_unset():
     assert AIOperationsController._default_register(_ctrl_with_default(None)) == "auto"
     # no settings row at all
-    ctrl = _ctrl(); ctrl.session.query.return_value.filter_by.return_value.first.return_value = None
+    ctrl = _ctrl()
+    ctrl.session.query.return_value.filter_by.return_value.first.return_value = None
     assert AIOperationsController._default_register(ctrl) == "auto"

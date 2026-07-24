@@ -16,11 +16,12 @@ from marvin.services.entries import EntryService
 class _SpyBus:
     def __init__(self):
         self.events = []  # (event_name, reaction_depth, integration_id)
-        self.docs = {}    # event_name -> document_data
+        self.docs = {}  # event_name -> document_data
         self.correlations = []  # the ambient correlation id in effect at each dispatch
 
     def dispatch(self, *, event_type, reaction_depth=0, integration_id=None, document_data=None, **_):
         from marvin.services.event_bus_service.correlation import current_correlation_id
+
         self.events.append((event_type.name, reaction_depth, integration_id))
         self.docs[event_type.name] = document_data
         self.correlations.append(current_correlation_id.get())
@@ -30,8 +31,7 @@ class _FakeEntries:
     """A single entry whose status can change; get_one returns a snapshot so old != new."""
 
     def __init__(self, status="draft"):
-        self.state = {"id": uuid4(), "title": "T", "status": status,
-                      "group_id": uuid4(), "created_by": None, "entry_type_id": None}
+        self.state = {"id": uuid4(), "title": "T", "status": status, "group_id": uuid4(), "created_by": None, "entry_type_id": None}
         self.deleted = False
 
     def _snap(self):
@@ -111,6 +111,7 @@ def test_update_batch_shares_one_correlation_id():
 def test_update_inherits_the_ambient_chain_when_inside_a_run():
     # Within an automation run (ambient scope set), the emit batch inherits the run's id, not a new one.
     from marvin.services.event_bus_service.correlation import correlation_scope
+
     svc, bus = _svc("draft", integration_id="automation")
     with correlation_scope("run-chain"):
         svc.apply_fields("id", {"status": "published"}, reaction_depth=1)

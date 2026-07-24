@@ -7,7 +7,7 @@ delegate to it.
 
 from types import SimpleNamespace
 
-from marvin.services.collections.smart_collections import entry_matches_rules
+from marvin.services.collections.smart_collections import entry_matches_rules, matches_rules
 
 
 def _entry(type_slug="bench-note", status="published", tag_names=None):
@@ -45,9 +45,9 @@ def test_match_all_requires_every_dimension():
 
 def test_match_any_requires_only_one_dimension():
     rules = {"entry_types": ["bench-note"], "statuses": ["published"], "match": "any"}
-    assert entry_matches_rules(_entry("bench-note", "inbox"), rules) is True   # type matches
+    assert entry_matches_rules(_entry("bench-note", "inbox"), rules) is True  # type matches
     assert entry_matches_rules(_entry("article", "published"), rules) is True  # status matches
-    assert entry_matches_rules(_entry("article", "inbox"), rules) is False     # neither
+    assert entry_matches_rules(_entry("article", "inbox"), rules) is False  # neither
 
 
 def test_tags_dimension_matches_on_slug_overlap():
@@ -70,8 +70,6 @@ def test_entry_without_entry_type_relationship_does_not_crash():
 
 
 # ── asset / resource target types (Phase: smart collections of assets/resources) ──────────────
-
-from marvin.services.collections.smart_collections import matches_rules
 
 
 def _asset(asset_type="image", tag_names=None, mime_type="image/jpeg"):

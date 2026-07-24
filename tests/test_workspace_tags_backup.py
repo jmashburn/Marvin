@@ -37,9 +37,9 @@ def group(db_session):
 
     yield gid, etid, marker
 
-    db_session.query(EntryTags).filter(
-        EntryTags.entry_id.in_(db_session.query(Entries.id).filter(Entries.group_id == gid))
-    ).delete(synchronize_session=False)
+    db_session.query(EntryTags).filter(EntryTags.entry_id.in_(db_session.query(Entries.id).filter(Entries.group_id == gid))).delete(
+        synchronize_session=False
+    )
     db_session.query(Entries).filter(Entries.group_id == gid).delete()
     db_session.query(Tags).filter(Tags.group_id == gid).delete()
     db_session.query(EntryTypes).filter(EntryTypes.group_id == gid).delete()
@@ -78,11 +78,9 @@ def test_import_rebuilds_vocabulary_and_links(db_session, group):
             {"name": "Leather", "slug": "leather", "color": None},
         ],
         "entries": [
-            {"entryType": "note", "title": "Jacket", "slug": f"jacket-{marker}", "status": "draft",
-             "data": {}, "tags": ["waxed-canvas", "leather"]},
+            {"entryType": "note", "title": "Jacket", "slug": f"jacket-{marker}", "status": "draft", "data": {}, "tags": ["waxed-canvas", "leather"]},
             # 'stitching' is NOT in the vocabulary — must be created on the fly from the link.
-            {"entryType": "note", "title": "Belt", "slug": f"belt-{marker}", "status": "draft",
-             "data": {}, "tags": ["leather", "stitching"]},
+            {"entryType": "note", "title": "Belt", "slug": f"belt-{marker}", "status": "draft", "data": {}, "tags": ["leather", "stitching"]},
         ],
     }
     result = WorkspaceSeedLoader(repos)._load_data(payload, overwrite=True, target_group_id=str(gid))
@@ -109,8 +107,7 @@ def test_reimport_is_idempotent(db_session, group):
     payload = {
         "tags": [{"name": "Leather", "slug": "leather", "color": None}],
         "entries": [
-            {"entryType": "note", "title": "Belt", "slug": f"belt-{marker}", "status": "draft",
-             "data": {}, "tags": ["leather"]},
+            {"entryType": "note", "title": "Belt", "slug": f"belt-{marker}", "status": "draft", "data": {}, "tags": ["leather"]},
         ],
     }
     WorkspaceSeedLoader(repos)._load_data(payload, overwrite=True, target_group_id=str(gid))

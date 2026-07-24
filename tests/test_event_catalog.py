@@ -9,7 +9,7 @@ so the ~40 dead events stay gated and the drift can't silently come back.
 import pathlib
 import re
 
-from marvin.services.events.event_catalog import CATALOG, _NO_EMITTER
+from marvin.services.events.event_catalog import _NO_EMITTER, CATALOG
 
 # Files where an EventTypes reference is a *declaration/advertisement*, not an emission.
 _EXCLUDE = {"event_types.py", "event_catalog.py", "payload_schemas.py", "event_variables.py"}
@@ -32,18 +32,14 @@ def test_every_subscribable_catalog_entry_has_an_emitter():
     ref = _referenced_in_code()
     offenders = sorted(c.event_type for c in CATALOG if c.enabled and c.event_type not in ref)
     assert not offenders, (
-        f"These events are advertised for subscription but nothing emits them — "
-        f"add a dispatch site or gate them in _NO_EMITTER: {offenders}"
+        f"These events are advertised for subscription but nothing emits them — add a dispatch site or gate them in _NO_EMITTER: {offenders}"
     )
 
 
 def test_no_emitter_set_hides_only_genuinely_dead_events():
     ref = _referenced_in_code()
     wrongly_gated = sorted(e for e in _NO_EMITTER if e in ref)
-    assert not wrongly_gated, (
-        f"These events are gated as dead but ARE referenced in code — remove them from _NO_EMITTER: "
-        f"{wrongly_gated}"
-    )
+    assert not wrongly_gated, f"These events are gated as dead but ARE referenced in code — remove them from _NO_EMITTER: {wrongly_gated}"
 
 
 def test_gated_events_are_not_subscribable():

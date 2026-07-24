@@ -10,7 +10,7 @@ import uuid
 
 from pytest import fixture
 
-from marvin.db.models.platform import Assets, EntryAssets, Entries, EntryTypes
+from marvin.db.models.platform import Assets, Entries, EntryAssets, EntryTypes
 from marvin.services.entries import EntryService
 
 
@@ -36,10 +36,18 @@ def workspace(db_session):
     db_session.flush()
 
     uid = uuid.uuid4()
-    db_session.execute(Users.__table__.insert().values(
-        id=uid, group_id=gid, username=f"u-{marker}", email=f"u-{marker}@t.test",
-        full_name="U", is_superuser=False, platform_role="NONE", auth_method="MARVIN",
-    ))
+    db_session.execute(
+        Users.__table__.insert().values(
+            id=uid,
+            group_id=gid,
+            username=f"u-{marker}",
+            email=f"u-{marker}@t.test",
+            full_name="U",
+            is_superuser=False,
+            platform_role="NONE",
+            auth_method="MARVIN",
+        )
+    )
 
     et = EntryTypes(session=db_session, group_id=gid, name="Note", slug="note", schema_json={})
     et.id = uuid.uuid4()
@@ -50,18 +58,41 @@ def workspace(db_session):
     db_session.add(entry)
 
     aid = uuid.uuid4()
-    db_session.execute(Assets.__table__.insert().values(
-        id=aid, group_id=gid, slug="gen-img", name="Generated Image", original_filename="g.jpg",
-        filename="g", extension="jpg", file_size=1234, mime_type="image/jpeg", asset_type="image",
-        checksum="abc", storage_provider="local", storage_key=f"k/{marker}.jpg", uploaded_by=uid,
-    ))
+    db_session.execute(
+        Assets.__table__.insert().values(
+            id=aid,
+            group_id=gid,
+            slug="gen-img",
+            name="Generated Image",
+            original_filename="g.jpg",
+            filename="g",
+            extension="jpg",
+            file_size=1234,
+            mime_type="image/jpeg",
+            asset_type="image",
+            checksum="abc",
+            storage_provider="local",
+            storage_key=f"k/{marker}.jpg",
+            uploaded_by=uid,
+        )
+    )
     db_session.flush()
 
-    db_session.add(EntryAssets(
-        entry_id=entry.id, asset_id=aid, role="hero-generated", position=900,
-        metadata_json={"suggested": True, "media_op": "generate", "prompt": "a hat",
-                       "derived_from": str(uuid.uuid4()), "derivation": "media:generate"},
-    ))
+    db_session.add(
+        EntryAssets(
+            entry_id=entry.id,
+            asset_id=aid,
+            role="hero-generated",
+            position=900,
+            metadata_json={
+                "suggested": True,
+                "media_op": "generate",
+                "prompt": "a hat",
+                "derived_from": str(uuid.uuid4()),
+                "derivation": "media:generate",
+            },
+        )
+    )
     db_session.commit()
 
     yield gid, entry.id, aid

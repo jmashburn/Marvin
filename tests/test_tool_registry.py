@@ -49,8 +49,13 @@ def test_insights_tools_are_registered_and_projected():
     from marvin.services.ai.tools import get_tool, list_tools
 
     insights = {
-        "list_ai_executions", "get_ai_execution", "get_ai_settings",
-        "list_events", "get_entity_history", "list_scheduled_tasks", "get_scheduled_task_history",
+        "list_ai_executions",
+        "get_ai_execution",
+        "get_ai_settings",
+        "list_events",
+        "get_entity_history",
+        "list_scheduled_tasks",
+        "get_scheduled_task_history",
     }
     names = {t.name for t in list_tools()}
     assert insights <= names

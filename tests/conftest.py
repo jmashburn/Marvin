@@ -20,11 +20,9 @@ if "DB_ENGINE" not in os.environ:
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from marvin.app import app
-from marvin.core import config
 from marvin.db.db_setup import engine, generate_session
 from marvin.db.models import SqlAlchemyBase
 
@@ -59,9 +57,7 @@ def _create_test_schema() -> Generator[None, None, None]:
         # misses them; a partial migration can leave one and wedge the next run's batch op with
         # "table _alembic_tmp_X already exists". Sweep them for a truly clean slate.
         if conn.dialect.name == "sqlite":
-            leftovers = conn.exec_driver_sql(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_alembic_tmp_%'"
-            ).all()
+            leftovers = conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_alembic_tmp_%'").all()
             for (name,) in leftovers:
                 conn.exec_driver_sql(f'DROP TABLE IF EXISTS "{name}"')
         conn.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")

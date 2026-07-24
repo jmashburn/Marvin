@@ -4,7 +4,6 @@ Tests for publishing API endpoints.
 Verifies that publishing endpoints work correctly and handle errors properly.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 

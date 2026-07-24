@@ -43,17 +43,24 @@ def workspace(db_session):
     # Seed a user via a core insert (Users.__init__ does group-lookup side effects) to satisfy
     # Resources.created_by's NOT NULL user FK.
     uid = uuid.uuid4()
-    db_session.execute(Users.__table__.insert().values(
-        id=uid, group_id=gid, username=f"author-{marker}", email=f"res-{marker}@t.test",
-        full_name="Author", is_superuser=False, platform_role="NONE", auth_method="MARVIN",
-    ))
+    db_session.execute(
+        Users.__table__.insert().values(
+            id=uid,
+            group_id=gid,
+            username=f"author-{marker}",
+            email=f"res-{marker}@t.test",
+            full_name="Author",
+            is_superuser=False,
+            platform_role="NONE",
+            auth_method="MARVIN",
+        )
+    )
     db_session.flush()
 
     entry = Entries(session=db_session, group_id=gid, entry_type_id=et.id, title="T", slug=f"t-{marker}")
     db_session.add(entry)
 
-    res = Resources(session=db_session, group_id=gid, name="Waxed Canvas", slug="waxed-canvas",
-                    resource_type="material", created_by=uid)
+    res = Resources(session=db_session, group_id=gid, name="Waxed Canvas", slug="waxed-canvas", resource_type="material", created_by=uid)
     db_session.add(res)
     db_session.commit()
 
@@ -74,11 +81,7 @@ def _svc(db_session, gid):
 
 
 def _link_count(db_session, entry_id, res_id) -> int:
-    return (
-        db_session.query(EntryResources)
-        .filter(EntryResources.entry_id == entry_id, EntryResources.resource_id == res_id)
-        .count()
-    )
+    return db_session.query(EntryResources).filter(EntryResources.entry_id == entry_id, EntryResources.resource_id == res_id).count()
 
 
 def test_attach_by_slug_emits_and_persists(db_session, workspace):
@@ -95,9 +98,9 @@ def test_attach_by_slug_emits_and_persists(db_session, workspace):
 def test_attach_by_name_and_by_id_also_resolve(db_session, workspace):
     gid, entry_id, res_id = workspace
     svc, _ = _svc(db_session, gid)
-    assert svc.attach_resource(entry_id, "Waxed Canvas") == "attached"       # by name
-    svc.detach_resource(entry_id, res_id)                                    # by id
-    assert svc.attach_resource(entry_id, str(res_id)) == "attached"          # by id string
+    assert svc.attach_resource(entry_id, "Waxed Canvas") == "attached"  # by name
+    svc.detach_resource(entry_id, res_id)  # by id
+    assert svc.attach_resource(entry_id, str(res_id)) == "attached"  # by id string
     assert _link_count(db_session, entry_id, res_id) == 1
 
 
@@ -131,8 +134,8 @@ def test_unknown_resource_or_entry_returns_none(db_session, workspace):
 
 
 def test_registry_tools_are_registered_as_writes():
-    from marvin.services.ai.tools import get_tool
     from marvin.services.ai.operations.base import ROLE_AUTHOR
+    from marvin.services.ai.tools import get_tool
 
     for name in ("attach_resource", "detach_resource"):
         spec = get_tool(name)

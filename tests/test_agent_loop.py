@@ -52,10 +52,12 @@ def _result(content="", tool_calls=None, pt=5, ct=3):
 
 
 def test_agent_runs_tool_then_answers():
-    provider = ScriptedProvider([
-        _result(tool_calls=[ToolCall(id="c1", name="echo", arguments={"x": 1})]),
-        _result(content="done"),
-    ])
+    provider = ScriptedProvider(
+        [
+            _result(tool_calls=[ToolCall(id="c1", name="echo", arguments={"x": 1})]),
+            _result(content="done"),
+        ]
+    )
     seen = []
     tool = AgentTool(
         name="echo",
@@ -78,10 +80,12 @@ def test_agent_runs_tool_then_answers():
 
 
 def test_agent_unknown_tool_is_reported_not_fatal():
-    provider = ScriptedProvider([
-        _result(tool_calls=[ToolCall(id="c1", name="missing", arguments={})]),
-        _result(content="ok"),
-    ])
+    provider = ScriptedProvider(
+        [
+            _result(tool_calls=[ToolCall(id="c1", name="missing", arguments={})]),
+            _result(content="ok"),
+        ]
+    )
     result = run_agent_loop(provider, "m", [Message(role="user", content="hi")], [])
     assert result.answer == "ok"
     assert "unknown tool" in result.steps[0].result
@@ -91,10 +95,12 @@ def test_agent_tool_exception_is_captured():
     def boom(_a):
         raise ValueError("nope")
 
-    provider = ScriptedProvider([
-        _result(tool_calls=[ToolCall(id="c1", name="boom", arguments={})]),
-        _result(content="handled"),
-    ])
+    provider = ScriptedProvider(
+        [
+            _result(tool_calls=[ToolCall(id="c1", name="boom", arguments={})]),
+            _result(content="handled"),
+        ]
+    )
     tool = AgentTool(name="boom", description="", input_schema={}, run=boom)
     result = run_agent_loop(provider, "m", [Message(role="user", content="hi")], [tool])
     assert "nope" in result.steps[0].result

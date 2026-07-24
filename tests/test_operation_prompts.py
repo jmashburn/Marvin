@@ -18,6 +18,7 @@ def _user_msg(slug, input_, ctx=None):
 # caller must be able to pass the actual text, or the operation improves a dict repr and the
 # result has no field to go back into.
 
+
 def test_improve_writing_uses_caller_supplied_text():
     body = _user_msg("improve-writing", {"text": "Some real prose."})
     assert "Some real prose." in body
@@ -49,6 +50,7 @@ def test_improve_writing_still_stages_nothing():
 
 
 # ── generate-tags: write-back target ──────────────────────────────────────────
+
 
 def test_generate_tags_writes_back_to_real_tags():
     # Phase 3: repointed off metadata_json.tags onto the real tag vocabulary. The "tags" target

@@ -12,8 +12,8 @@ import uuid
 from pytest import fixture
 
 from marvin.db.models.platform import (
-    AssetTags,
     Assets,
+    AssetTags,
     CollectionAssets,
     Collections,
 )
@@ -32,11 +32,24 @@ def _quiet_events(monkeypatch):
 
 def _asset(db_session, gid, uid, slug, name, asset_type, ext="jpg", mime="image/jpeg"):
     aid = uuid.uuid4()
-    db_session.execute(Assets.__table__.insert().values(
-        id=aid, group_id=gid, slug=slug, name=name, original_filename=f"{slug}.{ext}",
-        filename=slug, extension=ext, file_size=10, mime_type=mime, asset_type=asset_type,
-        checksum=uuid.uuid4().hex, storage_provider="local", storage_key=f"k/{aid.hex}", uploaded_by=uid,
-    ))
+    db_session.execute(
+        Assets.__table__.insert().values(
+            id=aid,
+            group_id=gid,
+            slug=slug,
+            name=name,
+            original_filename=f"{slug}.{ext}",
+            filename=slug,
+            extension=ext,
+            file_size=10,
+            mime_type=mime,
+            asset_type=asset_type,
+            checksum=uuid.uuid4().hex,
+            storage_provider="local",
+            storage_key=f"k/{aid.hex}",
+            uploaded_by=uid,
+        )
+    )
     return aid
 
 
@@ -54,10 +67,18 @@ def ws(db_session):
     db_session.flush()
 
     uid = uuid.uuid4()
-    db_session.execute(Users.__table__.insert().values(
-        id=uid, group_id=gid, username=f"u-{marker}", email=f"u-{marker}@t.test",
-        full_name="U", is_superuser=False, platform_role="NONE", auth_method="MARVIN",
-    ))
+    db_session.execute(
+        Users.__table__.insert().values(
+            id=uid,
+            group_id=gid,
+            username=f"u-{marker}",
+            email=f"u-{marker}@t.test",
+            full_name="U",
+            is_superuser=False,
+            platform_role="NONE",
+            auth_method="MARVIN",
+        )
+    )
 
     ids = {
         "img1": _asset(db_session, gid, uid, "img-1", "Photo One", "image"),
@@ -73,6 +94,7 @@ def ws(db_session):
     db_session.query(Collections).filter(Collections.group_id == gid).delete()
     db_session.query(AssetTags).delete()
     from marvin.db.models.platform import Tags
+
     db_session.query(Tags).filter(Tags.group_id == gid).delete()
     db_session.execute(Assets.__table__.delete().where(Assets.group_id == gid))
     db_session.execute(Users.__table__.delete().where(Users.group_id == gid))
@@ -157,8 +179,13 @@ def test_filter_by_tag_and_unknown_tag(db_session, ws):
 def test_bulk_tag_materializes_smart_collection(db_session, ws):
     gid, _ = ws
     col = Collections(
-        session=db_session, group_id=gid, name="Site Assets", slug="site-assets",
-        target_type="asset", is_smart=True, smart_rules={"tags": ["site"]},
+        session=db_session,
+        group_id=gid,
+        name="Site Assets",
+        slug="site-assets",
+        target_type="asset",
+        is_smart=True,
+        smart_rules={"tags": ["site"]},
     )
     db_session.add(col)
     db_session.commit()

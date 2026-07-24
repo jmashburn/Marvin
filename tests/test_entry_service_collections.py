@@ -62,11 +62,7 @@ def _svc(db_session, gid):
 
 
 def _member_count(db_session, entry_id, coll_id) -> int:
-    return (
-        db_session.query(EntryCollections)
-        .filter(EntryCollections.entry_id == entry_id, EntryCollections.collection_id == coll_id)
-        .count()
-    )
+    return db_session.query(EntryCollections).filter(EntryCollections.entry_id == entry_id, EntryCollections.collection_id == coll_id).count()
 
 
 def test_add_to_collection_by_slug_emits_and_persists(db_session, workspace):
@@ -83,9 +79,9 @@ def test_add_to_collection_by_slug_emits_and_persists(db_session, workspace):
 def test_add_by_name_and_by_id_also_resolve(db_session, workspace):
     gid, entry_id, coll_id = workspace
     svc, _ = _svc(db_session, gid)
-    assert svc.add_to_collection(entry_id, "Featured Posts") == "added"      # by name
-    svc.remove_from_collection(entry_id, coll_id)                             # by id (uuid)
-    assert svc.add_to_collection(entry_id, str(coll_id)) == "added"          # by id string
+    assert svc.add_to_collection(entry_id, "Featured Posts") == "added"  # by name
+    svc.remove_from_collection(entry_id, coll_id)  # by id (uuid)
+    assert svc.add_to_collection(entry_id, str(coll_id)) == "added"  # by id string
     assert _member_count(db_session, entry_id, coll_id) == 1
 
 
@@ -97,6 +93,7 @@ def test_add_is_idempotent_no_duplicate_no_second_event(db_session, workspace):
     assert svc.add_to_collection(entry_id, "featured") == "exists"  # no-op
     assert _member_count(db_session, entry_id, coll_id) == 1
     assert bus.events == ["entry_added_to_collection"]  # only the first emitted
+
 
 def test_remove_emits_and_is_idempotent(db_session, workspace):
     gid, entry_id, coll_id = workspace

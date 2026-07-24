@@ -36,6 +36,7 @@ def test_tool_calling_capability_flags():
 
 # ── OpenAI message translation ──────────────────────────────────────────────
 
+
 def test_openai_translates_tool_roundtrip():
     provider = OpenAIProvider(api_key="x")
     messages = [
@@ -109,6 +110,7 @@ def test_openai_complete_with_tools_plain_answer():
 
 # ── Anthropic message translation ───────────────────────────────────────────
 
+
 def test_anthropic_splits_tool_roundtrip():
     provider = AnthropicProvider(api_key="x")
     messages = [
@@ -143,10 +145,14 @@ def test_anthropic_splits_tool_roundtrip():
 def test_anthropic_merges_consecutive_tool_results():
     provider = AnthropicProvider(api_key="x")
     messages = [
-        Message(role="assistant", content="", tool_calls=[
-            ToolCall(id="a", name="t", arguments={}),
-            ToolCall(id="b", name="t", arguments={}),
-        ]),
+        Message(
+            role="assistant",
+            content="",
+            tool_calls=[
+                ToolCall(id="a", name="t", arguments={}),
+                ToolCall(id="b", name="t", arguments={}),
+            ],
+        ),
         Message(role="tool", content="ra", tool_call_id="a"),
         Message(role="tool", content="rb", tool_call_id="b"),
     ]
@@ -185,6 +191,7 @@ def test_anthropic_complete_with_tools_parses_tool_use():
 
 # ── Azure (OpenAI-shaped) ───────────────────────────────────────────────────
 
+
 def test_azure_complete_with_tools_parses_tool_calls():
     provider = AzureOpenAIProvider(api_key="x", base_url="https://ex.openai.azure.com")
     tc = SimpleNamespace(
@@ -208,6 +215,7 @@ def test_azure_complete_with_tools_parses_tool_calls():
 
 
 # ── Ollama (native /api/chat) ───────────────────────────────────────────────
+
 
 def test_ollama_translates_tool_roundtrip():
     provider = OllamaProvider()
@@ -262,7 +270,8 @@ def test_tool_choice_required_maps_per_provider():
     oai_resp = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="x", tool_calls=None), finish_reason="stop")],
         usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1, total_tokens=2),
-        model="gpt-4o", model_dump=lambda: {},
+        model="gpt-4o",
+        model_dump=lambda: {},
     )
     oai_client = MagicMock()
     oai_client.chat.completions.create.return_value = oai_resp
@@ -273,7 +282,9 @@ def test_tool_choice_required_maps_per_provider():
     ant_resp = SimpleNamespace(
         content=[SimpleNamespace(type="text", text="x")],
         usage=SimpleNamespace(input_tokens=1, output_tokens=1),
-        model="claude-sonnet-5", stop_reason="end_turn", model_dump=lambda: {},
+        model="claude-sonnet-5",
+        stop_reason="end_turn",
+        model_dump=lambda: {},
     )
     ant_client = MagicMock()
     ant_client.messages.create.return_value = ant_resp

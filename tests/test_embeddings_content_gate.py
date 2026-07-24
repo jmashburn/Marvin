@@ -15,8 +15,8 @@ def _asset(description=None, alt_text=None):
 
 
 def test_thin_asset_excluded_rich_asset_kept():
-    assert _asset_content_ok(_asset()) is False                       # name + tags only → thin
-    assert _asset_content_ok(_asset(description="  ")) is False        # whitespace doesn't count
+    assert _asset_content_ok(_asset()) is False  # name + tags only → thin
+    assert _asset_content_ok(_asset(description="  ")) is False  # whitespace doesn't count
     assert _asset_content_ok(_asset(description="A waxed canvas tote")) is True
     assert _asset_content_ok(_asset(alt_text="Envelope icon, line art")) is True
 

@@ -11,9 +11,7 @@ import uuid
 
 import pytest
 
-_VAULT_READY = (
-    os.getenv("SECRET_BACKEND") == "vault" and bool(os.getenv("VAULT_ADDR")) and bool(os.getenv("VAULT_TOKEN"))
-)
+_VAULT_READY = os.getenv("SECRET_BACKEND") == "vault" and bool(os.getenv("VAULT_ADDR")) and bool(os.getenv("VAULT_TOKEN"))
 requires_vault = pytest.mark.skipif(
     not _VAULT_READY,
     reason="Vault not configured (set SECRET_BACKEND=vault, VAULT_ADDR, VAULT_TOKEN)",
@@ -81,9 +79,15 @@ def test_resolver_injects_a_plaintext_variable(db_session):
     db_session.add(g)
     db_session.commit()
     try:
-        db_session.add(WorkspaceVariable(
-            session=db_session, group_id=gid, name="Site URL", slug="SITE_URL", value="https://mashburn.co",
-        ))
+        db_session.add(
+            WorkspaceVariable(
+                session=db_session,
+                group_id=gid,
+                name="Site URL",
+                slug="SITE_URL",
+                value="https://mashburn.co",
+            )
+        )
         db_session.commit()
         assert resolve("Visit {{SITE_URL}}", gid) == "Visit https://mashburn.co"
     finally:

@@ -32,7 +32,7 @@ def test_workspace_override_is_used_when_set():
 
 
 def test_falls_back_to_app_default_when_no_override():
-    assert _call({"max_requests_per_day": 100}) == APP_DEFAULT   # other budget keys, no token cap
+    assert _call({"max_requests_per_day": 100}) == APP_DEFAULT  # other budget keys, no token cap
 
 
 def test_falls_back_when_no_budget_config():

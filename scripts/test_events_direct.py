@@ -12,14 +12,12 @@ Usage:
 """
 
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 # Add src directory to path for imports when running directly
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from fastapi import BackgroundTasks
 
 from marvin.core.config import get_app_settings
 from marvin.db.db_setup import generate_session

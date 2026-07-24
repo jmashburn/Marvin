@@ -122,10 +122,13 @@ def test_apply_fields_tags_target_unions_and_find_or_creates(db_session, group):
     assert set(entry.tag_names) == {"leather", "waxed-canvas", "workwear"}
     # 'leather' kept its single link (union, not re-added)
     from sqlalchemy import func
+
     dupes = (
         db_session.query(EntryTags.tag_id, func.count())
         .filter(EntryTags.entry_id == entry_id)
-        .group_by(EntryTags.tag_id).having(func.count() > 1).all()
+        .group_by(EntryTags.tag_id)
+        .having(func.count() > 1)
+        .all()
     )
     assert not dupes
 
@@ -138,6 +141,4 @@ def test_attaching_the_same_tag_twice_is_idempotent(db_session, group):
     repos.entries._attach_tags(entry_id, [leather.id, leather.id])
     db_session.commit()
 
-    assert db_session.query(EntryTags).filter(
-        EntryTags.entry_id == entry_id, EntryTags.tag_id == leather.id
-    ).count() == 1
+    assert db_session.query(EntryTags).filter(EntryTags.entry_id == entry_id, EntryTags.tag_id == leather.id).count() == 1

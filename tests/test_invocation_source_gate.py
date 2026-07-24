@@ -71,7 +71,7 @@ def test_intersection_requires_both():
 def test_source_catalog_matches_invocation_sources():
     # Drift guard: the policy-editor catalog must cover exactly the real sources, so a new source
     # can't ship without a UI toggle (and the UI can't show a source the gate never checks).
-    from marvin.services.ai.operations.base import INVOCATION_SOURCES, INVOCATION_SOURCE_CATALOG
+    from marvin.services.ai.operations.base import INVOCATION_SOURCE_CATALOG, INVOCATION_SOURCES
 
     catalog_keys = [s["key"] for s in INVOCATION_SOURCE_CATALOG]
     assert catalog_keys == list(INVOCATION_SOURCES)  # same set AND order
