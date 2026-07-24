@@ -62,9 +62,14 @@ jobs:
           # Run semantic-release to determine next version
           semantic-release version --print > version_info.txt || true
 
-          # Check if a new version was created
-          if [ -f "version_info.txt" ] && [ -s "version_info.txt" ]; then
-            NEW_VERSION=$(cat version_info.txt | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?')
+          # Check if a new version was created. `--print` emits a bare version (e.g. 1.0.0-next.1)
+          # and nothing at all when no release is due — the "v" in tag_format applies to the git
+          # tag, not to this output, so the pattern must not require it. The `|| true` matters
+          # independently: GitHub runs this under `bash -e`, where a non-matching grep inside a
+          # command substitution aborts the whole step before anything below it runs.
+          NEW_VERSION=$(grep -oP '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?' version_info.txt || true)
+
+          if [ -n "$NEW_VERSION" ]; then
             echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
             echo "released=true" >> $GITHUB_OUTPUT
             echo "📦 New version: $NEW_VERSION"
