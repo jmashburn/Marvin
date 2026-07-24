@@ -88,6 +88,14 @@ jobs:
         run: |
           pip install -e ".[dev]"
 
+      # The SQLite file lives in <BASE_DIR>/dev/data, and BASE_DIR resolves to the repo's src/
+      # directory. Nothing under src/dev/data is tracked, so a fresh checkout doesn't have it, and
+      # the code that creates it (AppDirectories) only runs when the app starts — one step below.
+      # Without this, alembic fails with "unable to open database file".
+      - name: Create SQLite data directory
+        working-directory: marvin
+        run: mkdir -p src/dev/data
+
       - name: Run Alembic migrations
         working-directory: marvin/src/marvin
         run: |
