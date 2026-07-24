@@ -159,6 +159,11 @@ tasks:
 
   py:coverage:
     desc: run tests with coverage and open the HTML report
+    env:
+      # Default to SQLite so the .env loaded above can't aim a schema-dropping test run at a real
+      # Postgres database. An explicit `DB_ENGINE=postgres task py:coverage` still wins — the OS
+      # environment takes precedence over a task's env.
+      DB_ENGINE: sqlite
     cmds:
       - uv run pytest
       - uv run coverage report -m
@@ -217,6 +222,11 @@ tasks:
 
   py:test:
     desc: run python tests (args after '--')
+    env:
+      # Default to SQLite so the .env loaded above can't aim a schema-dropping test run at a real
+      # Postgres database. An explicit `DB_ENGINE=postgres task py:test` still wins — the OS
+      # environment takes precedence over a task's env.
+      DB_ENGINE: sqlite
     cmds:
       - uv run pytest {{ .CLI_ARGS }}
 
