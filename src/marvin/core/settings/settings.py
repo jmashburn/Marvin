@@ -126,6 +126,16 @@ class AppSettings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:4322"
     """URL of the frontend app. Used for OIDC callback redirects in dev. In production same-origin deployments, set to BASE_URL."""
 
+    SCHEDULER_ENABLED: bool = True
+    """
+    Whether this process runs the scheduler at all.
+
+    Leadership is elected against the database, so leaving this on across every replica is safe —
+    exactly one of them runs each tick. Turn it off to keep a process out of the election
+    entirely, which is what you want when the scheduler runs as its own single-replica deployment
+    and the API pods should only serve requests.
+    """
+
     FRONTEND_PORT: int | None = None
     """
     Port the frontend server binds to on startup.

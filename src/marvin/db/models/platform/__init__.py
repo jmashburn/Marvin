@@ -16,6 +16,7 @@ from .event_log import EventLogModel
 from .resource_tags import ResourceTags
 from .resources import Resources
 from .scheduled_tasks import ScheduledTaskExecutionLogModel, ScheduledTaskModel
+from .scheduler_lock import SCHEDULER_LOCK_ID, SchedulerLockModel
 from .tags import Tags
 
 # isort: split
@@ -38,8 +39,10 @@ __all__ = [
     "EventLogModel",
     "ResourceTags",
     "Resources",
+    "SCHEDULER_LOCK_ID",
     "ScheduledTaskExecutionLogModel",
     "ScheduledTaskModel",
+    "SchedulerLockModel",
     "Tags",
     # CODE_GEN_ID: PLATFORM_MODEL_ALL
     # END: PLATFORM_MODEL_ALL

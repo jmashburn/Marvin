@@ -114,12 +114,15 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]:  # Renamed a
     except Exception as e:
         logger.exception(f"System collections seeder failed: {e}")
 
-    logger.info("Starting: Scheduler service...")
-    try:
-        await start_scheduler()  # Register and start scheduled tasks
-        logger.info("Completed: Scheduler service started.")
-    except Exception as e:
-        logger.exception(f"Scheduler service failed to start: {e}")
+    if settings.SCHEDULER_ENABLED:
+        logger.info("Starting: Scheduler service...")
+        try:
+            await start_scheduler()  # Register and start scheduled tasks
+            logger.info("Completed: Scheduler service started.")
+        except Exception as e:
+            logger.exception(f"Scheduler service failed to start: {e}")
+    else:
+        logger.info("Scheduler service disabled by SCHEDULER_ENABLED=False.")
 
     logger.info("------ APPLICATION SETTINGS (Non-Sensitive) ------")
     # Log application settings, excluding potentially sensitive fields
@@ -135,10 +138,19 @@ async def lifespan_fn(_app: FastAPI) -> AsyncGenerator[None, None]:  # Renamed a
 
     # --- Shutdown ---
     logger.info("------ SYSTEM SHUTDOWN INITIATED ------")
-    # Add any cleanup tasks here (e.g., closing connections, flushing buffers)
-    # For example:
-    # if hasattr(some_service, 'shutdown'):
-    #     await some_service.shutdown()
+
+    if settings.SCHEDULER_ENABLED:
+        # Drop the scheduler lease so a surviving replica picks the work up on its next tick
+        # instead of waiting out the TTL. Best-effort: a rolling restart must not hang on it.
+        try:
+            from marvin.db.db_setup import session_context
+            from marvin.services.scheduler.leader import release as release_scheduler_lease
+
+            with session_context() as session:
+                release_scheduler_lease(session)
+        except Exception as e:
+            logger.warning(f"Could not release the scheduler lease on shutdown: {e}")
+
     logger.info("------ SYSTEM SHUTDOWN COMPLETE ------")
 
 
