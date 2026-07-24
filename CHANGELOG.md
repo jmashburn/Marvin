@@ -6,6 +6,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.6 (2026-07-24)
+
+### Bug Fixes
+
+- **admin**: Make force-delete of a workspace actually cascade
+  ([`e8998be`](https://github.com/InnerOpen/marvin/commit/e8998be7e3241dd6409a7468933e7bef163873e3))
+
+### Code Style
+
+- **ci**: Use the --json shortcut instead of the long --output json form
+  ([`0207545`](https://github.com/InnerOpen/marvin/commit/0207545459bb33b3b594dc477aab86174fe616da))
+
+### Testing
+
+- **ci**: Assert the active workspace from JSON instead of grepping prose
+  ([`09b3292`](https://github.com/InnerOpen/marvin/commit/09b329269a1fb350ffeb9d141fa1f2c0c76d8e59))
+
+- **ci**: Cover workspace deletion now that force-delete cascades
+  ([`788110a`](https://github.com/InnerOpen/marvin/commit/788110a02e11c26ab52975c48cd42415ca1bebd2))
+
+- **ci**: Exercise workspace selection via `workspace use` / `workspace current`
+  ([`47149e3`](https://github.com/InnerOpen/marvin/commit/47149e3673010505de08716949ff9262728c759e))
+
+
 ## v1.0.0-rc.5 (2026-07-24)
 
 ### Bug Fixes
