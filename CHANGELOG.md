@@ -6,6 +6,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.3 (2026-07-24)
+
+### Bug Fixes
+
+- **migrations**: Make the webhook_type enum change reversible on Postgres
+  ([#20](https://github.com/InnerOpen/marvin/pull/20),
+  [`de14656`](https://github.com/InnerOpen/marvin/commit/de146566f1bfbeae10083e871d3a4bc98d8f0e4c))
+
+
 ## v1.0.0-rc.2 (2026-07-24)
 
 ### Bug Fixes
