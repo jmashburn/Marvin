@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 <!-- version list -->
 
+## v1.0.0-rc.16 (2026-07-24)
+
+### Bug Fixes
+
+- **scheduler**: Elect one leader so replicas stop duplicating scheduled work
+  ([`acf9aa5`](https://github.com/InnerOpen/marvin/commit/acf9aa5809070ce14e8bb1d396c683664e6716c7))
+
+
 ## v1.0.0-rc.15 (2026-07-24)
 
 ### Bug Fixes
